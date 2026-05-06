@@ -26,7 +26,10 @@ export default function ArtikelPage() {
   const [buchNotiz, setBuchNotiz] = useState("");
   const [buchMitarb, setBuchMitarb] = useState("");
 
-  const liste  = api.lager.getAll.useQuery({ limit: 200 });
+  const liste  = api.lager.getAll.useQuery(
+    { limit: 200 },
+    { refetchOnMount: "always", staleTime: 0 },
+  );
   const suche  = api.lager.searchAdmin.useQuery(
     { query: debouncedQ },
     { enabled: debouncedQ.length >= 2 },

@@ -7,14 +7,17 @@ import { useToast } from "@/components/ui/Toast";
 export default function ArtikelNeuPage() {
   const router = useRouter();
   const { show } = useToast();
+  const utils = api.useUtils();
   const [form, setForm] = useState({ bezeichnung: "", kategorie: "", lagerplatz: "" });
 
   const kategorien = api.lager.getKategorien.useQuery();
   const [neueKat, setNeueKat] = useState(false);
 
   const erstellen = api.lager.create.useMutation({
-    onSuccess: (a) => {
+    onSuccess: async (a) => {
       show(`✅ Artikel #${a.id} angelegt`, "success");
+      await utils.lager.getAll.invalidate();
+      await utils.lager.getKategorien.invalidate();
       router.push("/admin/artikel");
     },
     onError: (e) => show(e.message, "error"),
