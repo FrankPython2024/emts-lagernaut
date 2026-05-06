@@ -31,7 +31,7 @@ async function genQrSvg(id: number): Promise<string> {
 function LabelInner({ artikel, qr }: { artikel: LabelArtikel; qr: string }) {
   return (
     <div style={{
-      width: "57mm", height: "32mm",
+      width: "55mm", height: "30mm",
       border: "1px solid #000", borderRadius: "2px",
       padding: "1.5mm", display: "flex", flexDirection: "row", gap: "1.5mm",
       fontFamily: "Arial, Helvetica, sans-serif",
@@ -90,7 +90,7 @@ function injectPrintCss(ids: string[]) {
 
   const visibleRules = ids.map((id) => `
     #${id} { visibility: visible !important; display: block !important; position: fixed !important;
-              left: 0 !important; top: 0 !important; width: 57mm !important; height: 32mm !important;
+              left: 0 !important; top: 0 !important; width: 55mm !important; height: 30mm !important;
               margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; }
     #${id} * { visibility: visible !important; }
   `).join("\n");
@@ -99,8 +99,8 @@ function injectPrintCss(ids: string[]) {
   style.id    = PRINT_CSS_ID;
   style.innerHTML = `
     @media print {
-      @page { size: 57mm 32mm; margin: 0mm; }
-      html, body { width: 57mm !important; height: 32mm !important; margin: 0 !important; padding: 0 !important; }
+      @page { size: 55mm 30mm; margin: 0mm; }
+      html, body { width: 55mm !important; height: 30mm !important; margin: 0 !important; padding: 0 !important; }
       body * { visibility: hidden !important; }
       ${visibleRules}
     }
@@ -159,13 +159,13 @@ export async function printMehrereLabels(liste: LabelArtikel[]): Promise<void> {
   );
 
   const css = `
-    @page { size: 57mm 32mm; margin: 0; }
+    @page { size: 55mm 30mm; margin: 0; }
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background: #fff; }
-    .lw { width: 57mm; height: 32mm; overflow: hidden; page-break-after: always; }
+    .lw { width: 55mm; height: 30mm; overflow: hidden; page-break-after: always; }
     .lw:last-child { page-break-after: avoid; }
     .label {
-      width: 57mm; height: 32mm;
+      width: 55mm; height: 30mm;
       border: 1px solid #000; border-radius: 2px;
       padding: 1.5mm; display: flex; flex-direction: row; gap: 1.5mm;
       font-family: Arial, Helvetica, sans-serif;
@@ -215,7 +215,7 @@ export function ArtikelLabelPreview({ artikel, scale = 1 }: { artikel: LabelArti
   if (scale === 1) return inner;
 
   return (
-    <div style={{ position: "relative", width: `${215 * scale}px`, height: `${121 * scale}px`, overflow: "hidden" }}>
+    <div style={{ position: "relative", width: `${208 * scale}px`, height: `${113 * scale}px`, overflow: "hidden" }}>
       <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", display: "inline-block" }}>
         {inner}
       </div>
