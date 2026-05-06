@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 
 export type LabelArtikel = {
@@ -11,56 +12,8 @@ export type LabelArtikel = {
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Print-CSS — 57×32mm Querformat, nur S/W
-// ──────────────────────────────────────────────────────────────────────────────
-const PRINT_CSS = `
-  @page {
-    size: 57mm 32mm landscape;
-    margin: 0;
-  }
-  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background: #fff; }
-  .label-wrapper { width: 57mm; height: 32mm; overflow: hidden; }
-  .label {
-    width: 57mm; height: 32mm;
-    border: 0.5pt solid #000;
-    border-radius: 0.8mm;
-    padding: 2mm;
-    display: flex;
-    gap: 1.5mm;
-    background: #fff;
-    color: #000;
-    page-break-after: always;
-  }
-  .label:last-child { page-break-after: avoid; }
-  .left {
-    flex: 1; min-width: 0;
-    display: flex; flex-direction: column; justify-content: space-between;
-    overflow: hidden;
-  }
-  .bezeichnung {
-    font-size: 10pt; font-weight: bold; line-height: 1.15;
-    overflow: hidden; display: -webkit-box;
-    -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-    word-break: break-word;
-  }
-  .bezeichnung.lang { font-size: 8.5pt; }
-  .hersteller { font-size: 7pt; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .lagerplatz { font-size: 9pt; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .kategorie  { font-size: 7pt; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .right {
-    width: 20mm; flex-shrink: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: space-between;
-  }
-  .emts { font-size: 6pt; font-weight: bold; letter-spacing: 1pt; align-self: flex-end; color: #000; }
-  .qr-wrap { width: 18mm; height: 18mm; display: flex; align-items: center; justify-content: center; }
-  .qr-wrap img { width: 18mm; height: 18mm; display: block; image-rendering: pixelated; }
-`;
-
-// ──────────────────────────────────────────────────────────────────────────────
-// QR-Code als SVG-Data-URL — schärfer als PNG beim Thermodruck
-// Inhalt: nur die Artikel-ID als Zahl
+// QR-Code als SVG Data-URL — scharf bei Thermodruck
+// Inhalt: nur Artikel-ID als String ("14", "42" etc.)
 // ──────────────────────────────────────────────────────────────────────────────
 async function genQrSvg(id: number): Promise<string> {
   const svg = await QRCode.toString(String(id), {
@@ -69,152 +22,209 @@ async function genQrSvg(id: number): Promise<string> {
     errorCorrectionLevel: "M",
     color:                { dark: "#000000", light: "#ffffff" },
   });
-  // SVG → Data-URL (base64)
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Label HTML-Markup für Druck-Fenster
+// Label-Styles (inline, in mm — Thermodruck-optimiert)
 // ──────────────────────────────────────────────────────────────────────────────
-function esc(s: string) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
+function LabelInner({ artikel, qr }: { artikel: LabelArtikel; qr: string }) {
+  return (
+    <div style={{
+      width: "57mm", height: "32mm",
+      border: "0.5px solid #000", borderRadius: "2px",
+      padding: "2mm", display: "flex", flexDirection: "row", gap: "2mm",
+      fontFamily: "Arial, Helvetica, sans-serif",
+      backgroundColor: "#fff", color: "#000",
+      boxSizing: "border-box", overflow: "hidden",
+    }}>
 
-function buildLabelHTML(a: LabelArtikel, qr: string): string {
-  const lang = a.bezeichnung.length > 28;
-  return `
-  <div class="label-wrapper">
-    <div class="label">
-      <div class="left">
-        <div class="bezeichnung${lang ? " lang" : ""}">${esc(a.bezeichnung)}</div>
-        ${a.hersteller ? `<div class="hersteller">${esc(a.hersteller)}</div>` : ""}
-        <div class="lagerplatz">▶ ${esc(a.lagerplatz ?? "–")}</div>
-        <div class="kategorie">${esc(a.kategorie)}</div>
+      {/* LINKE SEITE — Texte */}
+      <div style={{
+        flex: 1, display: "flex", flexDirection: "column",
+        justifyContent: "space-between", overflow: "hidden",
+      }}>
+        {/* Bezeichnung */}
+        <div style={{
+          fontSize: artikel.bezeichnung.length > 25 ? "7.5pt" : "9pt",
+          fontWeight: "bold", lineHeight: 1.2,
+          wordBreak: "break-word", overflow: "hidden",
+          display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const,
+        }}>
+          {artikel.bezeichnung}
+        </div>
+
+        {/* Lagerplatz */}
+        <div style={{ fontSize: "8pt", fontWeight: "normal", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {artikel.lagerplatz ?? "—"}
+        </div>
+
+        {/* Kategorie + EMTS unten */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+          <div style={{ fontSize: "6pt", color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {artikel.kategorie}
+          </div>
+          <div style={{ fontSize: "6pt", fontWeight: "bold", letterSpacing: "1px", color: "#000", flexShrink: 0, marginLeft: "2px" }}>
+            EMTS
+          </div>
+        </div>
       </div>
-      <div class="right">
-        <div class="emts">EMTS</div>
-        <div class="qr-wrap"><img src="${qr}" alt="" /></div>
+
+      {/* RECHTE SEITE — QR-Code */}
+      <div style={{ width: "26mm", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        {qr
+          ? <img src={qr} alt="QR" style={{ width: "26mm", height: "26mm", imageRendering: "pixelated" }} />
+          : <div style={{ width: "26mm", height: "26mm", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "7px", color: "#999" }}>QR…</div>
+        }
       </div>
     </div>
-  </div>`;
+  );
 }
 
-function openPrintWindow(entries: { a: LabelArtikel; qr: string }[]): void {
-  const body = entries.map(({ a, qr }) => buildLabelHTML(a, qr)).join("\n");
-  const w    = window.open("", "_blank", "width=400,height=250");
-  if (!w) return;
-  w.document.write(
-    `<!DOCTYPE html><html><head><meta charset="UTF-8">` +
-    `<style>${PRINT_CSS}</style></head><body>${body}</body></html>`,
+// ──────────────────────────────────────────────────────────────────────────────
+// Print-CSS — injiziert in <head>, visibility-Methode (funktioniert mit Portal)
+// ──────────────────────────────────────────────────────────────────────────────
+const PRINT_CSS_ID = "__lagernaut_label_print";
+
+function injectPrintCss(ids: string[]) {
+  const existing = document.getElementById(PRINT_CSS_ID);
+  if (existing) existing.remove();
+
+  const visibleRules = ids.map((id) => `
+    #${id} { visibility: visible !important; display: block !important; position: fixed !important;
+              left: 0 !important; top: 0 !important; width: 57mm !important; height: 32mm !important;
+              margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; }
+    #${id} * { visibility: visible !important; }
+  `).join("\n");
+
+  const style = document.createElement("style");
+  style.id    = PRINT_CSS_ID;
+  style.innerHTML = `
+    @media print {
+      @page { size: 57mm 32mm; margin: 0mm; }
+      html, body { width: 57mm !important; height: 32mm !important; margin: 0 !important; padding: 0 !important; }
+      body * { visibility: hidden !important; }
+      ${visibleRules}
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function removePrintCss() {
+  document.getElementById(PRINT_CSS_ID)?.remove();
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Haupt-Komponente: rendert Label via Portal + verwaltet Druck
+// ──────────────────────────────────────────────────────────────────────────────
+type LabelManagerProps = {
+  artikel:  LabelArtikel;
+  onReady?: (printFn: () => void) => void;
+};
+
+export function ArtikelLabelManager({ artikel, onReady }: LabelManagerProps) {
+  const [qr,      setQr]      = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => { genQrSvg(artikel.id).then(setQr); }, [artikel.id]);
+
+  const printLabel = useCallback(() => {
+    injectPrintCss([`label_${artikel.id}`]);
+    setTimeout(() => {
+      window.print();
+      setTimeout(removePrintCss, 1000);
+    }, 150);
+  }, [artikel.id]);
+
+  useEffect(() => { if (qr && onReady) onReady(printLabel); }, [qr, onReady, printLabel]);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div
+      id={`label_${artikel.id}`}
+      style={{ position: "fixed", left: "-9999px", top: 0, visibility: "hidden" }}
+    >
+      <LabelInner artikel={artikel} qr={qr} />
+    </div>,
+    document.body,
   );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Mehrere Labels: eigenes Druckfenster (einfacher bei Bulk-Print)
+// ──────────────────────────────────────────────────────────────────────────────
+export async function printMehrereLabels(liste: LabelArtikel[]): Promise<void> {
+  const entries = await Promise.all(
+    liste.map(async (a) => ({ a, qr: await genQrSvg(a.id) })),
+  );
+
+  const css = `
+    @page { size: 57mm 32mm; margin: 0; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background: #fff; }
+    .lw { width: 57mm; height: 32mm; overflow: hidden; page-break-after: always; }
+    .lw:last-child { page-break-after: avoid; }
+    .label {
+      width: 57mm; height: 32mm;
+      border: 0.5px solid #000; border-radius: 2px;
+      padding: 2mm; display: flex; flex-direction: row; gap: 2mm;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #fff; color: #000; box-sizing: border-box; overflow: hidden;
+    }
+    .left { flex: 1; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
+    .bez { font-size: 9pt; font-weight: bold; line-height: 1.2; word-break: break-word; overflow: hidden;
+           display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .bez.sm { font-size: 7.5pt; }
+    .lp { font-size: 8pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bot { display: flex; justify-content: space-between; align-items: flex-end; }
+    .kat { font-size: 6pt; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .emts { font-size: 6pt; font-weight: bold; letter-spacing: 1px; flex-shrink: 0; margin-left: 2px; }
+    .qr { width: 26mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .qr img { width: 26mm; height: 26mm; }
+  `;
+
+  const body = entries.map(({ a, qr }) => {
+    const sm = a.bezeichnung.length > 25 ? " sm" : "";
+    return `
+      <div class="lw"><div class="label">
+        <div class="left">
+          <div class="bez${sm}">${a.bezeichnung.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</div>
+          <div class="lp">${(a.lagerplatz ?? "—").replace(/&/g,"&amp;")}</div>
+          <div class="bot">
+            <div class="kat">${a.kategorie.replace(/&/g,"&amp;")}</div>
+            <div class="emts">EMTS</div>
+          </div>
+        </div>
+        <div class="qr"><img src="${qr}" alt="" /></div>
+      </div></div>`;
+  }).join("\n");
+
+  const w = window.open("", "_blank", "width=400,height=250");
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${body}</body></html>`);
   w.document.close();
   w.focus();
   setTimeout(() => w.print(), 400);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Public API
+// Vorschau-Komponente (Bildschirm, 2× skaliert)
 // ──────────────────────────────────────────────────────────────────────────────
+export function ArtikelLabelPreview({ artikel, scale = 1 }: { artikel: LabelArtikel; scale?: number }) {
+  const [qr, setQr] = useState("");
+  useEffect(() => { genQrSvg(artikel.id).then(setQr); }, [artikel.id]);
 
-export async function printArtikelLabel(a: LabelArtikel): Promise<void> {
-  const qr = await genQrSvg(a.id);
-  openPrintWindow([{ a, qr }]);
-}
+  const inner = <LabelInner artikel={artikel} qr={qr} />;
 
-export async function printMehrereLabels(liste: LabelArtikel[]): Promise<void> {
-  const entries = await Promise.all(
-    liste.map(async (a) => ({ a, qr: await genQrSvg(a.id) })),
-  );
-  openPrintWindow(entries);
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Vorschau-Komponente
-// Zeigt das Label in nativer Größe (215×121px @96dpi ≈ 57×32mm)
-// ──────────────────────────────────────────────────────────────────────────────
-type PreviewProps = {
-  artikel: LabelArtikel;
-  scale?:  number;   // 1 = native (215×121px), 2 = doppelt (430×242px)
-};
-
-export function ArtikelLabelPreview({ artikel, scale = 1 }: PreviewProps) {
-  const [qrUrl, setQrUrl] = useState("");
-
-  useEffect(() => {
-    genQrSvg(artikel.id).then(setQrUrl);
-  }, [artikel.id]);
-
-  const lang  = artikel.bezeichnung.length > 28;
-
-  const base = {
-    width:       "215px",
-    height:      "121px",
-    border:      "1px solid #000",
-    borderRadius: "3px",
-    padding:     "7.5px",
-    display:     "flex",
-    gap:         "5px",
-    fontFamily:  "Arial, Helvetica, sans-serif",
-    background:  "#fff",
-    color:       "#000",
-    overflow:    "hidden",
-    flexShrink:  0,
-  } as const;
-
-  const wrapper = scale !== 1 ? {
-    transform:       `scale(${scale})`,
-    transformOrigin: "top left",
-    display:         "inline-block",
-  } : {};
-
-  const label = (
-    <div style={base}>
-      {/* Linke Seite */}
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
-        <div style={{
-          fontSize: lang ? "9px" : "10.5px", fontWeight: "bold", lineHeight: 1.15,
-          overflow: "hidden", display: "-webkit-box",
-          WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const,
-          wordBreak: "break-word",
-        }}>
-          {artikel.bezeichnung}
-        </div>
-
-        {artikel.hersteller && (
-          <div style={{ fontSize: "7px", color: "#555", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {artikel.hersteller}
-          </div>
-        )}
-
-        <div style={{ fontSize: "9px", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          ▶ {artikel.lagerplatz ?? "–"}
-        </div>
-
-        <div style={{ fontSize: "7px", color: "#555", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {artikel.kategorie}
-        </div>
-      </div>
-
-      {/* Rechte Seite */}
-      <div style={{ width: "75px", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ fontSize: "6px", fontWeight: "bold", letterSpacing: "1px", alignSelf: "flex-end", color: "#000" }}>
-          EMTS
-        </div>
-        <div style={{ width: "68px", height: "68px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {qrUrl
-            ? <img src={qrUrl} alt="QR" style={{ width: "68px", height: "68px", imageRendering: "pixelated" }} />
-            : <div style={{ width: "68px", height: "68px", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "7px", color: "#999" }}>QR…</div>
-          }
-        </div>
-      </div>
-    </div>
-  );
-
-  if (scale === 1) return label;
+  if (scale === 1) return inner;
 
   return (
-    <div style={{ position: "relative", width: `${215 * scale}px`, height: `${121 * scale}px` }}>
-      <div style={wrapper}>{label}</div>
+    <div style={{ position: "relative", width: `${215 * scale}px`, height: `${121 * scale}px`, overflow: "hidden" }}>
+      <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", display: "inline-block" }}>
+        {inner}
+      </div>
     </div>
   );
 }

@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Modal } from "@/components/ui/Modal";
-import { ArtikelLabelPreview, printArtikelLabel } from "@/components/ui/ArtikelLabel";
+import { ArtikelLabelPreview, ArtikelLabelManager } from "@/components/ui/ArtikelLabel";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 
 export default function ArtikelDetailPage() {
@@ -28,6 +28,7 @@ export default function ArtikelDetailPage() {
   const [neuerLp,  setNeuerLp]        = useState("");
   const [neuCode,  setNeuCode]        = useState("");
   const [labelOpen, setLabelOpen]     = useState(false);
+  const printFnRef                    = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (artikel) setForm({ bezeichnung: artikel.bezeichnung, kategorie: artikel.kategorie, lagerplatz: artikel.lagerplatz ?? "" });
@@ -190,37 +191,31 @@ export default function ArtikelDetailPage() {
         </div>
       </Modal>
 
+      {/* Label via Portal im DOM — wird für Druck gebraucht */}
+      {labelOpen && (
+        <ArtikelLabelManager
+          artikel={{ id: artikel.id, bezeichnung: artikel.bezeichnung, lagerplatz: artikel.lagerplatz, kategorie: artikel.kategorie }}
+          onReady={(fn) => { printFnRef.current = fn; }}
+        />
+      )}
+
       {/* Label-Druck Modal */}
-      <Modal open={labelOpen} onClose={() => setLabelOpen(false)} title="Label drucken — 57×32mm Querformat" width="max-w-xl">
+      <Modal open={labelOpen} onClose={() => setLabelOpen(false)} title="Label drucken — 57×32mm" width="max-w-xl">
         <div className="space-y-5">
-          {/* Vorschauen: 1× und 2× */}
           <div>
-            <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-3">Vorschau:</p>
-            <div className="flex gap-6 items-start flex-wrap p-4 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl">
-              {/* Originalgröße */}
-              <div className="text-center">
-                <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-2">1:1 (57×32mm)</div>
-                <ArtikelLabelPreview
-                  artikel={{ id: artikel.id, bezeichnung: artikel.bezeichnung, lagerplatz: artikel.lagerplatz, kategorie: artikel.kategorie }}
-                  scale={1}
-                />
-              </div>
-              {/* 200% Vorschau */}
-              <div className="text-center">
-                <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-2">200%</div>
-                <ArtikelLabelPreview
-                  artikel={{ id: artikel.id, bezeichnung: artikel.bezeichnung, lagerplatz: artikel.lagerplatz, kategorie: artikel.kategorie }}
-                  scale={2}
-                />
-              </div>
+            <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-3">Vorschau (200%):</p>
+            <div className="flex justify-center p-4 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl overflow-auto">
+              <ArtikelLabelPreview
+                artikel={{ id: artikel.id, bezeichnung: artikel.bezeichnung, lagerplatz: artikel.lagerplatz, kategorie: artikel.kategorie }}
+                scale={2}
+              />
             </div>
           </div>
 
-          {/* Infos */}
           <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] bg-[#f0f2f5] dark:bg-[#18191a] rounded-lg p-3 space-y-1">
-            <p>• Format: <strong>57mm × 32mm</strong> · Thermodrucker (S/W)</p>
-            <p>• QR-Code enthält: <strong>Artikel-ID #{artikel.id}</strong></p>
-            <p>• Fehlerkorrektur: M · SVG für scharfen Druck</p>
+            <p>• Format: <strong>57mm × 32mm</strong> · Thermodrucker (Schwarz/Weiß)</p>
+            <p>• QR-Code Inhalt: <strong>#{artikel.id}</strong> (Artikel-ID)</p>
+            <p>• Druckt direkt auf die Seite — kein Popup-Blocker nötig</p>
           </div>
 
           <div className="flex gap-3">
@@ -229,7 +224,7 @@ export default function ArtikelDetailPage() {
               Schließen
             </button>
             <button
-              onClick={() => printArtikelLabel({ id: artikel.id, bezeichnung: artikel.bezeichnung, lagerplatz: artikel.lagerplatz, kategorie: artikel.kategorie })}
+              onClick={() => printFnRef.current?.()}
               className="flex-1 py-2.5 rounded-xl bg-[#8e44ad] text-white font-bold hover:bg-purple-700"
             >
               🖨️ Drucken
