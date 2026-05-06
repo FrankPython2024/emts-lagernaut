@@ -8,6 +8,7 @@ import { warenkorbRouter }       from "./warenkorb";
 import { benutzerRouter }        from "./benutzer";
 import { statistikRouter }       from "./statistik";
 import { lagerplaetzeRouter }    from "./lagerplaetze";
+import { geraeteLookupRouter }   from "./geraeteLookup";
 
 export const appRouter = createTRPCRouter({
   lager:           lagerRouter,
@@ -19,6 +20,7 @@ export const appRouter = createTRPCRouter({
   benutzer:        benutzerRouter,
   statistik:       statistikRouter,
   lagerplaetze:    lagerplaetzeRouter,
+  geraeteLookup:   geraeteLookupRouter,
 });
 
 export type AppRouter = typeof appRouter;

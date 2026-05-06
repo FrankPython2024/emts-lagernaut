@@ -14,7 +14,8 @@ const NAV = [
   { href: "/admin/anfragen",  label: "Anfragen",    icon: "🔔" },
   { href: "/admin/statistiken", label: "Statistiken", icon: "📈" },
   { href: "/admin/benutzer",  label: "Benutzer",    icon: "👥" },
-  { href: "/admin/system",    label: "System",      icon: "⚙️" },
+  { href: "/admin/geraete-import", label: "Geräte Import", icon: "📥" },
+  { href: "/admin/system",         label: "System",        icon: "⚙️" },
 ];
 
 function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => void }) {
