@@ -1,9 +1,9 @@
 import { createTRPCRouter } from "@/server/trpc";
-import { buchungenRouter } from "@/modules/buchungen/buchungen.router";
+import { buchungenRouter }  from "@/modules/buchungen/buchungen.router";
+import { lagerRouter }      from "@/modules/lager/lager.router";
+import { anfragenRouter }   from "@/modules/anfragen/anfragen.router";
 
-// Module-Router werden hier später eingehängt:
-// import { lagerRouter } from "@/modules/lager/lager.router";
-// import { anfragenRouter } from "@/modules/anfragen/anfragen.router";
+// Noch nicht implementiert:
 // import { geraeteRouter } from "@/modules/geraete/geraete.router";
 // import { kompatibilitaetRouter } from "@/modules/kompatibilitaet/kompatibilitaet.router";
 // import { belegeRouter } from "@/modules/belege/belege.router";
@@ -13,8 +13,8 @@ import { buchungenRouter } from "@/modules/buchungen/buchungen.router";
 
 export const appRouter = createTRPCRouter({
   buchungen: buchungenRouter,
-  // lager: lagerRouter,
-  // anfragen: anfragenRouter,
+  lager:     lagerRouter,
+  anfragen:  anfragenRouter,
   // geraete: geraeteRouter,
   // kompatibilitaet: kompatibilitaetRouter,
   // belege: belegeRouter,

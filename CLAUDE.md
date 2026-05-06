@@ -121,6 +121,8 @@ storniereAnfrageTechniker(name, repId, teilName)
 ### ✅ Fertig
 - Grundgerüst (CLAUDE.md, Ordnerstruktur, Prisma Schema, Docker Compose, Next.js Setup)
 - Buchungs-Modul (Service, Router, Schema)
+- Lager-Modul (Artikel CRUD, Suche mit/ohne Lagerplatz)
+- Anfragen-Modul (Erstellen, Liste, Stornierung, Admin-Status)
 
 ### 🔄 In Arbeit
 _(nichts aktiv)_
@@ -136,4 +138,4 @@ _(nichts aktiv)_
 - Nerd Dashboard
 
 ## Nächster Task
-Lager-Modul (Artikel CRUD, Suche) + Anfragen-Modul
+Techniker-Portal (1:1 nach techniker.html)
