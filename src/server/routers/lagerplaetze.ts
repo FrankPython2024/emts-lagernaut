@@ -4,6 +4,7 @@ import {
   getAlleLagerplaetze,
   getBereiche,
   getLagerplatzDetails,
+  createLagerplatz,
   verschiebeArtikel,
   verschiebeAlle,
 } from "@/modules/lagerplaetze/service";
@@ -18,6 +19,15 @@ export const lagerplaetzeRouter = createTRPCRouter({
   // Alle Bereiche für Filter-Dropdown
   getBereiche: protectedProcedure
     .query(() => getBereiche()),
+
+  // Neuen Lagerplatz manuell anlegen — Admin
+  create: adminProcedure
+    .input(z.object({
+      code:         z.string().min(1).max(50),
+      beschreibung: z.string().max(255).optional(),
+      bereich:      z.string().max(100).optional(),
+    }))
+    .mutation(({ input }) => createLagerplatz(input)),
 
   // Lagerplatz-Details: alle Artikel mit diesem Code
   getByCode: protectedProcedure

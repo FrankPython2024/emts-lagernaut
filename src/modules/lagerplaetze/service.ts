@@ -2,23 +2,44 @@ import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 
 /**
- * Alle einzigartigen Lagerplätze mit Artikel-Anzahl.
- * Arbeitet direkt auf dem Artikel.lagerplatz String-Feld — kein eigenes Model.
+ * Alle Lagerplätze mit Artikel-Anzahl.
+ * Zusammenführung aus:
+ *   1. Distinct Artikel.lagerplatz Strings (reale Belegung)
+ *   2. LagerplatzConfig Einträge (manuell angelegte, auch leere)
  */
 export async function getAlleLagerplaetze(filter?: { bereich?: string }) {
-  const gruppen = await prisma.artikel.groupBy({
-    by:      ["lagerplatz"],
-    where:   { lagerplatz: { not: null } },
-    _count:  { lagerplatz: true },
-    orderBy: { lagerplatz: "asc" },
-  });
+  const [gruppen, configs] = await Promise.all([
+    prisma.artikel.groupBy({
+      by:      ["lagerplatz"],
+      where:   { lagerplatz: { not: null } },
+      _count:  { lagerplatz: true },
+      orderBy: { lagerplatz: "asc" },
+    }),
+    prisma.lagerplatzConfig.findMany({ orderBy: { code: "asc" } }),
+  ]);
 
-  const result = gruppen
-    .filter((g) => g.lagerplatz !== null)
-    .map((g) => ({
-      lagerplatz:   g.lagerplatz!,
-      artikelAnzahl: g._count.lagerplatz,
-      bereich:      erkenneBereiche(g.lagerplatz!),
+  // Map: code → artikelAnzahl
+  const anzahlMap = new Map<string, number>(
+    gruppen.filter((g) => g.lagerplatz !== null).map((g) => [g.lagerplatz!, g._count.lagerplatz]),
+  );
+
+  // Alle bekannten Codes (aus DB + Config)
+  const alleCodes = new Set<string>([
+    ...anzahlMap.keys(),
+    ...configs.map((c) => c.code),
+  ]);
+
+  const configMap = new Map(configs.map((c) => [c.code, c]));
+
+  const result = Array.from(alleCodes)
+    .sort()
+    .map((code) => ({
+      code,
+      lagerplatz:    code,                               // Alias für Backward-Compat
+      artikelAnzahl: anzahlMap.get(code) ?? 0,
+      bereich:       configMap.get(code)?.bereich ?? erkenneBereiche(code),
+      beschreibung:  configMap.get(code)?.beschreibung ?? null,
+      ausConfig:     configMap.has(code),                // true = manuell angelegt
     }));
 
   if (filter?.bereich) {
@@ -26,6 +47,43 @@ export async function getAlleLagerplaetze(filter?: { bereich?: string }) {
   }
 
   return result;
+}
+
+/**
+ * Neuen Lagerplatz manuell anlegen.
+ * Speichert in LagerplatzConfig — unabhängig ob Artikel existieren.
+ */
+export async function createLagerplatz(input: {
+  code:         string;
+  beschreibung?: string;
+  bereich?:     string;
+}) {
+  const code = input.code.toUpperCase().trim();
+
+  if (!code) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Code darf nicht leer sein." });
+  }
+
+  // Duplikat-Check gegen Config UND Artikel
+  const [inConfig, inArtikeln] = await Promise.all([
+    prisma.lagerplatzConfig.findUnique({ where: { code } }),
+    prisma.artikel.findFirst({ where: { lagerplatz: code }, select: { id: true } }),
+  ]);
+
+  if (inConfig || inArtikeln) {
+    throw new TRPCError({
+      code:    "CONFLICT",
+      message: `Lagerplatz '${code}' existiert bereits.`,
+    });
+  }
+
+  return prisma.lagerplatzConfig.create({
+    data: {
+      code,
+      beschreibung: input.beschreibung?.trim() || null,
+      bereich:      input.bereich?.trim() || erkenneBereiche(code),
+    },
+  });
 }
 
 /**

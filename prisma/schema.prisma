@@ -155,3 +155,11 @@ model TechnikerSession {
   lastSeen DateTime @default(now())
   online   Boolean  @default(false)
 }
+
+model LagerplatzConfig {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique
+  beschreibung String?
+  bereich      String?
+  createdAt    DateTime @default(now())
+}

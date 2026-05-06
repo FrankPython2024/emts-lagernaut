@@ -17,6 +17,9 @@ export default function LagerplaetzePage() {
   const [bereich, setBereich] = useState("");
   const [debouncedSuche]      = useDebounce(suche, 300);
 
+  // Neuer Lagerplatz
+  const [neuerCode, setNeuerCode] = useState("");
+
   // Verschieben-Modal State
   const [verschiebeVon,  setVerschiebeVon]  = useState<string | null>(null);
   const [verschiebeNach, setVerschiebeNach] = useState("");
@@ -28,6 +31,15 @@ export default function LagerplaetzePage() {
     { refetchOnMount: "always", staleTime: 0 },
   );
   const bereiche = api.lagerplaetze.getBereiche.useQuery();
+
+  const anlegen = api.lagerplaetze.create.useMutation({
+    onSuccess: (lp) => {
+      show(`✅ Lagerplatz ${lp.code} angelegt`, "success");
+      setNeuerCode("");
+      refetch();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
 
   const verschiebeAlle = api.lagerplaetze.verschiebeAlle.useMutation({
     onSuccess: (r) => {
@@ -63,6 +75,33 @@ export default function LagerplaetzePage() {
         </div>
       </div>
 
+      {/* Neuer Lagerplatz */}
+      <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-4 shadow-sm">
+        <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-3">Neuer Lagerplatz</p>
+        <div className="flex gap-2 flex-wrap items-end">
+          <div className="flex-1 min-w-[180px]">
+            <input
+              type="text"
+              placeholder="z.B. HP-1-1-3"
+              value={neuerCode}
+              onChange={(e) => setNeuerCode(e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g, ""))}
+              onKeyDown={(e) => { if (e.key === "Enter" && neuerCode) anlegen.mutate({ code: neuerCode }); }}
+              className={`${INPUT_CLS} w-full font-mono tracking-wider`}
+            />
+            <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+              Format: BEREICH-REGAL-FACH-EBENE (HP, L=Lenovo, D=Dell, A=Acer)
+            </p>
+          </div>
+          <button
+            disabled={!neuerCode || anlegen.isPending}
+            onClick={() => anlegen.mutate({ code: neuerCode })}
+            className="px-5 py-2 bg-[#0064d2] text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm h-[38px]"
+          >
+            {anlegen.isPending ? "..." : "+ Anlegen"}
+          </button>
+        </div>
+      </div>
+
       {/* Filter */}
       <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-4 shadow-sm flex gap-3 flex-wrap items-center">
         <div className="relative flex-1 min-w-[180px]">
@@ -95,18 +134,29 @@ export default function LagerplaetzePage() {
           <tbody>
             {filtered.map((l) => (
               <tr key={l.lagerplatz} className="border-b border-[#ced4da] dark:border-[#3e4042] hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] text-sm">
-                <td className="px-4 py-3 font-mono font-bold text-[#0064d2] dark:text-[#45bdff]">{l.lagerplatz}</td>
+                <td className="px-4 py-3">
+                  <span className="font-mono font-bold text-[#0064d2] dark:text-[#45bdff]">{l.lagerplatz}</span>
+                  {l.artikelAnzahl === 0 && (
+                    <span className="ml-2 text-xs text-[#65676b] dark:text-[#b0b3b8]">leer</span>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <span className="px-2 py-0.5 bg-[#f0f2f5] dark:bg-[#3e4042] rounded text-xs">{l.bereich}</span>
                 </td>
-                <td className="px-4 py-3 text-center font-black text-[#00a400] text-lg">{l.artikelAnzahl}</td>
+                <td className="px-4 py-3 text-center">
+                  <span className={`font-black text-lg ${l.artikelAnzahl > 0 ? "text-[#00a400]" : "text-[#65676b] dark:text-[#b0b3b8]"}`}>
+                    {l.artikelAnzahl}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => { setVerschiebeVon(l.lagerplatz); setVerschiebeNach(""); }}
-                    className="px-3 py-1 text-xs font-bold rounded-lg bg-[#f7b928]/10 text-[#f7b928] border border-[#f7b928]/30 hover:bg-[#f7b928]/20"
-                  >
-                    📦 Alle verschieben
-                  </button>
+                  {l.artikelAnzahl > 0 && (
+                    <button
+                      onClick={() => { setVerschiebeVon(l.lagerplatz); setVerschiebeNach(""); }}
+                      className="px-3 py-1 text-xs font-bold rounded-lg bg-[#f7b928]/10 text-[#f7b928] border border-[#f7b928]/30 hover:bg-[#f7b928]/20"
+                    >
+                      📦 Alle verschieben
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
