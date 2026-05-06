@@ -6,6 +6,7 @@ import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Modal } from "@/components/ui/Modal";
+import { ArtikelLabelPreview, printArtikelLabel } from "@/components/ui/ArtikelLabel";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 
 export default function ArtikelDetailPage() {
@@ -26,6 +27,7 @@ export default function ArtikelDetailPage() {
   const [lpModalOpen, setLpModalOpen] = useState(false);
   const [neuerLp,  setNeuerLp]        = useState("");
   const [neuCode,  setNeuCode]        = useState("");
+  const [labelOpen, setLabelOpen]     = useState(false);
 
   useEffect(() => {
     if (artikel) setForm({ bezeichnung: artikel.bezeichnung, kategorie: artikel.kategorie, lagerplatz: artikel.lagerplatz ?? "" });
@@ -97,6 +99,10 @@ export default function ArtikelDetailPage() {
           <button onClick={() => { setNeuerLp(""); setNeuCode(""); setLpModalOpen(true); }}
             className="px-4 py-2.5 bg-[#f7b928]/10 text-[#f7b928] font-bold rounded-xl hover:bg-[#f7b928]/20 border border-[#f7b928]/30">
             🗄️ Lagerplatz ändern
+          </button>
+          <button onClick={() => setLabelOpen(true)}
+            className="px-4 py-2.5 bg-[#8e44ad]/10 text-[#8e44ad] font-bold rounded-xl hover:bg-[#8e44ad]/20 border border-[#8e44ad]/30">
+            🖨️ Label
           </button>
           {artikel.bestand === 0 && (
             <button onClick={() => setDelOpen(true)} className="px-4 py-2.5 bg-[#fa3e3e]/10 text-[#fa3e3e] font-bold rounded-xl hover:bg-[#fa3e3e]/20">
@@ -179,6 +185,35 @@ export default function ArtikelDetailPage() {
               className="flex-1 py-2.5 rounded-xl bg-[#f7b928] text-black font-bold hover:bg-yellow-500 disabled:opacity-50"
             >
               {verschiebe.isPending ? "..." : "Verschieben"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Label-Druck Modal */}
+      <Modal open={labelOpen} onClose={() => setLabelOpen(false)} title="Label drucken — 57×32mm">
+        <div className="space-y-5">
+          <div>
+            <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-3">Vorschau:</p>
+            <div className="flex justify-center p-4 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl">
+              <ArtikelLabelPreview artikel={{ id: artikel.id, bezeichnung: artikel.bezeichnung, lagerplatz: artikel.lagerplatz, kategorie: artikel.kategorie }} />
+            </div>
+          </div>
+          <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] bg-[#f0f2f5] dark:bg-[#18191a] rounded-lg p-3 space-y-1">
+            <p>• Drucker: Thermodrucker (Schwarz/Weiß)</p>
+            <p>• Etiketten-Größe: <strong>57mm × 32mm</strong></p>
+            <p>• QR-Code enthält: Artikel-ID + Bezeichnung</p>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={() => setLabelOpen(false)}
+              className="flex-1 py-2.5 rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-semibold">
+              Abbrechen
+            </button>
+            <button
+              onClick={() => { printArtikelLabel({ id: artikel.id, bezeichnung: artikel.bezeichnung, lagerplatz: artikel.lagerplatz, kategorie: artikel.kategorie }); }}
+              className="flex-1 py-2.5 rounded-xl bg-[#8e44ad] text-white font-bold hover:bg-purple-700"
+            >
+              🖨️ Drucken
             </button>
           </div>
         </div>

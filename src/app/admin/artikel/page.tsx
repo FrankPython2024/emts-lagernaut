@@ -8,6 +8,7 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
+import { printMehrereLabels } from "@/components/ui/ArtikelLabel";
 
 type Artikel = {
   id: number; bezeichnung: string; kategorie: string;
@@ -33,6 +34,7 @@ export default function ArtikelPage() {
   const [sortBy,     setSortBy]     = useState<SortBy>("bezeichnung");
   const [sortOrder,  setSortOrder]  = useState<SortOrder>("asc");
   const [page,       setPage]       = useState(1);
+  const [selected,   setSelected]   = useState<Set<number>>(new Set());
 
   const [debouncedSearch] = useDebounce(search, 300);
 
@@ -99,7 +101,24 @@ export default function ArtikelPage() {
   const startItem = (page - 1) * LIMIT + 1;
   const endItem   = Math.min(page * LIMIT, total);
 
+  function toggleSelect(id: number) {
+    setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+
+  function toggleAll() {
+    if (selected.size === artikel.length) { setSelected(new Set()); }
+    else { setSelected(new Set(artikel.map((a) => a.id))); }
+  }
+
   const columns: Column<Artikel>[] = [
+    {
+      key: "sel", header: "",
+      width: "w-8",
+      render: (a) => (
+        <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggleSelect(a.id)}
+          className="w-4 h-4 accent-[#0064d2] cursor-pointer" />
+      ),
+    },
     {
       key: "id", header: "ID",
       render: (a) => <span className="font-mono text-xs text-[#65676b] dark:text-[#b0b3b8]">#{a.id}</span>,
@@ -172,6 +191,25 @@ export default function ArtikelPage() {
             <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
               {total > 0 ? `Zeige ${startItem}–${endItem} von ${total} Artikeln` : "Keine Artikel"}
             </p>
+          )}
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {selected.size > 0 && (
+            <button
+              onClick={() => {
+                const sel = artikel.filter((a) => selected.has(a.id));
+                printMehrereLabels(sel.map((a) => ({ id: a.id, bezeichnung: a.bezeichnung, lagerplatz: a.lagerplatz, kategorie: a.kategorie })));
+              }}
+              className="px-4 py-2 bg-[#8e44ad] text-white font-bold rounded-xl hover:bg-purple-700 shadow-sm text-sm"
+            >
+              🖨️ Labels drucken ({selected.size})
+            </button>
+          )}
+          {artikel.length > 0 && (
+            <button onClick={toggleAll}
+              className="px-3 py-2 text-xs font-semibold rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#ced4da] dark:hover:bg-[#555]">
+              {selected.size === artikel.length ? "Keine" : "Alle"} auswählen
+            </button>
           )}
         </div>
         <Link href="/admin/artikel/neu"
