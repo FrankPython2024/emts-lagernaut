@@ -75,9 +75,12 @@ export default function BenutzerPage() {
                 ✏️ Bearbeiten
               </Link>
               {u.aktiv && (
-                <button onClick={() => deactivate.mutate({ id: u.id })}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#fa3e3e]/10 text-[#fa3e3e] hover:bg-[#fa3e3e]/20">
-                  Deaktivieren
+                <button
+                  onClick={() => deactivate.mutate({ id: u.id })}
+                  disabled={deactivate.isPending}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#fa3e3e]/10 text-[#fa3e3e] hover:bg-[#fa3e3e]/20 disabled:opacity-50"
+                >
+                  {deactivate.isPending ? "..." : "Deaktivieren"}
                 </button>
               )}
             </div>

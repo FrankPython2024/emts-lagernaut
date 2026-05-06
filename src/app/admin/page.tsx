@@ -34,6 +34,11 @@ export default function DashboardPage() {
   const status  = api.statistik.getAnfragenNachStatus.useQuery();
 
   if (stats.isLoading) return <PageLoader text="Dashboard wird geladen..." />;
+  if (stats.error) return (
+    <div className="p-6 bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 rounded-xl text-[#fa3e3e]">
+      Dashboard-Fehler: {stats.error.message}
+    </div>
+  );
 
   const s = stats.data;
 

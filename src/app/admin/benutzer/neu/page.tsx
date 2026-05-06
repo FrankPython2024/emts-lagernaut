@@ -47,7 +47,7 @@ export default function BenutzerNeuPage() {
             <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">{label} *</label>
             <input
               required type={type} placeholder={placeholder}
-              value={(form as any)[key]}
+              value={form[key as keyof typeof form] as string}
               onChange={(e) => setForm((f) => ({ ...f, [key]: key === "kuerzel" ? e.target.value.toUpperCase() : e.target.value }))}
               className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]"
             />

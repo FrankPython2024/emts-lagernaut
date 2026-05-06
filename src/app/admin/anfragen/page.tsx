@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { AnfrageStatus } from "@prisma/client";
+import { AnfrageStatus, type Anfrage } from "@prisma/client";
 import { api } from "@/trpc/react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useToast } from "@/components/ui/Toast";
@@ -11,7 +11,7 @@ export default function AnfragenPage() {
   const [statusFilter, setStatusFilter] = useState<AnfrageStatus | "">("");
   const [techFilter,   setTechFilter]   = useState("");
 
-  const { data, isLoading, refetch } = api.anfragen.getGruppiert.useQuery({
+  const { data, isLoading, error, refetch } = api.anfragen.getGruppiert.useQuery({
     ...(statusFilter ? { status: statusFilter as AnfrageStatus } : {}),
     ...(techFilter   ? { techniker: techFilter } : {}),
   });
@@ -21,29 +21,55 @@ export default function AnfragenPage() {
     onError:   (e) => show(e.message, "error"),
   });
 
-  function alleErledigen(anfragen: { id: number }[]) {
-    Promise.all(
-      anfragen
-        .filter((a) => (a as any).status !== AnfrageStatus.ABGESCHLOSSEN && (a as any).status !== AnfrageStatus.STORNIERT)
-        .map((a) => setStatus.mutateAsync({ id: a.id, status: AnfrageStatus.ABGESCHLOSSEN })),
-    ).then(() => show("Alle Anfragen erledigt", "success"));
+  async function alleErledigen(anfragen: Anfrage[]) {
+    const offen = anfragen.filter(
+      (a) => a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT,
+    );
+    if (!offen.length) { show("Alle Anfragen bereits erledigt", "info"); return; }
+
+    try {
+      await Promise.all(
+        offen.map((a) => setStatus.mutateAsync({ id: a.id, status: AnfrageStatus.ABGESCHLOSSEN })),
+      );
+      show(`✅ ${offen.length} Anfrage(n) erledigt`, "success");
+    } catch {
+      show("Fehler beim Erledigen einiger Anfragen", "error");
+    }
   }
 
   if (isLoading) return <PageLoader />;
+
+  if (error) return (
+    <div className="p-6 bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 rounded-xl text-[#fa3e3e]">
+      Fehler: {error.message}
+    </div>
+  );
 
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Anfragen</h1>
 
       {/* Filter */}
-      <div className="flex gap-3 flex-wrap">
+      <div className="flex gap-3 flex-wrap items-center">
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as AnfrageStatus | "")}
           className="px-4 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] text-sm">
           <option value="">Alle Status</option>
           {Object.values(AnfrageStatus).map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <input placeholder="Techniker filtern..." value={techFilter} onChange={(e) => setTechFilter(e.target.value.toUpperCase())}
-          className="px-4 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] text-sm w-48" />
+        <input
+          placeholder="Techniker filtern..."
+          value={techFilter}
+          onChange={(e) => setTechFilter(e.target.value.toUpperCase())}
+          className="px-4 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] text-sm w-48"
+        />
+        {(statusFilter || techFilter) && (
+          <button
+            onClick={() => { setStatusFilter(""); setTechFilter(""); }}
+            className="text-xs text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] px-2 py-1"
+          >
+            ✕ Filter zurücksetzen
+          </button>
+        )}
         <span className="py-2 text-sm text-[#65676b] dark:text-[#b0b3b8]">{data?.length ?? 0} Gruppen</span>
       </div>
 
@@ -57,19 +83,25 @@ export default function AnfragenPage() {
                 <div>
                   <div className="font-black text-[#1a1a1a] dark:text-[#e4e6eb]">{gruppe.logId}</div>
                   <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                    {gruppe.techniker} · {new Date(gruppe.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {gruppe.techniker} ·{" "}
+                    {new Date(gruppe.datum).toLocaleDateString("de-DE", {
+                      day: "2-digit", month: "2-digit", year: "2-digit",
+                      hour: "2-digit", minute: "2-digit",
+                    })}
                     {gruppe.geraeteName && ` · ${gruppe.geraeteName}`}
                   </div>
                 </div>
                 <StatusBadge status={gruppe.gruppenStatus} />
-                {gruppe.gruppenNr && <span className="text-xs font-mono text-[#65676b] dark:text-[#b0b3b8]">{gruppe.gruppenNr}</span>}
+                {gruppe.gruppenNr && (
+                  <span className="text-xs font-mono text-[#65676b] dark:text-[#b0b3b8]">{gruppe.gruppenNr}</span>
+                )}
               </div>
               <button
                 onClick={() => alleErledigen(gruppe.anfragen)}
                 disabled={setStatus.isPending}
-                className="px-3 py-1.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50"
+                className="px-3 py-1.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors"
               >
-                ✅ Alle erledigen
+                {setStatus.isPending ? "..." : "✅ Alle erledigen"}
               </button>
             </div>
 
@@ -79,19 +111,29 @@ export default function AnfragenPage() {
                 <div key={a.id} className="flex items-center gap-4 px-5 py-3 flex-wrap gap-y-1">
                   <div className="flex-1 min-w-0">
                     <span className="font-semibold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">{a.teil}</span>
-                    {a.kommentar && <span className="ml-2 text-xs text-[#0064d2] dark:text-[#45bdff]">⌨️ {a.kommentar}</span>}
+                    {a.kommentar && (
+                      <span className="ml-2 text-xs text-[#0064d2] dark:text-[#45bdff]">⌨️ {a.kommentar}</span>
+                    )}
                   </div>
                   <StatusBadge status={a.status} />
                   <div className="flex gap-1">
                     {a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT && (
-                      <button onClick={() => setStatus.mutate({ id: a.id, status: AnfrageStatus.ABGESCHLOSSEN })}
-                        className="px-2 py-1 text-xs bg-[#00a400]/10 text-[#00a400] rounded hover:bg-[#00a400]/20 font-bold">
+                      <button
+                        onClick={() => setStatus.mutate({ id: a.id, status: AnfrageStatus.ABGESCHLOSSEN })}
+                        disabled={setStatus.isPending}
+                        className="px-2 py-1 text-xs bg-[#00a400]/10 text-[#00a400] rounded hover:bg-[#00a400]/20 font-bold disabled:opacity-50"
+                        title="Erledigen"
+                      >
                         ✓
                       </button>
                     )}
                     {(a.status === AnfrageStatus.NEU || a.status === AnfrageStatus.BEDARF) && (
-                      <button onClick={() => setStatus.mutate({ id: a.id, status: AnfrageStatus.STORNIERT })}
-                        className="px-2 py-1 text-xs bg-[#fa3e3e]/10 text-[#fa3e3e] rounded hover:bg-[#fa3e3e]/20 font-bold">
+                      <button
+                        onClick={() => setStatus.mutate({ id: a.id, status: AnfrageStatus.STORNIERT })}
+                        disabled={setStatus.isPending}
+                        className="px-2 py-1 text-xs bg-[#fa3e3e]/10 text-[#fa3e3e] rounded hover:bg-[#fa3e3e]/20 font-bold disabled:opacity-50"
+                        title="Stornieren"
+                      >
                         ✕
                       </button>
                     )}
@@ -102,7 +144,9 @@ export default function AnfragenPage() {
           </div>
         ))}
         {!data?.length && (
-          <div className="text-center py-16 text-[#65676b] dark:text-[#b0b3b8]">Keine Anfragen gefunden</div>
+          <div className="text-center py-16 text-[#65676b] dark:text-[#b0b3b8]">
+            Keine Anfragen gefunden
+          </div>
         )}
       </div>
     </div>

@@ -88,7 +88,7 @@ export default function BuchungenPage() {
             className="col-span-1 md:col-span-2 px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]" />
 
           <button
-            disabled={!selArtikelId || !form.mitarbeiter || buchen.isPending}
+            disabled={!selArtikelId || !form.mitarbeiter || form.menge < 1 || buchen.isPending}
             onClick={() => selArtikelId && buchen.mutate({ artikelId: selArtikelId, menge: form.menge, typ: form.typ, mitarbeiter: form.mitarbeiter, notiz: form.notiz || undefined })}
             className="py-2.5 bg-[#0064d2] text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 shadow-sm">
             {buchen.isPending ? "..." : "Buchen"}

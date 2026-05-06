@@ -6,7 +6,7 @@ import { PageLoader } from "@/components/ui/LoadingSpinner";
 
 export default function ModelleListePage() {
   const { show } = useToast();
-  const { data, isLoading, refetch } = api.geraete.getAll.useQuery({ nurAktive: false });
+  const { data, isLoading, error, refetch } = api.geraete.getAll.useQuery({ nurAktive: false });
 
   const setAktiv = api.geraete.setAktiv.useMutation({
     onSuccess: () => { refetch(); show("Status aktualisiert", "success"); },
@@ -14,6 +14,11 @@ export default function ModelleListePage() {
   });
 
   if (isLoading) return <PageLoader />;
+  if (error) return (
+    <div className="p-6 bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 rounded-xl text-[#fa3e3e]">
+      Fehler: {error.message}
+    </div>
+  );
 
   return (
     <div className="space-y-5">
@@ -39,9 +44,10 @@ export default function ModelleListePage() {
             <div className="flex gap-2 mt-4">
               <button
                 onClick={() => setAktiv.mutate({ id: m.id, aktiv: !m.aktiv })}
-                className="flex-1 py-1.5 text-xs font-semibold rounded-lg bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#ced4da] dark:hover:bg-[#555]"
+                disabled={setAktiv.isPending}
+                className="flex-1 py-1.5 text-xs font-semibold rounded-lg bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#ced4da] dark:hover:bg-[#555] disabled:opacity-50"
               >
-                {m.aktiv ? "Deaktivieren" : "Aktivieren"}
+                {setAktiv.isPending ? "..." : m.aktiv ? "Deaktivieren" : "Aktivieren"}
               </button>
             </div>
           </div>
