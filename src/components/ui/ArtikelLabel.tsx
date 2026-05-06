@@ -32,7 +32,7 @@ function LabelInner({ artikel, qr }: { artikel: LabelArtikel; qr: string }) {
   return (
     <div style={{
       width: "55mm", height: "30mm",
-      border: "1px solid #000", borderRadius: "2px",
+      border: "none",
       padding: "1.5mm", display: "flex", flexDirection: "row", gap: "1.5mm",
       fontFamily: "Arial, Helvetica, sans-serif",
       backgroundColor: "#fff", color: "#000",
@@ -46,7 +46,7 @@ function LabelInner({ artikel, qr }: { artikel: LabelArtikel; qr: string }) {
       }}>
         {/* Bezeichnung */}
         <div style={{
-          fontSize: artikel.bezeichnung.length > 25 ? "7.5pt" : "9pt",
+          fontSize: artikel.bezeichnung.length > 25 ? "8.5pt" : "10pt",
           fontWeight: "bold", lineHeight: 1.2,
           wordBreak: "break-word", overflow: "hidden",
           display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const,
@@ -55,12 +55,12 @@ function LabelInner({ artikel, qr }: { artikel: LabelArtikel; qr: string }) {
         </div>
 
         {/* Lagerplatz */}
-        <div style={{ fontSize: "8pt", fontWeight: "normal", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <div style={{ fontSize: "9pt", fontWeight: "normal", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {artikel.lagerplatz ?? "—"}
         </div>
 
         {/* Kategorie */}
-        <div style={{ fontSize: "6pt", color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: "7pt", color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {artikel.kategorie}
         </div>
       </div>
@@ -68,10 +68,10 @@ function LabelInner({ artikel, qr }: { artikel: LabelArtikel; qr: string }) {
       {/* RECHTE SEITE — QR-Code + EMTS darunter */}
       <div style={{ width: "16mm", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0, gap: "1mm" }}>
         {qr
-          ? <img src={qr} alt="QR" style={{ width: "14mm", height: "14mm", imageRendering: "pixelated" }} />
-          : <div style={{ width: "14mm", height: "14mm", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "6px", color: "#999" }}>QR…</div>
+          ? <img src={qr} alt="QR" style={{ width: "16mm", height: "16mm", imageRendering: "pixelated" }} />
+          : <div style={{ width: "16mm", height: "16mm", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "6px", color: "#999" }}>QR…</div>
         }
-        <div style={{ fontSize: "6pt", fontWeight: "bold", letterSpacing: "2px", color: "#000", textAlign: "center" }}>
+        <div style={{ fontSize: "7pt", fontWeight: "bold", letterSpacing: "2px", color: "#000", textAlign: "center" }}>
           EMTS
         </div>
       </div>
@@ -167,20 +167,20 @@ export async function printMehrereLabels(liste: LabelArtikel[]): Promise<void> {
     .lw:last-child { page-break-after: avoid; }
     .label {
       width: 55mm; height: 30mm;
-      border: 1px solid #000; border-radius: 2px;
+      border: none;
       padding: 1.5mm; display: flex; flex-direction: row; gap: 1.5mm;
       font-family: Arial, Helvetica, sans-serif;
       background: #fff; color: #000; box-sizing: border-box; overflow: hidden;
     }
     .left { flex: 1; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
-    .bez { font-size: 9pt; font-weight: bold; line-height: 1.2; word-break: break-word; overflow: hidden;
+    .bez { font-size: 10pt; font-weight: bold; line-height: 1.2; word-break: break-word; overflow: hidden;
            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-    .bez.sm { font-size: 7.5pt; }
-    .lp { font-size: 8pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .kat { font-size: 6pt; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bez.sm { font-size: 8.5pt; }
+    .lp { font-size: 9pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kat { font-size: 7pt; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .qr { width: 16mm; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; gap: 1mm; }
-    .qr img { width: 14mm; height: 14mm; }
-    .emts { font-size: 6pt; font-weight: bold; letter-spacing: 2px; text-align: center; }
+    .qr img { width: 16mm; height: 16mm; }
+    .emts { font-size: 7pt; font-weight: bold; letter-spacing: 2px; text-align: center; }
   `;
 
   const body = entries.map(({ a, qr }) => {
