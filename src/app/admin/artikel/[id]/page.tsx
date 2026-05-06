@@ -191,26 +191,45 @@ export default function ArtikelDetailPage() {
       </Modal>
 
       {/* Label-Druck Modal */}
-      <Modal open={labelOpen} onClose={() => setLabelOpen(false)} title="Label drucken — 57×32mm">
+      <Modal open={labelOpen} onClose={() => setLabelOpen(false)} title="Label drucken — 57×32mm Querformat" width="max-w-xl">
         <div className="space-y-5">
+          {/* Vorschauen: 1× und 2× */}
           <div>
             <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-3">Vorschau:</p>
-            <div className="flex justify-center p-4 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl">
-              <ArtikelLabelPreview artikel={{ id: artikel.id, bezeichnung: artikel.bezeichnung, lagerplatz: artikel.lagerplatz, kategorie: artikel.kategorie }} />
+            <div className="flex gap-6 items-start flex-wrap p-4 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl">
+              {/* Originalgröße */}
+              <div className="text-center">
+                <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-2">1:1 (57×32mm)</div>
+                <ArtikelLabelPreview
+                  artikel={{ id: artikel.id, bezeichnung: artikel.bezeichnung, lagerplatz: artikel.lagerplatz, kategorie: artikel.kategorie }}
+                  scale={1}
+                />
+              </div>
+              {/* 200% Vorschau */}
+              <div className="text-center">
+                <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-2">200%</div>
+                <ArtikelLabelPreview
+                  artikel={{ id: artikel.id, bezeichnung: artikel.bezeichnung, lagerplatz: artikel.lagerplatz, kategorie: artikel.kategorie }}
+                  scale={2}
+                />
+              </div>
             </div>
           </div>
+
+          {/* Infos */}
           <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] bg-[#f0f2f5] dark:bg-[#18191a] rounded-lg p-3 space-y-1">
-            <p>• Drucker: Thermodrucker (Schwarz/Weiß)</p>
-            <p>• Etiketten-Größe: <strong>57mm × 32mm</strong></p>
-            <p>• QR-Code enthält: Artikel-ID + Bezeichnung</p>
+            <p>• Format: <strong>57mm × 32mm</strong> · Thermodrucker (S/W)</p>
+            <p>• QR-Code enthält: <strong>Artikel-ID #{artikel.id}</strong></p>
+            <p>• Fehlerkorrektur: M · SVG für scharfen Druck</p>
           </div>
+
           <div className="flex gap-3">
             <button onClick={() => setLabelOpen(false)}
               className="flex-1 py-2.5 rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-semibold">
-              Abbrechen
+              Schließen
             </button>
             <button
-              onClick={() => { printArtikelLabel({ id: artikel.id, bezeichnung: artikel.bezeichnung, lagerplatz: artikel.lagerplatz, kategorie: artikel.kategorie }); }}
+              onClick={() => printArtikelLabel({ id: artikel.id, bezeichnung: artikel.bezeichnung, lagerplatz: artikel.lagerplatz, kategorie: artikel.kategorie })}
               className="flex-1 py-2.5 rounded-xl bg-[#8e44ad] text-white font-bold hover:bg-purple-700"
             >
               🖨️ Drucken
