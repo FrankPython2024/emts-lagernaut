@@ -40,7 +40,7 @@ export const lagerRouter = createTRPCRouter({
   getAll: adminProcedure
     .input(z.object({
       kategorie: z.string().optional(),
-      limit:     z.number().int().min(1).max(100).default(50),
+      limit:     z.number().int().min(1).max(1000).default(50),
       offset:    z.number().int().min(0).default(0),
     }).optional())
     .query(({ input }) =>
