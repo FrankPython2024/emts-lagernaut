@@ -9,10 +9,14 @@ export type LiveStats = {
   artikelOhneBestand: number;
 };
 
-export type StatFilter = {
-  von?: Date;
-  bis?: Date;
-};
+// Hilfsfunktion: tage → { von, bis }
+function tageZuDateRange(tage: number): { von: Date; bis: Date } {
+  const bis = new Date();
+  const von = new Date();
+  von.setDate(von.getDate() - tage);
+  von.setHours(0, 0, 0, 0);
+  return { von, bis };
+}
 
 /**
  * Live-Kennzahlen für Dashboard.
@@ -124,13 +128,11 @@ export async function getBuchungenVerlauf(tage: number) {
 }
 
 /**
- * KPI-Übersicht für Admin-Dashboard.
+ * KPI-Übersicht — tage: Anzahl Tage rückwärts von heute.
  */
-export async function getKpiOverview(filter: StatFilter) {
-  const where = {
-    ...(filter.von && { datum: { gte: filter.von } }),
-    ...(filter.bis && { datum: { lte: filter.bis } }),
-  };
+export async function getKpiOverview(tage: number) {
+  const { von, bis } = tageZuDateRange(tage);
+  const where = { datum: { gte: von, lte: bis } };
 
   const [gesamtAnfragen, abgeschlossen, bedarf, storniert, gesamtBuchungen] =
     await Promise.all([
@@ -148,14 +150,11 @@ export async function getKpiOverview(filter: StatFilter) {
 }
 
 /**
- * Techniker-Statistik: Anfragen + Buchungen pro Techniker.
+ * Techniker-Statistik — tage: Anzahl Tage rückwärts von heute.
  */
-export async function getTechnikerStats(filter: StatFilter) {
-  const datumFilter = {
-    ...(filter.von && { gte: filter.von }),
-    ...(filter.bis && { lte: filter.bis }),
-  };
-  const where = Object.keys(datumFilter).length ? { datum: datumFilter } : {};
+export async function getTechnikerStats(tage: number) {
+  const { von, bis } = tageZuDateRange(tage);
+  const where = { datum: { gte: von, lte: bis } };
 
   const anfragen = await prisma.anfrage.groupBy({
     by:      ["techniker"],

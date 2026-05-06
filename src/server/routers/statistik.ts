@@ -11,9 +11,8 @@ import {
   getMonatsbericht,
 } from "@/modules/statistik/service";
 
-const StatFilterSchema = z.object({
-  von: z.date().optional(),
-  bis: z.date().optional(),
+const TageSchema = z.object({
+  tage: z.number().int().min(1).max(365).default(30),
 });
 
 export const statistikRouter = createTRPCRouter({
@@ -24,17 +23,13 @@ export const statistikRouter = createTRPCRouter({
 
   // Meistgefragte Geräte — Admin
   getMeistgefragteGeraete: adminProcedure
-    .input(z.object({ tage: z.number().int().min(1).max(365).default(30) }))
-    .query(({ input }) =>
-      getMeistgefragteGeraete(input.tage),
-    ),
+    .input(TageSchema)
+    .query(({ input }) => getMeistgefragteGeraete(input.tage)),
 
   // Meistgefragte Teile — Admin
   getMeistgefragteTeile: adminProcedure
-    .input(z.object({ tage: z.number().int().min(1).max(365).default(30) }))
-    .query(({ input }) =>
-      getMeistgefragteTeile(input.tage),
-    ),
+    .input(TageSchema)
+    .query(({ input }) => getMeistgefragteTeile(input.tage)),
 
   // Anfragen nach Status — Admin
   getAnfragenNachStatus: adminProcedure
@@ -42,24 +37,18 @@ export const statistikRouter = createTRPCRouter({
 
   // Buchungsverlauf täglich — Admin
   getBuchungenVerlauf: adminProcedure
-    .input(z.object({ tage: z.number().int().min(1).max(365).default(30) }))
-    .query(({ input }) =>
-      getBuchungenVerlauf(input.tage),
-    ),
+    .input(TageSchema)
+    .query(({ input }) => getBuchungenVerlauf(input.tage)),
 
-  // KPI-Übersicht — Admin
+  // KPI-Übersicht — Admin (tage statt Date-Objekte)
   getKpiOverview: adminProcedure
-    .input(StatFilterSchema.optional())
-    .query(({ input }) =>
-      getKpiOverview(input ?? {}),
-    ),
+    .input(TageSchema)
+    .query(({ input }) => getKpiOverview(input.tage)),
 
   // Techniker-Statistik — Admin
   getTechnikerStats: adminProcedure
-    .input(StatFilterSchema.optional())
-    .query(({ input }) =>
-      getTechnikerStats(input ?? {}),
-    ),
+    .input(TageSchema)
+    .query(({ input }) => getTechnikerStats(input.tage)),
 
   // Monatsbericht — Admin
   getMonatsbericht: adminProcedure
@@ -67,8 +56,6 @@ export const statistikRouter = createTRPCRouter({
       monat: z.number().int().min(1).max(12),
       jahr:  z.number().int().min(2020).max(2100),
     }))
-    .query(({ input }) =>
-      getMonatsbericht(input.monat, input.jahr),
-    ),
+    .query(({ input }) => getMonatsbericht(input.monat, input.jahr)),
 
 });
