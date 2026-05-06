@@ -125,19 +125,15 @@ storniereAnfrageTechniker(name, repId, teilName)
 - Anfragen-Modul (Erstellen, Liste, Stornierung, Admin-Status)
 - Core Services Layer (buchungen, lager, anfragen, geraete, kompatibilitaet, warenkorb, benutzer, statistik)
 - tRPC Router komplett (alle 8 Module + Haupt-Router)
+- Admin Bereich komplett (Layout, Dashboard, alle 8 Seiten, Login, Middleware)
 
 ### 🔄 In Arbeit
 _(nichts aktiv)_
 
 ### ❌ Noch offen
-- Admin Bereich
 - Techniker Portal
-- Benutzerverwaltung
-- Statistiken
-- Warenkorb-System
 - LogID Lookup
 - Belege (PDF)
-- Nerd Dashboard
 
 ## Nächster Task
 Techniker-Portal (1:1 nach techniker.html)

@@ -31,7 +31,10 @@
     "zod": "^3.22.0",
     "@react-pdf/renderer": "^3.4.0",
     "meilisearch": "^0.40.0",
-    "superjson": "^2.2.0"
+    "superjson": "^2.2.0",
+    "chart.js": "^4.4.0",
+    "react-chartjs-2": "^5.2.0",
+    "use-debounce": "^10.0.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",

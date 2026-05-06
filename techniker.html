@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <title>EMTS Lagernaut | Ersatzteil-Bestellsystem</title>
+  <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+ <style>
+  /* 1. VARIABLEN & DESIGN-SYSTEM */
+  :root {
+    --bg: #f0f2f5;
+    --card-bg: #ffffff;
+    --text: #1a1a1a;
+    --text-dim: #65676b;
+    --primary: #0064d2;
+    --border: #ced4da;
+    --success: #00a400;
+    --danger: #fa3e3e;
+    --warning: #f7b928;
+    --purple: #8e44ad;
+    --base-font: 18px;
+  }
+
+  [data-theme="dark"] {
+    --bg: #18191a;
+    --card-bg: #242526;
+    --text: #e4e6eb;
+    --text-dim: #b0b3b8;
+    --primary: #45bdff;
+    --border: #3e4042;
+  }
+
+  body {
+    font-family: 'Ubuntu', sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    margin: 0;
+    transition: background 0.3s, color 0.3s, font-size 0.2s ease;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    font-size: var(--base-font) !important;
+  }
+
+  body.font-small  { --base-font: 14px !important; }
+  body.font-medium { --base-font: 18px !important; }
+  body.font-large  { --base-font: 22px !important; }
+
+  body, body div, body span, body p, body td, body th, body input, body button, body li {
+    font-size: var(--base-font) !important;
+  }
+
+  h2 { font-size: calc(var(--base-font) * 1.5) !important; font-weight: 700; margin-bottom: 1rem; }
+  h3 { font-size: calc(var(--base-font) * 1.25) !important; font-weight: 700; }
+  small, .status-pill { font-size: calc(var(--base-font) * 0.8) !important; }
+
+  /* 3. LAYOUT GRID */
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2.5rem;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .main-container {
+    max-width: 1450px;
+    margin: 2rem auto;
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 1.5rem;
+    padding: 0 1.2rem;
+  }
+
+  .card {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+
+  /* 4. FORMULARE & TABELLE */
+  .search-input {
+    width: 100%;
+    padding: 0.8rem 1.2rem;
+    border-radius: 10px;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    margin-bottom: 1.2rem;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-input:focus { border-color: var(--primary); }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th {
+    text-align: left;
+    padding: 0.8rem;
+    color: var(--text-dim);
+    border-bottom: 2px solid var(--border);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  td {
+    padding: 1rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .btn-icon {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    margin: 0.1rem;
+    transition: all 0.2s;
+  }
+  .btn-icon:hover { background: var(--border); }
+
+  .btn-order {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .btn-order:hover { opacity: 0.9; transform: translateY(-1px); }
+
+  .status-pill {
+    padding: 0.3rem 0.8rem;
+    border-radius: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    white-space: nowrap;
+    display: inline-block;
+  }
+
+  /* 5. MODALS & OVERLAYS */
+  #loadingOverlay, #loginOverlay, #compatOverlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+  }
+  #loadingOverlay { background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); color: white; flex-direction: column; }
+  #loginOverlay { background: var(--bg); }
+  #compatOverlay { background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); display: none; }
+
+  .modal-content {
+    background: var(--card-bg);
+    width: 420px;
+    padding: 2.5rem;
+    border-radius: 15px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    text-align: center;
+  }
+
+  .spinner {
+    width: 45px;
+    height: 45px;
+    border: 5px solid rgba(255,255,255,0.2);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 15px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  [data-theme="dark"] img.afb-logo {
+    background: rgba(255, 255, 255, 0.95) !important; padding: 5px; border-radius: 6px;
+  }
+
+  @media (max-width: 1100px) {
+    .main-container { grid-template-columns: 1fr; }
+    .top-bar { padding: 1rem; }
+  }
+
+  /* 6. TOAST BENACHRICHTIGUNGEN */
+  #toast-container {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    z-index: 10001;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .toast {
+    background: var(--card-bg);
+    color: var(--text);
+    padding: 1rem 1.5rem;
+    border-radius: 10px;
+    border-left: 6px solid var(--primary);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    min-width: 280px;
+    max-width: 400px;
+    transform: translateX(120%);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    font-weight: 500;
+  }
+
+  .toast.show { transform: translateX(0); }
+
+  .toast-success { border-left-color: var(--success); }
+  .toast-error   { border-left-color: var(--danger); }
+  .toast-warning { border-left-color: var(--warning); }
+  .toast-info    { border-left-color: var(--primary); }
+
+  @keyframes shake {
+    0%   { transform: translateX(0); }
+    25%  { transform: translateX(-8px); }
+    50%  { transform: translateX(8px); }
+    75%  { transform: translateX(-8px); }
+    100% { transform: translateX(0); }
+  }
+  .shake { animation: shake 0.3s ease-in-out; border-color: var(--danger) !important; }
+
+  .spinner-small {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(0,0,0,0.1);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 10px;
+  }
+
+  .search-wrapper { position: relative; width: 100%; }
+
+  .search-reset {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-80%);
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 1.2rem;
+    font-weight: bold;
+    display: none;
+    transition: color 0.2s;
+    padding: 5px;
+  }
+  .search-reset:hover { color: var(--danger); }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     7. TASTATUR-MODAL STYLES
+     ═══════════════════════════════════════════════════════════════════════════ */
+
+  /* Tastatur-Container: Keyboard-Gehäuse */
+  #keyboardContainer {
+    --key-bg:     #e0e0e0;
+    --key-bg2:    #d0d0d0;
+    --key-border: #b0b0b0;
+    --key-shadow: #999;
+    --key-radius: 4px;
+    background: linear-gradient(160deg, #c8c8c8 0%, #b8b8b8 100%);
+    border-radius: 10px;
+    padding: 10px 12px 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3);
+    display: inline-flex;          /* passt sich dem Inhalt an */
+  }
+  [data-theme="dark"] #keyboardContainer {
+    --key-bg:     #3c3c3c;
+    --key-bg2:    #2e2e2e;
+    --key-border: #555;
+    --key-shadow: #1a1a1a;
+    background: linear-gradient(160deg, #383838 0%, #282828 100%);
+  }
+
+  /* Jede Taste – Basisstil */
+  #keyboardContainer button {
+    font-size: 9px !important;
+    background: linear-gradient(180deg, var(--key-bg) 0%, var(--key-bg2) 100%);
+    border: 1px solid var(--key-border);
+    border-bottom: 2px solid var(--key-shadow);
+    color: #222;
+    border-radius: var(--key-radius);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 3px 4px 2px;
+    flex-shrink: 0;
+    transition: all 0.07s;
+    font-family: 'Ubuntu', sans-serif;
+    box-shadow: 0 2px 0 var(--key-shadow), 0 1px 3px rgba(0,0,0,0.2);
+    overflow: hidden;
+    position: relative;
+  }
+  [data-theme="dark"] #keyboardContainer button { color: #ddd; }
+
+  #keyboardContainer button:hover {
+    background: linear-gradient(180deg, #ececec 0%, #dcdcdc 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 0 var(--key-shadow), 0 2px 5px rgba(0,0,0,0.2);
+  }
+  [data-theme="dark"] #keyboardContainer button:hover {
+    background: linear-gradient(180deg, #4a4a4a 0%, #3a3a3a 100%);
+  }
+  #keyboardContainer button:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 var(--key-shadow);
+  }
+
+  /* Ausgewählt: blau */
+  #keyboardContainer button.key-selected {
+    background: linear-gradient(180deg, #1a7fe8 0%, #0055b8 100%) !important;
+    color: white !important;
+    border-color: #004fa3 !important;
+    border-bottom-color: #003070 !important;
+    box-shadow: 0 2px 0 #003070 !important;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+  }
+  #keyboardContainer button.key-selected .kt { color: rgba(255,255,255,0.75) !important; }
+  #keyboardContainer button.key-selected .kb { color: white !important; }
+
+  /* Enter-Taste: leicht andere Farbe damit sie heraussticht */
+  #keyboardContainer button.key-enter-style {
+    background: linear-gradient(180deg, #d8d0c8 0%, #c8c0b8 100%);
+  }
+  [data-theme="dark"] #keyboardContainer button.key-enter-style {
+    background: linear-gradient(180deg, #3a3830 0%, #2a2820 100%);
+  }
+
+  /* Label oben (Shift-Zeichen) */
+  #keyboardContainer button .kt {
+    font-size: 7px !important;
+    color: #555;
+    line-height: 1;
+    align-self: flex-start;
+  }
+  [data-theme="dark"] #keyboardContainer button .kt { color: #999; }
+
+  /* Label unten (Hauptzeichen) */
+  #keyboardContainer button .kb {
+    font-size: 10px !important;
+    font-weight: 700;
+    line-height: 1;
+    align-self: flex-start;
+  }
+
+  /* Einzeiliger Label: zentriert */
+  #keyboardContainer button .kb-center {
+    font-weight: 600;
+    line-height: 1;
+    width: 100%;
+    text-align: center;
+    align-self: center;
+  }
+
+  /* Zeilenabstand im Keyboard */
+  .kb-row   { display: flex; gap: 2px; margin-bottom: 2px; align-items: flex-end; }
+  .kb-section { display: flex; gap: 8px; align-items: flex-start; }
+
+  /* Die Anzeige der ausgewählten Tasten */
+  #selectedKeysDisplay {
+    min-height: 40px;
+    padding: 8px 12px;
+    background: var(--bg);
+    border-radius: 8px;
+    margin-top: 6px;
+    font-weight: bold;
+    color: var(--primary);
+    border: 1px solid var(--border);
+    word-break: break-all;
+    line-height: 1.6;
+  }
+
+  /* Die zwei großen Auswahl-Buttons (Komplett / Einzeln) */
+  .tastatur-choice-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 1.5rem 1rem;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Ubuntu', sans-serif;
+    font-weight: bold;
+    color: white;
+  }
+  .tastatur-choice-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  }
+  .tastatur-choice-btn .choice-icon { font-size: 2.5rem !important; line-height: 1; }
+  .tastatur-choice-btn .choice-title { font-size: 1rem !important; }
+  .tastatur-choice-btn .choice-sub   { font-size: 0.75rem !important; opacity: 0.85; font-weight: normal; }
+</style>
+
+</head>
+<body class="font-medium">
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     LOADING OVERLAY
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="loadingOverlay" style="display:none;">
+  <div class="spinner"></div>
+  <strong id="loadingText">Daten werden verarbeitet...</strong>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     LOGIN OVERLAY
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="loginOverlay">
+  <div class="modal-content" style="text-align: center;">
+    <img src="https://www.afbshop.de/media/ca/1f/fe/1760428029/logo.svg" class="afb-logo" style="height: 55px; margin-bottom: 20px;">
+    <h2 style="margin:0;">EMTS Lagernaut</h2>
+    <p style="color:var(--primary); font-weight:bold; letter-spacing:1px; margin: 5px 0 25px 0;">Ersatzteil Bestellsystem</p>
+    <input type="text" id="userName" class="search-input" placeholder="DEIN KÜRZEL" style="text-align:center; font-weight:bold;">
+    <button class="btn-order" style="width:100%; padding:1rem;" onclick="login()">Portal betreten</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     KOMPATIBILITÄT OVERLAY
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="compatOverlay" onclick="closeCompat()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3 style="margin-top:0;">Kompatible Modelle</h3>
+    <hr style="border:0; border-top:1px solid var(--border); margin:1rem 0;">
+    <ul id="compatList" style="list-style:none; padding:0; max-height:350px; overflow-y:auto;"></ul>
+    <button class="btn-order" style="width:100%; margin-top:1.2rem; background:var(--text); color:var(--card-bg);" onclick="closeCompat()">Schließen</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     REP-NUMBER MODAL (LogID Eingabe)
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="repModalOverlay" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 10000; justify-content: center; align-items: center;">
+  <div id="repModalBox" class="modal-content" style="width: 400px; border: 2px solid var(--primary); transition: transform 0.1s;">
+    <h3 style="margin-top:0; color:var(--primary);">Ersatzteilanfrage Details</h3>
+    <p id="repModalSub" style="color:var(--text-dim); margin-bottom:20px;"></p>
+
+    <!-- Tastatur-Info Anzeige (erscheint nur bei Tastatur-Anfragen) -->
+    <div id="repModalKeyInfo" style="display:none; margin-bottom:15px; padding:10px 14px; background:var(--bg); border-radius:8px; border-left:3px solid var(--primary); text-align:left;">
+      <small style="color:var(--text-dim); display:block; margin-bottom:4px;">⌨️ Tastatur-Auswahl:</small>
+      <span id="repModalKeyValue" style="font-weight:bold; color:var(--primary);"></span>
+    </div>
+
+    <label style="display:block; text-align:center; font-size:0.8rem; font-weight:bold; margin-bottom:5px;">LogID des Gerätes:</label>
+    <input type="text" id="repNumberInput" class="search-input" placeholder="LogID scannen oder eingeben..."
+           inputmode="numeric"
+           onkeypress="return /[0-9]/.test(event.key)"
+           style="text-align:center; font-size:1.8rem; font-weight:bold; letter-spacing:4px; border-color:var(--primary); margin-bottom:10px;">
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+      <button class="btn-icon" style="padding:1rem;" onclick="closeRepModal()">Abbrechen</button>
+      <button class="btn-order" style="padding:1rem;" onclick="confirmRepOrder()">Durchführen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TASTATUR-AUSWAHL MODAL (NEU)
+     Erscheint wenn ein Techniker eine Tastatur anfragt.
+     Schritt 1: Komplette Tastatur ODER Einzelne Tasten
+     Schritt 2: Interaktives QWERTZ-Keyboard zur Tastenauswahl
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="tastaturModalOverlay"
+     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.75); backdrop-filter:blur(4px);
+            z-index:10000; justify-content:center; align-items:flex-start;
+            overflow-y:auto; padding:10px; box-sizing:border-box;">
+
+  <div class="modal-content"
+       style="width:fit-content; max-width:97vw; min-width:500px; border:2px solid var(--primary);
+              text-align:left; padding:1.5rem; margin:auto;">
+
+    <!-- Modal-Header -->
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:6px;">
+      <span style="font-size:2rem; line-height:1;">⌨️</span>
+      <div>
+        <h3 style="margin:0; color:var(--primary);">Tastatur-Anfrage</h3>
+        <p id="tastaturModalSub" style="margin:2px 0 0; color:var(--text-dim);"></p>
+      </div>
+    </div>
+    <hr style="border:0; border-top:1px solid var(--border); margin:1rem 0;">
+
+    <!-- ────────── SCHRITT 1: Auswahl Komplett / Einzeln ────────── -->
+    <div id="tastaturStep1">
+      <p style="font-weight:bold; text-align:center; margin-bottom:1.2rem; color:var(--text);">
+        Was wird benötigt?
+      </p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:1.2rem;">
+
+        <!-- Option A: Komplette Tastatur -->
+        <button class="tastatur-choice-btn" style="background:var(--primary);"
+                onclick="tastaturWahl('komplett')">
+          <span class="choice-icon">⌨️</span>
+          <span class="choice-title">Komplette Tastatur</span>
+          <span class="choice-sub">Die gesamte Tastatur ist defekt / fehlt</span>
+        </button>
+
+        <!-- Option B: Einzelne Tasten -->
+        <button class="tastatur-choice-btn" style="background:var(--purple);"
+                onclick="tastaturWahl('einzeln')">
+          <span class="choice-icon">🔑</span>
+          <span class="choice-title">Einzelne Tasten</span>
+          <span class="choice-sub">Nur bestimmte Tasten fehlen oder sind defekt</span>
+        </button>
+      </div>
+
+      <button class="btn-icon" style="width:100%; padding:0.8rem; color:var(--text-dim);"
+              onclick="closeTastaturModal()">Abbrechen</button>
+    </div>
+
+    <!-- ────────── SCHRITT 2: Tastenauswahl am QWERTZ-Keyboard ────────── -->
+    <div id="tastaturStep2" style="display:none;">
+
+      <p style="font-weight:bold; margin:0 0 8px; color:var(--text);">
+        Defekte / fehlende Tasten auswählen:
+      </p>
+      <p style="color:var(--text-dim); margin:0 0 12px;">
+        Klicke auf die betroffenen Tasten. Ausgewählte Tasten werden blau markiert.
+      </p>
+
+      <!-- Virtuelles QWERTZ-Keyboard -->
+      <div id="keyboardContainer" style="margin-bottom:14px;">
+        <!-- Wird per JS befüllt -->
+      </div>
+
+      <!-- Anzeige der gewählten Tasten -->
+      <div style="margin-bottom:14px;">
+        <small style="color:var(--text-dim); font-weight:bold;">Ausgewählte Tasten:</small>
+        <div id="selectedKeysDisplay">— noch keine Tasten gewählt —</div>
+      </div>
+
+      <!-- Navigation -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <button class="btn-icon" style="padding:0.9rem;" onclick="tastaturStep2Back()">← Zurück</button>
+        <button class="btn-order" id="tastaturWeiterBtn" style="padding:0.9rem;" onclick="tastaturWeiter()">
+          Weiter →
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     STORNO-BESTÄTIGUNGS-MODAL (ersetzt nativen browser confirm())
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="stornoModalOverlay"
+     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.7); backdrop-filter:blur(4px);
+            z-index:10000; justify-content:center; align-items:center;">
+  <div class="modal-content" style="width:380px; border:2px solid var(--danger);">
+    <div style="font-size:2.5rem; margin-bottom:0.5rem;">🗑️</div>
+    <h3 style="margin:0 0 8px; color:var(--danger);">Anfrage stornieren</h3>
+    <p style="color:var(--text-dim); margin:0 0 1.5rem;">
+      Möchtest du <strong id="stornoTeilName" style="color:var(--text);"></strong> wirklich stornieren?
+    </p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <button class="btn-icon" style="padding:1rem;" onclick="closeStornoModal()">Abbrechen</button>
+      <button class="btn-order" style="padding:1rem; background:var(--danger);" onclick="stornoBestaetigen()">Ja, stornieren</button>
+    </div>
+  </div>
+</div>
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TOP-BAR
+══════════════════════════════════════════════════════════════════════════════ -->
+<header class="top-bar">
+  <div style="display:flex; align-items:center;">
+    <img src="https://www.afbshop.de/media/ca/1f/fe/1760428029/logo.svg" class="afb-logo" style="height:2.5rem; margin-right:1.2rem;">
+    <div style="border-left:2px solid var(--border); padding-left:1.2rem;">
+      <strong style="font-size:1.2rem; display:block;">EMTS | Ersatzteil Bestellsystem</strong>
+      <small style="color:var(--primary); font-weight:bold; text-transform:uppercase;">AfB Sömmerda Test Version</small>
+    </div>
+  </div>
+  <div class="controls">
+    <button class="btn-icon" onclick="setFontSize('small')">A</button>
+    <button class="btn-icon" onclick="setFontSize('medium')" style="font-size:1.1rem;">A</button>
+    <button class="btn-icon" onclick="setFontSize('large')" style="font-size:1.3rem;">A</button>
+    <span style="border-left:1px solid var(--border); margin:0 1rem;"></span>
+    <button class="btn-icon" onclick="toggleTheme()" id="themeBtn">🌙 Dark Mode</button>
+    <span id="userInfo" style="margin-left:1rem; font-weight:800; color:var(--primary);"></span>
+    <button class="btn-icon" onclick="logout()" style="margin-left:1rem;">🚪</button>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     HAUPTINHALT
+══════════════════════════════════════════════════════════════════════════════ -->
+<main class="main-container">
+  <section class="card">
+    <h3 style="margin-top:0; border-bottom:1px solid var(--border); padding-bottom:1rem;">Ersatzteil suchen</h3>
+    <div class="search-wrapper">
+      <input type="text" id="term" class="search-input" placeholder="Gerät, Akku-Bezeichnung oder ID eingeben..." oninput="search()">
+      <span id="searchClear" class="search-reset" onclick="clearSearch()">✕</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Modell / ID</th>
+          <th>Kategorie</th>
+          <th style="text-align:center;">Lagerort</th>
+          <th style="text-align:center;">Bestand</th>
+          <th style="text-align:right;">Aktion</th>
+        </tr>
+      </thead>
+      <tbody id="resultsBody"></tbody>
+    </table>
+  </section>
+
+  <aside class="card">
+    <!-- Header Zeile -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:1rem;">
+      <h3 style="margin:0;">Meine Anfragen</h3>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <!-- Badge: Offene Anfragen -->
+        <button id="offeneBadge" onclick="toggleOffeneFilter()"
+                title="Nur offene Anfragen anzeigen"
+                style="display:none; background:var(--warning); color:#000; border:none;
+                       padding:4px 10px; border-radius:20px; font-weight:bold;
+                       cursor:pointer; transition:all 0.2s;">
+          <span id="offeneCount">0</span> offen
+        </button>
+        <button class="btn-icon" onclick="refreshMyRequests(0)" title="Aktualisieren">🔄</button>
+      </div>
+    </div>
+
+    <!-- LogID Suche -->
+    <div style="position:relative; margin-bottom:1rem;">
+      <input type="text" id="anfragenSearch"
+             placeholder="🔍 LogID suchen..."
+             oninput="filterAnfragen()"
+             style="width:100%; padding:0.6rem 2.2rem 0.6rem 0.9rem;
+                    border-radius:8px; border:1px solid var(--border);
+                    background:var(--bg); color:var(--text);
+                    box-sizing:border-box; outline:none; transition:border-color 0.2s;"
+             onfocus="this.style.borderColor='var(--primary)'"
+             onblur="this.style.borderColor='var(--border)'">
+      <span onclick="clearAnfragenSearch()"
+            style="position:absolute; right:10px; top:50%; transform:translateY(-50%);
+                   cursor:pointer; color:var(--text-dim); display:none; font-weight:bold;"
+            id="anfragenSearchClear">✕</span>
+    </div>
+
+    <div id="myRequestsList" style="max-height: 640px; overflow-y: auto;"></div>
+  </aside>
+</main>
+
+<div id="toast-container"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════════════════════════ -->
+<script>
+  let currentUser      = "";
+  let currentOffset    = 0;
+  let searchTimer;
+  let currentOrderData = {};
+  let alleAnfragen     = [];   // Cache aller geladenen Anfragen für clientseitige Filterung
+  let nurOffeneFilter  = false; // Toggle: nur offene Anfragen anzeigen
+
+  // Verhindert dass Sonderzeichen (Apostrophe etc.) den HTML-Code
+  // in onclick-Attributen zerstören und die Liste leer lassen
+  function escAttr(val) {
+    return String(val || '')
+      .replace(/&/g, '&amp;')
+      .replace(/'/g, '&#39;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  // ── TASTATUR: State ──────────────────────────────────────────────────────
+  let selectedKeys = new Set();
+
+  // ── TASTATUR: Layout-Daten ──────────────────────────────────────────────
+  // Jede Taste: { id, b=Hauptzeichen, t=Shift-Zeichen (optional), w=Breite in px }
+  // B = BASE_W (36px), G = GAP (3px) → breite Taste: mehrere Units × (B+G) - G
+
+  const B = 36, G = 2; // Basis-Breite, Gap
+  function kw(units) { return Math.round(units * (B + G) - G); } // Breite berechnen
+
+  // Haupttastatur-Zeilen
+  const KB_ROWS = [
+    // Fn-Reihe (etwas niedriger: h=28)
+    { h:28, keys:[
+      {id:'Esc',    b:'Esc',  w:kw(1)},
+      null,
+      {id:'F1',b:'F1',w:kw(1)},{id:'F2',b:'F2',w:kw(1)},{id:'F3',b:'F3',w:kw(1)},{id:'F4',b:'F4',w:kw(1)},
+      null,
+      {id:'F5',b:'F5',w:kw(1)},{id:'F6',b:'F6',w:kw(1)},{id:'F7',b:'F7',w:kw(1)},{id:'F8',b:'F8',w:kw(1)},
+      null,
+      {id:'F9',b:'F9',w:kw(1)},{id:'F10',b:'F10',w:kw(1)},{id:'F11',b:'F11',w:kw(1)},{id:'F12',b:'F12',w:kw(1)},
+      null,
+      {id:'Druck',  b:'Druck',   t:'S-Abf',  w:kw(1.1)},
+      {id:'Rollen', b:'Rollen',  t:'↓',      w:kw(1.1)},
+      {id:'Pause',  b:'Pause',   t:'Untbr',  w:kw(1.1)},
+    ]},
+    // Zahlenreihe
+    { h:36, keys:[
+      {id:'°^',  t:'°',  b:'^',  w:kw(1)},
+      {id:'!1',  t:'!',  b:'1',  w:kw(1)},
+      {id:'"2',  t:'"',  b:'2',  w:kw(1)},
+      {id:'§3',  t:'§',  b:'3',  w:kw(1)},
+      {id:'$4',  t:'$',  b:'4',  w:kw(1)},
+      {id:'%5',  t:'%',  b:'5',  w:kw(1)},
+      {id:'&6',  t:'&',  b:'6',  w:kw(1)},
+      {id:'/7',  t:'/',  b:'7',  w:kw(1)},
+      {id:'(8',  t:'(',  b:'8',  w:kw(1)},
+      {id:')9',  t:')',  b:'9',  w:kw(1)},
+      {id:'=0',  t:'=',  b:'0',  w:kw(1)},
+      {id:'?ß',  t:'?',  b:'ß',  w:kw(1)},
+      {id:'`´',  t:'`',  b:'´',  w:kw(1)},
+      {id:'Backspace', b:'⌫', w:kw(2)},
+    ]},
+    // QWERTY-Reihe
+    { h:36, keys:[
+      {id:'Tab',  b:'Tab ⇥', w:kw(1.5)},
+      {id:'Q',  t:'@',  b:'Q',  w:kw(1)},
+      {id:'W',           b:'W',  w:kw(1)},
+      {id:'E',  t:'€',  b:'E',  w:kw(1)},
+      {id:'R',           b:'R',  w:kw(1)},
+      {id:'T',           b:'T',  w:kw(1)},
+      {id:'Z',           b:'Z',  w:kw(1)},
+      {id:'U',           b:'U',  w:kw(1)},
+      {id:'I',           b:'I',  w:kw(1)},
+      {id:'O',           b:'O',  w:kw(1)},
+      {id:'P',           b:'P',  w:kw(1)},
+      {id:'Ü',           b:'Ü',  w:kw(1)},
+      {id:'+*',  t:'*',  b:'+',  w:kw(1)},
+      {id:'Enter', b:'Enter ↵', w:kw(1.8)},
+    ]},
+    // Home-Reihe
+    { h:36, keys:[
+      {id:'Caps', b:'⇪ Caps', w:kw(1.8)},
+      {id:'A',  b:'A', w:kw(1)},{id:'S', b:'S', w:kw(1)},{id:'D', b:'D', w:kw(1)},
+      {id:'F',  b:'F', w:kw(1)},{id:'G', b:'G', w:kw(1)},{id:'H', b:'H', w:kw(1)},
+      {id:'J',  b:'J', w:kw(1)},{id:'K', b:'K', w:kw(1)},{id:'L', b:'L', w:kw(1)},
+      {id:'Ö',  b:'Ö', w:kw(1)},{id:'Ä', b:'Ä', w:kw(1)},
+      {id:"'#", t:"'", b:'#',  w:kw(1.3)},
+    ]},
+    // Shift-Reihe
+    { h:36, keys:[
+      {id:'Shift-L', b:'⇧ Shift', w:kw(2.3)},
+      {id:'<>',  t:'>',  b:'<',  w:kw(1)},
+      {id:'Y',  b:'Y', w:kw(1)},{id:'X', b:'X', w:kw(1)},{id:'C', b:'C', w:kw(1)},
+      {id:'V',  b:'V', w:kw(1)},{id:'B', b:'B', w:kw(1)},{id:'N', b:'N', w:kw(1)},
+      {id:'M',  b:'M', w:kw(1)},
+      {id:';,',  t:';',  b:',',  w:kw(1)},
+      {id:':.',  t:':',  b:'.',  w:kw(1)},
+      {id:'-_',  t:'_',  b:'-',  w:kw(1)},
+      {id:'Shift-R', b:'Shift ⇧', w:kw(2.9)},
+    ]},
+    // Unterste Reihe
+    { h:36, keys:[
+      {id:'Strg-L', b:'Strg',  w:kw(1.4)},
+      {id:'Win-L',  b:'⊞ Win', w:kw(1.3)},
+      {id:'FN',     b:'FN',    w:kw(1.1)},
+      {id:'Alt',    b:'Alt',   w:kw(1.3)},
+      {id:'Leertaste', b:'',   w:kw(6.3)},
+      {id:'AltGr',  b:'AltGr', w:kw(1.3)},
+      {id:'Win-R',  b:'⊞',     w:kw(1.1)},
+      {id:'Menü',   b:'☰',     w:kw(1.1)},
+      {id:'Strg-R', b:'Strg',  w:kw(1.4)},
+    ]},
+  ];
+
+  // Navigationsblock (3×4 Grid mit Lücken)
+  const NAV_ROWS = [
+    [ {id:'Einfg',b:'Einfg',w:kw(1)}, {id:'Pos1',b:'Pos1',w:kw(1)}, {id:'Bild↑',b:'Bild↑',w:kw(1)} ],
+    [ {id:'Entf', b:'Entf', w:kw(1)}, {id:'Ende', b:'Ende', w:kw(1)}, {id:'Bild↓',b:'Bild↓',w:kw(1)} ],
+    null, // Leerzeile
+    [ null,                            {id:'↑',    b:'↑',   w:kw(1)}, null ],
+    [ {id:'←',   b:'←',   w:kw(1)},   {id:'↓',   b:'↓',   w:kw(1)}, {id:'→',   b:'→',   w:kw(1)} ],
+  ];
+
+  // Numpad — Num+ und NumEnter sind doppelt hoch
+  // Wir rendern als CSS-Grid um row-span zu ermöglichen
+  const NUM_GRID = [
+    // [id, b, t, col, row, colSpan, rowSpan]
+    ['Num',    'Num', '↓',    1, 1, 1, 1],
+    ['Num÷',   '÷',   null,   2, 1, 1, 1],
+    ['Num×',   '×',   null,   3, 1, 1, 1],
+    ['Num-',   '−',   null,   4, 1, 1, 1],
+    ['Num7',   '7',   'Pos1', 1, 2, 1, 1],
+    ['Num8',   '8',   '↑',    2, 2, 1, 1],
+    ['Num9',   '9',   'Bild↑',3, 2, 1, 1],
+    ['Num+',   '+',   null,   4, 2, 1, 2], // doppelt hoch
+    ['Num4',   '4',   '←',    1, 3, 1, 1],
+    ['Num5',   '5',   null,   2, 3, 1, 1],
+    ['Num6',   '6',   '→',    3, 3, 1, 1],
+    ['Num1',   '1',   'Ende', 1, 4, 1, 1],
+    ['Num2',   '2',   '↓',    2, 4, 1, 1],
+    ['Num3',   '3',   'Bild↓',3, 4, 1, 1],
+    ['NumEnter','Enter',null, 4, 4, 1, 2], // doppelt hoch
+    ['Num0',   '0',   'Einfg',1, 5, 2, 1], // doppelt breit
+    ['Num,',   ',',   'Entf', 3, 5, 1, 1],
+  ];
+
+  // Anzeige-Namen für die "Ausgewählte Tasten" Leiste
+  const KEY_LABELS = {
+    'Shift-L':'Shift','Shift-R':'Shift',
+    'Strg-L':'Strg','Strg-R':'Strg',
+    'Win-L':'Win','Win-R':'Win',
+    'Backspace':'Backspace','Tab':'Tab','Caps':'Caps Lock',
+    'Enter':'Enter','Leertaste':'Leertaste',
+    'Druck':'Druck/S-Abf','Rollen':'Rollen','Pause':'Pause/Untbr',
+    '°^':'°/^','"2':'"/2','§3':'§/3','$4':'$/4','%5':'%/5','&6':'&/6',
+    '/7':'//7','(8':'(/8',')9':')/9','=0':'=/0','?ß':'?/ß','`´':'`/´',
+    '+*':'+/*',"'#":"'/#",'<>':'</>',';,':';/,',':.':':/.', '-_':'-/_',
+    '!1':'!/1','Num÷':'Num÷','Num×':'Num×','Num-':'Num−','Num+':'Num+',
+    'NumEnter':'Num↵','Num0':'Num 0','Num,':'Num ,',
+    'Bild↑':'Bild↑','Bild↓':'Bild↓','FN':'FN',
+  };
+
+  // ── KEYBOARD RENDERING ──────────────────────────────────────────────────
+  function renderKeyboard() {
+    const container = document.getElementById('keyboardContainer');
+    container.innerHTML = '';
+    container.style.cssText = 'display:flex; gap:0px; align-items:flex-start; position:relative;';
+
+    // ── EMTS Label + LED oben rechts ────────────────────────────────
+    const badge = document.createElement('div');
+    badge.id = 'kbBadge';
+    badge.style.cssText = `
+      position:absolute; top:8px; right:10px;
+      display:flex; align-items:center; gap:5px;
+      font-size:9px; font-weight:700; letter-spacing:1px;
+      color:#888; font-family:'Ubuntu',sans-serif;
+      z-index:10; pointer-events:none; user-select:none;
+    `;
+    badge.innerHTML = '<span>EMTS</span><span id="kbLed" style="width:7px;height:7px;border-radius:50%;background:#2ecc40;box-shadow:0 0 4px 1px rgba(46,204,64,0.7);transition:background 0.15s,box-shadow 0.15s;display:inline-block;"></span>';
+    container.appendChild(badge);
+    // ────────────────────────────────────────────────────────────────
+
+    // Fn-Reihe Höhe + Gap = Spacer-Höhe für Nav & Numpad
+    const FN_H    = 28;           // Fn-Reihe Höhe
+    const SPACER_H = FN_H + G;   // = 30px
+
+    // ── Haupttastatur ──────────────────────────────────────────────
+    const mainDiv = document.createElement('div');
+    mainDiv.style.cssText = `display:flex; flex-direction:column; gap:${G}px; flex-shrink:0;`;
+
+    KB_ROWS.forEach(rowDef => {
+      const row = document.createElement('div');
+      row.className = 'kb-row';
+      rowDef.keys.forEach(k => {
+        if (!k) { // Gap zwischen Fn-Gruppen
+          const gap = document.createElement('div');
+          gap.style.cssText = 'width:6px; flex-shrink:0;';
+          row.appendChild(gap);
+          return;
+        }
+        row.appendChild(makeKey(k.id, k.b, k.t || null, k.w, rowDef.h));
+      });
+      mainDiv.appendChild(row);
+    });
+    container.appendChild(mainDiv);
+
+    // ── Navigationsblock ───────────────────────────────────────────
+    const navDiv = document.createElement('div');
+    navDiv.style.cssText = `display:flex; flex-direction:column; gap:${G}px; flex-shrink:0;`;
+
+    // Spacer: Fn-Reihe h + Gap überspringen
+    const spacer = document.createElement('div');
+    spacer.style.cssText = `height:${SPACER_H}px;`;
+    navDiv.appendChild(spacer);
+
+    NAV_ROWS.forEach(rowDef => {
+      if (rowDef === null) {
+        // Leerzeile zwischen Einfg-Block und Pfeiltasten
+        const empty = document.createElement('div');
+        empty.style.cssText = `height:${B + G}px;`;
+        navDiv.appendChild(empty);
+        return;
+      }
+      const row = document.createElement('div');
+      row.className = 'kb-row';
+      rowDef.forEach(k => {
+        if (!k) {
+          const ph = document.createElement('div');
+          ph.style.cssText = `width:${B}px; height:${B}px; flex-shrink:0;`;
+          row.appendChild(ph);
+          return;
+        }
+        row.appendChild(makeKey(k.id, k.b, k.t || null, k.w, B));
+      });
+      navDiv.appendChild(row);
+    });
+    container.appendChild(navDiv);
+
+    // ── Numpad (CSS-Grid für Spanning) ─────────────────────────────
+    const numWrapper = document.createElement('div');
+    numWrapper.style.cssText = 'flex-shrink:0;';
+
+    const spacer2 = document.createElement('div');
+    spacer2.style.cssText = `height:${SPACER_H}px;`;
+    numWrapper.appendChild(spacer2);
+
+    const numGrid = document.createElement('div');
+    const cellSize = B + G; // 39px
+    numGrid.style.cssText = `
+      display:grid;
+      grid-template-columns: repeat(4, ${B}px);
+      grid-template-rows: repeat(5, ${B}px);
+      gap:${G}px;
+    `;
+
+    NUM_GRID.forEach(([id, b, t, col, row, cs, rs]) => {
+      const h = rs > 1 ? B * rs + G * (rs - 1) : B;
+      const w = cs > 1 ? B * cs + G * (cs - 1) : B;
+      const btn = makeKey(id, b, t, w, h, true);
+      btn.style.width  = w + 'px';
+      btn.style.height = h + 'px';
+      btn.style.gridColumn = cs > 1 ? `${col} / span ${cs}` : String(col);
+      btn.style.gridRow    = rs > 1 ? `${row} / span ${rs}` : String(row);
+      if (rs > 1) btn.style.justifyContent = 'center';
+      numGrid.appendChild(btn);
+    });
+
+    numWrapper.appendChild(numGrid);
+    container.appendChild(numWrapper);
+  }
+
+  // Erstellt einen Tasten-Button
+  function makeKey(id, bot, top, wPx, hPx) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.key = id;
+    btn.style.width  = wPx + 'px';
+    btn.style.height = (hPx || B) + 'px';
+
+    if (top) {
+      // Zweizeilig: Shift-Zeichen oben-links, Hauptzeichen unten-links
+      btn.innerHTML = `<span class="kt">${top}</span><span class="kb">${bot}</span>`;
+    } else if (id === 'Enter') {
+      // Enter: Icon + Label zentriert, leicht abweichende Farbe
+      btn.innerHTML = `<span class="kb-center" style="font-size:9px !important;">Enter ↵</span>`;
+      btn.classList.add('key-enter-style');
+      btn.style.alignItems = 'center';
+      btn.style.justifyContent = 'center';
+    } else if (id === 'NumEnter') {
+      btn.innerHTML = `<span class="kb-center" style="font-size:9px !important;">Num<br>Enter</span>`;
+      btn.classList.add('key-enter-style');
+      btn.style.alignItems = 'center';
+      btn.style.justifyContent = 'center';
+      btn.style.lineHeight = '1.3';
+    } else if (bot === '' || wPx >= B * 4) {
+      // Leertaste oder sehr breite Taste
+      btn.innerHTML = `<span class="kb-center" style="font-size:9px !important;">${bot}</span>`;
+      btn.style.alignItems = 'center';
+      btn.style.justifyContent = 'center';
+    } else {
+      // Einzeilig: Hauptzeichen unten-links (wie echte Tastatur)
+      btn.innerHTML = `<span style="flex:1;"></span><span class="kb">${bot}</span>`;
+    }
+
+    if (selectedKeys.has(id)) btn.classList.add('key-selected');
+    btn.addEventListener('click', () => toggleKey(id, btn));
+    return btn;
+  }
+
+  function toggleKey(key, btn) {
+    if (selectedKeys.has(key)) {
+      selectedKeys.delete(key);
+      btn.classList.remove('key-selected');
+    } else {
+      selectedKeys.add(key);
+      btn.classList.add('key-selected');
+    }
+    updateSelectedKeysDisplay();
+    ledOnKeyPress();
+  }
+
+  // ── LED Logik ─────────────────────────────────────────────────────────────
+  let _ledTimer3s  = null;
+  let _ledTimer10s = null;
+  let _ledBlink    = null;
+
+  function ledSet(color, glow) {
+    const led = document.getElementById('kbLed');
+    if (!led) return;
+    led.style.background  = color;
+    led.style.boxShadow   = '0 0 6px 2px ' + glow;
+    led.style.opacity     = '1';
+  }
+
+  function ledStartBlink() {
+    const led = document.getElementById('kbLed');
+    if (!led) return;
+    let on = true;
+    _ledBlink = setInterval(() => {
+      led.style.opacity = on ? '1' : '0.15';
+      on = !on;
+    }, 500);
+  }
+
+  function ledStopBlink() {
+    if (_ledBlink) { clearInterval(_ledBlink); _ledBlink = null; }
+    const led = document.getElementById('kbLed');
+    if (led) led.style.opacity = '1';
+  }
+
+  function ledOnKeyPress() {
+    // Sofort: gelb aufleuchten
+    ledStopBlink();
+    clearTimeout(_ledTimer3s);
+    clearTimeout(_ledTimer10s);
+    ledSet('#f0c000', 'rgba(240,192,0,0.8)');
+
+    // Nach 3s ohne weiteren Klick: zurück auf grün
+    _ledTimer3s = setTimeout(() => {
+      ledSet('#2ecc40', 'rgba(46,204,64,0.7)');
+
+      // Nach weiteren 7s (= 10s gesamt) Inaktivität: blinken
+      _ledTimer10s = setTimeout(() => {
+        ledStartBlink();
+      }, 7000);
+    }, 3000);
+  }
+
+  function ledReset() {
+    ledStopBlink();
+    clearTimeout(_ledTimer3s);
+    clearTimeout(_ledTimer10s);
+    ledSet('#2ecc40', 'rgba(46,204,64,0.7)');
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function updateSelectedKeysDisplay() {
+    const display = document.getElementById('selectedKeysDisplay');
+    if (!display) return;
+    if (selectedKeys.size === 0) {
+      display.textContent = '— noch keine Tasten gewählt —';
+      display.style.color = 'var(--text-dim)';
+    } else {
+      // Anzeige-Namen nutzen (intern kann Shift-L/Shift-R sein, zeigen aber "Shift")
+      const labels = Array.from(selectedKeys).map(k => KEY_LABELS[k] || k);
+      // Duplikate entfernen (z.B. Shift-L und Shift-R zeigen beide "Shift")
+      const unique = [...new Set(labels)];
+      display.textContent = unique.join(', ');
+      display.style.color = 'var(--primary)';
+    }
+  }
+
+  // ── TASTATUR FLOW ────────────────────────────────────────────────────────
+
+  /**
+   * Wird von sendReq aufgerufen, wenn eine Tastatur erkannt wurde.
+   * Öffnet das Tastatur-Modal und setzt die Anzeige.
+   */
+  function openTastaturModal(mod) {
+    const sub = document.getElementById('tastaturModalSub');
+    if (sub) sub.textContent = 'Ersatzteil: ' + mod;
+
+    // Step-Zustand zurücksetzen
+    document.getElementById('tastaturStep1').style.display = 'block';
+    document.getElementById('tastaturStep2').style.display = 'none';
+    selectedKeys.clear();
+    ledReset(); // LED zurücksetzen
+
+    document.getElementById('tastaturModalOverlay').style.display = 'flex';
+  }
+
+  /**
+   * Schritt 1 – Auswahl: "komplett" oder "einzeln"
+   */
+  function tastaturWahl(wahl) {
+    if (wahl === 'komplett') {
+      // Merken und direkt zum LogID-Modal weiter
+      currentOrderData.kommentar = 'Komplette Tastatur';
+      closeTastaturModal();
+      openRepModal();
+    } else {
+      // Zum Keyboard-Selector wechseln
+      selectedKeys.clear();
+      document.getElementById('tastaturStep1').style.display = 'none';
+      document.getElementById('tastaturStep2').style.display = 'block';
+      renderKeyboard();
+      updateSelectedKeysDisplay();
+    }
+  }
+
+  /**
+   * Schritt 2 → zurück zu Schritt 1
+   */
+  function tastaturStep2Back() {
+    document.getElementById('tastaturStep2').style.display = 'none';
+    document.getElementById('tastaturStep1').style.display = 'block';
+  }
+
+  /**
+   * Schritt 2 → Weiter: Auswahl übernehmen und LogID-Modal öffnen
+   */
+  function tastaturWeiter() {
+    if (selectedKeys.size === 0) {
+      showToast('Bitte mindestens eine Taste auswählen!', 'error');
+      return;
+    }
+    // Anzeige-Namen in Komma-Liste für Spalte G
+    const labels = Array.from(selectedKeys).map(k => KEY_LABELS[k] || k);
+    const unique = [...new Set(labels)];
+    currentOrderData.kommentar = unique.join(', ');
+    closeTastaturModal();
+    openRepModal();
+  }
+
+  function closeTastaturModal() {
+    document.getElementById('tastaturModalOverlay').style.display = 'none';
+  }
+
+  // ── REP-MODAL (LogID Eingabe) ────────────────────────────────────────────
+
+  /**
+   * Öffnet das LogID-Eingabe-Modal.
+   * Zeigt, wenn vorhanden, die Tastatur-Auswahl als Info an.
+   */
+  function openRepModal() {
+    const subText  = document.getElementById('repModalSub');
+    const inputFld = document.getElementById('repNumberInput');
+    const keyInfo  = document.getElementById('repModalKeyInfo');
+    const keyVal   = document.getElementById('repModalKeyValue');
+
+    if (subText)  subText.innerText = 'Ersatzteil: ' + currentOrderData.mod;
+    if (inputFld) { inputFld.value = ''; inputFld.style.borderColor = 'var(--border)'; }
+
+    // Tastatur-Info einblenden, falls vorhanden
+    if (keyInfo && keyVal) {
+      if (currentOrderData.kommentar && currentOrderData.kommentar !== '') {
+        keyVal.textContent = currentOrderData.kommentar;
+        keyInfo.style.display = 'block';
+      } else {
+        keyInfo.style.display = 'none';
+      }
+    }
+
+    document.getElementById('repModalOverlay').style.display = 'flex';
+    setTimeout(() => { if (inputFld) inputFld.focus(); }, 250);
+  }
+
+  function closeRepModal() {
+    document.getElementById('repModalOverlay').style.display = 'none';
+  }
+
+  // ── LOGIN / LOGOUT ────────────────────────────────────────────────────────
+  window.onload = function() {
+    const savedSize = localStorage.getItem('userFontSize');
+    if (savedSize) setFontSize(savedSize);
+
+    // Gespeichertes Kürzel wiederherstellen → direkt einloggen
+    const savedUser = localStorage.getItem('emtsUserKuerzel');
+    if (savedUser) {
+      document.getElementById('userName').value = savedUser;
+      login();
+    }
+  };
+
+  function setFontSize(size) {
+    const b = document.body;
+    b.classList.remove('font-small', 'font-medium', 'font-large');
+    b.classList.add('font-' + size);
+    localStorage.setItem('userFontSize', size);
+  }
+
+  function clearSearch() {
+    const input = document.getElementById('term');
+    input.value = '';
+    input.focus();
+    search();
+  }
+
+  function login() {
+    const val = document.getElementById('userName').value.trim().toUpperCase();
+    if (val.length < 2) return showToast('Bitte dein Techniker Kürzel eingeben.', 'error');
+    currentUser = val;
+    localStorage.setItem('emtsUserKuerzel', currentUser);
+    document.getElementById('loginOverlay').style.display = 'none';
+    document.getElementById('userInfo').innerText = currentUser;
+    showToast('Willkommen zurück, ' + currentUser + '!', 'success');
+    refreshMyRequests(0);
+  }
+
+  function logout() {
+    currentUser = '';
+    localStorage.removeItem('emtsUserKuerzel'); // Gespeicherten User löschen
+    document.getElementById('loginOverlay').style.display = 'flex';
+    document.getElementById('userName').value = '';
+    document.getElementById('resultsBody').innerHTML = '';
+    document.getElementById('myRequestsList').innerHTML = '';
+  }
+
+  // ── SUCHE ─────────────────────────────────────────────────────────────────
+  function search() {
+    const q = document.getElementById('term').value.trim();
+    const resultsBody = document.getElementById('resultsBody');
+    const clearBtn    = document.getElementById('searchClear');
+
+    clearTimeout(searchTimer);
+
+    clearBtn.style.display = q.length > 0 ? 'block' : 'none';
+
+    if (q.length < 3) {
+      resultsBody.innerHTML = '';
+      return;
+    }
+
+    resultsBody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align:center; padding:3rem; color:var(--primary);">
+          <div class="spinner-small"></div>
+          Suche nach <strong>"${q}"</strong> wird ausgeführt...
+        </td>
+      </tr>`;
+
+    searchTimer = setTimeout(() => {
+      google.script.run
+        .withSuccessHandler(res => renderTable(res, q))
+        .withFailureHandler(err => {
+          resultsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">Fehler: ${err}</td></tr>`;
+        })
+        .sucheGlobal(q);
+    }, 300);
+  }
+
+  // ── TABELLE RENDERN ──────────────────────────────────────────────────────
+  function renderTable(res, q) {
+    let html = '';
+    if (!res || res.length === 0) {
+      document.getElementById('resultsBody').innerHTML =
+        `<tr><td colspan='5' style='text-align:center; padding:40px; color:var(--text-dim)'>Keine Treffer für '${q}'</td></tr>`;
+      return;
+    }
+
+    res.forEach(item => {
+      const avail    = item.bestand > 0;
+      const isTastatur = item.kategorie.toLowerCase().includes('tastatur') ||
+                         item.modell.toLowerCase().includes('tastatur');
+
+      const btnStyle = avail ? '' : 'background:var(--purple);';
+      const btnText  = avail ? '✉️ Anfragen' : '🔔 Bedarf';
+      const type     = avail ? 'normal' : 'bedarf';
+
+      // Tastatur-Hinweis-Badge in der Kategoriespalte
+      const tastaturBadge = isTastatur
+        ? `<span style="display:inline-block; font-size:0.65rem !important; background:var(--primary)15;
+                color:var(--primary); border:1px solid var(--primary)30; border-radius:4px;
+                padding:1px 5px; margin-top:4px;">⌨️ Tastenauswahl möglich</span>`
+        : '';
+
+      html += `<tr>
+        <td>
+          <div style="font-weight:800; font-size:1.1rem;">${item.modell}</div>
+          <div style="color:var(--text-dim); font-size:0.8rem; margin:3px 0 8px 0;">ID: #${item.id}</div>
+          <button class="btn-icon" style="font-size:0.7rem; padding:3px 8px; border-color:var(--primary); color:var(--primary);"
+                  onclick="showCompatibility('${item.id}','${item.modell}')">ℹ️ Kompatibilität</button>
+        </td>
+        <td>
+          <span class="status-pill" style="background:var(--border); color:var(--text-dim);">${item.kategorie}</span>
+          <br>${tastaturBadge}
+        </td>
+        <td style="text-align:center; font-family:monospace; font-weight:bold;">${item.ort || item.lagerort || '-'}</td>
+        <td style="text-align:center; font-weight:bold; font-size:1.2rem; color:${avail ? 'var(--success)' : 'var(--danger)'};">${item.bestand}</td>
+        <td style="text-align:right;">
+          <button class="btn-order" style="${btnStyle}"
+                  onclick="sendReq('${item.id}','${item.modell}','${type}')">${btnText}</button>
+        </td>
+      </tr>`;
+    });
+
+    document.getElementById('resultsBody').innerHTML = html;
+  }
+
+  // ── ANFRAGE STARTEN ───────────────────────────────────────────────────────
+  /**
+   * Wird beim Klick auf "Anfragen" oder "Bedarf" aufgerufen.
+   * Bei Tastatur: Tastatur-Modal öffnen.
+   * Bei allen anderen Teilen: direkt LogID-Modal öffnen.
+   */
+  function sendReq(id, mod, type) {
+    currentOrderData = { id: id, mod: mod, type: type, kommentar: '' };
+
+    // ── TASTATUR-ERKENNUNG ──────────────────────────────────────────────────
+    // Prüft ob das Modell oder der Suchbegriff das Wort "Tastatur" enthält.
+    const searchTerm = document.getElementById('term').value.toLowerCase();
+    const isTastatur = mod.toLowerCase().includes('tastatur') ||
+                       searchTerm.includes('tastatur');
+
+    if (isTastatur) {
+      openTastaturModal(mod);
+      return;
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    // Alle anderen Teile: direkt LogID-Modal
+    openRepModal();
+  }
+
+  // ── BESTELLUNG BESTÄTIGEN ─────────────────────────────────────────────────
+  function confirmRepOrder() {
+    const modalBox = document.getElementById('repModalBox');
+    const repField = document.getElementById('repNumberInput');
+    const repNum   = repField.value.trim();
+
+    if (!repNum || !/^\d+$/.test(repNum)) {
+      if (modalBox) {
+        modalBox.classList.add('shake');
+        setTimeout(() => modalBox.classList.remove('shake'), 300);
+      }
+      showToast('Gültige LogID (nur Zahlen) erforderlich!', 'error');
+      repField.style.borderColor = 'var(--danger)';
+      return;
+    }
+
+    // Letzte LogIDs im Browser-Verlauf merken
+    let history = JSON.parse(localStorage.getItem('repHistory') || '[]');
+    history = history.filter(n => n !== repNum);
+    history.unshift(repNum);
+    localStorage.setItem('repHistory', JSON.stringify(history.slice(0, 3)));
+
+    closeRepModal();
+    toggleLoading(true, 'Buchung wird verarbeitet...');
+
+    google.script.run
+      .withSuccessHandler(msg => {
+        toggleLoading(false);
+        showToast(msg, 'success');
+        refreshMyRequests(0);
+        search();
+      })
+      .technikerAnfrageSubmit(
+        currentOrderData.id,
+        currentOrderData.mod,
+        currentUser,
+        repNum,
+        document.getElementById('term').value.trim(),
+        currentOrderData.type,
+        currentOrderData.kommentar || ''   // NEU: Tastatur-Info → Spalte G
+      );
+  }
+
+  // ── KOMPATIBILITÄT ────────────────────────────────────────────────────────
+  function showCompatibility(id, originalModell) {
+    toggleLoading(true, 'Matrix wird abgeglichen...');
+    google.script.run.withSuccessHandler(liste => {
+      toggleLoading(false);
+      const listEl = document.getElementById('compatList');
+      listEl.innerHTML = '';
+      if (!liste || liste.length === 0) {
+        listEl.innerHTML = `<li style="padding:1rem; text-align:center; color:var(--danger);">Keine Treffer gefunden.</li>`;
+      } else {
+        liste.forEach(geraet => {
+          const istAktuell = geraet.toLowerCase().includes(originalModell.toLowerCase().split(' ')[0]);
+          listEl.innerHTML += `<li style="padding:0.8rem; border-bottom:1px solid var(--border); display:flex; align-items:center; ${istAktuell ? 'background:var(--primary)10; color:var(--primary); font-weight:700;' : ''}">💻 ${geraet}</li>`;
+        });
+      }
+      document.getElementById('compatOverlay').style.display = 'flex';
+    }).getKompatibleGeraete(originalModell);
+  }
+
+  function closeCompat() { document.getElementById('compatOverlay').style.display = 'none'; }
+
+  // ── MEINE ANFRAGEN ────────────────────────────────────────────────────────
+  function refreshMyRequests(offset = 0) {
+    currentOffset = offset;
+    const listContainer = document.getElementById('myRequestsList');
+    if (offset === 0) {
+      listContainer.innerHTML = `<div style="text-align:center; padding:1rem; color:var(--text-dim);">Lädt Verlauf...</div>`;
+      alleAnfragen = []; // Cache leeren bei Komplett-Reload
+    }
+
+    google.script.run.withSuccessHandler(result => {
+      const anfragen = result.anfragen || [];
+
+      // Neue Anfragen in den Cache mergen
+      alleAnfragen = offset === 0 ? anfragen : [...alleAnfragen, ...anfragen];
+
+      // Badge aktualisieren
+      updateOffeneBadge();
+
+      if (offset === 0 && anfragen.length === 0) {
+        listContainer.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--text-dim);">Keine Anfragen gefunden.</div>`;
+        return;
+      }
+
+      // Nach dem Laden direkt den aktiven Filter anwenden
+      renderAnfragen(alleAnfragen, result.hasMore, offset);
+
+    }).getAnfragenFuerTechniker(currentUser, offset);
+  }
+
+  // Rendert die Anfragen-Liste mit optionalem Filter
+  function renderAnfragen(anfragen, hasMore, offset) {
+    const listContainer = document.getElementById('myRequestsList');
+    const suchQuery  = (document.getElementById('anfragenSearch')?.value || '').toLowerCase().trim();
+    const offeneStatus = ['neu', 'bedarf'];
+
+    // Filtern
+    let gefiltert = anfragen.filter(a => {
+      const matchSearch = suchQuery === '' || String(a.repId).toLowerCase().includes(suchQuery);
+      const matchOffen  = !nurOffeneFilter || offeneStatus.includes((a.status || '').toLowerCase());
+      return matchSearch && matchOffen;
+    });
+
+    if (gefiltert.length === 0) {
+      listContainer.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--text-dim);">
+        ${suchQuery ? 'Keine Anfragen für LogID "' + suchQuery + '" gefunden.' : 'Keine offenen Anfragen.'}
+      </div>`;
+      return;
+    }
+
+    let currentHTML = '';
+    gefiltert.forEach(a => {
+        let sCol = 'var(--primary)';
+        const sClean = (a.status || 'Neu').toLowerCase();
+        if (sClean.includes('bearbeitung'))  sCol = 'var(--warning)';
+        else if (sClean.includes('abgeschlossen')) sCol = 'var(--success)';
+        else if (sClean.includes('kein bestand') || sClean.includes('abgelehnt')) sCol = 'var(--danger)';
+        else if (sClean.includes('bedarf'))   sCol = 'var(--purple)';
+        else if (sClean.includes('storniert')) sCol = 'var(--text-dim)';
+
+        const kannStornieren = (sClean === 'neu' || sClean === 'bedarf');
+
+        // Tastatur-Kommentar anzeigen, falls vorhanden (kommt aus Spalte G)
+        const isTastaturAnfrage = a.teil && a.teil.toLowerCase().includes('tastatur');
+        const kommentarInfo = (isTastaturAnfrage && a.kommentar && String(a.kommentar).trim() !== '' && isNaN(a.kommentar))
+          ? `<div style="margin-top:5px; font-size:0.75rem !important; padding:4px 8px; background:var(--bg);
+                         border-radius:5px; color:var(--primary); border-left:2px solid var(--primary);">
+               ⌨️ ${a.kommentar}
+             </div>`
+          : '';
+
+        currentHTML += `
+          <div style="padding: 1.5rem 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="flex: 1;">
+              <div style="font-weight: 700; font-size: 1.3rem; color: var(--text); line-height: 1;">${a.repId}</div>
+              <div style="margin: 0.5rem 0 0.2rem 0;">
+                <span style="color: var(--text-dim); font-weight: 300;">${a.geraet}</span>
+                <span style="font-weight: 300;"> ${a.teil}</span>
+              </div>
+              ${kommentarInfo}
+              <div style="font-size: 0.75rem; color: var(--text-dim); margin-top:4px;">${a.datum}</div>
+              ${kannStornieren ? `<button onclick="storno('${escAttr(a.datum)}', '${escAttr(a.repId)}', '${escAttr(a.teil)}')" class="btn-icon" style="margin-top:0.8rem; color:var(--danger); border-color:var(--danger); font-size:0.7rem;">🗑️ Stornieren</button>` : ''}
+            </div>
+            <div style="text-align: right; padding-left:10px;">
+              <span class="status-pill" style="background:${sCol}15; color:${sCol}; border: 1px solid ${sCol}30;">${a.status}</span>
+            </div>
+          </div>`;
+      });
+
+      // "Mehr laden" Button — nur anzeigen wenn kein aktiver Filter
+      if (hasMore && suchQuery === '' && !nurOffeneFilter) {
+        currentHTML += `<button id="loadMoreBtn" onclick="refreshMyRequests(${alleAnfragen.length})" style="width:100%; margin-top:1.5rem; background:none; border:1px dashed var(--primary); color:var(--primary); padding:0.8rem; cursor:pointer; border-radius:10px;">🔽 Ältere Anfragen laden</button>`;
+      }
+      listContainer.innerHTML = currentHTML;
+  }
+
+  // Badge: Anzahl offener Anfragen berechnen und anzeigen
+  function updateOffeneBadge() {
+    const offeneStatus = ['neu', 'bedarf'];
+    const anzahl = alleAnfragen.filter(a => offeneStatus.includes((a.status || '').toLowerCase())).length;
+    const badge  = document.getElementById('offeneBadge');
+    const count  = document.getElementById('offeneCount');
+    if (!badge || !count) return;
+    count.textContent = anzahl;
+    badge.style.display = anzahl > 0 ? 'inline-block' : 'none';
+    // Wenn Filter aktiv: Badge hervorheben
+    badge.style.background = nurOffeneFilter ? 'var(--danger)' : 'var(--warning)';
+    badge.style.color       = nurOffeneFilter ? 'white' : '#000';
+  }
+
+  // Filter umschalten: alle / nur offene
+  function toggleOffeneFilter() {
+    nurOffeneFilter = !nurOffeneFilter;
+    updateOffeneBadge();
+    // Suchfeld leeren wenn Offen-Filter aktiviert wird
+    if (nurOffeneFilter) {
+      const sf = document.getElementById('anfragenSearch');
+      if (sf) { sf.value = ''; document.getElementById('anfragenSearchClear').style.display = 'none'; }
+    }
+    renderAnfragen(alleAnfragen, false, 0);
+  }
+
+  // LogID Suche im Verlauf
+  function filterAnfragen() {
+    const val     = document.getElementById('anfragenSearch').value;
+    const clearBtn = document.getElementById('anfragenSearchClear');
+    if (clearBtn) clearBtn.style.display = val.length > 0 ? 'inline' : 'none';
+    // Offen-Filter deaktivieren wenn Suche beginnt
+    if (val.length > 0 && nurOffeneFilter) {
+      nurOffeneFilter = false;
+      updateOffeneBadge();
+    }
+    renderAnfragen(alleAnfragen, false, 0);
+  }
+
+  function clearAnfragenSearch() {
+    const sf = document.getElementById('anfragenSearch');
+    if (sf) sf.value = '';
+    document.getElementById('anfragenSearchClear').style.display = 'none';
+    renderAnfragen(alleAnfragen, false, 0);
+  }
+
+  // ── STORNIERUNG ───────────────────────────────────────────────────────────
+  let _stornoDaten = {};
+
+  function storno(datum, repId, teil) {
+    _stornoDaten = { repId: repId, teil: teil };
+    document.getElementById('stornoTeilName').textContent = teil;
+    document.getElementById('stornoModalOverlay').style.display = 'flex';
+  }
+
+  function closeStornoModal() {
+    document.getElementById('stornoModalOverlay').style.display = 'none';
+    _stornoDaten = {};
+  }
+
+  function stornoBestaetigen() {
+    // Werte ZUERST sichern, DANN Modal schließen (closeStornoModal setzt _stornoDaten zurück!)
+    const repId = _stornoDaten.repId;
+    const teil  = _stornoDaten.teil;
+    closeStornoModal();
+    toggleLoading(true, 'Verarbeitung...');
+    google.script.run.withSuccessHandler(function(msg) {
+      toggleLoading(false);
+      showToast(msg, 'warning');
+      refreshMyRequests(0);
+      if (typeof search === 'function') search();
+    }).storniereAnfrageTechniker(currentUser, repId, teil);
+  }
+
+  // ── HILFSFUNKTIONEN ───────────────────────────────────────────────────────
+  function toggleLoading(s, t) {
+    document.getElementById('loadingOverlay').style.display = s ? 'flex' : 'none';
+    document.getElementById('loadingText').innerText = t || 'Bitte warten...';
+  }
+
+  function toggleTheme() {
+    const b = document.body;
+    const isD = b.getAttribute('data-theme') === 'dark';
+    b.setAttribute('data-theme', isD ? 'light' : 'dark');
+    document.getElementById('themeBtn').innerText = isD ? '🌙 Dark Mode' : '☀️ Light Mode';
+  }
+
+  function showToast(msg, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast     = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+    toast.innerHTML = `<span style="margin-right:12px; font-size:1.2rem;">${icons[type] || '🔔'}</span> <span>${msg}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 100);
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 400);
+    }, 2500);
+  }
+
+  function renderLastReps() {
+    const container = document.getElementById('lastRepsContainer');
+    if (!container) return;
+    const history = JSON.parse(localStorage.getItem('repHistory') || '[]');
+    if (history.length === 0) { container.innerHTML = ''; return; }
+    container.innerHTML = '<small style="width:100%; color:var(--text-dim); margin-bottom:5px; display:block;">Zuletzt verwendet:</small>';
+    history.forEach(num => {
+      const btn = document.createElement('button');
+      btn.innerText = num;
+      btn.className = 'btn-icon';
+      btn.style.cssText = 'font-size:0.85rem; padding:6px 12px; border-color:var(--primary); color:var(--primary); cursor:pointer; font-weight:bold; margin:4px;';
+      btn.onclick = () => {
+        document.getElementById('repNumberInput').value = num;
+        document.getElementById('repNumberInput').focus();
+      };
+      container.appendChild(btn);
+    });
+  }
+
+  // ── EVENT LISTENERS ───────────────────────────────────────────────────────
+  document.getElementById('userName').addEventListener('keypress', e => {
+    if (e.key === 'Enter') login();
+  });
+
+  document.getElementById('repNumberInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') confirmRepOrder();
+  });
+</script>
+</body>
+</html>
