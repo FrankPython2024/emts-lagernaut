@@ -102,8 +102,14 @@ export const geraeteLookupRouter = createTRPCRouter({
   // Statistik für Admin-Dashboard
   getStats: adminProcedure
     .query(async () => {
-      const total = await prisma.geraeteLookup.count();
-      return { total };
+      const [total, letzter] = await Promise.all([
+        prisma.geraeteLookup.count(),
+        prisma.geraeteLookup.findFirst({
+          orderBy: { updatedAt: "desc" },
+          select:  { updatedAt: true },
+        }),
+      ]);
+      return { total, letzterImport: letzter?.updatedAt ?? null };
     }),
 
 });
