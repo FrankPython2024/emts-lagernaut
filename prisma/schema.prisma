@@ -27,32 +27,19 @@ enum UserRolle {
 }
 
 model Artikel {
-  id             Int               @id @default(autoincrement())
-  bezeichnung    String
-  lagerplatz     String?           // Legacy String-Feld (bleibt für Backward-Compat)
-  lagerplatzId   Int?
-  lagerplatzRel  Lagerplatz?       @relation(fields: [lagerplatzId], references: [id])
-  kategorie      String
-  bestand        Int               @default(0)
-  buchungen      Buchung[]
-  anfragen       Anfrage[]
-  kompatibel     Kompatibilitaet[]
-  korbItems      WarenkorbItem[]
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  id          Int               @id @default(autoincrement())
+  bezeichnung String
+  lagerplatz  String?
+  kategorie   String
+  bestand     Int               @default(0)
+  buchungen   Buchung[]
+  anfragen    Anfrage[]
+  kompatibel  Kompatibilitaet[]
+  korbItems   WarenkorbItem[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
   @@unique([bezeichnung, kategorie])
-}
-
-model Lagerplatz {
-  id           Int       @id @default(autoincrement())
-  code         String    @unique
-  beschreibung String?
-  bereich      String?
-  aktiv        Boolean   @default(true)
-  artikel      Artikel[]
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
 }
 
 model Buchung {

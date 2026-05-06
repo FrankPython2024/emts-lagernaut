@@ -11,10 +11,10 @@ import { PageLoader } from "@/components/ui/LoadingSpinner";
 export default function ArtikelDetailPage() {
   const { id } = useParams<{ id: string }>();
   const artikelId = Number(id);
-  const router = useRouter();
-  const { show } = useToast();
+  const router    = useRouter();
+  const { show }  = useToast();
   const { data: session } = useSession();
-  const kuerzel = (session?.user as { kuerzel?: string })?.kuerzel ?? "ADMIN";
+  const kuerzel   = (session?.user as { kuerzel?: string })?.kuerzel ?? "ADMIN";
 
   const { data: artikel, isLoading, refetch } = api.lager.getByIdAdmin.useQuery({ id: artikelId });
   const buchungen  = api.buchungen.getByArtikel.useQuery({ artikelId, limit: 20, offset: 0 });
@@ -24,16 +24,8 @@ export default function ArtikelDetailPage() {
   const [form, setForm]               = useState({ bezeichnung: "", kategorie: "", lagerplatz: "" });
   const [delOpen, setDelOpen]         = useState(false);
   const [lpModalOpen, setLpModalOpen] = useState(false);
-  const [nachLpId, setNachLpId]       = useState<number | null>(null);
-
-  const verschiebe = api.lagerplaetze.verschiebeArtikel.useMutation({
-    onSuccess: (r) => {
-      show(`✅ Verschoben: ${r.von} → ${r.nach}`, "success");
-      setLpModalOpen(false); setNachLpId(null);
-      refetch();
-    },
-    onError: (e) => show(e.message, "error"),
-  });
+  const [neuerLp,  setNeuerLp]        = useState("");
+  const [neuCode,  setNeuCode]        = useState("");
 
   useEffect(() => {
     if (artikel) setForm({ bezeichnung: artikel.bezeichnung, kategorie: artikel.kategorie, lagerplatz: artikel.lagerplatz ?? "" });
@@ -49,8 +41,20 @@ export default function ArtikelDetailPage() {
     onError:   (e) => show(e.message, "error"),
   });
 
+  const verschiebe = api.lagerplaetze.verschiebeArtikel.useMutation({
+    onSuccess: (r) => {
+      show(`✅ Verschoben: ${r.von} → ${r.nach}`, "success");
+      setLpModalOpen(false); setNeuerLp(""); setNeuCode("");
+      refetch();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
   if (isLoading) return <PageLoader />;
   if (!artikel)  return <div className="text-[#fa3e3e]">Artikel nicht gefunden.</div>;
+
+  const INPUT_CLS = "w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]";
+  const zielLPs   = (alleLPs.data ?? []).filter((l) => l.lagerplatz !== artikel.lagerplatz);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -68,14 +72,12 @@ export default function ArtikelDetailPage() {
 
         <div>
           <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">Bezeichnung</label>
-          <input value={form.bezeichnung} onChange={(e) => setForm((f) => ({ ...f, bezeichnung: e.target.value }))}
-            className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]" />
+          <input value={form.bezeichnung} onChange={(e) => setForm((f) => ({ ...f, bezeichnung: e.target.value }))} className={INPUT_CLS} />
         </div>
 
         <div>
           <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">Kategorie</label>
-          <select value={form.kategorie} onChange={(e) => setForm((f) => ({ ...f, kategorie: e.target.value }))}
-            className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]">
+          <select value={form.kategorie} onChange={(e) => setForm((f) => ({ ...f, kategorie: e.target.value }))} className={INPUT_CLS}>
             {kategorien.data?.map((k) => <option key={k} value={k}>{k}</option>)}
           </select>
         </div>
@@ -83,8 +85,7 @@ export default function ArtikelDetailPage() {
         <div>
           <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">Lagerplatz</label>
           <input value={form.lagerplatz} onChange={(e) => setForm((f) => ({ ...f, lagerplatz: e.target.value }))}
-            placeholder="z.B. R1-F3"
-            className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]" />
+            placeholder="z.B. HP-1-1-1" className={INPUT_CLS} />
         </div>
 
         <div className="flex gap-3 pt-2 flex-wrap">
@@ -93,10 +94,8 @@ export default function ArtikelDetailPage() {
             className="px-6 py-2.5 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50">
             {update.isPending ? "..." : "Speichern"}
           </button>
-          <button
-            onClick={() => setLpModalOpen(true)}
-            className="px-4 py-2.5 bg-[#f7b928]/10 text-[#f7b928] font-bold rounded-xl hover:bg-[#f7b928]/20 border border-[#f7b928]/30"
-          >
+          <button onClick={() => { setNeuerLp(""); setNeuCode(""); setLpModalOpen(true); }}
+            className="px-4 py-2.5 bg-[#f7b928]/10 text-[#f7b928] font-bold rounded-xl hover:bg-[#f7b928]/20 border border-[#f7b928]/30">
             🗄️ Lagerplatz ändern
           </button>
           {artikel.bestand === 0 && (
@@ -120,7 +119,8 @@ export default function ArtikelDetailPage() {
               <span className={`px-2 py-0.5 rounded text-xs font-bold ${b.typ === "EINGANG" ? "bg-green-100 text-green-700" : b.typ === "AUSGANG" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600"}`}>
                 {b.typ}
               </span>
-              <span className="font-black w-12 text-right">{b.typ === "EINGANG" ? "+" : b.typ === "AUSGANG" ? "-" : "±"}{b.menge}</span>
+              <span className="font-black w-12 text-right text-right">{b.typ === "EINGANG" ? "+" : b.typ === "AUSGANG" ? "-" : "±"}{b.menge}</span>
+              {b.notiz && <span className="text-xs text-[#65676b] dark:text-[#b0b3b8] max-w-[120px] truncate" title={b.notiz}>{b.notiz}</span>}
             </div>
           ))}
           {!buchungen.data?.buchungen.length && <p className="text-[#65676b] dark:text-[#b0b3b8] text-sm text-center py-4">Keine Buchungen</p>}
@@ -141,35 +141,41 @@ export default function ArtikelDetailPage() {
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
             Aktuell:{" "}
             <span className="font-mono font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
-              {artikel.lagerplatz ?? "Kein Lagerplatz"}
+              {artikel.lagerplatz ?? "–"}
             </span>
           </p>
+
           <div>
-            <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">Neuer Lagerplatz</label>
-            <select
-              value={nachLpId ?? ""}
-              onChange={(e) => setNachLpId(Number(e.target.value) || null)}
-              className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]"
-            >
+            <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">
+              Vorhandenen Lagerplatz wählen
+            </label>
+            <select value={neuerLp} onChange={(e) => { setNeuerLp(e.target.value); setNeuCode(""); }}
+              className={INPUT_CLS}>
               <option value="">-- Lagerplatz wählen --</option>
-              {(alleLPs.data ?? []).filter((l) => l.aktiv).map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.code}{l.beschreibung ? ` — ${l.beschreibung}` : ""}
-                </option>
-              ))}
+              {zielLPs.map((l) => <option key={l.lagerplatz} value={l.lagerplatz}>{l.lagerplatz}</option>)}
             </select>
           </div>
+
+          <div className="flex items-center gap-2 text-xs text-[#65676b] dark:text-[#b0b3b8]">
+            <span className="flex-1 h-px bg-[#ced4da] dark:bg-[#3e4042]" />
+            <span>oder neuen eingeben</span>
+            <span className="flex-1 h-px bg-[#ced4da] dark:bg-[#3e4042]" />
+          </div>
+
+          <input type="text" placeholder="Neuer Code z.B. HP-2-1-1"
+            value={neuCode}
+            onChange={(e) => { setNeuCode(e.target.value.toUpperCase()); setNeuerLp(e.target.value.toUpperCase()); }}
+            className={`${INPUT_CLS} font-mono`}
+          />
+
           <div className="flex gap-3">
             <button onClick={() => setLpModalOpen(false)}
               className="flex-1 py-2.5 rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-semibold">
               Abbrechen
             </button>
             <button
-              disabled={!nachLpId || verschiebe.isPending}
-              onClick={() => {
-                if (!nachLpId || !artikel.lagerplatzId) return;
-                verschiebe.mutate({ artikelId, vonLagerplatzId: artikel.lagerplatzId, nachLagerplatzId: nachLpId, mitarbeiter: kuerzel });
-              }}
+              disabled={!neuerLp || verschiebe.isPending}
+              onClick={() => verschiebe.mutate({ artikelId, neuerLagerplatz: neuerLp, mitarbeiter: kuerzel })}
               className="flex-1 py-2.5 rounded-xl bg-[#f7b928] text-black font-bold hover:bg-yellow-500 disabled:opacity-50"
             >
               {verschiebe.isPending ? "..." : "Verschieben"}
