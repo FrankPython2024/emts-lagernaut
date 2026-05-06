@@ -10,6 +10,7 @@ import {
   updateArtikel,
   deleteArtikel,
   getKategorien,
+  getLagerplaetze,
 } from "@/modules/lager/service";
 
 export const lagerRouter = createTRPCRouter({
@@ -36,12 +37,17 @@ export const lagerRouter = createTRPCRouter({
       sucheArtikelAdmin(input),
     ),
 
-  // Alle Artikel — Admin
+  // Alle Artikel mit Filter + Pagination — Admin
   getAll: adminProcedure
     .input(z.object({
-      kategorie: z.string().optional(),
-      limit:     z.number().int().min(1).max(1000).default(50),
-      offset:    z.number().int().min(0).default(0),
+      search:     z.string().optional(),
+      kategorie:  z.string().optional(),
+      lagerplatz: z.string().optional(),
+      bestand:    z.enum(["alle", "vorhanden", "leer", "kritisch"]).optional(),
+      sortBy:     z.enum(["bezeichnung", "bestand", "kategorie", "updatedAt"]).optional(),
+      sortOrder:  z.enum(["asc", "desc"]).optional(),
+      page:       z.number().int().min(1).default(1),
+      limit:      z.number().int().min(1).max(200).default(50),
     }).optional())
     .query(({ input }) =>
       getAlleArtikel(input),
@@ -64,6 +70,10 @@ export const lagerRouter = createTRPCRouter({
   // Alle Kategorien
   getKategorien: protectedProcedure
     .query(() => getKategorien()),
+
+  // Alle Lagerplätze (für Filter-Dropdown)
+  getLagerplaetze: adminProcedure
+    .query(() => getLagerplaetze()),
 
   // Neuen Artikel anlegen — Admin
   create: adminProcedure

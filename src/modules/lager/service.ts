@@ -111,25 +111,69 @@ export async function getArtikelMitLagerplatz(id: number) {
   };
 }
 
+export type ArtikelFilter = {
+  search?:    string;
+  kategorie?: string;
+  lagerplatz?: string;
+  bestand?:   "alle" | "vorhanden" | "leer" | "kritisch";
+  sortBy?:    "bezeichnung" | "bestand" | "kategorie" | "updatedAt";
+  sortOrder?: "asc" | "desc";
+  page?:      number;
+  limit?:     number;
+};
+
 /**
- * Alle Artikel für Admin-Übersicht.
+ * Alle Artikel für Admin-Übersicht mit Filter, Sortierung und Pagination.
  */
-export async function getAlleArtikel(input?: { kategorie?: string; limit?: number; offset?: number }) {
-  const where    = input?.kategorie ? { kategorie: input.kategorie } : {};
-  const limit    = input?.limit  ?? 100;
-  const offset   = input?.offset ?? 0;
+export async function getAlleArtikel(input?: ArtikelFilter) {
+  const limit  = input?.limit ?? 50;
+  const page   = input?.page  ?? 1;
+  const offset = (page - 1) * limit;
+
+  const where: Record<string, unknown> = {};
+
+  if (input?.search) {
+    where.OR = [
+      { bezeichnung: { contains: input.search } },
+      { lagerplatz:  { contains: input.search } },
+    ];
+  }
+  if (input?.kategorie)  where.kategorie  = input.kategorie;
+  if (input?.lagerplatz) where.lagerplatz = input.lagerplatz;
+
+  if (input?.bestand === "vorhanden") where.bestand = { gt: 0 };
+  if (input?.bestand === "leer")      where.bestand = 0;
+  if (input?.bestand === "kritisch")  where.bestand = { gt: 0, lt: 3 };
+
+  const sortBy    = input?.sortBy    ?? "bezeichnung";
+  const sortOrder = input?.sortOrder ?? "asc";
+  const orderBy   = { [sortBy]: sortOrder };
 
   const [artikel, total] = await Promise.all([
-    prisma.artikel.findMany({
-      where,
-      orderBy: { bezeichnung: "asc" },
-      take:    limit,
-      skip:    offset,
-    }),
+    prisma.artikel.findMany({ where, orderBy, take: limit, skip: offset }),
     prisma.artikel.count({ where }),
   ]);
 
-  return { artikel, total, hasMore: offset + limit < total };
+  return {
+    artikel,
+    total,
+    pages:   Math.ceil(total / limit),
+    page,
+    hasMore: offset + limit < total,
+  };
+}
+
+/**
+ * Alle einzigartigen Lagerplätze (für Filter-Dropdown).
+ */
+export async function getLagerplaetze(): Promise<string[]> {
+  const result = await prisma.artikel.findMany({
+    where:    { lagerplatz: { not: null } },
+    select:   { lagerplatz: true },
+    distinct: ["lagerplatz"],
+    orderBy:  { lagerplatz: "asc" },
+  });
+  return result.map((r) => r.lagerplatz!).filter(Boolean);
 }
 
 /**
