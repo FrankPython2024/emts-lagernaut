@@ -38,6 +38,8 @@ model Artikel {
   korbItems   WarenkorbItem[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+
+  @@unique([bezeichnung, kategorie])
 }
 
 model Buchung {
