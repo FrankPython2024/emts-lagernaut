@@ -153,7 +153,7 @@ export async function storniereAnfrage(input: {
   }
 
   // Nur NEU oder BEDARF können storniert werden
-  const stornierbar = [AnfrageStatus.NEU, AnfrageStatus.BEDARF];
+  const stornierbar: AnfrageStatus[] = [AnfrageStatus.NEU, AnfrageStatus.BEDARF];
   if (!stornierbar.includes(anfrage.status)) {
     throw new TRPCError({
       code:    "BAD_REQUEST",

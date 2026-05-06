@@ -14,7 +14,7 @@ export default function BenutzerDetailPage() {
   const userId   = Number(id);
 
   const { data: user, isLoading, refetch } = api.benutzer.getById.useQuery({ id: userId });
-  const [form, setForm]       = useState({ name: "", email: "", rolle: UserRolle.TECHNIKER });
+  const [form, setForm]       = useState<{ name: string; email: string; rolle: UserRolle }>({ name: "", email: "", rolle: UserRolle.TECHNIKER });
   const [newPw, setNewPw]     = useState("");
   const [deactOpen, setDeactOpen] = useState(false);
 

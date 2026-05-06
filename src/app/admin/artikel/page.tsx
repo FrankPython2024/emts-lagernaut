@@ -47,7 +47,13 @@ export default function ArtikelPage() {
   });
 
   const data: Artikel[] = debouncedQ.length >= 2
-    ? (suche.data?.map((a) => ({ ...a, lagerplatz: (a as any).lagerplatz ?? null })) ?? [])
+    ? (suche.data?.map((a) => ({
+        id:          a.id,
+        bezeichnung: a.bezeichnung,
+        kategorie:   a.kategorie,
+        lagerplatz:  a.lagerplatz ?? null,
+        bestand:     a.bestand,
+      })) ?? [])
     : (liste.data?.artikel ?? []);
 
   const filtered = nurNull ? data.filter((a) => a.bestand === 0) : data;

@@ -14,7 +14,7 @@ const ROLLEN = [
 export default function BenutzerNeuPage() {
   const router = useRouter();
   const { show } = useToast();
-  const [form, setForm] = useState({ name: "", kuerzel: "", email: "", password: "", rolle: UserRolle.TECHNIKER });
+  const [form, setForm] = useState<{ name: string; kuerzel: string; email: string; password: string; rolle: UserRolle }>({ name: "", kuerzel: "", email: "", password: "", rolle: UserRolle.TECHNIKER });
 
   const erstellen = api.benutzer.create.useMutation({
     onSuccess: (u) => { show(`✅ ${u.name} angelegt`, "success"); router.push("/admin/benutzer"); },

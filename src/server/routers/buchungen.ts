@@ -18,9 +18,14 @@ export const buchungenRouter = createTRPCRouter({
       mitarbeiter: z.string().min(1).max(50),
       notiz:       z.string().max(500).optional(),
     }))
-    .mutation(({ input }) =>
-      bucheLager(input),
-    ),
+    .mutation(async ({ input, ctx }) => {
+      const buchung = await bucheLager(input);
+      const artikel = await ctx.prisma.artikel.findUnique({
+        where:  { id: input.artikelId },
+        select: { bestand: true },
+      });
+      return { ...buchung, neuerBestand: artikel?.bestand ?? 0 };
+    }),
 
   // Buchungshistorie — mit Filter
   getAll: protectedProcedure

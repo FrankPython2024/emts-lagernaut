@@ -1,9 +1,9 @@
 "use client";
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function LoginForm() {
   const { data: session, status } = useSession();
   const router  = useRouter();
   const params  = useSearchParams();
@@ -71,7 +71,6 @@ export default function LoginPage() {
         className="w-full max-w-sm bg-white dark:bg-[#242526] rounded-2xl shadow-2xl border border-[#ced4da] dark:border-[#3e4042] p-8 text-center"
         style={{ animation: "none" }}
       >
-        {/* Logo */}
         <div className="mb-2">
           <img
             src="https://www.afbshop.de/media/ca/1f/fe/1760428029/logo.svg"
@@ -140,5 +139,14 @@ export default function LoginPage() {
         .shake { animation: shake 0.4s ease-in-out; }
       `}</style>
     </div>
+  );
+}
+
+// Suspense Wrapper — Next.js 15 Pflicht für useSearchParams()
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

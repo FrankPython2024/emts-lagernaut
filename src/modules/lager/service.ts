@@ -50,6 +50,26 @@ export async function sucheArtikel(query: string) {
 }
 
 /**
+ * Volltextsuche MIT Lagerplatz — nur für Admin-Bereich.
+ */
+export async function sucheArtikelAdmin(input: { query: string; limit?: number; offset?: number }) {
+  const treffer = await sucheArtikel(input.query);
+  const ids     = treffer.map((t) => t.id);
+
+  const mitLagerplatz = await prisma.artikel.findMany({
+    where:  { id: { in: ids } },
+    select: { id: true, lagerplatz: true },
+  });
+
+  const lagerMap = new Map(mitLagerplatz.map((a) => [a.id, a.lagerplatz]));
+
+  return treffer.map((t) => ({
+    ...t,
+    lagerplatz: lagerMap.get(t.id) ?? null,
+  }));
+}
+
+/**
  * Artikel per ID — ohne Lagerplatz (Techniker-Portal).
  */
 export async function getArtikelById(id: number) {

@@ -1,18 +1,22 @@
 import { initTRPC, TRPCError } from "@trpc/server";
-import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { getServerSession } from "next-auth";
 import superjson from "superjson";
 import { ZodError } from "zod";
 import { authOptions } from "@/core/auth/config";
 import { prisma } from "@/core/db/prisma";
+import type { Session } from "next-auth";
 
-export const createTRPCContext = async (opts: CreateNextContextOptions) => {
-  const { req, res } = opts;
-  const session = await getServerSession(req, res, authOptions);
-  return { session, prisma, req, res };
+// Minimaler Kontext — funktioniert mit Fetch Adapter (App Router) und Server Caller
+export type TRPCContext = {
+  session: Session | null;
+  prisma:  typeof prisma;
 };
 
-export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
+// Fetch Adapter (App Router API Route) — kein req/res nötig
+export const createTRPCContext = async (): Promise<TRPCContext> => {
+  const session = await getServerSession(authOptions);
+  return { session, prisma };
+};
 
 const t = initTRPC.context<TRPCContext>().create({
   transformer: superjson,
@@ -28,8 +32,9 @@ const t = initTRPC.context<TRPCContext>().create({
   },
 });
 
-export const createTRPCRouter = t.router;
-export const publicProcedure = t.procedure;
+export const createTRPCRouter    = t.router;
+export const createCallerFactory = t.createCallerFactory;
+export const publicProcedure     = t.procedure;
 
 export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.session?.user) {
@@ -39,7 +44,7 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
 });
 
 export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.session.user.rolle !== "ADMIN") {
+  if ((ctx.session.user as { rolle?: string }).rolle !== "ADMIN") {
     throw new TRPCError({ code: "FORBIDDEN" });
   }
   return next({ ctx });

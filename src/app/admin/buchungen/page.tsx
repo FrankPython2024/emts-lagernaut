@@ -18,7 +18,7 @@ export default function BuchungenPage() {
   const [suchArtikel, setSuchArtikel] = useState("");
   const [debArtikel]                  = useDebounce(suchArtikel, 300);
   const [selArtikelId, setSelArtikelId] = useState<number | null>(null);
-  const [form, setForm] = useState({ menge: 1, typ: BuchungsTyp.EINGANG, mitarbeiter: "", notiz: "" });
+  const [form, setForm] = useState<{ menge: number; typ: BuchungsTyp; mitarbeiter: string; notiz: string }>({ menge: 1, typ: BuchungsTyp.EINGANG, mitarbeiter: "", notiz: "" });
 
   const { data, isLoading, refetch } = api.buchungen.getAll.useQuery({
     ...(typFilter ? { typ: typFilter as BuchungsTyp } : {}),
