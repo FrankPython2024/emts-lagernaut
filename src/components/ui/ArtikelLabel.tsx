@@ -32,8 +32,8 @@ function LabelInner({ artikel, qr }: { artikel: LabelArtikel; qr: string }) {
   return (
     <div style={{
       width: "57mm", height: "32mm",
-      border: "0.5px solid #000", borderRadius: "2px",
-      padding: "2mm", display: "flex", flexDirection: "row", gap: "2mm",
+      border: "1px solid #000", borderRadius: "2px",
+      padding: "1.5mm", display: "flex", flexDirection: "row", gap: "1.5mm",
       fontFamily: "Arial, Helvetica, sans-serif",
       backgroundColor: "#fff", color: "#000",
       boxSizing: "border-box", overflow: "hidden",
@@ -59,23 +59,21 @@ function LabelInner({ artikel, qr }: { artikel: LabelArtikel; qr: string }) {
           {artikel.lagerplatz ?? "—"}
         </div>
 
-        {/* Kategorie + EMTS unten */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <div style={{ fontSize: "6pt", color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {artikel.kategorie}
-          </div>
-          <div style={{ fontSize: "6pt", fontWeight: "bold", letterSpacing: "1px", color: "#000", flexShrink: 0, marginLeft: "2px" }}>
-            EMTS
-          </div>
+        {/* Kategorie */}
+        <div style={{ fontSize: "6pt", color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {artikel.kategorie}
         </div>
       </div>
 
-      {/* RECHTE SEITE — QR-Code */}
-      <div style={{ width: "26mm", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      {/* RECHTE SEITE — QR-Code + EMTS darunter */}
+      <div style={{ width: "16mm", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0, gap: "1mm" }}>
         {qr
-          ? <img src={qr} alt="QR" style={{ width: "26mm", height: "26mm", imageRendering: "pixelated" }} />
-          : <div style={{ width: "26mm", height: "26mm", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "7px", color: "#999" }}>QR…</div>
+          ? <img src={qr} alt="QR" style={{ width: "14mm", height: "14mm", imageRendering: "pixelated" }} />
+          : <div style={{ width: "14mm", height: "14mm", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "6px", color: "#999" }}>QR…</div>
         }
+        <div style={{ fontSize: "6pt", fontWeight: "bold", letterSpacing: "2px", color: "#000", textAlign: "center" }}>
+          EMTS
+        </div>
       </div>
     </div>
   );
@@ -168,8 +166,8 @@ export async function printMehrereLabels(liste: LabelArtikel[]): Promise<void> {
     .lw:last-child { page-break-after: avoid; }
     .label {
       width: 57mm; height: 32mm;
-      border: 0.5px solid #000; border-radius: 2px;
-      padding: 2mm; display: flex; flex-direction: row; gap: 2mm;
+      border: 1px solid #000; border-radius: 2px;
+      padding: 1.5mm; display: flex; flex-direction: row; gap: 1.5mm;
       font-family: Arial, Helvetica, sans-serif;
       background: #fff; color: #000; box-sizing: border-box; overflow: hidden;
     }
@@ -178,11 +176,10 @@ export async function printMehrereLabels(liste: LabelArtikel[]): Promise<void> {
            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .bez.sm { font-size: 7.5pt; }
     .lp { font-size: 8pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .bot { display: flex; justify-content: space-between; align-items: flex-end; }
     .kat { font-size: 6pt; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .emts { font-size: 6pt; font-weight: bold; letter-spacing: 1px; flex-shrink: 0; margin-left: 2px; }
-    .qr { width: 26mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .qr img { width: 26mm; height: 26mm; }
+    .qr { width: 16mm; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; gap: 1mm; }
+    .qr img { width: 14mm; height: 14mm; }
+    .emts { font-size: 6pt; font-weight: bold; letter-spacing: 2px; text-align: center; }
   `;
 
   const body = entries.map(({ a, qr }) => {
@@ -192,12 +189,9 @@ export async function printMehrereLabels(liste: LabelArtikel[]): Promise<void> {
         <div class="left">
           <div class="bez${sm}">${a.bezeichnung.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</div>
           <div class="lp">${(a.lagerplatz ?? "—").replace(/&/g,"&amp;")}</div>
-          <div class="bot">
-            <div class="kat">${a.kategorie.replace(/&/g,"&amp;")}</div>
-            <div class="emts">EMTS</div>
-          </div>
+          <div class="kat">${a.kategorie.replace(/&/g,"&amp;")}</div>
         </div>
-        <div class="qr"><img src="${qr}" alt="" /></div>
+        <div class="qr"><img src="${qr}" alt="" /><div class="emts">EMTS</div></div>
       </div></div>`;
   }).join("\n");
 
