@@ -11,7 +11,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "import:lager": "tsx scripts/importLagerbestand.ts"
+    "import:lager":    "tsx scripts/importLagerbestand.ts",
+    "migrate:lager":   "tsx scripts/migrateLagerplaetze.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

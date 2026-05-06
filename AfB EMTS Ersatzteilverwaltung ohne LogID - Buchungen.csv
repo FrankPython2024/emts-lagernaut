@@ -1,0 +1,76 @@
+Datum,Mitarbeiter,Artikel-ID,Bezeichnung,Typ,Menge,
+04.03.2026,Frank,2,CC03XL (neuere Bauart),Eingang,14,nicht löschen
+04.03.2026,Frank,1,CC03XL (ältere Bauart),Eingang,133,nicht löschen
+04.03.2026,Frank,3,DKNKD,Eingang,2,nicht löschen
+04.03.2026,Frank,4,H5CKD,Eingang,2,nicht löschen
+04.03.2026,Frank,5,1FXDH,Eingang,8,nicht löschen
+04.03.2026,Frank,6,VV06XL,Eingang,6,nicht löschen
+04.03.2026,Frank,7,SS03XL,Eingang,3,nicht löschen
+04.03.2026,Frank,8,AL08XL,Eingang,4,nicht löschen
+04.03.2026,Frank,9,VX04XL,Eingang,34,nicht löschen
+05.03.2026,Frank,10,HK04XL,Eingang,7,nicht löschen
+05.03.2026,Frank,12,BM04XL,Eingang,9,nicht löschen
+05.03.2026,Frank,13,RH03XL,Eingang,1,nicht löschen
+05.03.2026,Frank,14,0R04XL,Eingang,5,nicht löschen
+05.03.2026,Frank,15,BL04XL,Eingang,3,nicht löschen
+05.03.2026,Frank,11,AM06XL,Eingang,4,nicht löschen
+05.03.2026,Frank,16,CX03XL,Eingang,1,nicht löschen
+05.03.2026,Frank,17,SB10K97589,Eingang,83,nicht löschen
+05.03.2026,Frank,19,SB10K97635,Eingang,60,nicht löschen
+10.03.2026,Mobil,9,VX04XL,Ausgang,1,nicht löschen
+11.03.2026,Mobil,7,SS03XL,Eingang,3,nicht löschen
+11.03.2026,Frank,7,SS03XL,Ausgang,3,nicht löschen
+17.03.2026,Frank,1,CC03XL (ältere Bauart),Eingang,1,nicht löschen
+17.03.2026,Frank,182,845 G8 D Cover,Eingang,1,nicht löschen
+17.03.2026,Frank,187,845 G8 Thermalmodul,Eingang,1,nicht löschen
+17.03.2026,Frank,183,845 G8 USB Board,Eingang,1,nicht löschen
+17.03.2026,Frank,188,845 G8 BIOS Batterie,Eingang,1,nicht löschen
+17.03.2026,Frank,179,845 G8 Touchpad,Eingang,1,nicht löschen
+17.03.2026,Frank,3493,845 G8 Touchpad Buttons,Eingang,1,nicht löschen
+17.03.2026,Frank,186,845 G8 Lüfter,Eingang,1,nicht löschen
+20.03.2026,Frank,1,CC03XL (ältere Bauart),Ausgang,3,nicht löschen
+24.03.2026,Frank,2202,P53 Thermalmodul,Eingang,1,nicht löschen
+24.03.2026,Frank,2192,P53 Displaymodul,Eingang,1,nicht löschen
+24.03.2026,Frank,2193,P53 Tastatur,Eingang,1,nicht löschen
+24.03.2026,Frank,3507,P53 DC IN,Eingang,1,nicht löschen
+24.03.2026,Frank,3508,P53 Scharnier Abdeckung Set,Eingang,1,nicht löschen
+24.03.2026,Frank,40,T14 G2 LAN Board,Eingang,1,nicht löschen
+24.03.2026,Frank,2277,T14 G2 Power Button,Eingang,1,nicht löschen
+24.03.2026,Frank,2281,T14 G2 BIOS Batterie,Eingang,1,nicht löschen
+24.03.2026,Frank,2275,T14 G2 D Cover,Eingang,1,nicht löschen
+24.03.2026,Frank,2278,T14 G2 Lautsprecher,Eingang,1,nicht löschen
+24.03.2026,Frank,2282,T14 G2 Akku,Eingang,1,nicht löschen
+24.03.2026,Frank,10,HK04XL,Eingang,1,nicht löschen
+24.03.2026,Frank,3509,X360 1040 G8 Displaymodul,Eingang,1,nicht löschen
+24.03.2026,Frank,3517,X360 1040 G8 Lautsprecher,Eingang,1,nicht löschen
+24.03.2026,Frank,3515,X360 1040 G8 USB Board,Eingang,1,nicht löschen
+24.03.2026,Frank,3519,X360 1040 G8 Thermalmodul,Eingang,1,nicht löschen
+24.03.2026,Frank,3511,X360 1040 G8 Touchpad,Eingang,1,nicht löschen
+24.03.2026,System,3517,X360 1040 G8 Lautsprecher,Ausgang,1,für Martin
+25.03.2026,Ronny,2059,P16v G1 Thermalmodul,Eingang,1,
+25.03.2026,Ronny,2061,P16v G1 Akku,Eingang,1,
+25.03.2026,Ronny,3522,P16v G1 Mainboard,Eingang,1,
+25.03.2026,Ronny,2049,P16v G1 Displaymodul,Eingang,1,
+30.03.2026,Frank,1,CC03XL (ältere Bauart),Ausgang,2,
+30.03.2026,System,7,SS03XL,Ausgang,1,
+30.03.2026,Frank,7,SS03XL,Ausgang,2,
+31.03.2026,System,2575,T490 D Cover,Direkt,1,
+31.03.2026,System,2435,T14s G3 Lüfter,Direkt,1,
+31.03.2026,System,2582,T490 Akku,Direkt,1,
+31.03.2026,System,2544,T480 Tastatur,Direkt,1,
+01.04.2026,FS,2642,T590 Power Button,Direkt,1,
+01.04.2026,FS,1521,L480 D Cover,Direkt,1,
+01.04.2026,FS,1088,L13 G2 Tastatur,Direkt,1,
+01.04.2026,FS,120,840 G5 Lautsprecher,Direkt,1,
+01.04.2026,FS,123,840 G5 BIOS Batterie,Direkt,1,
+02.04.2026,WH,7,SS03XL,Direkt,1,
+02.04.2026,WH,139,840 G6 Tastatur,Direkt,1,
+02.04.2026,VS,114,840 G5 Touchpad,Direkt,1,
+02.04.2026,VS,3524,650 G4 Tastatur,Direkt,1,
+02.04.2026,FS,18,T590 Displaymodul,Direkt,1,
+16.04.2026,VS,919,E490 Tastatur,Direkt,1,
+17.04.2026,VS,1,CC03XL (ältere Bauart),Direkt,1,
+17.04.2026,WH,2479,T15 G2 Tastatur,Direkt,1,
+17.04.2026,WH,2282,T14 G2 Akku,Ausgang,1,
+20.04.2026,VS,2464,T15 Akku,Direkt,1,
+23.04.2026,VS,3025,X1 Yoga G5 Akku,Direkt,1,

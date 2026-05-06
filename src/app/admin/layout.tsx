@@ -8,8 +8,9 @@ import { ToastProvider } from "@/components/ui/Toast";
 const NAV = [
   { href: "/admin",           label: "Dashboard",   icon: "📊" },
   { href: "/admin/artikel",   label: "Artikel",     icon: "📦" },
-  { href: "/admin/modelle",   label: "Modelle",     icon: "💻" },
-  { href: "/admin/buchungen", label: "Buchungen",   icon: "📋" },
+  { href: "/admin/modelle",      label: "Modelle",      icon: "💻" },
+  { href: "/admin/lagerplaetze", label: "Lagerplätze",  icon: "🗄️" },
+  { href: "/admin/buchungen",    label: "Buchungen",    icon: "📋" },
   { href: "/admin/anfragen",  label: "Anfragen",    icon: "🔔" },
   { href: "/admin/statistiken", label: "Statistiken", icon: "📈" },
   { href: "/admin/benutzer",  label: "Benutzer",    icon: "👥" },
