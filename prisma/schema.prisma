@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  name      String
+  kuerzel   String    @unique
+  email     String    @unique
+  password  String
+  rolle     UserRolle @default(TECHNIKER)
+  aktiv     Boolean   @default(true)
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+enum UserRolle {
+  ADMIN
+  TECHNIKER
+  BETRACHTER
+}
+
+model Artikel {
+  id          Int               @id @default(autoincrement())
+  bezeichnung String
+  lagerplatz  String?
+  kategorie   String
+  bestand     Int               @default(0)
+  buchungen   Buchung[]
+  anfragen    Anfrage[]
+  kompatibel  Kompatibilitaet[]
+  korbItems   WarenkorbItem[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model Buchung {
+  id          Int         @id @default(autoincrement())
+  datum       DateTime    @default(now())
+  mitarbeiter String
+  artikelId   Int
+  bezeichnung String
+  typ         BuchungsTyp
+  menge       Int
+  notiz       String?
+  artikel     Artikel     @relation(fields: [artikelId], references: [id])
+  createdAt   DateTime    @default(now())
+}
+
+enum BuchungsTyp {
+  EINGANG
+  AUSGANG
+  DIREKT
+}
+
+model Anfrage {
+  id          Int           @id @default(autoincrement())
+  datum       DateTime      @default(now())
+  techniker   String
+  logId       String
+  geraeteName String?
+  geraet      String
+  artikelId   Int
+  teil        String
+  menge       Int           @default(1)
+  grading     String?
+  kommentar   String?
+  gruppenNr   String?
+  korbId      Int?
+  status      AnfrageStatus @default(NEU)
+  artikel     Artikel       @relation(fields: [artikelId], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+enum AnfrageStatus {
+  NEU
+  BEDARF
+  ABGESCHLOSSEN
+  STORNIERT
+}
+
+model Kompatibilitaet {
+  id        Int     @id @default(autoincrement())
+  geraet    String
+  teiltyp   String
+  artikelId Int
+  artikel   Artikel @relation(fields: [artikelId], references: [id])
+
+  @@unique([geraet, teiltyp])
+}
+
+model GeraeteModell {
+  id         Int      @id @default(autoincrement())
+  hersteller String
+  modell     String
+  aktiv      Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@unique([hersteller, modell])
+}
+
+model GeraeteLookup {
+  id          Int      @id @default(autoincrement())
+  logId       String   @unique
+  logIdClean  String
+  bezeichnung String
+  bereinigt   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([logId])
+  @@index([logIdClean])
+}
+
+model Warenkorb {
+  id          Int             @id @default(autoincrement())
+  techniker   String
+  logId       String
+  geraeteName String?
+  status      KorbStatus      @default(AKTIV)
+  items       WarenkorbItem[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([techniker, logId, status])
+}
+
+enum KorbStatus {
+  AKTIV
+  ABGESENDET
+}
+
+model WarenkorbItem {
+  id         Int       @id @default(autoincrement())
+  korbId     Int
+  artikelId  Int
+  grading    String    @default("A+")
+  zusatzinfo String?
+  korb       Warenkorb @relation(fields: [korbId], references: [id])
+  artikel    Artikel   @relation(fields: [artikelId], references: [id])
+}
+
+model TechnikerSession {
+  id       Int      @id @default(autoincrement())
+  kuerzel  String   @unique
+  lastSeen DateTime @default(now())
+  online   Boolean  @default(false)
+}
