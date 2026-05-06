@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f0f2f5;
+  --card-bg: #ffffff;
+  --text: #1a1a1a;
+  --text-dim: #65676b;
+  --primary: #0064d2;
+  --border: #ced4da;
+  --success: #00a400;
+  --danger: #fa3e3e;
+  --warning: #f7b928;
+  --purple: #8e44ad;
+  --base-font: 18px;
+}
+
+.dark {
+  --bg: #18191a;
+  --card-bg: #242526;
+  --text: #e4e6eb;
+  --text-dim: #b0b3b8;
+  --primary: #45bdff;
+  --border: #3e4042;
+}
+
+body {
+  font-family: 'Ubuntu', sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  font-size: var(--base-font);
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.3s, color 0.3s;
+}
+
+body.font-small  { --base-font: 14px; }
+body.font-medium { --base-font: 18px; }
+body.font-large  { --base-font: 22px; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shake {
+  0%   { transform: translateX(0); }
+  25%  { transform: translateX(-8px); }
+  50%  { transform: translateX(8px); }
+  75%  { transform: translateX(-8px); }
+  100% { transform: translateX(0); }
+}

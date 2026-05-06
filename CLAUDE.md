@@ -119,13 +119,12 @@ storniereAnfrageTechniker(name, repId, teilName)
 ## Status
 
 ### ✅ Fertig
-_(noch nichts)_
+- Grundgerüst (CLAUDE.md, Ordnerstruktur, Prisma Schema, Docker Compose, Next.js Setup)
 
 ### 🔄 In Arbeit
-- Grundgerüst
+_(nichts aktiv)_
 
 ### ❌ Noch offen
-- Grundgerüst
 - Admin Bereich
 - Techniker Portal
 - Benutzerverwaltung
@@ -136,4 +135,4 @@ _(noch nichts)_
 - Nerd Dashboard
 
 ## Nächster Task
-Prisma Schema erstellen
+Admin Bereich oder Techniker Portal
