@@ -1,0 +1,3586 @@
+Artikel-ID,Bezeichnung,Lagerplatz,Kategorie,Bestand,QR Code,Reichweite (Tage),Buchen
+1,CC03XL (ältere Bauart),HP-1-1-1,Akku intern,"129,00",,∞,TRUE
+2,CC03XL (neuere Bauart),HP-1-1-1,Akku intern,"14,00",,∞,TRUE
+3,DKNKD,HP-1-1-1,Akku,"2,00",,∞,FALSE
+4,H5CKD,HP-1-1-1,Akku,"2,00",,∞,FALSE
+5,1FXDH,HP-1-1-1,Akku,"8,00",,∞,FALSE
+6,VV06XL,HP-1-1-1,Akku,"6,00",,∞,FALSE
+7,SS03XL,HP-1-1-1,Akku intern,"0,00",,∞,FALSE
+8,AL08XL,HP-1-1-1,Akku,"4,00",,∞,FALSE
+9,VX04XL,HP-1-1-2,Akku,"33,00",,990,FALSE
+10,HK04XL,HP-1-1-2,Akku,"8,00",,∞,FALSE
+11,AM06XL,HP-1-1-2,Akku,"4,00",,∞,FALSE
+12,BM04XL,HP-1-1-2,Akku,"9,00",,∞,FALSE
+13,RH03XL,HP-1-1-2,Akku,"1,00",,∞,FALSE
+14,0R04XL,HP-1-1-2,Akku,"5,00",,∞,FALSE
+15,BL04XL,HP-1-1-2,Akku,"3,00",,∞,FALSE
+16,CX03XL,HP-1-1-2,Akku,"1,00",,∞,FALSE
+17,SB10K97589,L-1-1-1,Akku intern,"83,00",,∞,FALSE
+18,T590 Displaymodul,L-1-1-1,Displaymodul,"0,00",,∞,FALSE
+19,SB10K97635,L-1-1-1,Akku intern,"60,00",,∞,FALSE
+34,T14 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+35,T14 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+36,T14 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+37,T14 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+38,T14 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+39,T14 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+40,T14 G1 USB Board,OLP,USB Board,"1,00",,,FALSE
+41,T14 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+42,T14 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+43,T14 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+44,T14 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+45,T14 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+46,T14 G1 Akku,OLP,Akku,"0,00",,,FALSE
+47,830 G10 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+48,830 G10 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+49,830 G10 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+50,830 G10 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+51,830 G10 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+52,830 G10 D Cover,OLP,D Cover,"0,00",,,FALSE
+53,830 G10 USB Board,OLP,USB Board,"0,00",,,FALSE
+54,830 G10 Power Button,OLP,Power Button,"0,00",,,FALSE
+55,830 G10 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+56,830 G10 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+57,830 G10 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+58,830 G10 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+59,830 G10 Akku,OLP,Akku,"0,00",,,FALSE
+60,830 G6 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+61,830 G6 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+62,830 G6 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+63,830 G6 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+64,830 G6 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+65,830 G6 D Cover,OLP,D Cover,"0,00",,,FALSE
+66,830 G6 USB Board,OLP,USB Board,"0,00",,,FALSE
+67,830 G6 Power Button,OLP,Power Button,"0,00",,,FALSE
+68,830 G6 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+69,830 G6 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+70,830 G6 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+71,830 G6 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+72,830 G6 Akku,OLP,Akku,"0,00",,,FALSE
+73,830 G7 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+74,830 G7 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+75,830 G7 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+76,830 G7 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+77,830 G7 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+78,830 G7 D Cover,OLP,D Cover,"0,00",,,FALSE
+79,830 G7 USB Board,OLP,USB Board,"0,00",,,FALSE
+80,830 G7 Power Button,OLP,Power Button,"0,00",,,FALSE
+81,830 G7 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+82,830 G7 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+83,830 G7 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+84,830 G7 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+85,830 G7 Akku,OLP,Akku,"0,00",,,FALSE
+86,830 G8 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+87,830 G8 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+88,830 G8 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+89,830 G8 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+90,830 G8 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+91,830 G8 D Cover,OLP,D Cover,"0,00",,,FALSE
+92,830 G8 USB Board,OLP,USB Board,"0,00",,,FALSE
+93,830 G8 Power Button,OLP,Power Button,"0,00",,,FALSE
+94,830 G8 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+95,830 G8 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+96,830 G8 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+97,830 G8 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+98,830 G8 Akku,OLP,Akku,"0,00",,,FALSE
+99,830 G9 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+100,830 G9 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+101,830 G9 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+102,830 G9 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+103,830 G9 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+104,830 G9 D Cover,OLP,D Cover,"0,00",,,FALSE
+105,830 G9 USB Board,OLP,USB Board,"0,00",,,FALSE
+106,830 G9 Power Button,OLP,Power Button,"0,00",,,FALSE
+107,830 G9 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+108,830 G9 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+109,830 G9 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+110,830 G9 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+111,830 G9 Akku,OLP,Akku,"0,00",,,FALSE
+112,840 G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+113,840 G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+114,840 G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+115,840 G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+116,840 G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+117,840 G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+118,840 G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+119,840 G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+120,840 G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+121,840 G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+122,840 G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+123,840 G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+124,840 G5 Akku,OLP,Akku,"0,00",,,FALSE
+125,840 G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+126,840 G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+127,840 G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+128,840 G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+129,840 G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+130,840 G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+131,840 G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+132,840 G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+133,840 G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+134,840 G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+135,840 G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+136,840 G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+137,840 G5 Akku,OLP,Akku,"0,00",,,FALSE
+138,840 G6 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+139,840 G6 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+140,840 G6 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+141,840 G6 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+142,840 G6 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+143,840 G6 D Cover,OLP,D Cover,"0,00",,,FALSE
+144,840 G6 USB Board,OLP,USB Board,"0,00",,,FALSE
+145,840 G6 Power Button,OLP,Power Button,"0,00",,,FALSE
+146,840 G6 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+147,840 G6 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+148,840 G6 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+149,840 G6 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+150,840 G6 Akku,OLP,Akku,"0,00",,,FALSE
+151,840 G7 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+152,840 G7 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+153,840 G7 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+154,840 G7 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+155,840 G7 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+156,840 G7 D Cover,OLP,D Cover,"0,00",,,FALSE
+157,840 G7 USB Board,OLP,USB Board,"0,00",,,FALSE
+158,840 G7 Power Button,OLP,Power Button,"0,00",,,FALSE
+159,840 G7 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+160,840 G7 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+161,840 G7 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+162,840 G7 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+163,840 G7 Akku,OLP,Akku,"0,00",,,FALSE
+164,840 G8 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+165,840 G8 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+166,840 G8 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+167,840 G8 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+168,840 G8 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+169,840 G8 D Cover,OLP,D Cover,"0,00",,,FALSE
+170,840 G8 USB Board,OLP,USB Board,"0,00",,,FALSE
+171,840 G8 Power Button,OLP,Power Button,"0,00",,,FALSE
+172,840 G8 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+173,840 G8 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+174,840 G8 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+175,840 G8 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+176,840 G8 Akku,OLP,Akku,"0,00",,,FALSE
+177,845 G8 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+178,845 G8 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+179,845 G8 Touchpad,OLP,Touchpad,"1,00",,,FALSE
+180,845 G8 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+181,845 G8 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+182,845 G8 D Cover,OLP,D Cover,"1,00",,,FALSE
+183,845 G8 USB Board,OLP,USB Board,"1,00",,,FALSE
+184,845 G8 Power Button,OLP,Power Button,"0,00",,,FALSE
+185,845 G8 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+186,845 G8 Lüfter,OLP,Lüfter,"1,00",,,FALSE
+187,845 G8 Thermalmodul,OLP,Thermalmodul,"1,00",,,FALSE
+188,845 G8 BIOS Batterie,OLP,BIOS Batterie,"1,00",,,FALSE
+189,845 G8 Akku,OLP,Akku,"0,00",,,FALSE
+190,850 G10 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+191,850 G10 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+192,850 G10 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+193,850 G10 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+194,850 G10 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+195,850 G10 D Cover,OLP,D Cover,"0,00",,,FALSE
+196,850 G10 USB Board,OLP,USB Board,"0,00",,,FALSE
+197,850 G10 Power Button,OLP,Power Button,"0,00",,,FALSE
+198,850 G10 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+199,850 G10 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+200,850 G10 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+201,850 G10 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+202,850 G10 Akku,OLP,Akku,"0,00",,,FALSE
+203,850 G11 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+204,850 G11 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+205,850 G11 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+206,850 G11 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+207,850 G11 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+208,850 G11 D Cover,OLP,D Cover,"0,00",,,FALSE
+209,850 G11 USB Board,OLP,USB Board,"0,00",,,FALSE
+210,850 G11 Power Button,OLP,Power Button,"0,00",,,FALSE
+211,850 G11 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+212,850 G11 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+213,850 G11 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+214,850 G11 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+215,850 G11 Akku,OLP,Akku,"0,00",,,FALSE
+216,850 G12 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+217,850 G12 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+218,850 G12 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+219,850 G12 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+220,850 G12 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+221,850 G12 D Cover,OLP,D Cover,"0,00",,,FALSE
+222,850 G12 USB Board,OLP,USB Board,"0,00",,,FALSE
+223,850 G12 Power Button,OLP,Power Button,"0,00",,,FALSE
+224,850 G12 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+225,850 G12 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+226,850 G12 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+227,850 G12 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+228,850 G12 Akku,OLP,Akku,"0,00",,,FALSE
+229,850 G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+230,850 G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+231,850 G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+232,850 G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+233,850 G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+234,850 G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+235,850 G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+236,850 G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+237,850 G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+238,850 G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+239,850 G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+240,850 G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+241,850 G5 Akku,OLP,Akku,"0,00",,,FALSE
+242,850 G6 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+243,850 G6 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+244,850 G6 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+245,850 G6 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+246,850 G6 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+247,850 G6 D Cover,OLP,D Cover,"0,00",,,FALSE
+248,850 G6 USB Board,OLP,USB Board,"0,00",,,FALSE
+249,850 G6 Power Button,OLP,Power Button,"0,00",,,FALSE
+250,850 G6 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+251,850 G6 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+252,850 G6 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+253,850 G6 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+254,850 G6 Akku,OLP,Akku,"0,00",,,FALSE
+255,850 G7 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+256,850 G7 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+257,850 G7 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+258,850 G7 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+259,850 G7 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+260,850 G7 D Cover,OLP,D Cover,"0,00",,,FALSE
+261,850 G7 USB Board,OLP,USB Board,"0,00",,,FALSE
+262,850 G7 Power Button,OLP,Power Button,"0,00",,,FALSE
+263,850 G7 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+264,850 G7 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+265,850 G7 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+266,850 G7 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+267,850 G7 Akku,OLP,Akku,"0,00",,,FALSE
+268,"850 G7 15.6"" Displaymodul",OLP,Displaymodul,"0,00",,,FALSE
+269,"850 G7 15.6"" Tastatur",OLP,Tastatur,"0,00",,,FALSE
+270,"850 G7 15.6"" Touchpad",OLP,Touchpad,"0,00",,,FALSE
+271,"850 G7 15.6"" Füße vorne",OLP,Füße vorne,"0,00",,,FALSE
+272,"850 G7 15.6"" Füße hinten",OLP,Füße hinten,"0,00",,,FALSE
+273,"850 G7 15.6"" D Cover",OLP,D Cover,"0,00",,,FALSE
+274,"850 G7 15.6"" USB Board",OLP,USB Board,"0,00",,,FALSE
+275,"850 G7 15.6"" Power Button",OLP,Power Button,"0,00",,,FALSE
+276,"850 G7 15.6"" Lautsprecher",OLP,Lautsprecher,"0,00",,,FALSE
+277,"850 G7 15.6"" Lüfter",OLP,Lüfter,"0,00",,,FALSE
+278,"850 G7 15.6"" Thermalmodul",OLP,Thermalmodul,"0,00",,,FALSE
+279,"850 G7 15.6"" BIOS Batterie",OLP,BIOS Batterie,"0,00",,,FALSE
+280,"850 G7 15.6"" Akku",OLP,Akku,"0,00",,,FALSE
+281,850 G8 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+282,850 G8 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+283,850 G8 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+284,850 G8 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+285,850 G8 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+286,850 G8 D Cover,OLP,D Cover,"0,00",,,FALSE
+287,850 G8 USB Board,OLP,USB Board,"0,00",,,FALSE
+288,850 G8 Power Button,OLP,Power Button,"0,00",,,FALSE
+289,850 G8 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+290,850 G8 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+291,850 G8 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+292,850 G8 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+293,850 G8 Akku,OLP,Akku,"0,00",,,FALSE
+294,850 G8 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+295,850 G8 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+296,850 G8 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+297,850 G8 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+298,850 G8 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+299,850 G8 D Cover,OLP,D Cover,"0,00",,,FALSE
+300,850 G8 USB Board,OLP,USB Board,"0,00",,,FALSE
+301,850 G8 Power Button,OLP,Power Button,"0,00",,,FALSE
+302,850 G8 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+303,850 G8 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+304,850 G8 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+305,850 G8 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+306,850 G8 Akku,OLP,Akku,"0,00",,,FALSE
+307,850 G9 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+308,850 G9 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+309,850 G9 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+310,850 G9 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+311,850 G9 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+312,850 G9 D Cover,OLP,D Cover,"0,00",,,FALSE
+313,850 G9 USB Board,OLP,USB Board,"0,00",,,FALSE
+314,850 G9 Power Button,OLP,Power Button,"0,00",,,FALSE
+315,850 G9 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+316,850 G9 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+317,850 G9 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+318,850 G9 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+319,850 G9 Akku,OLP,Akku,"0,00",,,FALSE
+320,12 Rugged Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+321,12 Rugged Tastatur,OLP,Tastatur,"0,00",,,FALSE
+322,12 Rugged Touchpad,OLP,Touchpad,"0,00",,,FALSE
+323,12 Rugged Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+324,12 Rugged Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+325,12 Rugged D Cover,OLP,D Cover,"0,00",,,FALSE
+326,12 Rugged USB Board,OLP,USB Board,"0,00",,,FALSE
+327,12 Rugged Power Button,OLP,Power Button,"0,00",,,FALSE
+328,12 Rugged Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+329,12 Rugged Lüfter,OLP,Lüfter,"0,00",,,FALSE
+330,12 Rugged Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+331,12 Rugged BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+332,12 Rugged Akku,OLP,Akku,"0,00",,,FALSE
+333,14 Rugged (5404) Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+334,14 Rugged (5404) Tastatur,OLP,Tastatur,"0,00",,,FALSE
+335,14 Rugged (5404) Touchpad,OLP,Touchpad,"0,00",,,FALSE
+336,14 Rugged (5404) Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+337,14 Rugged (5404) Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+338,14 Rugged (5404) D Cover,OLP,D Cover,"0,00",,,FALSE
+339,14 Rugged (5404) USB Board,OLP,USB Board,"0,00",,,FALSE
+340,14 Rugged (5404) Power Button,OLP,Power Button,"0,00",,,FALSE
+341,14 Rugged (5404) Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+342,14 Rugged (5404) Lüfter,OLP,Lüfter,"0,00",,,FALSE
+343,14 Rugged (5404) Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+344,14 Rugged (5404) BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+345,14 Rugged (5404) Akku,OLP,Akku,"0,00",,,FALSE
+346,3330 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+347,3330 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+348,3330 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+349,3330 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+350,3330 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+351,3330 D Cover,OLP,D Cover,"0,00",,,FALSE
+352,3330 USB Board,OLP,USB Board,"0,00",,,FALSE
+353,3330 Power Button,OLP,Power Button,"0,00",,,FALSE
+354,3330 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+355,3330 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+356,3330 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+357,3330 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+358,3330 Akku,OLP,Akku,"0,00",,,FALSE
+359,3560 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+360,3560 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+361,3560 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+362,3560 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+363,3560 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+364,3560 D Cover,OLP,D Cover,"0,00",,,FALSE
+365,3560 USB Board,OLP,USB Board,"0,00",,,FALSE
+366,3560 Power Button,OLP,Power Button,"0,00",,,FALSE
+367,3560 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+368,3560 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+369,3560 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+370,3560 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+371,3560 Akku,OLP,Akku,"0,00",,,FALSE
+372,5289 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+373,5289 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+374,5289 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+375,5289 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+376,5289 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+377,5289 D Cover,OLP,D Cover,"0,00",,,FALSE
+378,5289 USB Board,OLP,USB Board,"0,00",,,FALSE
+379,5289 Power Button,OLP,Power Button,"0,00",,,FALSE
+380,5289 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+381,5289 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+382,5289 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+383,5289 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+384,5289 Akku,OLP,Akku,"0,00",,,FALSE
+385,5320 2in1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+386,5320 2in1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+387,5320 2in1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+388,5320 2in1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+389,5320 2in1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+390,5320 2in1 D Cover,OLP,D Cover,"0,00",,,FALSE
+391,5320 2in1 USB Board,OLP,USB Board,"0,00",,,FALSE
+392,5320 2in1 Power Button,OLP,Power Button,"0,00",,,FALSE
+393,5320 2in1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+394,5320 2in1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+395,5320 2in1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+396,5320 2in1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+397,5320 2in1 Akku,OLP,Akku,"0,00",,,FALSE
+398,5414 Rugged Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+399,5414 Rugged Tastatur,OLP,Tastatur,"0,00",,,FALSE
+400,5414 Rugged Touchpad,OLP,Touchpad,"0,00",,,FALSE
+401,5414 Rugged Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+402,5414 Rugged Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+403,5414 Rugged D Cover,OLP,D Cover,"0,00",,,FALSE
+404,5414 Rugged USB Board,OLP,USB Board,"0,00",,,FALSE
+405,5414 Rugged Power Button,OLP,Power Button,"0,00",,,FALSE
+406,5414 Rugged Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+407,5414 Rugged Lüfter,OLP,Lüfter,"0,00",,,FALSE
+408,5414 Rugged Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+409,5414 Rugged BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+410,5414 Rugged Akku,OLP,Akku,"0,00",,,FALSE
+411,"5420 14,0"" Displaymodul",OLP,Displaymodul,"0,00",,,FALSE
+412,"5420 14,0"" Tastatur",OLP,Tastatur,"0,00",,,FALSE
+413,"5420 14,0"" Touchpad",OLP,Touchpad,"0,00",,,FALSE
+414,"5420 14,0"" Füße vorne",OLP,Füße vorne,"0,00",,,FALSE
+415,"5420 14,0"" Füße hinten",OLP,Füße hinten,"0,00",,,FALSE
+416,"5420 14,0"" D Cover",OLP,D Cover,"0,00",,,FALSE
+417,"5420 14,0"" USB Board",OLP,USB Board,"0,00",,,FALSE
+418,"5420 14,0"" Power Button",OLP,Power Button,"0,00",,,FALSE
+419,"5420 14,0"" Lautsprecher",OLP,Lautsprecher,"0,00",,,FALSE
+420,"5420 14,0"" Lüfter",OLP,Lüfter,"0,00",,,FALSE
+421,"5420 14,0"" Thermalmodul",OLP,Thermalmodul,"0,00",,,FALSE
+422,"5420 14,0"" BIOS Batterie",OLP,BIOS Batterie,"0,00",,,FALSE
+423,"5420 14,0"" Akku",OLP,Akku,"0,00",,,FALSE
+424,6430U Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+425,6430U Tastatur,OLP,Tastatur,"0,00",,,FALSE
+426,6430U Touchpad,OLP,Touchpad,"0,00",,,FALSE
+427,6430U Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+428,6430U Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+429,6430U D Cover,OLP,D Cover,"0,00",,,FALSE
+430,6430U USB Board,OLP,USB Board,"0,00",,,FALSE
+431,6430U Power Button,OLP,Power Button,"0,00",,,FALSE
+432,6430U Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+433,6430U Lüfter,OLP,Lüfter,"0,00",,,FALSE
+434,6430U Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+435,6430U BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+436,6430U Akku,OLP,Akku,"0,00",,,FALSE
+437,7285 2-in-1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+438,7285 2-in-1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+439,7285 2-in-1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+440,7285 2-in-1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+441,7285 2-in-1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+442,7285 2-in-1 D Cover,OLP,D Cover,"0,00",,,FALSE
+443,7285 2-in-1 USB Board,OLP,USB Board,"0,00",,,FALSE
+444,7285 2-in-1 Power Button,OLP,Power Button,"0,00",,,FALSE
+445,7285 2-in-1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+446,7285 2-in-1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+447,7285 2-in-1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+448,7285 2-in-1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+449,7285 2-in-1 Akku,OLP,Akku,"0,00",,,FALSE
+450,P1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+451,P1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+452,P1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+453,P1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+454,P1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+455,P1 D Cover,OLP,D Cover,"0,00",,,FALSE
+456,P1 USB Board,OLP,USB Board,"0,00",,,FALSE
+457,P1 Power Button,OLP,Power Button,"0,00",,,FALSE
+458,P1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+459,P1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+460,P1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+461,P1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+462,P1 Akku,OLP,Akku,"0,00",,,FALSE
+463,7770 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+464,7770 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+465,7770 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+466,7770 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+467,7770 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+468,7770 D Cover,OLP,D Cover,"0,00",,,FALSE
+469,7770 USB Board,OLP,USB Board,"0,00",,,FALSE
+470,7770 Power Button,OLP,Power Button,"0,00",,,FALSE
+471,7770 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+472,7770 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+473,7770 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+474,7770 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+475,7770 Akku,OLP,Akku,"0,00",,,FALSE
+476,7780 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+477,7780 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+478,7780 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+479,7780 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+480,7780 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+481,7780 D Cover,OLP,D Cover,"0,00",,,FALSE
+482,7780 USB Board,OLP,USB Board,"0,00",,,FALSE
+483,7780 Power Button,OLP,Power Button,"0,00",,,FALSE
+484,7780 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+485,7780 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+486,7780 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+487,7780 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+488,7780 Akku,OLP,Akku,"0,00",,,FALSE
+489,440 G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+490,440 G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+491,440 G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+492,440 G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+493,440 G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+494,440 G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+495,440 G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+496,440 G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+497,440 G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+498,440 G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+499,440 G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+500,440 G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+501,440 G4 Akku,OLP,Akku,"0,00",,,FALSE
+502,440 G9 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+503,440 G9 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+504,440 G9 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+505,440 G9 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+506,440 G9 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+507,440 G9 D Cover,OLP,D Cover,"0,00",,,FALSE
+508,440 G9 USB Board,OLP,USB Board,"0,00",,,FALSE
+509,440 G9 Power Button,OLP,Power Button,"0,00",,,FALSE
+510,440 G9 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+511,440 G9 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+512,440 G9 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+513,440 G9 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+514,440 G9 Akku,OLP,Akku,"0,00",,,FALSE
+515,445 G11 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+516,445 G11 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+517,445 G11 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+518,445 G11 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+519,445 G11 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+520,445 G11 D Cover,OLP,D Cover,"0,00",,,FALSE
+521,445 G11 USB Board,OLP,USB Board,"0,00",,,FALSE
+522,445 G11 Power Button,OLP,Power Button,"0,00",,,FALSE
+523,445 G11 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+524,445 G11 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+525,445 G11 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+526,445 G11 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+527,445 G11 Akku,OLP,Akku,"0,00",,,FALSE
+528,445 G9 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+529,445 G9 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+530,445 G9 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+531,445 G9 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+532,445 G9 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+533,445 G9 D Cover,OLP,D Cover,"0,00",,,FALSE
+534,445 G9 USB Board,OLP,USB Board,"0,00",,,FALSE
+535,445 G9 Power Button,OLP,Power Button,"0,00",,,FALSE
+536,445 G9 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+537,445 G9 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+538,445 G9 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+539,445 G9 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+540,445 G9 Akku,OLP,Akku,"0,00",,,FALSE
+541,4515 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+542,4515 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+543,4515 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+544,4515 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+545,4515 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+546,4515 D Cover,OLP,D Cover,"0,00",,,FALSE
+547,4515 USB Board,OLP,USB Board,"0,00",,,FALSE
+548,4515 Power Button,OLP,Power Button,"0,00",,,FALSE
+549,4515 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+550,4515 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+551,4515 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+552,4515 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+553,4515 Akku,OLP,Akku,"0,00",,,FALSE
+554,4520s Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+555,4520s Tastatur,OLP,Tastatur,"0,00",,,FALSE
+556,4520s Touchpad,OLP,Touchpad,"0,00",,,FALSE
+557,4520s Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+558,4520s Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+559,4520s D Cover,OLP,D Cover,"0,00",,,FALSE
+560,4520s USB Board,OLP,USB Board,"0,00",,,FALSE
+561,4520s Power Button,OLP,Power Button,"0,00",,,FALSE
+562,4520s Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+563,4520s Lüfter,OLP,Lüfter,"0,00",,,FALSE
+564,4520s Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+565,4520s BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+566,4520s Akku,OLP,Akku,"0,00",,,FALSE
+567,4545s Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+568,4545s Tastatur,OLP,Tastatur,"0,00",,,FALSE
+569,4545s Touchpad,OLP,Touchpad,"0,00",,,FALSE
+570,4545s Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+571,4545s Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+572,4545s D Cover,OLP,D Cover,"0,00",,,FALSE
+573,4545s USB Board,OLP,USB Board,"0,00",,,FALSE
+574,4545s Power Button,OLP,Power Button,"0,00",,,FALSE
+575,4545s Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+576,4545s Lüfter,OLP,Lüfter,"0,00",,,FALSE
+577,4545s Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+578,4545s BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+579,4545s Akku,OLP,Akku,"0,00",,,FALSE
+580,455 G10 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+581,455 G10 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+582,455 G10 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+583,455 G10 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+584,455 G10 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+585,455 G10 D Cover,OLP,D Cover,"0,00",,,FALSE
+586,455 G10 USB Board,OLP,USB Board,"0,00",,,FALSE
+587,455 G10 Power Button,OLP,Power Button,"0,00",,,FALSE
+588,455 G10 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+589,455 G10 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+590,455 G10 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+591,455 G10 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+592,455 G10 Akku,OLP,Akku,"0,00",,,FALSE
+593,455 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+594,455 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+595,455 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+596,455 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+597,455 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+598,455 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+599,455 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+600,455 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+601,455 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+602,455 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+603,455 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+604,455 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+605,455 G3 Akku,OLP,Akku,"0,00",,,FALSE
+606,455 G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+607,455 G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+608,455 G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+609,455 G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+610,455 G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+611,455 G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+612,455 G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+613,455 G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+614,455 G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+615,455 G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+616,455 G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+617,455 G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+618,455 G4 Akku,OLP,Akku,"0,00",,,FALSE
+619,465 G11 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+620,465 G11 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+621,465 G11 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+622,465 G11 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+623,465 G11 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+624,465 G11 D Cover,OLP,D Cover,"0,00",,,FALSE
+625,465 G11 USB Board,OLP,USB Board,"0,00",,,FALSE
+626,465 G11 Power Button,OLP,Power Button,"0,00",,,FALSE
+627,465 G11 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+628,465 G11 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+629,465 G11 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+630,465 G11 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+631,465 G11 Akku,OLP,Akku,"0,00",,,FALSE
+632,470 G0 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+633,470 G0 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+634,470 G0 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+635,470 G0 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+636,470 G0 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+637,470 G0 D Cover,OLP,D Cover,"0,00",,,FALSE
+638,470 G0 USB Board,OLP,USB Board,"0,00",,,FALSE
+639,470 G0 Power Button,OLP,Power Button,"0,00",,,FALSE
+640,470 G0 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+641,470 G0 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+642,470 G0 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+643,470 G0 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+644,470 G0 Akku,OLP,Akku,"0,00",,,FALSE
+645,470 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+646,470 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+647,470 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+648,470 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+649,470 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+650,470 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+651,470 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+652,470 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+653,470 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+654,470 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+655,470 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+656,470 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+657,470 G3 Akku,OLP,Akku,"0,00",,,FALSE
+658,4740s Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+659,4740s Tastatur,OLP,Tastatur,"0,00",,,FALSE
+660,4740s Touchpad,OLP,Touchpad,"0,00",,,FALSE
+661,4740s Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+662,4740s Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+663,4740s D Cover,OLP,D Cover,"0,00",,,FALSE
+664,4740s USB Board,OLP,USB Board,"0,00",,,FALSE
+665,4740s Power Button,OLP,Power Button,"0,00",,,FALSE
+666,4740s Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+667,4740s Lüfter,OLP,Lüfter,"0,00",,,FALSE
+668,4740s Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+669,4740s BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+670,4740s Akku,OLP,Akku,"0,00",,,FALSE
+671,5330m Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+672,5330m Tastatur,OLP,Tastatur,"0,00",,,FALSE
+673,5330m Touchpad,OLP,Touchpad,"0,00",,,FALSE
+674,5330m Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+675,5330m Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+676,5330m D Cover,OLP,D Cover,"0,00",,,FALSE
+677,5330m USB Board,OLP,USB Board,"0,00",,,FALSE
+678,5330m Power Button,OLP,Power Button,"0,00",,,FALSE
+679,5330m Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+680,5330m Lüfter,OLP,Lüfter,"0,00",,,FALSE
+681,5330m Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+682,5330m BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+683,5330m Akku,OLP,Akku,"0,00",,,FALSE
+684,630 G8 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+685,630 G8 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+686,630 G8 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+687,630 G8 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+688,630 G8 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+689,630 G8 D Cover,OLP,D Cover,"0,00",,,FALSE
+690,630 G8 USB Board,OLP,USB Board,"0,00",,,FALSE
+691,630 G8 Power Button,OLP,Power Button,"0,00",,,FALSE
+692,630 G8 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+693,630 G8 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+694,630 G8 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+695,630 G8 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+696,630 G8 Akku,OLP,Akku,"0,00",,,FALSE
+697,6460b Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+698,6460b Tastatur,OLP,Tastatur,"0,00",,,FALSE
+699,6460b Touchpad,OLP,Touchpad,"0,00",,,FALSE
+700,6460b Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+701,6460b Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+702,6460b D Cover,OLP,D Cover,"0,00",,,FALSE
+703,6460b USB Board,OLP,USB Board,"0,00",,,FALSE
+704,6460b Power Button,OLP,Power Button,"0,00",,,FALSE
+705,6460b Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+706,6460b Lüfter,OLP,Lüfter,"0,00",,,FALSE
+707,6460b Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+708,6460b BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+709,6460b Akku,OLP,Akku,"0,00",,,FALSE
+710,6465b Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+711,6465b Tastatur,OLP,Tastatur,"0,00",,,FALSE
+712,6465b Touchpad,OLP,Touchpad,"0,00",,,FALSE
+713,6465b Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+714,6465b Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+715,6465b D Cover,OLP,D Cover,"0,00",,,FALSE
+716,6465b USB Board,OLP,USB Board,"0,00",,,FALSE
+717,6465b Power Button,OLP,Power Button,"0,00",,,FALSE
+718,6465b Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+719,6465b Lüfter,OLP,Lüfter,"0,00",,,FALSE
+720,6465b Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+721,6465b BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+722,6465b Akku,OLP,Akku,"0,00",,,FALSE
+723,6475b Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+724,6475b Tastatur,OLP,Tastatur,"0,00",,,FALSE
+725,6475b Touchpad,OLP,Touchpad,"0,00",,,FALSE
+726,6475b Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+727,6475b Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+728,6475b D Cover,OLP,D Cover,"0,00",,,FALSE
+729,6475b USB Board,OLP,USB Board,"0,00",,,FALSE
+730,6475b Power Button,OLP,Power Button,"0,00",,,FALSE
+731,6475b Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+732,6475b Lüfter,OLP,Lüfter,"0,00",,,FALSE
+733,6475b Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+734,6475b BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+735,6475b Akku,OLP,Akku,"0,00",,,FALSE
+736,650 G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+737,650 G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+738,650 G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+739,650 G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+740,650 G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+741,650 G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+742,650 G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+743,650 G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+744,650 G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+745,650 G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+746,650 G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+747,650 G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+748,650 G5 Akku,OLP,Akku,"0,00",,,FALSE
+749,820 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+750,820 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+751,820 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+752,820 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+753,820 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+754,820 D Cover,OLP,D Cover,"0,00",,,FALSE
+755,820 USB Board,OLP,USB Board,"0,00",,,FALSE
+756,820 Power Button,OLP,Power Button,"0,00",,,FALSE
+757,820 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+758,820 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+759,820 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+760,820 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+761,820 Akku,OLP,Akku,"0,00",,,FALSE
+762,Surface Book 2 1832 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+763,Surface Book 2 1832 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+764,Surface Book 2 1832 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+765,Surface Book 2 1832 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+766,Surface Book 2 1832 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+767,Surface Book 2 1832 D Cover,OLP,D Cover,"0,00",,,FALSE
+768,Surface Book 2 1832 USB Board,OLP,USB Board,"0,00",,,FALSE
+769,Surface Book 2 1832 Power Button,OLP,Power Button,"0,00",,,FALSE
+770,Surface Book 2 1832 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+771,Surface Book 2 1832 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+772,Surface Book 2 1832 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+773,Surface Book 2 1832 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+774,Surface Book 2 1832 Akku,OLP,Akku,"0,00",,,FALSE
+775,E14 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+776,E14 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+777,E14 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+778,E14 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+779,E14 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+780,E14 D Cover,OLP,D Cover,"0,00",,,FALSE
+781,E14 USB Board,OLP,USB Board,"0,00",,,FALSE
+782,E14 Power Button,OLP,Power Button,"0,00",,,FALSE
+783,E14 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+784,E14 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+785,E14 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+786,E14 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+787,E14 Akku,OLP,Akku,"0,00",,,FALSE
+788,E14 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+789,E14 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+790,E14 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+791,E14 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+792,E14 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+793,E14 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+794,E14 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+795,E14 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+796,E14 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+797,E14 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+798,E14 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+799,E14 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+800,E14 G2 Akku,OLP,Akku,"0,00",,,FALSE
+801,E14 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+802,E14 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+803,E14 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+804,E14 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+805,E14 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+806,E14 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+807,E14 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+808,E14 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+809,E14 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+810,E14 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+811,E14 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+812,E14 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+813,E14 G3 Akku,OLP,Akku,"0,00",,,FALSE
+814,E14 G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+815,E14 G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+816,E14 G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+817,E14 G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+818,E14 G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+819,E14 G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+820,E14 G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+821,E14 G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+822,E14 G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+823,E14 G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+824,E14 G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+825,E14 G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+826,E14 G4 Akku,OLP,Akku,"0,00",,,FALSE
+827,E14 G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+828,E14 G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+829,E14 G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+830,E14 G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+831,E14 G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+832,E14 G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+833,E14 G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+834,E14 G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+835,E14 G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+836,E14 G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+837,E14 G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+838,E14 G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+839,E14 G5 Akku,OLP,Akku,"0,00",,,FALSE
+840,E15 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+841,E15 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+842,E15 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+843,E15 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+844,E15 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+845,E15 D Cover,OLP,D Cover,"0,00",,,FALSE
+846,E15 USB Board,OLP,USB Board,"0,00",,,FALSE
+847,E15 Power Button,OLP,Power Button,"0,00",,,FALSE
+848,E15 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+849,E15 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+850,E15 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+851,E15 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+852,E15 Akku,OLP,Akku,"0,00",,,FALSE
+853,E15 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+854,E15 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+855,E15 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+856,E15 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+857,E15 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+858,E15 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+859,E15 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+860,E15 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+861,E15 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+862,E15 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+863,E15 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+864,E15 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+865,E15 G2 Akku,OLP,Akku,"0,00",,,FALSE
+866,E15 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+867,E15 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+868,E15 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+869,E15 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+870,E15 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+871,E15 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+872,E15 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+873,E15 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+874,E15 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+875,E15 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+876,E15 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+877,E15 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+878,E15 G3 Akku,OLP,Akku,"0,00",,,FALSE
+879,E15 G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+880,E15 G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+881,E15 G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+882,E15 G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+883,E15 G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+884,E15 G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+885,E15 G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+886,E15 G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+887,E15 G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+888,E15 G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+889,E15 G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+890,E15 G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+891,E15 G4 Akku,OLP,Akku,"0,00",,,FALSE
+892,E16 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+893,E16 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+894,E16 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+895,E16 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+896,E16 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+897,E16 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+898,E16 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+899,E16 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+900,E16 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+901,E16 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+902,E16 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+903,E16 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+904,E16 G2 Akku,OLP,Akku,"0,00",,,FALSE
+905,E480 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+906,E480 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+907,E480 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+908,E480 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+909,E480 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+910,E480 D Cover,OLP,D Cover,"0,00",,,FALSE
+911,E480 USB Board,OLP,USB Board,"0,00",,,FALSE
+912,E480 Power Button,OLP,Power Button,"0,00",,,FALSE
+913,E480 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+914,E480 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+915,E480 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+916,E480 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+917,E480 Akku,OLP,Akku,"0,00",,,FALSE
+918,E490 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+919,E490 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+920,E490 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+921,E490 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+922,E490 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+923,E490 D Cover,OLP,D Cover,"0,00",,,FALSE
+924,E490 USB Board,OLP,USB Board,"0,00",,,FALSE
+925,E490 Power Button,OLP,Power Button,"0,00",,,FALSE
+926,E490 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+927,E490 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+928,E490 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+929,E490 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+930,E490 Akku,OLP,Akku,"0,00",,,FALSE
+931,E495 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+932,E495 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+933,E495 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+934,E495 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+935,E495 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+936,E495 D Cover,OLP,D Cover,"0,00",,,FALSE
+937,E495 USB Board,OLP,USB Board,"0,00",,,FALSE
+938,E495 Power Button,OLP,Power Button,"0,00",,,FALSE
+939,E495 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+940,E495 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+941,E495 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+942,E495 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+943,E495 Akku,OLP,Akku,"0,00",,,FALSE
+944,E531 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+945,E531 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+946,E531 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+947,E531 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+948,E531 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+949,E531 D Cover,OLP,D Cover,"0,00",,,FALSE
+950,E531 USB Board,OLP,USB Board,"0,00",,,FALSE
+951,E531 Power Button,OLP,Power Button,"0,00",,,FALSE
+952,E531 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+953,E531 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+954,E531 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+955,E531 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+956,E531 Akku,OLP,Akku,"0,00",,,FALSE
+957,E550 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+958,E550 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+959,E550 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+960,E550 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+961,E550 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+962,E550 D Cover,OLP,D Cover,"0,00",,,FALSE
+963,E550 USB Board,OLP,USB Board,"0,00",,,FALSE
+964,E550 Power Button,OLP,Power Button,"0,00",,,FALSE
+965,E550 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+966,E550 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+967,E550 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+968,E550 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+969,E550 Akku,OLP,Akku,"0,00",,,FALSE
+970,E560 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+971,E560 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+972,E560 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+973,E560 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+974,E560 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+975,E560 D Cover,OLP,D Cover,"0,00",,,FALSE
+976,E560 USB Board,OLP,USB Board,"0,00",,,FALSE
+977,E560 Power Button,OLP,Power Button,"0,00",,,FALSE
+978,E560 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+979,E560 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+980,E560 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+981,E560 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+982,E560 Akku,OLP,Akku,"0,00",,,FALSE
+983,E570 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+984,E570 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+985,E570 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+986,E570 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+987,E570 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+988,E570 D Cover,OLP,D Cover,"0,00",,,FALSE
+989,E570 USB Board,OLP,USB Board,"0,00",,,FALSE
+990,E570 Power Button,OLP,Power Button,"0,00",,,FALSE
+991,E570 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+992,E570 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+993,E570 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+994,E570 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+995,E570 Akku,OLP,Akku,"0,00",,,FALSE
+996,E580 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+997,E580 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+998,E580 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+999,E580 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1000,E580 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1001,E580 D Cover,OLP,D Cover,"0,00",,,FALSE
+1002,E580 USB Board,OLP,USB Board,"0,00",,,FALSE
+1003,E580 Power Button,OLP,Power Button,"0,00",,,FALSE
+1004,E580 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1005,E580 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1006,E580 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1007,E580 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1008,E580 Akku,OLP,Akku,"0,00",,,FALSE
+1009,E590 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1010,E590 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1011,E590 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1012,E590 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1013,E590 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1014,E590 D Cover,OLP,D Cover,"0,00",,,FALSE
+1015,E590 USB Board,OLP,USB Board,"0,00",,,FALSE
+1016,E590 Power Button,OLP,Power Button,"0,00",,,FALSE
+1017,E590 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1018,E590 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1019,E590 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1020,E590 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1021,E590 Akku,OLP,Akku,"0,00",,,FALSE
+1022,E590 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1023,E590 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1024,E590 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1025,E590 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1026,E590 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1027,E590 D Cover,OLP,D Cover,"0,00",,,FALSE
+1028,E590 USB Board,OLP,USB Board,"0,00",,,FALSE
+1029,E590 Power Button,OLP,Power Button,"0,00",,,FALSE
+1030,E590 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1031,E590 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1032,E590 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1033,E590 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1034,E590 Akku,OLP,Akku,"0,00",,,FALSE
+1035,E595 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1036,E595 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1037,E595 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1038,E595 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1039,E595 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1040,E595 D Cover,OLP,D Cover,"0,00",,,FALSE
+1041,E595 USB Board,OLP,USB Board,"0,00",,,FALSE
+1042,E595 Power Button,OLP,Power Button,"0,00",,,FALSE
+1043,E595 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1044,E595 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1045,E595 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1046,E595 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1047,E595 Akku,OLP,Akku,"0,00",,,FALSE
+1048,L 14 G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1049,L 14 G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1050,L 14 G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1051,L 14 G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1052,L 14 G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1053,L 14 G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+1054,L 14 G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+1055,L 14 G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+1056,L 14 G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1057,L 14 G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1058,L 14 G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1059,L 14 G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1060,L 14 G4 Akku,OLP,Akku,"0,00",,,FALSE
+1061,L13 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1062,L13 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1063,L13 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1064,L13 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1065,L13 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1066,L13 D Cover,OLP,D Cover,"0,00",,,FALSE
+1067,L13 USB Board,OLP,USB Board,"0,00",,,FALSE
+1068,L13 Power Button,OLP,Power Button,"0,00",,,FALSE
+1069,L13 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1070,L13 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1071,L13 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1072,L13 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1073,L13 Akku,OLP,Akku,"0,00",,,FALSE
+1074,L13 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1075,L13 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1076,L13 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1077,L13 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1078,L13 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1079,L13 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1080,L13 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1081,L13 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1082,L13 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1083,L13 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1084,L13 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1085,L13 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1086,L13 G1 Akku,OLP,Akku,"0,00",,,FALSE
+1087,L13 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1088,L13 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1089,L13 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1090,L13 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1091,L13 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1092,L13 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+1093,L13 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+1094,L13 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+1095,L13 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1096,L13 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1097,L13 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1098,L13 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1099,L13 G2 Akku,OLP,Akku,"0,00",,,FALSE
+1100,L13 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1101,L13 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1102,L13 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1103,L13 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1104,L13 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1105,L13 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+1106,L13 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+1107,L13 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+1108,L13 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1109,L13 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1110,L13 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1111,L13 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1112,L13 G2 Akku,OLP,Akku,"0,00",,,FALSE
+1113,L13 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1114,L13 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1115,L13 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1116,L13 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1117,L13 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1118,L13 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+1119,L13 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+1120,L13 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+1121,L13 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1122,L13 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1123,L13 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1124,L13 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1125,L13 G3 Akku,OLP,Akku,"0,00",,,FALSE
+1126,L13 G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1127,L13 G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1128,L13 G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1129,L13 G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1130,L13 G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1131,L13 G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+1132,L13 G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+1133,L13 G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+1134,L13 G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1135,L13 G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1136,L13 G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1137,L13 G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1138,L13 G4 Akku,OLP,Akku,"0,00",,,FALSE
+1139,L13 G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1140,L13 G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1141,L13 G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1142,L13 G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1143,L13 G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1144,L13 G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+1145,L13 G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+1146,L13 G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+1147,L13 G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1148,L13 G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1149,L13 G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1150,L13 G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1151,L13 G5 Akku,OLP,Akku,"0,00",,,FALSE
+1152,L13 Yoga Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1153,L13 Yoga Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1154,L13 Yoga Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1155,L13 Yoga Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1156,L13 Yoga Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1157,L13 Yoga D Cover,OLP,D Cover,"0,00",,,FALSE
+1158,L13 Yoga USB Board,OLP,USB Board,"0,00",,,FALSE
+1159,L13 Yoga Power Button,OLP,Power Button,"0,00",,,FALSE
+1160,L13 Yoga Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1161,L13 Yoga Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1162,L13 Yoga Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1163,L13 Yoga BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1164,L13 Yoga Akku,OLP,Akku,"0,00",,,FALSE
+1165,L13 Yoga G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1166,L13 Yoga G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1167,L13 Yoga G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1168,L13 Yoga G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1169,L13 Yoga G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1170,L13 Yoga G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1171,L13 Yoga G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1172,L13 Yoga G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1173,L13 Yoga G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1174,L13 Yoga G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1175,L13 Yoga G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1176,L13 Yoga G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1177,L13 Yoga G1 Akku,OLP,Akku,"0,00",,,FALSE
+1178,L13 Yoga G2a Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1179,L13 Yoga G2a Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1180,L13 Yoga G2a Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1181,L13 Yoga G2a Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1182,L13 Yoga G2a Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1183,L13 Yoga G2a D Cover,OLP,D Cover,"0,00",,,FALSE
+1184,L13 Yoga G2a USB Board,OLP,USB Board,"0,00",,,FALSE
+1185,L13 Yoga G2a Power Button,OLP,Power Button,"0,00",,,FALSE
+1186,L13 Yoga G2a Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1187,L13 Yoga G2a Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1188,L13 Yoga G2a Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1189,L13 Yoga G2a BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1190,L13 Yoga G2a Akku,OLP,Akku,"0,00",,,FALSE
+1191,L13 Yoga G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1192,L13 Yoga G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1193,L13 Yoga G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1194,L13 Yoga G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1195,L13 Yoga G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1196,L13 Yoga G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+1197,L13 Yoga G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+1198,L13 Yoga G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+1199,L13 Yoga G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1200,L13 Yoga G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1201,L13 Yoga G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1202,L13 Yoga G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1203,L13 Yoga G3 Akku,OLP,Akku,"0,00",,,FALSE
+1204,L13 Yoga G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1205,L13 Yoga G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1206,L13 Yoga G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1207,L13 Yoga G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1208,L13 Yoga G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1209,L13 Yoga G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+1210,L13 Yoga G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+1211,L13 Yoga G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+1212,L13 Yoga G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1213,L13 Yoga G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1214,L13 Yoga G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1215,L13 Yoga G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1216,L13 Yoga G4 Akku,OLP,Akku,"0,00",,,FALSE
+1217,L14 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1218,L14 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1219,L14 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1220,L14 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1221,L14 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1222,L14 D Cover,OLP,D Cover,"0,00",,,FALSE
+1223,L14 USB Board,OLP,USB Board,"0,00",,,FALSE
+1224,L14 Power Button,OLP,Power Button,"0,00",,,FALSE
+1225,L14 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1226,L14 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1227,L14 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1228,L14 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1229,L14 Akku,OLP,Akku,"0,00",,,FALSE
+1230,L14 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1231,L14 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1232,L14 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1233,L14 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1234,L14 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1235,L14 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1236,L14 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1237,L14 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1238,L14 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1239,L14 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1240,L14 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1241,L14 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1242,L14 G1 Akku,OLP,Akku,"0,00",,,FALSE
+1243,L14 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1244,L14 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1245,L14 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1246,L14 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1247,L14 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1248,L14 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1249,L14 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1250,L14 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1251,L14 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1252,L14 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1253,L14 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1254,L14 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1255,L14 G1 Akku,OLP,Akku,"0,00",,,FALSE
+1256,L14 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1257,L14 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1258,L14 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1259,L14 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1260,L14 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1261,L14 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+1262,L14 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+1263,L14 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+1264,L14 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1265,L14 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1266,L14 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1267,L14 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1268,L14 G2 Akku,OLP,Akku,"0,00",,,FALSE
+1269,L14 G2a Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1270,L14 G2a Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1271,L14 G2a Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1272,L14 G2a Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1273,L14 G2a Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1274,L14 G2a D Cover,OLP,D Cover,"0,00",,,FALSE
+1275,L14 G2a USB Board,OLP,USB Board,"0,00",,,FALSE
+1276,L14 G2a Power Button,OLP,Power Button,"0,00",,,FALSE
+1277,L14 G2a Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1278,L14 G2a Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1279,L14 G2a Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1280,L14 G2a BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1281,L14 G2a Akku,OLP,Akku,"0,00",,,FALSE
+1282,L14 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1283,L14 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1284,L14 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1285,L14 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1286,L14 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1287,L14 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+1288,L14 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+1289,L14 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+1290,L14 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1291,L14 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1292,L14 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1293,L14 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1294,L14 G3 Akku,OLP,Akku,"0,00",,,FALSE
+1295,L14 G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1296,L14 G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1297,L14 G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1298,L14 G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1299,L14 G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1300,L14 G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+1301,L14 G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+1302,L14 G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+1303,L14 G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1304,L14 G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1305,L14 G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1306,L14 G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1307,L14 G4 Akku,OLP,Akku,"0,00",,,FALSE
+1308,L14 G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1309,L14 G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1310,L14 G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1311,L14 G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1312,L14 G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1313,L14 G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+1314,L14 G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+1315,L14 G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+1316,L14 G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1317,L14 G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1318,L14 G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1319,L14 G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1320,L14 G5 Akku,OLP,Akku,"0,00",,,FALSE
+1321,L14 G6 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1322,L14 G6 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1323,L14 G6 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1324,L14 G6 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1325,L14 G6 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1326,L14 G6 D Cover,OLP,D Cover,"0,00",,,FALSE
+1327,L14 G6 USB Board,OLP,USB Board,"0,00",,,FALSE
+1328,L14 G6 Power Button,OLP,Power Button,"0,00",,,FALSE
+1329,L14 G6 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1330,L14 G6 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1331,L14 G6 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1332,L14 G6 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1333,L14 G6 Akku,OLP,Akku,"0,00",,,FALSE
+1334,L15 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1335,L15 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1336,L15 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1337,L15 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1338,L15 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1339,L15 D Cover,OLP,D Cover,"0,00",,,FALSE
+1340,L15 USB Board,OLP,USB Board,"0,00",,,FALSE
+1341,L15 Power Button,OLP,Power Button,"0,00",,,FALSE
+1342,L15 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1343,L15 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1344,L15 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1345,L15 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1346,L15 Akku,OLP,Akku,"0,00",,,FALSE
+1347,L15 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1348,L15 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1349,L15 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1350,L15 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1351,L15 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1352,L15 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1353,L15 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1354,L15 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1355,L15 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1356,L15 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1357,L15 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1358,L15 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1359,L15 G1 Akku,OLP,Akku,"0,00",,,FALSE
+1360,L15 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1361,L15 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1362,L15 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1363,L15 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1364,L15 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1365,L15 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+1366,L15 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+1367,L15 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+1368,L15 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1369,L15 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1370,L15 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1371,L15 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1372,L15 G2 Akku,OLP,Akku,"0,00",,,FALSE
+1373,L15 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1374,L15 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1375,L15 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1376,L15 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1377,L15 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1378,L15 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+1379,L15 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+1380,L15 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+1381,L15 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1382,L15 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1383,L15 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1384,L15 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1385,L15 G2 Akku,OLP,Akku,"0,00",,,FALSE
+1386,L15 G2a Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1387,L15 G2a Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1388,L15 G2a Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1389,L15 G2a Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1390,L15 G2a Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1391,L15 G2a D Cover,OLP,D Cover,"0,00",,,FALSE
+1392,L15 G2a USB Board,OLP,USB Board,"0,00",,,FALSE
+1393,L15 G2a Power Button,OLP,Power Button,"0,00",,,FALSE
+1394,L15 G2a Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1395,L15 G2a Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1396,L15 G2a Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1397,L15 G2a BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1398,L15 G2a Akku,OLP,Akku,"0,00",,,FALSE
+1399,L15 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1400,L15 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1401,L15 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1402,L15 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1403,L15 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1404,L15 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+1405,L15 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+1406,L15 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+1407,L15 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1408,L15 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1409,L15 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1410,L15 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1411,L15 G3 Akku,OLP,Akku,"0,00",,,FALSE
+1412,L15 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1413,L15 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1414,L15 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1415,L15 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1416,L15 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1417,L15 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+1418,L15 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+1419,L15 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+1420,L15 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1421,L15 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1422,L15 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1423,L15 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1424,L15 G3 Akku,OLP,Akku,"0,00",,,FALSE
+1425,L15 G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1426,L15 G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1427,L15 G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1428,L15 G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1429,L15 G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1430,L15 G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+1431,L15 G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+1432,L15 G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+1433,L15 G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1434,L15 G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1435,L15 G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1436,L15 G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1437,L15 G4 Akku,OLP,Akku,"0,00",,,FALSE
+1438,L16 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1439,L16 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1440,L16 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1441,L16 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1442,L16 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1443,L16 D Cover,OLP,D Cover,"0,00",,,FALSE
+1444,L16 USB Board,OLP,USB Board,"0,00",,,FALSE
+1445,L16 Power Button,OLP,Power Button,"0,00",,,FALSE
+1446,L16 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1447,L16 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1448,L16 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1449,L16 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1450,L16 Akku,OLP,Akku,"0,00",,,FALSE
+1451,L16 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1452,L16 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1453,L16 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1454,L16 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1455,L16 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1456,L16 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1457,L16 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1458,L16 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1459,L16 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1460,L16 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1461,L16 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1462,L16 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1463,L16 G1 Akku,OLP,Akku,"0,00",,,FALSE
+1464,L380 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1465,L380 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1466,L380 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1467,L380 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1468,L380 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1469,L380 D Cover,OLP,D Cover,"0,00",,,FALSE
+1470,L380 USB Board,OLP,USB Board,"0,00",,,FALSE
+1471,L380 Power Button,OLP,Power Button,"0,00",,,FALSE
+1472,L380 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1473,L380 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1474,L380 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1475,L380 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1476,L380 Akku,OLP,Akku,"0,00",,,FALSE
+1477,L390 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1478,L390 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1479,L390 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1480,L390 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1481,L390 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1482,L390 D Cover,OLP,D Cover,"0,00",,,FALSE
+1483,L390 USB Board,OLP,USB Board,"0,00",,,FALSE
+1484,L390 Power Button,OLP,Power Button,"0,00",,,FALSE
+1485,L390 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1486,L390 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1487,L390 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1488,L390 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1489,L390 Akku,OLP,Akku,"0,00",,,FALSE
+1490,L390 Yoga Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1491,L390 Yoga Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1492,L390 Yoga Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1493,L390 Yoga Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1494,L390 Yoga Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1495,L390 Yoga D Cover,OLP,D Cover,"0,00",,,FALSE
+1496,L390 Yoga USB Board,OLP,USB Board,"0,00",,,FALSE
+1497,L390 Yoga Power Button,OLP,Power Button,"0,00",,,FALSE
+1498,L390 Yoga Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1499,L390 Yoga Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1500,L390 Yoga Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1501,L390 Yoga BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1502,L390 Yoga Akku,OLP,Akku,"0,00",,,FALSE
+1503,L390 Yoga Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1504,L390 Yoga Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1505,L390 Yoga Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1506,L390 Yoga Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1507,L390 Yoga Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1508,L390 Yoga D Cover,OLP,D Cover,"0,00",,,FALSE
+1509,L390 Yoga USB Board,OLP,USB Board,"0,00",,,FALSE
+1510,L390 Yoga Power Button,OLP,Power Button,"0,00",,,FALSE
+1511,L390 Yoga Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1512,L390 Yoga Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1513,L390 Yoga Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1514,L390 Yoga BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1515,L390 Yoga Akku,OLP,Akku,"0,00",,,FALSE
+1516,L480 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1517,L480 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1518,L480 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1519,L480 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1520,L480 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1521,L480 D Cover,OLP,D Cover,"0,00",,,FALSE
+1522,L480 USB Board,OLP,USB Board,"0,00",,,FALSE
+1523,L480 Power Button,OLP,Power Button,"0,00",,,FALSE
+1524,L480 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1525,L480 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1526,L480 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1527,L480 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1528,L480 Akku,OLP,Akku,"0,00",,,FALSE
+1529,L490 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1530,L490 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1531,L490 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1532,L490 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1533,L490 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1534,L490 D Cover,OLP,D Cover,"0,00",,,FALSE
+1535,L490 USB Board,OLP,USB Board,"0,00",,,FALSE
+1536,L490 Power Button,OLP,Power Button,"0,00",,,FALSE
+1537,L490 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1538,L490 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1539,L490 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1540,L490 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1541,L490 Akku,OLP,Akku,"0,00",,,FALSE
+1542,L490 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1543,L490 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1544,L490 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1545,L490 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1546,L490 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1547,L490 D Cover,OLP,D Cover,"0,00",,,FALSE
+1548,L490 USB Board,OLP,USB Board,"0,00",,,FALSE
+1549,L490 Power Button,OLP,Power Button,"0,00",,,FALSE
+1550,L490 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1551,L490 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1552,L490 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1553,L490 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1554,L490 Akku,OLP,Akku,"0,00",,,FALSE
+1555,L520 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1556,L520 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1557,L520 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1558,L520 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1559,L520 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1560,L520 D Cover,OLP,D Cover,"0,00",,,FALSE
+1561,L520 USB Board,OLP,USB Board,"0,00",,,FALSE
+1562,L520 Power Button,OLP,Power Button,"0,00",,,FALSE
+1563,L520 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1564,L520 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1565,L520 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1566,L520 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1567,L520 Akku,OLP,Akku,"0,00",,,FALSE
+1568,L530 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1569,L530 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1570,L530 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1571,L530 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1572,L530 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1573,L530 D Cover,OLP,D Cover,"0,00",,,FALSE
+1574,L530 USB Board,OLP,USB Board,"0,00",,,FALSE
+1575,L530 Power Button,OLP,Power Button,"0,00",,,FALSE
+1576,L530 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1577,L530 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1578,L530 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1579,L530 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1580,L530 Akku,OLP,Akku,"0,00",,,FALSE
+1581,L540 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1582,L540 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1583,L540 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1584,L540 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1585,L540 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1586,L540 D Cover,OLP,D Cover,"0,00",,,FALSE
+1587,L540 USB Board,OLP,USB Board,"0,00",,,FALSE
+1588,L540 Power Button,OLP,Power Button,"0,00",,,FALSE
+1589,L540 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1590,L540 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1591,L540 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1592,L540 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1593,L540 Akku,OLP,Akku,"0,00",,,FALSE
+1594,L560 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1595,L560 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1596,L560 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1597,L560 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1598,L560 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1599,L560 D Cover,OLP,D Cover,"0,00",,,FALSE
+1600,L560 USB Board,OLP,USB Board,"0,00",,,FALSE
+1601,L560 Power Button,OLP,Power Button,"0,00",,,FALSE
+1602,L560 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1603,L560 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1604,L560 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1605,L560 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1606,L560 Akku,OLP,Akku,"0,00",,,FALSE
+1607,L570 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1608,L570 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1609,L570 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1610,L570 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1611,L570 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1612,L570 D Cover,OLP,D Cover,"0,00",,,FALSE
+1613,L570 USB Board,OLP,USB Board,"0,00",,,FALSE
+1614,L570 Power Button,OLP,Power Button,"0,00",,,FALSE
+1615,L570 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1616,L570 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1617,L570 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1618,L570 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1619,L570 Akku,OLP,Akku,"0,00",,,FALSE
+1620,L580 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1621,L580 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1622,L580 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1623,L580 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1624,L580 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1625,L580 D Cover,OLP,D Cover,"0,00",,,FALSE
+1626,L580 USB Board,OLP,USB Board,"0,00",,,FALSE
+1627,L580 Power Button,OLP,Power Button,"0,00",,,FALSE
+1628,L580 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1629,L580 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1630,L580 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1631,L580 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1632,L580 Akku,OLP,Akku,"0,00",,,FALSE
+1633,L590 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1634,L590 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1635,L590 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1636,L590 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1637,L590 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1638,L590 D Cover,OLP,D Cover,"0,00",,,FALSE
+1639,L590 USB Board,OLP,USB Board,"0,00",,,FALSE
+1640,L590 Power Button,OLP,Power Button,"0,00",,,FALSE
+1641,L590 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1642,L590 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1643,L590 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1644,L590 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1645,L590 Akku,OLP,Akku,"0,00",,,FALSE
+1646,P1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1647,P1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1648,P1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1649,P1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1650,P1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1651,P1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1652,P1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1653,P1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1654,P1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1655,P1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1656,P1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1657,P1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1658,P1 Akku,OLP,Akku,"0,00",,,FALSE
+1659,P1 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1660,P1 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1661,P1 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1662,P1 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1663,P1 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1664,P1 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+1665,P1 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+1666,P1 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+1667,P1 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1668,P1 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1669,P1 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1670,P1 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1671,P1 G2 Akku,OLP,Akku,"0,00",,,FALSE
+1672,P1 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1673,P1 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1674,P1 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1675,P1 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1676,P1 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1677,P1 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+1678,P1 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+1679,P1 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+1680,P1 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1681,P1 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1682,P1 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1683,P1 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1684,P1 G3 Akku,OLP,Akku,"0,00",,,FALSE
+1685,P1 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1686,P1 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1687,P1 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1688,P1 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1689,P1 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1690,P1 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+1691,P1 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+1692,P1 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+1693,P1 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1694,P1 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1695,P1 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1696,P1 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1697,P1 G3 Akku,OLP,Akku,"0,00",,,FALSE
+1698,P1 G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1699,P1 G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1700,P1 G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1701,P1 G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1702,P1 G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1703,P1 G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+1704,P1 G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+1705,P1 G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+1706,P1 G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1707,P1 G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1708,P1 G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1709,P1 G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1710,P1 G4 Akku,OLP,Akku,"0,00",,,FALSE
+1711,P1 G4i Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1712,P1 G4i Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1713,P1 G4i Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1714,P1 G4i Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1715,P1 G4i Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1716,P1 G4i D Cover,OLP,D Cover,"0,00",,,FALSE
+1717,P1 G4i USB Board,OLP,USB Board,"0,00",,,FALSE
+1718,P1 G4i Power Button,OLP,Power Button,"0,00",,,FALSE
+1719,P1 G4i Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1720,P1 G4i Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1721,P1 G4i Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1722,P1 G4i BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1723,P1 G4i Akku,OLP,Akku,"0,00",,,FALSE
+1724,P1 G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1725,P1 G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1726,P1 G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1727,P1 G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1728,P1 G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1729,P1 G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+1730,P1 G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+1731,P1 G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+1732,P1 G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1733,P1 G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1734,P1 G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1735,P1 G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1736,P1 G5 Akku,OLP,Akku,"0,00",,,FALSE
+1737,P1 G6 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1738,P1 G6 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1739,P1 G6 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1740,P1 G6 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1741,P1 G6 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1742,P1 G6 D Cover,OLP,D Cover,"0,00",,,FALSE
+1743,P1 G6 USB Board,OLP,USB Board,"0,00",,,FALSE
+1744,P1 G6 Power Button,OLP,Power Button,"0,00",,,FALSE
+1745,P1 G6 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1746,P1 G6 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1747,P1 G6 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1748,P1 G6 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1749,P1 G6 Akku,OLP,Akku,"0,00",,,FALSE
+1750,P14s Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1751,P14s Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1752,P14s Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1753,P14s Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1754,P14s Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1755,P14s D Cover,OLP,D Cover,"0,00",,,FALSE
+1756,P14s USB Board,OLP,USB Board,"0,00",,,FALSE
+1757,P14s Power Button,OLP,Power Button,"0,00",,,FALSE
+1758,P14s Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1759,P14s Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1760,P14s Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1761,P14s BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1762,P14s Akku,OLP,Akku,"0,00",,,FALSE
+1763,P14s G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1764,P14s G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1765,P14s G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1766,P14s G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1767,P14s G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1768,P14s G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1769,P14s G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1770,P14s G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1771,P14s G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1772,P14s G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1773,P14s G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1774,P14s G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1775,P14s G1 Akku,OLP,Akku,"0,00",,,FALSE
+1776,P14s G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1777,P14s G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1778,P14s G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1779,P14s G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1780,P14s G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1781,P14s G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+1782,P14s G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+1783,P14s G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+1784,P14s G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1785,P14s G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1786,P14s G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1787,P14s G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1788,P14s G2 Akku,OLP,Akku,"0,00",,,FALSE
+1789,P14s G2a Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1790,P14s G2a Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1791,P14s G2a Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1792,P14s G2a Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1793,P14s G2a Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1794,P14s G2a D Cover,OLP,D Cover,"0,00",,,FALSE
+1795,P14s G2a USB Board,OLP,USB Board,"0,00",,,FALSE
+1796,P14s G2a Power Button,OLP,Power Button,"0,00",,,FALSE
+1797,P14s G2a Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1798,P14s G2a Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1799,P14s G2a Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1800,P14s G2a BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1801,P14s G2a Akku,OLP,Akku,"0,00",,,FALSE
+1802,P14s G2i Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1803,P14s G2i Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1804,P14s G2i Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1805,P14s G2i Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1806,P14s G2i Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1807,P14s G2i D Cover,OLP,D Cover,"0,00",,,FALSE
+1808,P14s G2i USB Board,OLP,USB Board,"0,00",,,FALSE
+1809,P14s G2i Power Button,OLP,Power Button,"0,00",,,FALSE
+1810,P14s G2i Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1811,P14s G2i Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1812,P14s G2i Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1813,P14s G2i BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1814,P14s G2i Akku,OLP,Akku,"0,00",,,FALSE
+1815,P14s G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1816,P14s G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1817,P14s G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1818,P14s G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1819,P14s G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1820,P14s G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+1821,P14s G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+1822,P14s G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+1823,P14s G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1824,P14s G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1825,P14s G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1826,P14s G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1827,P14s G3 Akku,OLP,Akku,"0,00",,,FALSE
+1828,P14s G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1829,P14s G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1830,P14s G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1831,P14s G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1832,P14s G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1833,P14s G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+1834,P14s G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+1835,P14s G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+1836,P14s G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1837,P14s G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1838,P14s G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1839,P14s G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1840,P14s G4 Akku,OLP,Akku,"0,00",,,FALSE
+1841,P14s G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1842,P14s G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1843,P14s G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1844,P14s G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1845,P14s G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1846,P14s G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+1847,P14s G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+1848,P14s G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+1849,P14s G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1850,P14s G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1851,P14s G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1852,P14s G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1853,P14s G5 Akku,OLP,Akku,"0,00",,,FALSE
+1854,P15 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1855,P15 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1856,P15 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1857,P15 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1858,P15 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1859,P15 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1860,P15 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1861,P15 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1862,P15 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1863,P15 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1864,P15 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1865,P15 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1866,P15 G1 Akku,OLP,Akku,"0,00",,,FALSE
+1867,P15 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1868,P15 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1869,P15 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1870,P15 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1871,P15 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1872,P15 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1873,P15 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1874,P15 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1875,P15 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1876,P15 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1877,P15 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1878,P15 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1879,P15 G1 Akku,OLP,Akku,"0,00",,,FALSE
+1880,P15 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1881,P15 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1882,P15 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1883,P15 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1884,P15 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1885,P15 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+1886,P15 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+1887,P15 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+1888,P15 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1889,P15 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1890,P15 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1891,P15 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1892,P15 G2 Akku,OLP,Akku,"0,00",,,FALSE
+1893,P15 G2i Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1894,P15 G2i Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1895,P15 G2i Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1896,P15 G2i Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1897,P15 G2i Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1898,P15 G2i D Cover,OLP,D Cover,"0,00",,,FALSE
+1899,P15 G2i USB Board,OLP,USB Board,"0,00",,,FALSE
+1900,P15 G2i Power Button,OLP,Power Button,"0,00",,,FALSE
+1901,P15 G2i Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1902,P15 G2i Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1903,P15 G2i Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1904,P15 G2i BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1905,P15 G2i Akku,OLP,Akku,"0,00",,,FALSE
+1906,P15s G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1907,P15s G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1908,P15s G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1909,P15s G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1910,P15s G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1911,P15s G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1912,P15s G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1913,P15s G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1914,P15s G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1915,P15s G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1916,P15s G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1917,P15s G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1918,P15s G1 Akku,OLP,Akku,"0,00",,,FALSE
+1919,P15s G2i Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1920,P15s G2i Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1921,P15s G2i Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1922,P15s G2i Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1923,P15s G2i Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1924,P15s G2i D Cover,OLP,D Cover,"0,00",,,FALSE
+1925,P15s G2i USB Board,OLP,USB Board,"0,00",,,FALSE
+1926,P15s G2i Power Button,OLP,Power Button,"0,00",,,FALSE
+1927,P15s G2i Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1928,P15s G2i Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1929,P15s G2i Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1930,P15s G2i BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1931,P15s G2i Akku,OLP,Akku,"0,00",,,FALSE
+1932,P15v G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1933,P15v G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1934,P15v G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1935,P15v G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1936,P15v G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1937,P15v G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1938,P15v G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1939,P15v G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1940,P15v G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1941,P15v G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1942,P15v G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1943,P15v G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1944,P15v G1 Akku,OLP,Akku,"0,00",,,FALSE
+1945,P15v G2i Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1946,P15v G2i Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1947,P15v G2i Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1948,P15v G2i Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1949,P15v G2i Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1950,P15v G2i D Cover,OLP,D Cover,"0,00",,,FALSE
+1951,P15v G2i USB Board,OLP,USB Board,"0,00",,,FALSE
+1952,P15v G2i Power Button,OLP,Power Button,"0,00",,,FALSE
+1953,P15v G2i Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1954,P15v G2i Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1955,P15v G2i Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1956,P15v G2i BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1957,P15v G2i Akku,OLP,Akku,"0,00",,,FALSE
+1958,P15v G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1959,P15v G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1960,P15v G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1961,P15v G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1962,P15v G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1963,P15v G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+1964,P15v G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+1965,P15v G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+1966,P15v G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1967,P15v G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1968,P15v G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1969,P15v G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1970,P15v G3 Akku,OLP,Akku,"0,00",,,FALSE
+1971,P16 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1972,P16 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1973,P16 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1974,P16 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1975,P16 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1976,P16 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+1977,P16 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+1978,P16 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+1979,P16 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1980,P16 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1981,P16 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1982,P16 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1983,P16 G1 Akku,OLP,Akku,"0,00",,,FALSE
+1984,P16 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1985,P16 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1986,P16 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+1987,P16 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+1988,P16 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+1989,P16 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+1990,P16 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+1991,P16 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+1992,P16 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+1993,P16 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+1994,P16 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+1995,P16 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+1996,P16 G2 Akku,OLP,Akku,"0,00",,,FALSE
+1997,P16s G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+1998,P16s G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+1999,P16s G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2000,P16s G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2001,P16s G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2002,P16s G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+2003,P16s G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+2004,P16s G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+2005,P16s G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2006,P16s G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2007,P16s G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2008,P16s G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2009,P16s G1 Akku,OLP,Akku,"0,00",,,FALSE
+2010,P16s G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2011,P16s G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2012,P16s G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2013,P16s G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2014,P16s G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2015,P16s G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+2016,P16s G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+2017,P16s G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+2018,P16s G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2019,P16s G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2020,P16s G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2021,P16s G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2022,P16s G2 Akku,OLP,Akku,"0,00",,,FALSE
+2023,P16s G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2024,P16s G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2025,P16s G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2026,P16s G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2027,P16s G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2028,P16s G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+2029,P16s G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+2030,P16s G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+2031,P16s G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2032,P16s G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2033,P16s G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2034,P16s G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2035,P16s G3 Akku,OLP,Akku,"0,00",,,FALSE
+2036,P16s G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2037,P16s G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2038,P16s G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2039,P16s G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2040,P16s G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2041,P16s G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+2042,P16s G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+2043,P16s G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+2044,P16s G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2045,P16s G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2046,P16s G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2047,P16s G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2048,P16s G4 Akku,OLP,Akku,"0,00",,,FALSE
+2049,P16v G1 Displaymodul,OLP,Displaymodul,"1,00",,,FALSE
+2050,P16v G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2051,P16v G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2052,P16v G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2053,P16v G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2054,P16v G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+2055,P16v G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+2056,P16v G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+2057,P16v G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2058,P16v G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2059,P16v G1 Thermalmodul,OLP,Thermalmodul,"1,00",,,FALSE
+2060,P16v G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2061,P16v G1 Akku,OLP,Akku,"1,00",,,FALSE
+2062,P16v G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2063,P16v G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2064,P16v G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2065,P16v G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2066,P16v G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2067,P16v G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+2068,P16v G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+2069,P16v G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+2070,P16v G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2071,P16v G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2072,P16v G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2073,P16v G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2074,P16v G2 Akku,OLP,Akku,"0,00",,,FALSE
+2075,P17 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2076,P17 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2077,P17 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2078,P17 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2079,P17 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2080,P17 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+2081,P17 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+2082,P17 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+2083,P17 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2084,P17 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2085,P17 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2086,P17 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2087,P17 G1 Akku,OLP,Akku,"0,00",,,FALSE
+2088,P17 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2089,P17 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2090,P17 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2091,P17 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2092,P17 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2093,P17 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+2094,P17 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+2095,P17 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+2096,P17 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2097,P17 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2098,P17 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2099,P17 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2100,P17 G1 Akku,OLP,Akku,"0,00",,,FALSE
+2101,P17 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2102,P17 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2103,P17 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2104,P17 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2105,P17 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2106,P17 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+2107,P17 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+2108,P17 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+2109,P17 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2110,P17 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2111,P17 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2112,P17 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2113,P17 G2 Akku,OLP,Akku,"0,00",,,FALSE
+2114,P50 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2115,P50 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2116,P50 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2117,P50 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2118,P50 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2119,P50 D Cover,OLP,D Cover,"0,00",,,FALSE
+2120,P50 USB Board,OLP,USB Board,"0,00",,,FALSE
+2121,P50 Power Button,OLP,Power Button,"0,00",,,FALSE
+2122,P50 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2123,P50 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2124,P50 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2125,P50 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2126,P50 Akku,OLP,Akku,"0,00",,,FALSE
+2127,P50s Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2128,P50s Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2129,P50s Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2130,P50s Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2131,P50s Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2132,P50s D Cover,OLP,D Cover,"0,00",,,FALSE
+2133,P50s USB Board,OLP,USB Board,"0,00",,,FALSE
+2134,P50s Power Button,OLP,Power Button,"0,00",,,FALSE
+2135,P50s Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2136,P50s Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2137,P50s Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2138,P50s BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2139,P50s Akku,OLP,Akku,"0,00",,,FALSE
+2140,P51 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2141,P51 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2142,P51 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2143,P51 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2144,P51 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2145,P51 D Cover,OLP,D Cover,"0,00",,,FALSE
+2146,P51 USB Board,OLP,USB Board,"0,00",,,FALSE
+2147,P51 Power Button,OLP,Power Button,"0,00",,,FALSE
+2148,P51 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2149,P51 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2150,P51 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2151,P51 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2152,P51 Akku,OLP,Akku,"0,00",,,FALSE
+2153,P51s Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2154,P51s Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2155,P51s Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2156,P51s Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2157,P51s Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2158,P51s D Cover,OLP,D Cover,"0,00",,,FALSE
+2159,P51s USB Board,OLP,USB Board,"0,00",,,FALSE
+2160,P51s Power Button,OLP,Power Button,"0,00",,,FALSE
+2161,P51s Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2162,P51s Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2163,P51s Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2164,P51s BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2165,P51s Akku,OLP,Akku,"0,00",,,FALSE
+2166,P52 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2167,P52 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2168,P52 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2169,P52 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2170,P52 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2171,P52 D Cover,OLP,D Cover,"0,00",,,FALSE
+2172,P52 USB Board,OLP,USB Board,"0,00",,,FALSE
+2173,P52 Power Button,OLP,Power Button,"0,00",,,FALSE
+2174,P52 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2175,P52 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2176,P52 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2177,P52 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2178,P52 Akku,OLP,Akku,"0,00",,,FALSE
+2179,P52s Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2180,P52s Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2181,P52s Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2182,P52s Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2183,P52s Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2184,P52s D Cover,OLP,D Cover,"0,00",,,FALSE
+2185,P52s USB Board,OLP,USB Board,"0,00",,,FALSE
+2186,P52s Power Button,OLP,Power Button,"0,00",,,FALSE
+2187,P52s Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2188,P52s Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2189,P52s Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2190,P52s BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2191,P52s Akku,OLP,Akku,"0,00",,,FALSE
+2192,P53 Displaymodul,OLP,Displaymodul,"1,00",,,FALSE
+2193,P53 Tastatur,OLP,Tastatur,"1,00",,,FALSE
+2194,P53 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2195,P53 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2196,P53 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2197,P53 D Cover,OLP,D Cover,"0,00",,,FALSE
+2198,P53 USB Board,OLP,USB Board,"0,00",,,FALSE
+2199,P53 Power Button,OLP,Power Button,"0,00",,,FALSE
+2200,P53 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2202,P53 Thermalmodul,OLP,Thermalmodul,"1,00",,,FALSE
+2203,P53 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2204,P53 Akku,OLP,Akku,"0,00",,,FALSE
+2205,P70 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2206,P70 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2207,P70 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2208,P70 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2209,P70 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2210,P70 D Cover,OLP,D Cover,"0,00",,,FALSE
+2211,P70 USB Board,OLP,USB Board,"0,00",,,FALSE
+2212,P70 Power Button,OLP,Power Button,"0,00",,,FALSE
+2213,P70 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2214,P70 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2215,P70 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2216,P70 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2217,P70 Akku,OLP,Akku,"0,00",,,FALSE
+2218,P71 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2219,P71 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2220,P71 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2221,P71 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2222,P71 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2223,P71 D Cover,OLP,D Cover,"0,00",,,FALSE
+2224,P71 USB Board,OLP,USB Board,"0,00",,,FALSE
+2225,P71 Power Button,OLP,Power Button,"0,00",,,FALSE
+2226,P71 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2227,P71 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2228,P71 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2229,P71 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2230,P71 Akku,OLP,Akku,"0,00",,,FALSE
+2231,P72 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2232,P72 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2233,P72 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2234,P72 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2235,P72 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2236,P72 D Cover,OLP,D Cover,"0,00",,,FALSE
+2237,P72 USB Board,OLP,USB Board,"0,00",,,FALSE
+2238,P72 Power Button,OLP,Power Button,"0,00",,,FALSE
+2239,P72 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2240,P72 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2241,P72 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2242,P72 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2243,P72 Akku,OLP,Akku,"0,00",,,FALSE
+2244,P73 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2245,P73 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2246,P73 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2247,P73 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2248,P73 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2249,P73 D Cover,OLP,D Cover,"0,00",,,FALSE
+2250,P73 USB Board,OLP,USB Board,"0,00",,,FALSE
+2251,P73 Power Button,OLP,Power Button,"0,00",,,FALSE
+2252,P73 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2253,P73 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2254,P73 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2255,P73 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2256,P73 Akku,OLP,Akku,"0,00",,,FALSE
+2257,T14 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2258,T14 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2259,T14 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2260,T14 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2261,T14 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2262,T14 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+2263,T14 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+2264,T14 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+2265,T14 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2266,T14 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2267,T14 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2268,T14 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2269,T14 G1 Akku,OLP,Akku,"0,00",,,FALSE
+2270,T14 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2271,T14 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2272,T14 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2273,T14 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2274,T14 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2275,T14 G2 D Cover,OLP,D Cover,"1,00",,,FALSE
+2276,T14 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+2277,T14 G2 Power Button,OLP,Power Button,"1,00",,,FALSE
+2278,T14 G2 Lautsprecher,OLP,Lautsprecher,"1,00",,,FALSE
+2279,T14 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2280,T14 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2281,T14 G2 BIOS Batterie,OLP,BIOS Batterie,"1,00",,,FALSE
+2282,T14 G2 Akku,OLP,Akku,"0,00",,,FALSE
+2283,T14 G2a Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2284,T14 G2a Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2285,T14 G2a Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2286,T14 G2a Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2287,T14 G2a Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2288,T14 G2a D Cover,OLP,D Cover,"0,00",,,FALSE
+2289,T14 G2a USB Board,OLP,USB Board,"0,00",,,FALSE
+2290,T14 G2a Power Button,OLP,Power Button,"0,00",,,FALSE
+2291,T14 G2a Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2292,T14 G2a Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2293,T14 G2a Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2294,T14 G2a BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2295,T14 G2a Akku,OLP,Akku,"0,00",,,FALSE
+2296,T14 G2i Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2297,T14 G2i Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2298,T14 G2i Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2299,T14 G2i Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2300,T14 G2i Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2301,T14 G2i D Cover,OLP,D Cover,"0,00",,,FALSE
+2302,T14 G2i USB Board,OLP,USB Board,"0,00",,,FALSE
+2303,T14 G2i Power Button,OLP,Power Button,"0,00",,,FALSE
+2304,T14 G2i Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2305,T14 G2i Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2306,T14 G2i Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2307,T14 G2i BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2308,T14 G2i Akku,OLP,Akku,"0,00",,,FALSE
+2309,T14 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2310,T14 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2311,T14 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2312,T14 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2313,T14 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2314,T14 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+2315,T14 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+2316,T14 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+2317,T14 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2318,T14 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2319,T14 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2320,T14 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2321,T14 G3 Akku,OLP,Akku,"0,00",,,FALSE
+2322,T14 G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2323,T14 G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2324,T14 G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2325,T14 G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2326,T14 G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2327,T14 G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+2328,T14 G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+2329,T14 G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+2330,T14 G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2331,T14 G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2332,T14 G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2333,T14 G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2334,T14 G4 Akku,OLP,Akku,"0,00",,,FALSE
+2335,T14 G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2336,T14 G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2337,T14 G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2338,T14 G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2339,T14 G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2340,T14 G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+2341,T14 G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+2342,T14 G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+2343,T14 G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2344,T14 G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2345,T14 G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2346,T14 G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2347,T14 G5 Akku,OLP,Akku,"0,00",,,FALSE
+2348,T14 G6 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2349,T14 G6 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2350,T14 G6 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2351,T14 G6 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2352,T14 G6 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2353,T14 G6 D Cover,OLP,D Cover,"0,00",,,FALSE
+2354,T14 G6 USB Board,OLP,USB Board,"0,00",,,FALSE
+2355,T14 G6 Power Button,OLP,Power Button,"0,00",,,FALSE
+2356,T14 G6 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2357,T14 G6 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2358,T14 G6 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2359,T14 G6 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2360,T14 G6 Akku,OLP,Akku,"0,00",,,FALSE
+2361,T14s Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2362,T14s Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2363,T14s Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2364,T14s Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2365,T14s Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2366,T14s D Cover,OLP,D Cover,"0,00",,,FALSE
+2367,T14s USB Board,OLP,USB Board,"0,00",,,FALSE
+2368,T14s Power Button,OLP,Power Button,"0,00",,,FALSE
+2369,T14s Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2370,T14s Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2371,T14s Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2372,T14s BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2373,T14s Akku,OLP,Akku,"0,00",,,FALSE
+2374,T14s G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2375,T14s G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2376,T14s G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2377,T14s G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2378,T14s G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2379,T14s G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+2380,T14s G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+2381,T14s G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+2382,T14s G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2383,T14s G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2384,T14s G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2385,T14s G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2386,T14s G1 Akku,OLP,Akku,"0,00",,,FALSE
+2387,T14s G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2388,T14s G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2389,T14s G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2390,T14s G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2391,T14s G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2392,T14s G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+2393,T14s G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+2394,T14s G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+2395,T14s G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2396,T14s G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2397,T14s G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2398,T14s G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2399,T14s G2 Akku,OLP,Akku,"0,00",,,FALSE
+2400,T14s G2a Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2401,T14s G2a Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2402,T14s G2a Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2403,T14s G2a Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2404,T14s G2a Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2405,T14s G2a D Cover,OLP,D Cover,"0,00",,,FALSE
+2406,T14s G2a USB Board,OLP,USB Board,"0,00",,,FALSE
+2407,T14s G2a Power Button,OLP,Power Button,"0,00",,,FALSE
+2408,T14s G2a Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2409,T14s G2a Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2410,T14s G2a Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2411,T14s G2a BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2412,T14s G2a Akku,OLP,Akku,"0,00",,,FALSE
+2413,T14s G2i Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2414,T14s G2i Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2415,T14s G2i Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2416,T14s G2i Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2417,T14s G2i Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2418,T14s G2i D Cover,OLP,D Cover,"0,00",,,FALSE
+2419,T14s G2i USB Board,OLP,USB Board,"0,00",,,FALSE
+2420,T14s G2i Power Button,OLP,Power Button,"0,00",,,FALSE
+2421,T14s G2i Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2422,T14s G2i Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2423,T14s G2i Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2424,T14s G2i BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2425,T14s G2i Akku,OLP,Akku,"0,00",,,FALSE
+2426,T14s G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2427,T14s G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2428,T14s G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2429,T14s G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2430,T14s G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2431,T14s G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+2432,T14s G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+2433,T14s G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+2434,T14s G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2435,T14s G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2436,T14s G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2437,T14s G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2438,T14s G3 Akku,OLP,Akku,"0,00",,,FALSE
+2439,T14s G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2440,T14s G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2441,T14s G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2442,T14s G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2443,T14s G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2444,T14s G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+2445,T14s G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+2446,T14s G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+2447,T14s G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2448,T14s G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2449,T14s G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2450,T14s G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2451,T14s G4 Akku,OLP,Akku,"0,00",,,FALSE
+2452,T15 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2453,T15 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2454,T15 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2455,T15 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2456,T15 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2457,T15 D Cover,OLP,D Cover,"0,00",,,FALSE
+2458,T15 USB Board,OLP,USB Board,"0,00",,,FALSE
+2459,T15 Power Button,OLP,Power Button,"0,00",,,FALSE
+2460,T15 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2461,T15 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2462,T15 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2463,T15 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2464,T15 Akku,OLP,Akku,"0,00",,,FALSE
+2465,T15 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2466,T15 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2467,T15 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2468,T15 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2469,T15 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2470,T15 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+2471,T15 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+2472,T15 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+2473,T15 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2474,T15 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2475,T15 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2476,T15 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2477,T15 G1 Akku,OLP,Akku,"0,00",,,FALSE
+2478,T15 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2479,T15 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2480,T15 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2481,T15 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2482,T15 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2483,T15 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+2484,T15 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+2485,T15 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+2486,T15 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2487,T15 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2488,T15 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2489,T15 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2490,T15 G2 Akku,OLP,Akku,"0,00",,,FALSE
+2491,T15 G2i Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2492,T15 G2i Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2493,T15 G2i Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2494,T15 G2i Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2495,T15 G2i Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2496,T15 G2i D Cover,OLP,D Cover,"0,00",,,FALSE
+2497,T15 G2i USB Board,OLP,USB Board,"0,00",,,FALSE
+2498,T15 G2i Power Button,OLP,Power Button,"0,00",,,FALSE
+2499,T15 G2i Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2500,T15 G2i Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2501,T15 G2i Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2502,T15 G2i BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2503,T15 G2i Akku,OLP,Akku,"0,00",,,FALSE
+2504,T16 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2505,T16 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2506,T16 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2507,T16 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2508,T16 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2509,T16 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+2510,T16 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+2511,T16 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+2512,T16 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2513,T16 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2514,T16 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2515,T16 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2516,T16 G1 Akku,OLP,Akku,"0,00",,,FALSE
+2517,T16 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2518,T16 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2519,T16 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2520,T16 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2521,T16 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2522,T16 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+2523,T16 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+2524,T16 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+2525,T16 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2526,T16 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2527,T16 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2528,T16 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2529,T16 G2 Akku,OLP,Akku,"0,00",,,FALSE
+2530,T16 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2531,T16 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2532,T16 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2533,T16 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2534,T16 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2535,T16 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+2536,T16 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+2537,T16 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+2538,T16 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2539,T16 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2540,T16 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2541,T16 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2542,T16 G3 Akku,OLP,Akku,"0,00",,,FALSE
+2543,T480 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2544,T480 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2545,T480 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2546,T480 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2547,T480 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2548,T480 D Cover,OLP,D Cover,"0,00",,,FALSE
+2549,T480 USB Board,OLP,USB Board,"0,00",,,FALSE
+2550,T480 Power Button,OLP,Power Button,"0,00",,,FALSE
+2551,T480 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2552,T480 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2553,T480 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2554,T480 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2555,T480 Akku intern,OLP,Akku intern,"0,00",,,FALSE
+2556,T480 Akku extern,OLP,Akku extern,"0,00",,,FALSE
+2557,T480s Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2558,T480s Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2559,T480s Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2560,T480s Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2561,T480s Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2562,T480s D Cover,OLP,D Cover,"0,00",,,FALSE
+2563,T480s USB Board,OLP,USB Board,"0,00",,,FALSE
+2564,T480s Power Button,OLP,Power Button,"0,00",,,FALSE
+2565,T480s Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2566,T480s Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2567,T480s Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2568,T480s BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2569,T480s Akku,OLP,Akku,"0,00",,,FALSE
+2570,T490 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2571,T490 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2572,T490 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2573,T490 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2574,T490 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2575,T490 D Cover,OLP,D Cover,"0,00",,,FALSE
+2576,T490 USB Board,OLP,USB Board,"0,00",,,FALSE
+2577,T490 Power Button,OLP,Power Button,"0,00",,,FALSE
+2578,T490 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2579,T490 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2580,T490 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2581,T490 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2582,T490 Akku,OLP,Akku,"0,00",,,FALSE
+2583,T490s Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2584,T490s Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2585,T490s Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2586,T490s Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2587,T490s Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2588,T490s D Cover,OLP,D Cover,"0,00",,,FALSE
+2589,T490s USB Board,OLP,USB Board,"0,00",,,FALSE
+2590,T490s Power Button,OLP,Power Button,"0,00",,,FALSE
+2591,T490s Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2592,T490s Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2593,T490s Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2594,T490s BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2595,T490s Akku,OLP,Akku,"0,00",,,FALSE
+2596,T495 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2597,T495 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2598,T495 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2599,T495 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2600,T495 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2601,T495 D Cover,OLP,D Cover,"0,00",,,FALSE
+2602,T495 USB Board,OLP,USB Board,"0,00",,,FALSE
+2603,T495 Power Button,OLP,Power Button,"0,00",,,FALSE
+2604,T495 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2605,T495 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2606,T495 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2607,T495 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2608,T495 Akku,OLP,Akku,"0,00",,,FALSE
+2609,T495s Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2610,T495s Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2611,T495s Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2612,T495s Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2613,T495s Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2614,T495s D Cover,OLP,D Cover,"0,00",,,FALSE
+2615,T495s USB Board,OLP,USB Board,"0,00",,,FALSE
+2616,T495s Power Button,OLP,Power Button,"0,00",,,FALSE
+2617,T495s Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2618,T495s Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2619,T495s Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2620,T495s BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2621,T495s Akku,OLP,Akku,"0,00",,,FALSE
+2622,T580 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2623,T580 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2624,T580 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2625,T580 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2626,T580 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2627,T580 D Cover,OLP,D Cover,"0,00",,,FALSE
+2628,T580 USB Board,OLP,USB Board,"0,00",,,FALSE
+2629,T580 Power Button,OLP,Power Button,"0,00",,,FALSE
+2630,T580 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2631,T580 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2632,T580 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2633,T580 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2634,T580 Akku,OLP,Akku,"0,00",,,FALSE
+2636,T590 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2637,T590 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2638,T590 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2639,T590 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2640,T590 D Cover,OLP,D Cover,"0,00",,,FALSE
+2641,T590 USB Board,OLP,USB Board,"0,00",,,FALSE
+2642,T590 Power Button,OLP,Power Button,"0,00",,,FALSE
+2643,T590 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2644,T590 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2645,T590 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2646,T590 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2647,T590 Akku intern,OLP,Akku intern,"0,00",,,FALSE
+2648,T590 Akku extern,OLP,Akku extern,"0,00",,,FALSE
+2649,X1 2-in-1 G9 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2650,X1 2-in-1 G9 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2651,X1 2-in-1 G9 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2652,X1 2-in-1 G9 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2653,X1 2-in-1 G9 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2654,X1 2-in-1 G9 D Cover,OLP,D Cover,"0,00",,,FALSE
+2655,X1 2-in-1 G9 USB Board,OLP,USB Board,"0,00",,,FALSE
+2656,X1 2-in-1 G9 Power Button,OLP,Power Button,"0,00",,,FALSE
+2657,X1 2-in-1 G9 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2658,X1 2-in-1 G9 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2659,X1 2-in-1 G9 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2660,X1 2-in-1 G9 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2661,X1 2-in-1 G9 Akku,OLP,Akku,"0,00",,,FALSE
+2662,X1 Carbon Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2663,X1 Carbon Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2664,X1 Carbon Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2665,X1 Carbon Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2666,X1 Carbon Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2667,X1 Carbon D Cover,OLP,D Cover,"0,00",,,FALSE
+2668,X1 Carbon USB Board,OLP,USB Board,"0,00",,,FALSE
+2669,X1 Carbon Power Button,OLP,Power Button,"0,00",,,FALSE
+2670,X1 Carbon Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2671,X1 Carbon Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2672,X1 Carbon Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2673,X1 Carbon BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2674,X1 Carbon Akku,OLP,Akku,"0,00",,,FALSE
+2675,X1 Carbon G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2676,X1 Carbon G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2677,X1 Carbon G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2678,X1 Carbon G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2679,X1 Carbon G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2680,X1 Carbon G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+2681,X1 Carbon G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+2682,X1 Carbon G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+2683,X1 Carbon G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2684,X1 Carbon G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2685,X1 Carbon G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2686,X1 Carbon G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2687,X1 Carbon G2 Akku,OLP,Akku,"0,00",,,FALSE
+2688,X1 Carbon G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2689,X1 Carbon G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2690,X1 Carbon G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2691,X1 Carbon G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2692,X1 Carbon G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2693,X1 Carbon G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+2694,X1 Carbon G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+2695,X1 Carbon G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+2696,X1 Carbon G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2697,X1 Carbon G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2698,X1 Carbon G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2699,X1 Carbon G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2700,X1 Carbon G3 Akku,OLP,Akku,"0,00",,,FALSE
+2701,X1 Carbon G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2702,X1 Carbon G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2703,X1 Carbon G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2704,X1 Carbon G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2705,X1 Carbon G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2706,X1 Carbon G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+2707,X1 Carbon G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+2708,X1 Carbon G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+2709,X1 Carbon G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2710,X1 Carbon G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2711,X1 Carbon G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2712,X1 Carbon G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2713,X1 Carbon G4 Akku,OLP,Akku,"0,00",,,FALSE
+2714,X1 Carbon G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2715,X1 Carbon G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2716,X1 Carbon G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2717,X1 Carbon G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2718,X1 Carbon G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2719,X1 Carbon G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+2720,X1 Carbon G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+2721,X1 Carbon G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+2722,X1 Carbon G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2723,X1 Carbon G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2724,X1 Carbon G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2725,X1 Carbon G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2726,X1 Carbon G5 Akku,OLP,Akku,"0,00",,,FALSE
+2727,X1 Carbon G6 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2728,X1 Carbon G6 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2729,X1 Carbon G6 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2730,X1 Carbon G6 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2731,X1 Carbon G6 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2732,X1 Carbon G6 D Cover,OLP,D Cover,"0,00",,,FALSE
+2733,X1 Carbon G6 USB Board,OLP,USB Board,"0,00",,,FALSE
+2734,X1 Carbon G6 Power Button,OLP,Power Button,"0,00",,,FALSE
+2735,X1 Carbon G6 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2736,X1 Carbon G6 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2737,X1 Carbon G6 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2738,X1 Carbon G6 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2739,X1 Carbon G6 Akku,OLP,Akku,"0,00",,,FALSE
+2740,X1 Carbon G7 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2741,X1 Carbon G7 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2742,X1 Carbon G7 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2743,X1 Carbon G7 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2744,X1 Carbon G7 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2745,X1 Carbon G7 D Cover,OLP,D Cover,"0,00",,,FALSE
+2746,X1 Carbon G7 USB Board,OLP,USB Board,"0,00",,,FALSE
+2747,X1 Carbon G7 Power Button,OLP,Power Button,"0,00",,,FALSE
+2748,X1 Carbon G7 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2749,X1 Carbon G7 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2750,X1 Carbon G7 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2751,X1 Carbon G7 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2752,X1 Carbon G7 Akku,OLP,Akku,"0,00",,,FALSE
+2753,X1 Carbon G8 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2754,X1 Carbon G8 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2755,X1 Carbon G8 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2756,X1 Carbon G8 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2757,X1 Carbon G8 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2758,X1 Carbon G8 D Cover,OLP,D Cover,"0,00",,,FALSE
+2759,X1 Carbon G8 USB Board,OLP,USB Board,"0,00",,,FALSE
+2760,X1 Carbon G8 Power Button,OLP,Power Button,"0,00",,,FALSE
+2761,X1 Carbon G8 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2762,X1 Carbon G8 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2763,X1 Carbon G8 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2764,X1 Carbon G8 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2765,X1 Carbon G8 Akku,OLP,Akku,"0,00",,,FALSE
+2766,X1 Carbon G9 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2767,X1 Carbon G9 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2768,X1 Carbon G9 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2769,X1 Carbon G9 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2770,X1 Carbon G9 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2771,X1 Carbon G9 D Cover,OLP,D Cover,"0,00",,,FALSE
+2772,X1 Carbon G9 USB Board,OLP,USB Board,"0,00",,,FALSE
+2773,X1 Carbon G9 Power Button,OLP,Power Button,"0,00",,,FALSE
+2774,X1 Carbon G9 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2775,X1 Carbon G9 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2776,X1 Carbon G9 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2777,X1 Carbon G9 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2778,X1 Carbon G9 Akku,OLP,Akku,"0,00",,,FALSE
+2779,X1 Carbon G10 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2780,X1 Carbon G10 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2781,X1 Carbon G10 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2782,X1 Carbon G10 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2783,X1 Carbon G10 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2784,X1 Carbon G10 D Cover,OLP,D Cover,"0,00",,,FALSE
+2785,X1 Carbon G10 USB Board,OLP,USB Board,"0,00",,,FALSE
+2786,X1 Carbon G10 Power Button,OLP,Power Button,"0,00",,,FALSE
+2787,X1 Carbon G10 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2788,X1 Carbon G10 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2789,X1 Carbon G10 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2790,X1 Carbon G10 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2791,X1 Carbon G10 Akku,OLP,Akku,"0,00",,,FALSE
+2792,X1 Carbon G11 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2793,X1 Carbon G11 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2794,X1 Carbon G11 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2795,X1 Carbon G11 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2796,X1 Carbon G11 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2797,X1 Carbon G11 D Cover,OLP,D Cover,"0,00",,,FALSE
+2798,X1 Carbon G11 USB Board,OLP,USB Board,"0,00",,,FALSE
+2799,X1 Carbon G11 Power Button,OLP,Power Button,"0,00",,,FALSE
+2800,X1 Carbon G11 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2801,X1 Carbon G11 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2802,X1 Carbon G11 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2803,X1 Carbon G11 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2804,X1 Carbon G11 Akku,OLP,Akku,"0,00",,,FALSE
+2805,X1 Extreme Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2806,X1 Extreme Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2807,X1 Extreme Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2808,X1 Extreme Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2809,X1 Extreme Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2810,X1 Extreme D Cover,OLP,D Cover,"0,00",,,FALSE
+2811,X1 Extreme USB Board,OLP,USB Board,"0,00",,,FALSE
+2812,X1 Extreme Power Button,OLP,Power Button,"0,00",,,FALSE
+2813,X1 Extreme Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2814,X1 Extreme Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2815,X1 Extreme Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2816,X1 Extreme BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2817,X1 Extreme Akku,OLP,Akku,"0,00",,,FALSE
+2818,X1 Extreme G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2819,X1 Extreme G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2820,X1 Extreme G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2821,X1 Extreme G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2822,X1 Extreme G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2823,X1 Extreme G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+2824,X1 Extreme G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+2825,X1 Extreme G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+2826,X1 Extreme G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2827,X1 Extreme G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2828,X1 Extreme G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2829,X1 Extreme G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2830,X1 Extreme G5 Akku,OLP,Akku,"0,00",,,FALSE
+2831,X1 Nano G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2832,X1 Nano G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2833,X1 Nano G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2834,X1 Nano G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2835,X1 Nano G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2836,X1 Nano G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+2837,X1 Nano G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+2838,X1 Nano G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+2839,X1 Nano G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2840,X1 Nano G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2841,X1 Nano G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2842,X1 Nano G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2843,X1 Nano G2 Akku,OLP,Akku,"0,00",,,FALSE
+2844,X1 Tablet 1st Gen Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2845,X1 Tablet 1st Gen Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2846,X1 Tablet 1st Gen Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2847,X1 Tablet 1st Gen Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2848,X1 Tablet 1st Gen Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2849,X1 Tablet 1st Gen D Cover,OLP,D Cover,"0,00",,,FALSE
+2850,X1 Tablet 1st Gen USB Board,OLP,USB Board,"0,00",,,FALSE
+2851,X1 Tablet 1st Gen Power Button,OLP,Power Button,"0,00",,,FALSE
+2852,X1 Tablet 1st Gen Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2853,X1 Tablet 1st Gen Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2854,X1 Tablet 1st Gen Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2855,X1 Tablet 1st Gen BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2856,X1 Tablet 1st Gen Akku,OLP,Akku,"0,00",,,FALSE
+2857,X1 Tablet 3rd Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2858,X1 Tablet 3rd Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2859,X1 Tablet 3rd Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2860,X1 Tablet 3rd Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2861,X1 Tablet 3rd Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2862,X1 Tablet 3rd D Cover,OLP,D Cover,"0,00",,,FALSE
+2863,X1 Tablet 3rd USB Board,OLP,USB Board,"0,00",,,FALSE
+2864,X1 Tablet 3rd Power Button,OLP,Power Button,"0,00",,,FALSE
+2865,X1 Tablet 3rd Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2866,X1 Tablet 3rd Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2867,X1 Tablet 3rd Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2868,X1 Tablet 3rd BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2869,X1 Tablet 3rd Akku,OLP,Akku,"0,00",,,FALSE
+2870,X1 Tablet G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2871,X1 Tablet G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2872,X1 Tablet G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2873,X1 Tablet G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2874,X1 Tablet G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2875,X1 Tablet G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+2876,X1 Tablet G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+2877,X1 Tablet G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+2878,X1 Tablet G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2879,X1 Tablet G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2880,X1 Tablet G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2881,X1 Tablet G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2882,X1 Tablet G2 Akku,OLP,Akku,"0,00",,,FALSE
+2883,X1 Tablet G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2884,X1 Tablet G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2885,X1 Tablet G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2886,X1 Tablet G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2887,X1 Tablet G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2888,X1 Tablet G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+2889,X1 Tablet G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+2890,X1 Tablet G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+2891,X1 Tablet G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2892,X1 Tablet G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2893,X1 Tablet G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2894,X1 Tablet G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2895,X1 Tablet G3 Akku,OLP,Akku,"0,00",,,FALSE
+2896,X1 Tablet G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2897,X1 Tablet G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2898,X1 Tablet G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2899,X1 Tablet G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2900,X1 Tablet G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2901,X1 Tablet G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+2902,X1 Tablet G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+2903,X1 Tablet G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+2904,X1 Tablet G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2905,X1 Tablet G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2906,X1 Tablet G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2907,X1 Tablet G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2908,X1 Tablet G3 Akku,OLP,Akku,"0,00",,,FALSE
+2909,X1 Yoga Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2910,X1 Yoga Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2911,X1 Yoga Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2912,X1 Yoga Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2913,X1 Yoga Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2914,X1 Yoga D Cover,OLP,D Cover,"0,00",,,FALSE
+2915,X1 Yoga USB Board,OLP,USB Board,"0,00",,,FALSE
+2916,X1 Yoga Power Button,OLP,Power Button,"0,00",,,FALSE
+2917,X1 Yoga Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2918,X1 Yoga Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2919,X1 Yoga Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2920,X1 Yoga BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2921,X1 Yoga Akku,OLP,Akku,"0,00",,,FALSE
+2922,X1 Yoga 2-in-1 G9 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2923,X1 Yoga 2-in-1 G9 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2924,X1 Yoga 2-in-1 G9 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2925,X1 Yoga 2-in-1 G9 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2926,X1 Yoga 2-in-1 G9 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2927,X1 Yoga 2-in-1 G9 D Cover,OLP,D Cover,"0,00",,,FALSE
+2928,X1 Yoga 2-in-1 G9 USB Board,OLP,USB Board,"0,00",,,FALSE
+2929,X1 Yoga 2-in-1 G9 Power Button,OLP,Power Button,"0,00",,,FALSE
+2930,X1 Yoga 2-in-1 G9 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2931,X1 Yoga 2-in-1 G9 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2932,X1 Yoga 2-in-1 G9 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2933,X1 Yoga 2-in-1 G9 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2934,X1 Yoga 2-in-1 G9 Akku,OLP,Akku,"0,00",,,FALSE
+2935,X1 Yoga 2nd Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2936,X1 Yoga 2nd Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2937,X1 Yoga 2nd Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2938,X1 Yoga 2nd Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2939,X1 Yoga 2nd Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2940,X1 Yoga 2nd D Cover,OLP,D Cover,"0,00",,,FALSE
+2941,X1 Yoga 2nd USB Board,OLP,USB Board,"0,00",,,FALSE
+2942,X1 Yoga 2nd Power Button,OLP,Power Button,"0,00",,,FALSE
+2943,X1 Yoga 2nd Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2944,X1 Yoga 2nd Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2945,X1 Yoga 2nd Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2946,X1 Yoga 2nd BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2947,X1 Yoga 2nd Akku,OLP,Akku,"0,00",,,FALSE
+2948,X1 Yoga 3rd Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2949,X1 Yoga 3rd Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2950,X1 Yoga 3rd Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2951,X1 Yoga 3rd Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2952,X1 Yoga 3rd Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2953,X1 Yoga 3rd D Cover,OLP,D Cover,"0,00",,,FALSE
+2954,X1 Yoga 3rd USB Board,OLP,USB Board,"0,00",,,FALSE
+2955,X1 Yoga 3rd Power Button,OLP,Power Button,"0,00",,,FALSE
+2956,X1 Yoga 3rd Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2957,X1 Yoga 3rd Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2958,X1 Yoga 3rd Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2959,X1 Yoga 3rd BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2960,X1 Yoga 3rd Akku,OLP,Akku,"0,00",,,FALSE
+2961,X1 Yoga 3rd Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2962,X1 Yoga 3rd Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2963,X1 Yoga 3rd Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2964,X1 Yoga 3rd Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2965,X1 Yoga 3rd Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2966,X1 Yoga 3rd D Cover,OLP,D Cover,"0,00",,,FALSE
+2967,X1 Yoga 3rd USB Board,OLP,USB Board,"0,00",,,FALSE
+2968,X1 Yoga 3rd Power Button,OLP,Power Button,"0,00",,,FALSE
+2969,X1 Yoga 3rd Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2970,X1 Yoga 3rd Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2971,X1 Yoga 3rd Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2972,X1 Yoga 3rd BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2973,X1 Yoga 3rd Akku,OLP,Akku,"0,00",,,FALSE
+2974,X1 Yoga G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2975,X1 Yoga G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2976,X1 Yoga G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2977,X1 Yoga G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2978,X1 Yoga G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2979,X1 Yoga G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+2980,X1 Yoga G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+2981,X1 Yoga G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+2982,X1 Yoga G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2983,X1 Yoga G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2984,X1 Yoga G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2985,X1 Yoga G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2986,X1 Yoga G1 Akku,OLP,Akku,"0,00",,,FALSE
+2987,X1 Yoga G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+2988,X1 Yoga G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+2989,X1 Yoga G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+2990,X1 Yoga G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+2991,X1 Yoga G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+2992,X1 Yoga G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+2993,X1 Yoga G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+2994,X1 Yoga G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+2995,X1 Yoga G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+2996,X1 Yoga G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+2997,X1 Yoga G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+2998,X1 Yoga G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+2999,X1 Yoga G3 Akku,OLP,Akku,"0,00",,,FALSE
+3000,X1 Yoga G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3001,X1 Yoga G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3002,X1 Yoga G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3003,X1 Yoga G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3004,X1 Yoga G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3005,X1 Yoga G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+3006,X1 Yoga G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+3007,X1 Yoga G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+3008,X1 Yoga G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3009,X1 Yoga G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3010,X1 Yoga G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3011,X1 Yoga G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3012,X1 Yoga G4 Akku,OLP,Akku,"0,00",,,FALSE
+3013,X1 Yoga G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3014,X1 Yoga G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3015,X1 Yoga G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3016,X1 Yoga G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3017,X1 Yoga G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3018,X1 Yoga G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+3019,X1 Yoga G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+3020,X1 Yoga G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+3021,X1 Yoga G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3022,X1 Yoga G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3023,X1 Yoga G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3024,X1 Yoga G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3025,X1 Yoga G5 Akku,OLP,Akku,"0,00",,,FALSE
+3026,X1 Yoga G6 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3027,X1 Yoga G6 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3028,X1 Yoga G6 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3029,X1 Yoga G6 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3030,X1 Yoga G6 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3031,X1 Yoga G6 D Cover,OLP,D Cover,"0,00",,,FALSE
+3032,X1 Yoga G6 USB Board,OLP,USB Board,"0,00",,,FALSE
+3033,X1 Yoga G6 Power Button,OLP,Power Button,"0,00",,,FALSE
+3034,X1 Yoga G6 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3035,X1 Yoga G6 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3036,X1 Yoga G6 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3037,X1 Yoga G6 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3038,X1 Yoga G6 Akku,OLP,Akku,"0,00",,,FALSE
+3039,X1 Yoga G7 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3040,X1 Yoga G7 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3041,X1 Yoga G7 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3042,X1 Yoga G7 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3043,X1 Yoga G7 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3044,X1 Yoga G7 D Cover,OLP,D Cover,"0,00",,,FALSE
+3045,X1 Yoga G7 USB Board,OLP,USB Board,"0,00",,,FALSE
+3046,X1 Yoga G7 Power Button,OLP,Power Button,"0,00",,,FALSE
+3047,X1 Yoga G7 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3048,X1 Yoga G7 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3049,X1 Yoga G7 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3050,X1 Yoga G7 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3051,X1 Yoga G7 Akku,OLP,Akku,"0,00",,,FALSE
+3052,X1 Yoga G8 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3053,X1 Yoga G8 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3054,X1 Yoga G8 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3055,X1 Yoga G8 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3056,X1 Yoga G8 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3057,X1 Yoga G8 D Cover,OLP,D Cover,"0,00",,,FALSE
+3058,X1 Yoga G8 USB Board,OLP,USB Board,"0,00",,,FALSE
+3059,X1 Yoga G8 Power Button,OLP,Power Button,"0,00",,,FALSE
+3060,X1 Yoga G8 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3061,X1 Yoga G8 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3062,X1 Yoga G8 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3063,X1 Yoga G8 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3064,X1 Yoga G8 Akku,OLP,Akku,"0,00",,,FALSE
+3065,X1 Yoga G8 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3066,X1 Yoga G8 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3067,X1 Yoga G8 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3068,X1 Yoga G8 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3069,X1 Yoga G8 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3070,X1 Yoga G8 D Cover,OLP,D Cover,"0,00",,,FALSE
+3071,X1 Yoga G8 USB Board,OLP,USB Board,"0,00",,,FALSE
+3072,X1 Yoga G8 Power Button,OLP,Power Button,"0,00",,,FALSE
+3073,X1 Yoga G8 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3074,X1 Yoga G8 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3075,X1 Yoga G8 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3076,X1 Yoga G8 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3077,X1 Yoga G8 Akku,OLP,Akku,"0,00",,,FALSE
+3078,X13 2-in-1 G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3079,X13 2-in-1 G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3080,X13 2-in-1 G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3081,X13 2-in-1 G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3082,X13 2-in-1 G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3083,X13 2-in-1 G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+3084,X13 2-in-1 G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+3085,X13 2-in-1 G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+3086,X13 2-in-1 G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3087,X13 2-in-1 G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3088,X13 2-in-1 G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3089,X13 2-in-1 G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3090,X13 2-in-1 G5 Akku,OLP,Akku,"0,00",,,FALSE
+3091,X13 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3092,X13 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3093,X13 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3094,X13 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3095,X13 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3096,X13 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+3097,X13 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+3098,X13 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+3099,X13 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3100,X13 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3101,X13 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3102,X13 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3103,X13 G1 Akku,OLP,Akku,"0,00",,,FALSE
+3104,X13 G10 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3105,X13 G10 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3106,X13 G10 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3107,X13 G10 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3108,X13 G10 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3109,X13 G10 D Cover,OLP,D Cover,"0,00",,,FALSE
+3110,X13 G10 USB Board,OLP,USB Board,"0,00",,,FALSE
+3111,X13 G10 Power Button,OLP,Power Button,"0,00",,,FALSE
+3112,X13 G10 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3113,X13 G10 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3114,X13 G10 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3115,X13 G10 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3116,X13 G10 Akku,OLP,Akku,"0,00",,,FALSE
+3117,X13 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3118,X13 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3119,X13 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3120,X13 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3121,X13 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3122,X13 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+3123,X13 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+3124,X13 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+3125,X13 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3126,X13 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3127,X13 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3128,X13 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3129,X13 G2 Akku,OLP,Akku,"0,00",,,FALSE
+3130,X13 G2i Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3131,X13 G2i Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3132,X13 G2i Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3133,X13 G2i Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3134,X13 G2i Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3135,X13 G2i D Cover,OLP,D Cover,"0,00",,,FALSE
+3136,X13 G2i USB Board,OLP,USB Board,"0,00",,,FALSE
+3137,X13 G2i Power Button,OLP,Power Button,"0,00",,,FALSE
+3138,X13 G2i Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3139,X13 G2i Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3140,X13 G2i Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3141,X13 G2i BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3142,X13 G2i Akku,OLP,Akku,"0,00",,,FALSE
+3143,X13 G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3144,X13 G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3145,X13 G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3146,X13 G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3147,X13 G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3148,X13 G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+3149,X13 G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+3150,X13 G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+3151,X13 G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3152,X13 G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3153,X13 G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3154,X13 G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3155,X13 G3 Akku,OLP,Akku,"0,00",,,FALSE
+3156,X13 G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3157,X13 G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3158,X13 G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3159,X13 G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3160,X13 G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3161,X13 G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+3162,X13 G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+3163,X13 G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+3164,X13 G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3165,X13 G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3166,X13 G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3167,X13 G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3168,X13 G4 Akku,OLP,Akku,"0,00",,,FALSE
+3169,X13 G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3170,X13 G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3171,X13 G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3172,X13 G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3173,X13 G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3174,X13 G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+3175,X13 G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+3176,X13 G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+3177,X13 G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3178,X13 G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3179,X13 G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3180,X13 G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3181,X13 G5 Akku,OLP,Akku,"0,00",,,FALSE
+3182,X13 Yoga Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3183,X13 Yoga Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3184,X13 Yoga Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3185,X13 Yoga Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3186,X13 Yoga Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3187,X13 Yoga D Cover,OLP,D Cover,"0,00",,,FALSE
+3188,X13 Yoga USB Board,OLP,USB Board,"0,00",,,FALSE
+3189,X13 Yoga Power Button,OLP,Power Button,"0,00",,,FALSE
+3190,X13 Yoga Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3191,X13 Yoga Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3192,X13 Yoga Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3193,X13 Yoga BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3194,X13 Yoga Akku,OLP,Akku,"0,00",,,FALSE
+3195,X13 Yoga G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3196,X13 Yoga G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3197,X13 Yoga G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3198,X13 Yoga G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3199,X13 Yoga G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3200,X13 Yoga G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+3201,X13 Yoga G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+3202,X13 Yoga G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+3203,X13 Yoga G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3204,X13 Yoga G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3205,X13 Yoga G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3206,X13 Yoga G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3207,X13 Yoga G1 Akku,OLP,Akku,"0,00",,,FALSE
+3208,X13 Yoga G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3209,X13 Yoga G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3210,X13 Yoga G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3211,X13 Yoga G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3212,X13 Yoga G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3213,X13 Yoga G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+3214,X13 Yoga G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+3215,X13 Yoga G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+3216,X13 Yoga G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3217,X13 Yoga G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3218,X13 Yoga G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3219,X13 Yoga G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3220,X13 Yoga G2 Akku,OLP,Akku,"0,00",,,FALSE
+3221,X13 Yoga G3 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3222,X13 Yoga G3 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3223,X13 Yoga G3 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3224,X13 Yoga G3 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3225,X13 Yoga G3 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3226,X13 Yoga G3 D Cover,OLP,D Cover,"0,00",,,FALSE
+3227,X13 Yoga G3 USB Board,OLP,USB Board,"0,00",,,FALSE
+3228,X13 Yoga G3 Power Button,OLP,Power Button,"0,00",,,FALSE
+3229,X13 Yoga G3 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3230,X13 Yoga G3 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3231,X13 Yoga G3 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3232,X13 Yoga G3 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3233,X13 Yoga G3 Akku,OLP,Akku,"0,00",,,FALSE
+3234,X13 Yoga G4 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3235,X13 Yoga G4 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3236,X13 Yoga G4 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3237,X13 Yoga G4 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3238,X13 Yoga G4 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3239,X13 Yoga G4 D Cover,OLP,D Cover,"0,00",,,FALSE
+3240,X13 Yoga G4 USB Board,OLP,USB Board,"0,00",,,FALSE
+3241,X13 Yoga G4 Power Button,OLP,Power Button,"0,00",,,FALSE
+3242,X13 Yoga G4 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3243,X13 Yoga G4 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3244,X13 Yoga G4 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3245,X13 Yoga G4 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3246,X13 Yoga G4 Akku,OLP,Akku,"0,00",,,FALSE
+3247,X380 Yoga Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3248,X380 Yoga Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3249,X380 Yoga Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3250,X380 Yoga Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3251,X380 Yoga Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3252,X380 Yoga D Cover,OLP,D Cover,"0,00",,,FALSE
+3253,X380 Yoga USB Board,OLP,USB Board,"0,00",,,FALSE
+3254,X380 Yoga Power Button,OLP,Power Button,"0,00",,,FALSE
+3255,X380 Yoga Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3256,X380 Yoga Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3257,X380 Yoga Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3258,X380 Yoga BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3259,X380 Yoga Akku,OLP,Akku,"0,00",,,FALSE
+3260,X390 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3261,X390 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3262,X390 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3263,X390 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3264,X390 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3265,X390 D Cover,OLP,D Cover,"0,00",,,FALSE
+3266,X390 USB Board,OLP,USB Board,"0,00",,,FALSE
+3267,X390 Power Button,OLP,Power Button,"0,00",,,FALSE
+3268,X390 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3269,X390 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3270,X390 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3271,X390 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3272,X390 Akku,OLP,Akku,"0,00",,,FALSE
+3273,X390 Yoga Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3274,X390 Yoga Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3275,X390 Yoga Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3276,X390 Yoga Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3277,X390 Yoga Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3278,X390 Yoga D Cover,OLP,D Cover,"0,00",,,FALSE
+3279,X390 Yoga USB Board,OLP,USB Board,"0,00",,,FALSE
+3280,X390 Yoga Power Button,OLP,Power Button,"0,00",,,FALSE
+3281,X390 Yoga Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3282,X390 Yoga Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3283,X390 Yoga Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3284,X390 Yoga BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3285,X390 Yoga Akku,OLP,Akku,"0,00",,,FALSE
+3286,X395 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3287,X395 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3288,X395 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3289,X395 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3290,X395 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3291,X395 D Cover,OLP,D Cover,"0,00",,,FALSE
+3292,X395 USB Board,OLP,USB Board,"0,00",,,FALSE
+3293,X395 Power Button,OLP,Power Button,"0,00",,,FALSE
+3294,X395 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3295,X395 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3296,X395 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3297,X395 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3298,X395 Akku,OLP,Akku,"0,00",,,FALSE
+3299,Z16 G1 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3300,Z16 G1 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3301,Z16 G1 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3302,Z16 G1 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3303,Z16 G1 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3304,Z16 G1 D Cover,OLP,D Cover,"0,00",,,FALSE
+3305,Z16 G1 USB Board,OLP,USB Board,"0,00",,,FALSE
+3306,Z16 G1 Power Button,OLP,Power Button,"0,00",,,FALSE
+3307,Z16 G1 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3308,Z16 G1 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3309,Z16 G1 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3310,Z16 G1 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3311,Z16 G1 Akku,OLP,Akku,"0,00",,,FALSE
+3312,Tinkpad X1 Carbon Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3313,Tinkpad X1 Carbon Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3314,Tinkpad X1 Carbon Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3315,Tinkpad X1 Carbon Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3316,Tinkpad X1 Carbon Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3317,Tinkpad X1 Carbon D Cover,OLP,D Cover,"0,00",,,FALSE
+3318,Tinkpad X1 Carbon USB Board,OLP,USB Board,"0,00",,,FALSE
+3319,Tinkpad X1 Carbon Power Button,OLP,Power Button,"0,00",,,FALSE
+3320,Tinkpad X1 Carbon Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3321,Tinkpad X1 Carbon Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3322,Tinkpad X1 Carbon Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3323,Tinkpad X1 Carbon BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3324,Tinkpad X1 Carbon Akku,OLP,Akku,"0,00",,,FALSE
+3325,14 G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3326,14 G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3327,14 G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3328,14 G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3329,14 G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3330,14 G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+3331,14 G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+3332,14 G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+3333,14 G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3334,14 G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3335,14 G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3336,14 G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3337,14 G2 Akku,OLP,Akku,"0,00",,,FALSE
+3338,14u G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3339,14u G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3340,14u G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3341,14u G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3342,14u G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3343,14u G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+3344,14u G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+3345,14u G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+3346,14u G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3347,14u G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3348,14u G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3349,14u G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3350,14u G5 Akku,OLP,Akku,"0,00",,,FALSE
+3351,15 G7 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3352,15 G7 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3353,15 G7 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3354,15 G7 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3355,15 G7 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3356,15 G7 D Cover,OLP,D Cover,"0,00",,,FALSE
+3357,15 G7 USB Board,OLP,USB Board,"0,00",,,FALSE
+3358,15 G7 Power Button,OLP,Power Button,"0,00",,,FALSE
+3359,15 G7 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3360,15 G7 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3361,15 G7 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3362,15 G7 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3363,15 G7 Akku,OLP,Akku,"0,00",,,FALSE
+3364,15u G2 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3365,15u G2 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3366,15u G2 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3367,15u G2 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3368,15u G2 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3369,15u G2 D Cover,OLP,D Cover,"0,00",,,FALSE
+3370,15u G2 USB Board,OLP,USB Board,"0,00",,,FALSE
+3371,15u G2 Power Button,OLP,Power Button,"0,00",,,FALSE
+3372,15u G2 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3373,15u G2 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3374,15u G2 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3375,15u G2 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3376,15u G2 Akku,OLP,Akku,"0,00",,,FALSE
+3377,17 G5 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3378,17 G5 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3379,17 G5 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3380,17 G5 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3381,17 G5 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3382,17 G5 D Cover,OLP,D Cover,"0,00",,,FALSE
+3383,17 G5 USB Board,OLP,USB Board,"0,00",,,FALSE
+3384,17 G5 Power Button,OLP,Power Button,"0,00",,,FALSE
+3385,17 G5 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3386,17 G5 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3387,17 G5 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3388,17 G5 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3389,17 G5 Akku,OLP,Akku,"0,00",,,FALSE
+3390,8 G1i 16 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3391,8 G1i 16 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3392,8 G1i 16 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3393,8 G1i 16 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3394,8 G1i 16 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3395,8 G1i 16 D Cover,OLP,D Cover,"0,00",,,FALSE
+3396,8 G1i 16 USB Board,OLP,USB Board,"0,00",,,FALSE
+3397,8 G1i 16 Power Button,OLP,Power Button,"0,00",,,FALSE
+3398,8 G1i 16 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3399,8 G1i 16 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3400,8 G1i 16 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3401,8 G1i 16 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3402,8 G1i 16 Akku,OLP,Akku,"0,00",,,FALSE
+3403,Fury 15 G8 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3404,Fury 15 G8 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3405,Fury 15 G8 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3406,Fury 15 G8 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3407,Fury 15 G8 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3408,Fury 15 G8 D Cover,OLP,D Cover,"0,00",,,FALSE
+3409,Fury 15 G8 USB Board,OLP,USB Board,"0,00",,,FALSE
+3410,Fury 15 G8 Power Button,OLP,Power Button,"0,00",,,FALSE
+3411,Fury 15 G8 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3412,Fury 15 G8 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3413,Fury 15 G8 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3414,Fury 15 G8 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3415,Fury 15 G8 Akku,OLP,Akku,"0,00",,,FALSE
+3416,Fury 16 G10 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3417,Fury 16 G10 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3418,Fury 16 G10 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3419,Fury 16 G10 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3420,Fury 16 G10 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3421,Fury 16 G10 D Cover,OLP,D Cover,"0,00",,,FALSE
+3422,Fury 16 G10 USB Board,OLP,USB Board,"0,00",,,FALSE
+3423,Fury 16 G10 Power Button,OLP,Power Button,"0,00",,,FALSE
+3424,Fury 16 G10 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3425,Fury 16 G10 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3426,Fury 16 G10 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3427,Fury 16 G10 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3428,Fury 16 G10 Akku,OLP,Akku,"0,00",,,FALSE
+3429,Fury 16 G11 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3430,Fury 16 G11 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3431,Fury 16 G11 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3432,Fury 16 G11 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3433,Fury 16 G11 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3434,Fury 16 G11 D Cover,OLP,D Cover,"0,00",,,FALSE
+3435,Fury 16 G11 USB Board,OLP,USB Board,"0,00",,,FALSE
+3436,Fury 16 G11 Power Button,OLP,Power Button,"0,00",,,FALSE
+3437,Fury 16 G11 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3438,Fury 16 G11 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3439,Fury 16 G11 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3440,Fury 16 G11 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3441,Fury 16 G11 Akku,OLP,Akku,"0,00",,,FALSE
+3442,Fury 16 G1i Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3443,Fury 16 G1i Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3444,Fury 16 G1i Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3445,Fury 16 G1i Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3446,Fury 16 G1i Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3447,Fury 16 G1i D Cover,OLP,D Cover,"0,00",,,FALSE
+3448,Fury 16 G1i USB Board,OLP,USB Board,"0,00",,,FALSE
+3449,Fury 16 G1i Power Button,OLP,Power Button,"0,00",,,FALSE
+3450,Fury 16 G1i Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3451,Fury 16 G1i Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3452,Fury 16 G1i Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3453,Fury 16 G1i BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3454,Fury 16 G1i Akku,OLP,Akku,"0,00",,,FALSE
+3455,Fury 17 G7 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3456,Fury 17 G7 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3457,Fury 17 G7 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3458,Fury 17 G7 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3459,Fury 17 G7 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3460,Fury 17 G7 D Cover,OLP,D Cover,"0,00",,,FALSE
+3461,Fury 17 G7 USB Board,OLP,USB Board,"0,00",,,FALSE
+3462,Fury 17 G7 Power Button,OLP,Power Button,"0,00",,,FALSE
+3463,Fury 17 G7 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3464,Fury 17 G7 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3465,Fury 17 G7 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3466,Fury 17 G7 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3467,Fury 17 G7 Akku,OLP,Akku,"0,00",,,FALSE
+3468,1TB nVME,OLP,SSD,"0,00",,,FALSE
+3469,1TB SATA,OLP,SSD,"0,00",,,FALSE
+3470,512GB nVME,OLP,SSD,"0,00",,,FALSE
+3471,512GB SATA,OLP,SSD,"0,00",,,FALSE
+3472,256GB nVME,OLP,SSD,"0,00",,,FALSE
+3473,256GB SATA,OLP,SSD,"0,00",,,FALSE
+3474,8GB DDR4,OLP,RAM,"0,00",,,FALSE
+3475,16GB DDR4,OLP,RAM,"0,00",,,FALSE
+3476,32GB DDR4,OLP,RAM,"0,00",,,FALSE
+3477,8GB DDR4,OLP,RAM,"0,00",,,FALSE
+3478,16GB DDR5,OLP,RAM,"0,00",,,FALSE
+3479,32GB DDR5,OLP,RAM,"0,00",,,FALSE
+3480,5511 Displaymodul,OLP,Displaymodul,"0,00",,,FALSE
+3481,5511 Tastatur,OLP,Tastatur,"0,00",,,FALSE
+3482,5511 Touchpad,OLP,Touchpad,"0,00",,,FALSE
+3483,5511 Füße vorne,OLP,Füße vorne,"0,00",,,FALSE
+3484,5511 Füße hinten,OLP,Füße hinten,"0,00",,,FALSE
+3485,5511 D Cover,OLP,D Cover,"0,00",,,FALSE
+3486,5511 USB Board,OLP,USB Board,"0,00",,,FALSE
+3487,5511 Power Button,OLP,Power Button,"0,00",,,FALSE
+3488,5511 Lautsprecher,OLP,Lautsprecher,"0,00",,,FALSE
+3489,5511 Lüfter,OLP,Lüfter,"0,00",,,FALSE
+3490,5511 Thermalmodul,OLP,Thermalmodul,"0,00",,,FALSE
+3491,5511 BIOS Batterie,OLP,BIOS Batterie,"0,00",,,FALSE
+3492,5511 Akku,OLP,Akku,"0,00",,,FALSE
+3507,P53 DC IN,Lager,DC IN,"1,00",,,FALSE
+3508,P53 Scharnier Abdeckung Set,Lager,Scharnier Abdeckung,"1,00",,,FALSE
+3508,T14 G2 LAN Board,Lager,LAN Board,"1,00",,,FALSE
+3509,X360 1040 G8 Displaymodul,Lager,Displaymodul,"1,00",,,FALSE
+3510,X360 1040 G8 Tastatur,Lager,Tastatur,"0,00",,,FALSE
+3511,X360 1040 G8 Touchpad,Lager,Touchpad,"1,00",,,FALSE
+3512,X360 1040 G8 Füße vorne,Lager,Füße vorne,"0,00",,,FALSE
+3513,X360 1040 G8 Füße hinten,Lager,Füße hinten,"0,00",,,FALSE
+3514,X360 1040 G8 D Cover,Lager,D Cover,"0,00",,,FALSE
+3515,X360 1040 G8 USB Board,Lager,USB Board,"1,00",,,FALSE
+3516,X360 1040 G8 Power Button,Lager,Power Button,"0,00",,,FALSE
+3517,X360 1040 G8 Lautsprecher,Lager,Lautsprecher,"0,00",,,FALSE
+3518,X360 1040 G8 Lüfter,Lager,Lüfter,"0,00",,,FALSE
+3519,X360 1040 G8 Thermalmodul,Lager,Thermalmodul,"1,00",,,FALSE
+3520,X360 1040 G8 BIOS Batterie,Lager,BIOS Batterie,"0,00",,,FALSE
+3521,X360 1040 G8 Akku,Lager,Akku,"0,00",,,FALSE
+3522,P16v G1 Mainboard,OLP,Mainboard,"1,00",,,
+,,,,"0,00",,,
+3523,650 G4 Displaymodul,Lager,Displaymodul,"0,00",,,
+3524,650 G4 Tastatur,Lager,Tastatur,"0,00",,,
+3525,650 G4 Touchpad,Lager,Touchpad,"0,00",,,
+3526,650 G4 Füße vorne,Lager,Füße vorne,"0,00",,,
+3527,650 G4 Füße hinten,Lager,Füße hinten,"0,00",,,
+3528,650 G4 D Cover,Lager,D Cover,"0,00",,,
+3529,650 G4 USB Board,Lager,USB Board,"0,00",,,
+3530,650 G4 Power Button,Lager,Power Button,"0,00",,,
+3531,650 G4 Lautsprecher,Lager,Lautsprecher,"0,00",,,
+3532,650 G4 Lüfter,Lager,Lüfter,"0,00",,,
+3533,650 G4 Thermalmodul,Lager,Thermalmodul,"0,00",,,
+3534,650 G4 BIOS Batterie,Lager,BIOS Batterie,"0,00",,,
+3535,650 G4 Akku,Lager,Akku,"0,00",,,
+3536,5521 Displaymodul,Lager,Displaymodul,"0,00",,,
+3537,5521 Tastatur,Lager,Tastatur,"0,00",,,
+3538,5521 Touchpad,Lager,Touchpad,"0,00",,,
+3539,5521 Füße vorne,Lager,Füße vorne,"0,00",,,
+3540,5521 Füße hinten,Lager,Füße hinten,"0,00",,,
+3541,5521 D Cover,Lager,D Cover,"0,00",,,
+3542,5521 USB Board,Lager,USB Board,"0,00",,,
+3543,5521 Power Button,Lager,Power Button,"0,00",,,
+3544,5521 Lautsprecher,Lager,Lautsprecher,"0,00",,,
+3545,5521 Lüfter,Lager,Lüfter,"0,00",,,
+3546,5521 Thermalmodul,Lager,Thermalmodul,"0,00",,,
+3547,5521 BIOS Batterie,Lager,BIOS Batterie,"0,00",,,
+3548,5521 Akku,Lager,Akku,"0,00",,,
+3549,5520 Displaymodul,Lager,Displaymodul,"0,00",,,
+3550,5520 Tastatur,Lager,Tastatur,"0,00",,,
+3551,5520 Touchpad,Lager,Touchpad,"0,00",,,
+3552,5520 Füße vorne,Lager,Füße vorne,"0,00",,,
+3553,5520 Füße hinten,Lager,Füße hinten,"0,00",,,
+3554,5520 D Cover,Lager,D Cover,"0,00",,,
+3555,5520 USB Board,Lager,USB Board,"0,00",,,
+3556,5520 Power Button,Lager,Power Button,"0,00",,,
+3557,5520 Lautsprecher,Lager,Lautsprecher,"0,00",,,
+3558,5520 Lüfter,Lager,Lüfter,"0,00",,,
+3559,5520 Thermalmodul,Lager,Thermalmodul,"0,00",,,
+3560,5520 BIOS Batterie,Lager,BIOS Batterie,"0,00",,,
+3561,5520 Akku,Lager,Akku,"0,00",,,
+3562,650 G8 Displaymodul,Lager,Displaymodul,"0,00",,,
+3563,650 G8 Tastatur,Lager,Tastatur,"0,00",,,
+3564,650 G8 Touchpad,Lager,Touchpad,"0,00",,,
+3565,650 G8 Füße vorne,Lager,Füße vorne,"0,00",,,
+3566,650 G8 Füße hinten,Lager,Füße hinten,"0,00",,,
+3567,650 G8 D Cover,Lager,D Cover,"0,00",,,
+3568,650 G8 USB Board,Lager,USB Board,"0,00",,,
+3569,650 G8 Power Button,Lager,Power Button,"0,00",,,
+3570,650 G8 Lautsprecher,Lager,Lautsprecher,"0,00",,,
+3571,650 G8 Lüfter,Lager,Lüfter,"0,00",,,
+3572,650 G8 Thermalmodul,Lager,Thermalmodul,"0,00",,,
+3573,650 G8 BIOS Batterie,Lager,BIOS Batterie,"0,00",,,
+3574,650 G8 Akku,Lager,Akku,"0,00",,,
+3575,7420 Displaymodul,Lager,Displaymodul,"0,00",,,
+3576,7420 Tastatur,Lager,Tastatur,"0,00",,,
+3577,7420 Touchpad,Lager,Touchpad,"0,00",,,
+3578,7420 Füße vorne,Lager,Füße vorne,"0,00",,,
+3579,7420 Füße hinten,Lager,Füße hinten,"0,00",,,
+3580,7420 D Cover,Lager,D Cover,"0,00",,,
+3581,7420 USB Board,Lager,USB Board,"0,00",,,
+3582,7420 Power Button,Lager,Power Button,"0,00",,,
+3583,7420 Lautsprecher,Lager,Lautsprecher,"0,00",,,
+3584,7420 Lüfter,Lager,Lüfter,"0,00",,,
+3585,7420 Thermalmodul,Lager,Thermalmodul,"0,00",,,
+3586,7420 BIOS Batterie,Lager,BIOS Batterie,"0,00",,,
+3587,7420 Akku,Lager,Akku,"0,00",,,
+3588,5501 Displaymodul,Lager,Displaymodul,"0,00",,,
+3589,5501 Tastatur,Lager,Tastatur,"0,00",,,
+3590,5501 Touchpad,Lager,Touchpad,"0,00",,,
+3591,5501 Füße vorne,Lager,Füße vorne,"0,00",,,
+3592,5501 Füße hinten,Lager,Füße hinten,"0,00",,,
+3593,5501 D Cover,Lager,D Cover,"0,00",,,
+3594,5501 USB Board,Lager,USB Board,"0,00",,,
+3595,5501 Power Button,Lager,Power Button,"0,00",,,
+3596,5501 Lautsprecher,Lager,Lautsprecher,"0,00",,,
+3597,5501 Lüfter,Lager,Lüfter,"0,00",,,
+3598,5501 Thermalmodul,Lager,Thermalmodul,"0,00",,,
+3599,5501 BIOS Batterie,Lager,BIOS Batterie,"0,00",,,
+3600,5501 Akku,Lager,Akku,"0,00",,,
+3601,5430 Displaymodul,Lager,Displaymodul,"0,00",,,
+3602,5430 Tastatur,Lager,Tastatur,"0,00",,,
+3603,5430 Touchpad,Lager,Touchpad,"0,00",,,
+3604,5430 Füße vorne,Lager,Füße vorne,"0,00",,,
+3605,5430 Füße hinten,Lager,Füße hinten,"0,00",,,
+3606,5430 D Cover,Lager,D Cover,"0,00",,,
+3607,5430 USB Board,Lager,USB Board,"0,00",,,
+3608,5430 Power Button,Lager,Power Button,"0,00",,,
+3609,5430 Lautsprecher,Lager,Lautsprecher,"0,00",,,
+3610,5430 Lüfter,Lager,Lüfter,"0,00",,,
+3611,5430 Thermalmodul,Lager,Thermalmodul,"0,00",,,
+3612,5430 BIOS Batterie,Lager,BIOS Batterie,"0,00",,,
+3613,5430 Akku,Lager,Akku,"0,00",,,
