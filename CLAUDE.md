@@ -124,6 +124,7 @@ storniereAnfrageTechniker(name, repId, teilName)
 - Lager-Modul (Artikel CRUD, Suche mit/ohne Lagerplatz)
 - Anfragen-Modul (Erstellen, Liste, Stornierung, Admin-Status)
 - Core Services Layer (buchungen, lager, anfragen, geraete, kompatibilitaet, warenkorb, benutzer, statistik)
+- tRPC Router komplett (alle 8 Module + Haupt-Router)
 
 ### 🔄 In Arbeit
 _(nichts aktiv)_
@@ -139,4 +140,4 @@ _(nichts aktiv)_
 - Nerd Dashboard
 
 ## Nächster Task
-Techniker-Portal (1:1 nach techniker.html) oder tRPC Router für alle Module
+Techniker-Portal (1:1 nach techniker.html)
