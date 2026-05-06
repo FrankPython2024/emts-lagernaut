@@ -1,0 +1,47 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=mysql://lagernaut:lagernaut@db:3306/lagernaut
+      - REDIS_URL=redis://redis:6379
+      - MEILISEARCH_URL=http://meilisearch:7700
+      - MEILISEARCH_KEY=lagernaut-master-key
+      - NEXTAUTH_SECRET=lagernaut-secret-key
+      - NEXTAUTH_URL=http://49.13.162.158:3000
+    depends_on:
+      - db
+      - redis
+      - meilisearch
+    restart: unless-stopped
+
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: lagernaut
+      MYSQL_USER: lagernaut
+      MYSQL_PASSWORD: lagernaut
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    environment:
+      MEILI_MASTER_KEY: lagernaut-master-key
+    volumes:
+      - meilisearch_data:/meili_data
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+  meilisearch_data:
