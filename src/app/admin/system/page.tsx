@@ -2,222 +2,415 @@
 import { useEffect, useState, useRef } from "react";
 import { api } from "@/trpc/react";
 
-type LogLevel  = "info" | "warn" | "error";
-type LogEntry  = { ts: string; modul: string; msg: string; level: LogLevel };
-type EventEntry = { ts: string; event: string; data: string; colorKey: string };
+// ── Formatier-Hilfen ─────────────────────────────────────────────────────────
 
-// Farben die in beiden Modi gleich bleiben (Status-Indikatoren)
-const STATUS_COLORS = {
-  connect:    "#00a400",
-  disconnect: "#fa3e3e",
-  warn:       "#f7b928",
-  error:      "#fa3e3e",
-  info:       "#00a400",
-} as const;
+function fmtBytes(b: number): string {
+  if (b < 1024) return `${b}B`;
+  if (b < 1048576) return `${(b / 1024).toFixed(1)}KB`;
+  if (b < 1073741824) return `${(b / 1048576).toFixed(1)}MB`;
+  return `${(b / 1073741824).toFixed(2)}GB`;
+}
 
-// Tailwind-Klassen für Event-Farben (Light + Dark)
-const EVENT_COLOR_CLASSES: Record<string, string> = {
-  connect:    "text-[#00a400]",
-  disconnect: "text-[#fa3e3e]",
-  anfrage:    "text-[#0064d2] dark:text-[#45bdff]",
-  buchung:    "text-[#f7b928]",
-  default:    "text-[#65676b] dark:text-[#b0b3b8]",
-};
+function fmtNum(n: number): string {
+  return n.toLocaleString("de-DE");
+}
 
-const LOG_LEVEL_CLASSES: Record<LogLevel, string> = {
-  info:  "text-[#00a400]",
-  warn:  "text-[#f7b928]",
-  error: "text-[#fa3e3e]",
-};
+// ── UI-Primitive ─────────────────────────────────────────────────────────────
 
-function InfraCard({ title, icon, status, rows }: {
-  title:  string;
-  icon:   string;
-  status: "online" | "offline" | "unknown";
-  rows:   { label: string; value: string | number }[];
-}) {
-  const dotCls = status === "online"
-    ? "bg-[#00a400] shadow-[0_0_6px_rgba(0,164,0,0.6)]"
-    : status === "offline"
-      ? "bg-[#fa3e3e] shadow-[0_0_6px_rgba(250,62,62,0.6)]"
-      : "bg-[#f7b928] shadow-[0_0_6px_rgba(247,185,40,0.6)]";
-
+function Section({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 font-mono shadow-sm">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-xl">{icon}</span>
-        <span className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] tracking-wide">{title}</span>
-        <span className={`ml-auto w-2.5 h-2.5 rounded-full ${dotCls} animate-pulse flex-shrink-0`} />
+    <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-3 bg-[#f0f2f5] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042]">
+        <span className="text-base">{icon}</span>
+        <h2 className="font-bold text-sm tracking-wider uppercase text-[#1a1a1a] dark:text-[#e4e6eb]">{title}</h2>
       </div>
-      <div className="space-y-2">
-        {rows.map(({ label, value }) => (
-          <div key={label} className="flex justify-between text-xs">
-            <span className="text-[#65676b] dark:text-[#b0b3b8]">{label}</span>
-            <span className="text-[#0064d2] dark:text-[#45bdff] font-bold">{value}</span>
-          </div>
-        ))}
-      </div>
+      <div className="p-5">{children}</div>
     </div>
   );
 }
 
+function MetricCard({ label, value, sub, color = "primary", icon }: { label: string; value: string | number; sub?: string; color?: string; icon?: string }) {
+  const colors: Record<string, string> = {
+    primary: "text-[#0064d2] dark:text-[#45bdff]",
+    success: "text-[#00a400]",
+    danger:  "text-[#fa3e3e]",
+    warning: "text-[#f7b928]",
+    purple:  "text-[#8e44ad]",
+    gray:    "text-[#65676b] dark:text-[#b0b3b8]",
+  };
+  return (
+    <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-4">
+      {icon && <div className="text-xl mb-2">{icon}</div>}
+      <div className={`text-2xl font-black ${colors[color] ?? colors.primary}`}>{value}</div>
+      <div className="text-xs font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mt-0.5">{label}</div>
+      {sub && <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+function ProgressBar({ value, max, color = "#0064d2" }: { value: number; max: number; color?: string }) {
+  const pct = max > 0 ? Math.min(Math.round((value / max) * 100), 100) : 0;
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex-1 bg-[#f0f2f5] dark:bg-[#18191a] rounded-full h-3 overflow-hidden">
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <span className="text-xs font-bold w-10 text-right" style={{ color }}>{pct}%</span>
+    </div>
+  );
+}
+
+function KvRow({ k, v, mono = false }: { k: string; v: string | number; mono?: boolean }) {
+  return (
+    <div className="flex justify-between items-center py-1.5 border-b border-[#f0f2f5] dark:border-[#3e4042] last:border-0 text-sm">
+      <span className="text-[#65676b] dark:text-[#b0b3b8]">{k}</span>
+      <span className={`font-bold text-[#1a1a1a] dark:text-[#e4e6eb] ${mono ? "font-mono" : ""}`}>{v}</span>
+    </div>
+  );
+}
+
+function Placeholder({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-2 py-4 text-[#65676b] dark:text-[#b0b3b8] text-sm">
+      <span className="text-base">🚧</span>
+      <span>{text}</span>
+    </div>
+  );
+}
+
+type LogLevel = "INFO" | "WARN" | "ERROR" | "DEBUG";
+type LogEntry = { ts: string; level: LogLevel; modul: string; msg: string };
+
+const LOG_COLOR: Record<LogLevel, string> = {
+  INFO:  "text-[#00a400]",
+  WARN:  "text-[#f7b928]",
+  ERROR: "text-[#fa3e3e]",
+  DEBUG: "text-[#65676b] dark:text-[#b0b3b8]",
+};
+
+// ── Haupt-Seite ───────────────────────────────────────────────────────────────
+
 export default function SystemPage() {
-  const stats = api.statistik.getLiveStats.useQuery(undefined, { refetchInterval: 5_000 });
+  const [time,      setTime]      = useState("");
+  const [logFilter, setLogFilter] = useState<LogLevel | "ALL">("ALL");
+  const [log,       setLog]       = useState<LogEntry[]>([]);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const logRef = useRef<HTMLDivElement>(null);
 
-  const [log,    setLog]    = useState<LogEntry[]>([]);
-  const [events, setEvents] = useState<EventEntry[]>([]);
-  const logRef   = useRef<HTMLDivElement>(null);
-  const evRef    = useRef<HTMLDivElement>(null);
-  const [time, setTime] = useState("");
+  const { data, isLoading, dataUpdatedAt } = api.system.getMetrics.useQuery(undefined, {
+    refetchInterval: 3000,
+    staleTime:       0,
+  });
 
+  // Uhrzeit aktualisieren
   useEffect(() => {
     setTime(new Date().toLocaleTimeString("de-DE"));
     const t = setInterval(() => setTime(new Date().toLocaleTimeString("de-DE")), 1000);
     return () => clearInterval(t);
   }, []);
 
+  // Simulated log feed
   useEffect(() => {
-    const msgs = [
-      { modul: "buchungen",   msg: "Service gestartet",      level: "info"  as LogLevel },
-      { modul: "prisma",      msg: "DB-Pool aktiv (5/10)",   level: "info"  as LogLevel },
-      { modul: "redis",       msg: "Verbunden redis:6379",   level: "info"  as LogLevel },
-      { modul: "meilisearch", msg: "Index 'artikel' bereit", level: "info"  as LogLevel },
+    const ENTRIES: Omit<LogEntry, "ts">[] = [
+      { level: "INFO",  modul: "prisma",      msg: "DB-Verbindung aktiv" },
+      { level: "INFO",  modul: "redis",        msg: `redis:6379 verbunden` },
+      { level: "INFO",  modul: "meilisearch",  msg: "Index 'artikel' bereit" },
+      { level: "DEBUG", modul: "tRPC",         msg: "system.getMetrics (3ms)" },
+      { level: "INFO",  modul: "activity",     msg: "Metriken abgerufen" },
     ];
-    msgs.forEach((m, i) =>
-      setTimeout(() => setLog((l) => [{ ...m, ts: new Date().toLocaleTimeString("de-DE") }, ...l].slice(0, 50)), i * 300),
+    ENTRIES.forEach((e, i) =>
+      setTimeout(() => setLog((l) => [{ ...e, ts: new Date().toLocaleTimeString("de-DE") }, ...l].slice(0, 100)), i * 350),
     );
-
-    const evts = [
-      { event: "connect",  data: "Techniker: MMAX",      colorKey: "connect" },
-      { event: "anfrage",  data: "LogID: 123456 / Akku",  colorKey: "anfrage" },
-      { event: "buchung",  data: "ID:42 EINGANG ×3",      colorKey: "buchung" },
-    ];
-    evts.forEach((e, i) =>
-      setTimeout(() => setEvents((ev) => [{ ...e, ts: new Date().toLocaleTimeString("de-DE") }, ...ev].slice(0, 50)), i * 500 + 200),
-    );
+    const iv = setInterval(() => {
+      const LIVE = [
+        { level: "DEBUG" as LogLevel, modul: "tRPC",    msg: `getMetrics (${2 + Math.floor(Math.random() * 8)}ms)` },
+        { level: "INFO"  as LogLevel, modul: "prisma",  msg: `query ${Math.floor(Math.random() * 6) + 1}ms` },
+        { level: "DEBUG" as LogLevel, modul: "redis",   msg: `${Math.random() > 0.3 ? "CACHE HIT" : "CACHE MISS"}` },
+      ];
+      const entry = LIVE[Math.floor(Math.random() * LIVE.length)]!;
+      setLog((l) => [{ ...entry, ts: new Date().toLocaleTimeString("de-DE") }, ...l].slice(0, 100));
+    }, 4000);
+    return () => clearInterval(iv);
   }, []);
 
-  const s = stats.data;
+  useEffect(() => {
+    if (autoScroll && logRef.current) logRef.current.scrollTop = 0;
+  }, [log, autoScroll]);
+
+  const ms   = data?.meilisearch;
+  const rd   = data?.redis;
+  const node = data?.node;
+  const db   = data?.db;
+
+  const filteredLog = logFilter === "ALL" ? log : log.filter((l) => l.level === logFilter);
+
+  const msIndexes = ms?.ok && ms.stats
+    ? Object.entries((ms.stats as { indexes?: Record<string, { numberOfDocuments: number; isIndexing: boolean }> }).indexes ?? {})
+    : [];
 
   return (
-    <div className="space-y-6 font-mono">
-      {/* Header */}
+    <div className="space-y-5 font-mono">
+      {/* ── HEADER ─────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#00a400] animate-pulse shadow-[0_0_6px_rgba(0,164,0,0.6)]" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[#00a400] animate-pulse" />
           <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb] tracking-widest">SYSTEM</h1>
         </div>
-        <span className="text-xs text-[#65676b] dark:text-[#b0b3b8] tracking-wider uppercase">Nerd Dashboard</span>
-        <span className="ml-auto text-xs text-[#0064d2] dark:text-[#45bdff]">{time}</span>
+        <span className="text-xs text-[#65676b] dark:text-[#b0b3b8] uppercase tracking-wider">Nerd Dashboard</span>
+        <div className="ml-auto flex items-center gap-4 text-xs text-[#65676b] dark:text-[#b0b3b8]">
+          {dataUpdatedAt > 0 && <span>Aktualisiert: {new Date(dataUpdatedAt).toLocaleTimeString("de-DE")}</span>}
+          <span className="text-[#0064d2] dark:text-[#45bdff] font-bold">{time}</span>
+          {isLoading && <span className="w-4 h-4 border-2 border-[#0064d2]/20 border-t-[#0064d2] rounded-full animate-spin" />}
+        </div>
       </div>
 
-      {/* Stat Karten */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {[
-          { label: "Artikel DB",       value: s?.gesamtArtikel   ?? "–", icon: "📦", color: "text-[#0064d2] dark:text-[#45bdff]" },
-          { label: "Offene Anfragen",  value: s?.offeneAnfragen  ?? "–", icon: "🔔", color: "text-[#f7b928]" },
-          { label: "Online Techniker", value: s?.technikerOnline ?? "–", icon: "👥", color: "text-[#00a400]" },
-          { label: "Buchungen heute",  value: s?.buchungenHeute  ?? "–", icon: "📋", color: "text-[#8e44ad]" },
-        ].map(({ label, value, icon, color }) => (
-          <div key={label} className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-4 shadow-sm">
-            <div className="text-base mb-1">{icon}</div>
-            <div className={`text-2xl font-black ${color}`}>{value}</div>
-            <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] tracking-wider uppercase mt-1">{label}</div>
+      {/* ── BEREICH 1 — NODE.JS METRIKEN ───────────────────────────────── */}
+      <Section title="Node.js / App Server" icon="⚙️">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+          <MetricCard label="Uptime"     value={node?.uptime ?? "–"}                        icon="⏱️" color="primary" sub="seit Start" />
+          <MetricCard label="Heap"       value={node ? fmtBytes(node.heapUsed) : "–"}       icon="🧠" color={node && node.heapPercent > 80 ? "danger" : "success"} sub={`von ${node ? fmtBytes(node.heapTotal) : "–"}`} />
+          <MetricCard label="RSS"        value={node ? fmtBytes(node.rss) : "–"}            icon="💾" color="purple"  sub="resident" />
+          <MetricCard label="DB Queries" value={db ? `${db.queryLatencyMs}ms` : "–"}        icon="🔌" color="primary" sub="latency" />
+          <MetricCard label="Online"     value={data?.online.length ?? 0}                   icon="👥" color="success" sub="Techniker" />
+          <MetricCard label="Env"        value={node?.env ?? "–"}                           icon="🌐" color="gray"   sub={node?.version ?? ""} />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-2">Heap-Auslastung</p>
+            <ProgressBar value={node?.heapUsed ?? 0} max={node?.heapTotal ?? 1} color={node && node.heapPercent > 80 ? "#fa3e3e" : "#00a400"} />
+            <div className="grid grid-cols-2 gap-x-4">
+              <KvRow k="Heap Used"  v={node ? fmtBytes(node.heapUsed)   : "–"} />
+              <KvRow k="Heap Total" v={node ? fmtBytes(node.heapTotal)  : "–"} />
+              <KvRow k="RSS"        v={node ? fmtBytes(node.rss)        : "–"} />
+              <KvRow k="External"   v={node ? fmtBytes(node.external)   : "–"} />
+            </div>
           </div>
-        ))}
-      </div>
-
-      {/* Infrastruktur */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <InfraCard title="Redis" icon="🔴" status="online"
-          rows={[
-            { label: "Status",     value: "Connected" },
-            { label: "URL",        value: "redis:6379" },
-            { label: "Verwendung", value: "BullMQ Queue" },
-          ]}
-        />
-        <InfraCard title="MySQL" icon="🐬" status="online"
-          rows={[
-            { label: "Status",    value: "Connected" },
-            { label: "Datenbank", value: "lagernaut" },
-            { label: "Pool",      value: "5 / 10" },
-          ]}
-        />
-        <InfraCard title="Meilisearch" icon="🔍" status="online"
-          rows={[
-            { label: "Status", value: "Ready" },
-            { label: "URL",    value: "meilisearch:7700" },
-            { label: "Index",  value: "artikel" },
-          ]}
-        />
-      </div>
-
-      {/* Event Stream + System Log */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-
-        {/* Socket.io Event Stream */}
-        <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="w-2 h-2 rounded-full bg-[#00a400] animate-pulse" />
-            <span className="text-xs font-bold text-[#1a1a1a] dark:text-[#e4e6eb] tracking-wider uppercase">Socket.io Event Stream</span>
+          <div>
+            <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-2">Server Info</p>
+            <KvRow k="Node.js"     v={node?.version  ?? "–"} mono />
+            <KvRow k="Platform"    v={node?.platform ?? "–"} />
+            <KvRow k="Environment" v={node?.env      ?? "–"} />
+            <KvRow k="Uptime"      v={node ? `${Math.round(node.uptimeSec / 60)}min` : "–"} />
           </div>
-          <div ref={evRef} className="h-48 overflow-y-auto space-y-1.5 pr-1">
-            {events.map((e, i) => (
-              <div key={i} className="flex items-start gap-3 text-xs">
-                <span className="text-[#65676b] dark:text-[#b0b3b8] flex-shrink-0 w-20">{e.ts}</span>
-                <span className={`font-bold flex-shrink-0 w-24 ${EVENT_COLOR_CLASSES[e.colorKey] ?? EVENT_COLOR_CLASSES.default}`}>
-                  {e.event}
-                </span>
-                <span className="text-[#65676b] dark:text-[#b0b3b8] break-all">{e.data}</span>
+        </div>
+      </Section>
+
+      {/* ── BEREICH 2 — DATENBANK ──────────────────────────────────────── */}
+      <Section title="MySQL / Prisma" icon="🐬">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div>
+            <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-3">Tabellen-Größen</p>
+            {db && (
+              <div className="space-y-2">
+                {Object.entries(db.tables)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([name, count]) => (
+                  <div key={name} className="flex items-center gap-3">
+                    <div className="w-32 text-xs text-[#65676b] dark:text-[#b0b3b8] truncate">{name}</div>
+                    <div className="flex-1 bg-[#f0f2f5] dark:bg-[#18191a] rounded-full h-4 overflow-hidden">
+                      <div className="h-full bg-[#0064d2] dark:bg-[#45bdff] rounded-full flex items-center justify-end pr-2"
+                        style={{ width: `${Math.max(4, Math.round((count / Math.max(...Object.values(db.tables))) * 100))}%` }}>
+                        <span className="text-[9px] text-white font-bold">{fmtNum(count)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-            {!events.length && (
-              <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Warte auf Events...</span>
             )}
           </div>
-        </div>
-
-        {/* System Log */}
-        <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-xs font-bold text-[#1a1a1a] dark:text-[#e4e6eb] tracking-wider uppercase">System Log</span>
+          <div>
+            <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-3">Verbindung</p>
+            <KvRow k="Provider"   v="MySQL 8" />
+            <KvRow k="Host"       v="db:3306" mono />
+            <KvRow k="Datenbank"  v="lagernaut" mono />
+            <KvRow k="ORM"        v="Prisma 5.22.0" />
+            <KvRow k="Letzte Query" v={db ? `${db.queryLatencyMs}ms` : "–"} />
+            <KvRow k="Gesamt Zeilen" v={db ? fmtNum(Object.values(db.tables).reduce((a, b) => a + b, 0)) : "–"} />
           </div>
-          <div ref={logRef} className="h-48 overflow-y-auto space-y-1.5 pr-1">
-            {log.map((l, i) => (
-              <div key={i} className="flex items-start gap-3 text-xs">
-                <span className="text-[#65676b] dark:text-[#b0b3b8] flex-shrink-0 w-20">{l.ts}</span>
-                <span className="text-[#0064d2] dark:text-[#45bdff] font-bold flex-shrink-0 w-28">[{l.modul}]</span>
-                <span className={LOG_LEVEL_CLASSES[l.level]}>{l.msg}</span>
+        </div>
+      </Section>
+
+      {/* ── BEREICH 3 — REDIS ──────────────────────────────────────────── */}
+      <Section title="Redis" icon="🔴">
+        {rd && rd.ok ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                <MetricCard label="Keys"     value={fmtNum(rd.dbSize ?? 0)}       icon="🔑" color="primary" />
+                <MetricCard label="Memory"   value={rd.usedMemoryHuman ?? "–"}    icon="💾" color="success" />
+                <MetricCard label="Clients"  value={rd.connectedClients ?? 0}     icon="🔌" color="purple" />
+              </div>
+              <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-2">Cache Hit Rate</p>
+              {(() => {
+                const hits   = rd.keyspaceHits   ?? 0;
+                const misses = rd.keyspaceMisses ?? 0;
+                const total  = hits + misses;
+                const hitRate = total > 0 ? Math.round((hits / total) * 100) : 0;
+                return (
+                  <>
+                    <ProgressBar value={hits} max={total || 1} color="#00a400" />
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      <KvRow k="Hits"   v={fmtNum(hits)} />
+                      <KvRow k="Misses" v={fmtNum(misses)} />
+                      <KvRow k="Rate"   v={`${hitRate}%`} />
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-3">Server Info</p>
+              <KvRow k="Version"     v={rd.version ?? "–"} />
+              <KvRow k="URL"         v="redis:6379" mono />
+              <KvRow k="DB Size"     v={`${fmtNum(rd.dbSize ?? 0)} Keys`} />
+              <KvRow k="Befehle"     v={fmtNum(rd.totalCommands ?? 0)} />
+              <KvRow k="Uptime"      v={formatUptimeSec(rd.uptimeSeconds ?? 0)} />
+            </div>
+          </div>
+        ) : (
+          <KvRow k="Status" v={rd && !rd.ok ? "⚠️ Nicht erreichbar" : "⏳ Verbinde..."} />
+        )}
+      </Section>
+
+      {/* ── BEREICH 4 — MEILISEARCH ────────────────────────────────────── */}
+      <Section title="Meilisearch" icon="🔍">
+        {ms?.ok ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div>
+              <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-3">Indizes</p>
+              {msIndexes.map(([name, idx]) => (
+                <div key={name} className="mb-3 p-3 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">{name}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${idx.isIndexing ? "bg-[#f7b928]/20 text-[#f7b928]" : "bg-green-100 text-green-700"}`}>
+                      {idx.isIndexing ? "Indiziert..." : "Bereit"}
+                    </span>
+                  </div>
+                  <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{fmtNum(idx.numberOfDocuments)} Dokumente</span>
+                </div>
+              ))}
+              {msIndexes.length === 0 && <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Keine Indizes</p>}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-3">Status</p>
+              <KvRow k="Status"    v={`✅ ${ms.status}`} />
+              <KvRow k="URL"       v="meilisearch:7700" mono />
+              <KvRow k="API Key"   v="✅ gesetzt" />
+              <KvRow k="DB Size"   v={ms.stats ? fmtBytes((ms.stats as { databaseSize?: number }).databaseSize ?? 0) : "–"} />
+            </div>
+          </div>
+        ) : (
+          <KvRow k="Status" v={ms?.ok === false ? "⚠️ Nicht erreichbar" : "⏳ Verbinde..."} />
+        )}
+      </Section>
+
+      {/* ── BEREICH 5 — BULLMQ ─────────────────────────────────────────── */}
+      <Section title="BullMQ Job Queue" icon="⚡">
+        {data?.bullmq && (
+          <>
+            <p className="text-xs text-[#f7b928] mb-3">🚧 {data.bullmq.note}</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
+                    <th className="text-left py-2 pr-4">Queue</th>
+                    <th className="text-center py-2 px-2">Waiting</th>
+                    <th className="text-center py-2 px-2">Active</th>
+                    <th className="text-center py-2 px-2">Completed</th>
+                    <th className="text-center py-2 px-2">Failed</th>
+                    <th className="text-center py-2 px-2">Delayed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.bullmq.queues.map((q) => (
+                    <tr key={q.name} className="border-b border-[#f0f2f5] dark:border-[#3e4042]">
+                      <td className="py-2 pr-4 font-bold text-[#0064d2] dark:text-[#45bdff]">{q.name}</td>
+                      <td className="text-center py-2 px-2">{q.waiting}</td>
+                      <td className={`text-center py-2 px-2 font-bold ${q.active > 0 ? "text-[#f7b928]" : ""}`}>{q.active}</td>
+                      <td className="text-center py-2 px-2 text-[#00a400]">{q.completed}</td>
+                      <td className={`text-center py-2 px-2 font-bold ${q.failed > 0 ? "text-[#fa3e3e]" : ""}`}>{q.failed}</td>
+                      <td className="text-center py-2 px-2">{q.delayed}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </Section>
+
+      {/* ── BEREICH 6 — ONLINE TECHNIKER ───────────────────────────────── */}
+      <Section title="Online Techniker" icon="👥">
+        {data?.online.length ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+            {data.online.map((u) => (
+              <div key={u.kuerzel} className="text-center p-3 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl">
+                <div className="w-10 h-10 rounded-full bg-[#0064d2] text-white font-black text-sm flex items-center justify-center mx-auto mb-2">
+                  {u.kuerzel.slice(0, 2)}
+                </div>
+                <div className="text-xs font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{u.kuerzel}</div>
+                <div className="text-[10px] text-[#00a400]">● online</div>
               </div>
             ))}
-            {!log.length && (
-              <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Warte auf Log-Einträge...</span>
-            )}
           </div>
-        </div>
-      </div>
+        ) : (
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Niemand online</p>
+        )}
+      </Section>
 
-      {/* BullMQ */}
-      <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-          <span className="text-xs font-bold text-[#1a1a1a] dark:text-[#e4e6eb] tracking-wider uppercase">BullMQ Job Queue</span>
-          <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-            Realtime-Integration via Socket.io (Schritt Realtime)
-          </span>
+      {/* ── BEREICH 7 — SOCKET.IO ──────────────────────────────────────── */}
+      <Section title="Socket.io" icon="⚡">
+        <Placeholder text="Socket.io noch nicht implementiert — wird in einem späteren Schritt hinzugefügt" />
+      </Section>
+
+      {/* ── BEREICH 8 — SYSTEM LOG ─────────────────────────────────────── */}
+      <Section title="System Log" icon="📋">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          {(["ALL", "INFO", "WARN", "ERROR", "DEBUG"] as const).map((lvl) => (
+            <button key={lvl} onClick={() => setLogFilter(lvl)}
+              className={`px-2.5 py-1 rounded text-xs font-bold transition-colors ${
+                logFilter === lvl
+                  ? "bg-[#0064d2] text-white"
+                  : "bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#ced4da]"
+              }`}>
+              {lvl}
+            </button>
+          ))}
+          <label className="flex items-center gap-1.5 ml-2 text-xs text-[#65676b] dark:text-[#b0b3b8] cursor-pointer">
+            <input type="checkbox" checked={autoScroll} onChange={(e) => setAutoScroll(e.target.checked)} className="w-3 h-3" />
+            Auto-Scroll
+          </label>
+          <span className="ml-auto text-xs text-[#65676b] dark:text-[#b0b3b8]">{filteredLog.length} Einträge</span>
         </div>
-        <div className="grid grid-cols-3 gap-4 text-center">
-          {[
-            { label: "Aktiv",         value: 0, color: "text-[#f7b928]" },
-            { label: "Abgeschlossen", value: 0, color: "text-[#00a400]" },
-            { label: "Fehler",        value: 0, color: "text-[#fa3e3e]" },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="p-3 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl">
-              <div className={`text-2xl font-black ${color}`}>{value}</div>
-              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">{label}</div>
+        <div
+          ref={logRef}
+          className="h-64 overflow-y-auto bg-[#0d1117] rounded-xl p-4 space-y-1.5 font-mono"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            if (el.scrollTop > 20) setAutoScroll(false);
+          }}
+        >
+          {filteredLog.map((l, i) => (
+            <div key={i} className="flex gap-3 text-xs leading-relaxed">
+              <span className="text-[#6b7280] flex-shrink-0 w-20">{l.ts}</span>
+              <span className={`flex-shrink-0 w-14 font-bold ${LOG_COLOR[l.level]}`}>{l.level}</span>
+              <span className="text-[#45bdff] flex-shrink-0 w-24">[{l.modul}]</span>
+              <span className="text-[#e4e6eb]">{l.msg}</span>
             </div>
           ))}
+          {!filteredLog.length && (
+            <span className="text-[#6b7280] text-xs">Keine Einträge</span>
+          )}
         </div>
-      </div>
+      </Section>
     </div>
   );
+}
+
+function formatUptimeSec(s: number): string {
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
