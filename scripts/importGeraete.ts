@@ -110,8 +110,11 @@ async function main() {
       // LogId bereinigen: "212.826.176" → "212826176"
       const logIdClean = logId.replace(/\./g, '')
 
+      // Bezeichnung auf 500 Zeichen kürzen (DB-Limit)
+      const bezeichnungSafe = bezeichnungRaw.substring(0, 500)
+
       // Bezeichnung bereinigen + Anzeigename zusammensetzen
-      const bezeichnungBereinigt = bereinige(bezeichnungRaw, hersteller)
+      const bezeichnungBereinigt = bereinige(bezeichnungSafe, hersteller)
       const bereinigt = getAnzeigename(hersteller, bezeichnungBereinigt)
 
       const existing = await prisma.geraeteLookup.findUnique({ where: { logId } })
@@ -119,12 +122,12 @@ async function main() {
       if (existing) {
         await prisma.geraeteLookup.update({
           where: { logId },
-          data:  { logIdClean, bezeichnung: bezeichnungRaw, bereinigt },
+          data:  { logIdClean, bezeichnung: bezeichnungSafe, bereinigt },
         })
         updated++
       } else {
         await prisma.geraeteLookup.create({
-          data: { logId, logIdClean, bezeichnung: bezeichnungRaw, bereinigt },
+          data: { logId, logIdClean, bezeichnung: bezeichnungSafe, bereinigt },
         })
         imported++
       }
@@ -191,15 +194,16 @@ async function main() {
       try {
         const geraetVoll = `${hersteller} ${modell}`
 
-        // Gerätemodell anlegen (upsert — kein Fehler bei Duplikaten)
-        const gm = await prisma.geraeteModell.upsert({
+        // Prüfen ob Modell bereits existiert (sicherer als getTime-Vergleich)
+        const bestehendesModell = await prisma.geraeteModell.findUnique({
           where:  { hersteller_modell: { hersteller, modell } },
-          create: { hersteller, modell },
-          update: {},
+          select: { id: true },
         })
 
-        const war_vorhanden = gm.createdAt.getTime() !== gm.updatedAt.getTime()
-        if (war_vorhanden) { modelle_vorhanden++; continue }
+        if (bestehendesModell) { modelle_vorhanden++; continue }
+
+        // Neu anlegen
+        await prisma.geraeteModell.create({ data: { hersteller, modell } })
         modelle_neu++
 
         // 13 Standard-Artikel + Kompatibilitäts-Einträge anlegen
