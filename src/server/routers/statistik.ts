@@ -9,6 +9,14 @@ import {
   getKpiOverview,
   getTechnikerStats,
   getMonatsbericht,
+  getAnfragenVerlauf,
+  getTechnikerKpis,
+  getTechnikerTeile,
+  getTechnikerGeraete,
+  getTechnikerWochentage,
+  getTechnikerTageszeiten,
+  getTechnikerLetzteAnfragen,
+  getTechnikerTeamVergleich,
 } from "@/modules/statistik/service";
 
 const TageSchema = z.object({
@@ -57,5 +65,72 @@ export const statistikRouter = createTRPCRouter({
       jahr:  z.number().int().min(2020).max(2100),
     }))
     .query(({ input }) => getMonatsbericht(input.monat, input.jahr)),
+
+  // ── Techniker-Statistik (Anfragen-basiert) ────────────────────────────────
+
+  // Anfragen-Verlauf täglich (optional nach Techniker gefiltert)
+  getAnfragenVerlauf: adminProcedure
+    .input(z.object({
+      tage:    z.number().int().min(1).max(365).default(30),
+      kuerzel: z.string().optional(),
+    }))
+    .query(({ input }) => getAnfragenVerlauf(input.tage, input.kuerzel)),
+
+  // Techniker-KPIs (6 Kennzahlen, nur für einen Techniker)
+  getTechnikerKpis: adminProcedure
+    .input(z.object({
+      kuerzel: z.string().min(1),
+      tage:    z.number().int().min(1).max(365).default(30),
+    }))
+    .query(({ input }) => getTechnikerKpis(input.kuerzel, input.tage)),
+
+  // Top Teile eines Technikers mit Bedarf-Anteil
+  getTechnikerTeile: adminProcedure
+    .input(z.object({
+      kuerzel: z.string().min(1),
+      tage:    z.number().int().min(1).max(365).default(30),
+    }))
+    .query(({ input }) => getTechnikerTeile(input.kuerzel, input.tage)),
+
+  // Top Geräte eines Technikers
+  getTechnikerGeraete: adminProcedure
+    .input(z.object({
+      kuerzel: z.string().min(1),
+      tage:    z.number().int().min(1).max(365).default(30),
+    }))
+    .query(({ input }) => getTechnikerGeraete(input.kuerzel, input.tage)),
+
+  // Wochentag-Verteilung
+  getTechnikerWochentage: adminProcedure
+    .input(z.object({
+      kuerzel: z.string().min(1),
+      tage:    z.number().int().min(1).max(365).default(90),
+    }))
+    .query(({ input }) => getTechnikerWochentage(input.kuerzel, input.tage)),
+
+  // Tageszeit-Verteilung
+  getTechnikerTageszeiten: adminProcedure
+    .input(z.object({
+      kuerzel: z.string().min(1),
+      tage:    z.number().int().min(1).max(365).default(90),
+    }))
+    .query(({ input }) => getTechnikerTageszeiten(input.kuerzel, input.tage)),
+
+  // Letzte Anfragen (paginiert)
+  getTechnikerLetzteAnfragen: adminProcedure
+    .input(z.object({
+      kuerzel: z.string().min(1),
+      tage:    z.number().int().min(1).max(365).default(30),
+      limit:   z.number().int().min(1).max(50).default(20),
+      offset:  z.number().int().min(0).default(0),
+    }))
+    .query(({ input }) =>
+      getTechnikerLetzteAnfragen(input.kuerzel, input.tage, input.limit, input.offset),
+    ),
+
+  // Team-Vergleich: alle Techniker mit mehreren Metriken
+  getTechnikerTeamVergleich: adminProcedure
+    .input(TageSchema)
+    .query(({ input }) => getTechnikerTeamVergleich(input.tage)),
 
 });
