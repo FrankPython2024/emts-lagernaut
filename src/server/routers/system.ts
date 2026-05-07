@@ -2,6 +2,8 @@ import { createTRPCRouter, adminProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import { redis } from "@/core/infra/redis";
 import { meilisearch } from "@/core/infra/meilisearch";
+import { getConnectedClients, isSocketIOReady } from "@/modules/realtime/socket";
+import { queues } from "@/modules/jobs/worker";
 
 // ── Hilfsfunktionen ─────────────────────────────────────────────────────────
 
@@ -26,16 +28,16 @@ async function getRedisStats() {
     const [infoRaw, dbSize] = await Promise.all([redis.info(), redis.dbsize()]);
     const info = parseRedisInfo(infoRaw);
     return {
-      ok:              true,
-      version:         info.redis_version ?? "–",
-      usedMemory:      Number(info.used_memory ?? 0),
-      usedMemoryHuman: info.used_memory_human ?? "–",
+      ok:               true,
+      version:          info.redis_version ?? "–",
+      usedMemory:       Number(info.used_memory ?? 0),
+      usedMemoryHuman:  info.used_memory_human ?? "–",
       connectedClients: Number(info.connected_clients ?? 0),
-      totalCommands:   Number(info.total_commands_processed ?? 0),
-      keyspaceHits:    Number(info.keyspace_hits ?? 0),
-      keyspaceMisses:  Number(info.keyspace_misses ?? 0),
+      totalCommands:    Number(info.total_commands_processed ?? 0),
+      keyspaceHits:     Number(info.keyspace_hits ?? 0),
+      keyspaceMisses:   Number(info.keyspace_misses ?? 0),
       dbSize,
-      uptimeSeconds:   Number(info.uptime_in_seconds ?? 0),
+      uptimeSeconds:    Number(info.uptime_in_seconds ?? 0),
     };
   } catch {
     return { ok: false };
@@ -54,6 +56,45 @@ async function getMeilisearchStats() {
   }
 }
 
+async function getBullMQStats() {
+  try {
+    const [belegeStats, msStats, notifyStats] = await Promise.all([
+      queues.belege.getJobCounts("waiting", "active", "completed", "failed", "delayed"),
+      queues.meilisearch.getJobCounts("waiting", "active", "completed", "failed", "delayed"),
+      queues.notify.getJobCounts("waiting", "active", "completed", "failed", "delayed"),
+    ]);
+    return {
+      ok: true,
+      queues: [
+        { name: "belege",      ...belegeStats, workers: { concurrency: 2 } },
+        { name: "meilisearch", ...msStats,     workers: { concurrency: 1 } },
+        { name: "notify",      ...notifyStats, workers: { concurrency: 5 } },
+      ],
+    };
+  } catch {
+    return {
+      ok: false,
+      queues: [
+        { name: "belege",      waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, workers: { concurrency: 2 } },
+        { name: "meilisearch", waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, workers: { concurrency: 1 } },
+        { name: "notify",      waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, workers: { concurrency: 5 } },
+      ],
+    };
+  }
+}
+
+async function getSocketIOStats() {
+  if (!isSocketIOReady()) {
+    return { ok: false, clients: [], note: "Socket.io nicht initialisiert" };
+  }
+  try {
+    const clients = await getConnectedClients();
+    return { ok: true, clients };
+  } catch {
+    return { ok: false, clients: [] };
+  }
+}
+
 // ── Router ───────────────────────────────────────────────────────────────────
 
 export const systemRouter = createTRPCRouter({
@@ -62,11 +103,9 @@ export const systemRouter = createTRPCRouter({
     .query(async () => {
       const startMs = Date.now();
 
-      // Node.js
-      const mem     = process.memoryUsage();
+      const mem       = process.memoryUsage();
       const uptimeSec = process.uptime();
 
-      // DB Tabellen-Größen
       const [artikelC, geraeteC, buchungC, anfrageC, userC, kompC, lookupC] =
         await Promise.all([
           prisma.artikel.count(),
@@ -78,16 +117,16 @@ export const systemRouter = createTRPCRouter({
           prisma.geraeteLookup.count(),
         ]);
 
-      // Online Techniker (TechnikerSession)
       const onlineUsers = await prisma.technikerSession.findMany({
         where:  { online: true },
         select: { kuerzel: true, lastSeen: true },
       });
 
-      // Redis + Meilisearch parallel
-      const [redisStats, msStats] = await Promise.all([
+      const [redisStats, msStats, bullmqStats, socketStats] = await Promise.all([
         getRedisStats(),
         getMeilisearchStats(),
+        getBullMQStats(),
+        getSocketIOStats(),
       ]);
 
       const queryLatency = Date.now() - startMs;
@@ -95,47 +134,34 @@ export const systemRouter = createTRPCRouter({
       return {
         ts: new Date().toISOString(),
         node: {
-          version:      process.version,
-          uptime:       formatUptime(uptimeSec),
+          version:     process.version,
+          uptime:      formatUptime(uptimeSec),
           uptimeSec,
-          platform:     process.platform,
-          heapUsed:     mem.heapUsed,
-          heapTotal:    mem.heapTotal,
-          rss:          mem.rss,
-          external:     mem.external,
-          heapPercent:  Math.round((mem.heapUsed / mem.heapTotal) * 100),
-          env:          process.env.NODE_ENV ?? "unknown",
+          platform:    process.platform,
+          heapUsed:    mem.heapUsed,
+          heapTotal:   mem.heapTotal,
+          rss:         mem.rss,
+          external:    mem.external,
+          heapPercent: Math.round((mem.heapUsed / mem.heapTotal) * 100),
+          env:         process.env.NODE_ENV ?? "unknown",
         },
         db: {
           queryLatencyMs: queryLatency,
           tables: {
-            artikel:       artikelC,
-            geraeteModell: geraeteC,
-            buchung:       buchungC,
-            anfrage:       anfrageC,
-            user:          userC,
+            artikel:         artikelC,
+            geraeteModell:   geraeteC,
+            buchung:         buchungC,
+            anfrage:         anfrageC,
+            user:            userC,
             kompatibilitaet: kompC,
-            geraeteLookup: lookupC,
+            geraeteLookup:   lookupC,
           },
         },
-        redis:        redisStats,
-        meilisearch:  msStats,
-        online:       onlineUsers,
-        // BullMQ — Placeholder (keine Worker registriert)
-        bullmq: {
-          queues: [
-            { name: "indexing", waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0 },
-            { name: "belege",   waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0 },
-            { name: "notify",   waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0 },
-          ],
-          note: "BullMQ Worker noch nicht implementiert",
-        },
-        // Socket.io — Placeholder
-        socketio: {
-          ok:    false,
-          note:  "Socket.io noch nicht implementiert",
-          clients: [],
-        },
+        redis:      redisStats,
+        meilisearch: msStats,
+        online:     onlineUsers,
+        bullmq:     bullmqStats,
+        socketio:   socketStats,
       };
     }),
 

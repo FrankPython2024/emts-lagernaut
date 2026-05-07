@@ -3,7 +3,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { ToastProvider } from "@/components/ui/Toast";
+import { ToastProvider, useToast } from "@/components/ui/Toast";
+import { useSocket } from "@/hooks/useSocket";
+import { EVENTS } from "@/modules/realtime/events";
 
 const NAV = [
   { href: "/admin",           label: "Dashboard",   icon: "📊" },
@@ -112,11 +114,42 @@ function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => v
   );
 }
 
+// ── Socket-Event-Handler für Admin-Layout ────────────────────────────────────
+
+function SocketNotifications() {
+  const { show } = useToast();
+  const { on, off } = useSocket();
+
+  useEffect(() => {
+    on(EVENTS.TECHNIKER_ONLINE, (d: unknown) => {
+      const { kuerzel } = d as { kuerzel: string };
+      show(`👤 ${kuerzel} ist online`, "info");
+    });
+    on(EVENTS.TECHNIKER_OFFLINE, (d: unknown) => {
+      const { kuerzel } = d as { kuerzel: string };
+      show(`👤 ${kuerzel} ist offline`, "info");
+    });
+    on(EVENTS.ANFRAGE_NEU, (d: unknown) => {
+      const a = d as { techniker: string; teil: string };
+      show(`🔔 Neue Anfrage: ${a.teil} (${a.techniker})`, "info");
+    });
+
+    return () => {
+      off(EVENTS.TECHNIKER_ONLINE);
+      off(EVENTS.TECHNIKER_OFFLINE);
+      off(EVENTS.ANFRAGE_NEU);
+    };
+  }, [on, off, show]);
+
+  return null;
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <ToastProvider>
+      <SocketNotifications />
       <div className="flex h-screen bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden">
         {/* Desktop Sidebar */}
         <div className="hidden lg:flex flex-col w-60 flex-shrink-0">

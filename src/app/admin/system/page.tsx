@@ -307,9 +307,11 @@ export default function SystemPage() {
 
       {/* ── BEREICH 5 — BULLMQ ─────────────────────────────────────────── */}
       <Section title="BullMQ Job Queue" icon="⚡">
-        {data?.bullmq && (
+        {data?.bullmq ? (
           <>
-            <p className="text-xs text-[#f7b928] mb-3">🚧 {data.bullmq.note}</p>
+            {!data.bullmq.ok && (
+              <p className="text-xs text-[#f7b928] mb-3">⚠️ Redis nicht erreichbar — Worker inaktiv</p>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -320,23 +322,31 @@ export default function SystemPage() {
                     <th className="text-center py-2 px-2">Completed</th>
                     <th className="text-center py-2 px-2">Failed</th>
                     <th className="text-center py-2 px-2">Delayed</th>
+                    <th className="text-center py-2 px-2">Workers</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.bullmq.queues.map((q) => (
+                  {data.bullmq.queues.map((q) => {
+                    const qAny = q as Record<string, unknown>;
+                    return (
                     <tr key={q.name} className="border-b border-[#f0f2f5] dark:border-[#3e4042]">
                       <td className="py-2 pr-4 font-bold text-[#0064d2] dark:text-[#45bdff]">{q.name}</td>
-                      <td className="text-center py-2 px-2">{q.waiting}</td>
-                      <td className={`text-center py-2 px-2 font-bold ${q.active > 0 ? "text-[#f7b928]" : ""}`}>{q.active}</td>
-                      <td className="text-center py-2 px-2 text-[#00a400]">{q.completed}</td>
-                      <td className={`text-center py-2 px-2 font-bold ${q.failed > 0 ? "text-[#fa3e3e]" : ""}`}>{q.failed}</td>
-                      <td className="text-center py-2 px-2">{q.delayed}</td>
+                      <td className="text-center py-2 px-2">{(qAny.waiting as number) ?? 0}</td>
+                      <td className={`text-center py-2 px-2 font-bold ${((qAny.active as number) ?? 0) > 0 ? "text-[#f7b928]" : ""}`}>{(qAny.active as number) ?? 0}</td>
+                      <td className="text-center py-2 px-2 text-[#00a400]">{(qAny.completed as number) ?? 0}</td>
+                      <td className={`text-center py-2 px-2 font-bold ${((qAny.failed as number) ?? 0) > 0 ? "text-[#fa3e3e]" : ""}`}>{(qAny.failed as number) ?? 0}</td>
+                      <td className="text-center py-2 px-2">{(qAny.delayed as number) ?? 0}</td>
+                      <td className="text-center py-2 px-2 text-[#00a400] font-bold">
+                        ✓ ×{((qAny.workers as { concurrency?: number } | undefined)?.concurrency) ?? 1}
+                      </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
           </>
+        ) : (
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Lade…</p>
         )}
       </Section>
 
@@ -361,7 +371,49 @@ export default function SystemPage() {
 
       {/* ── BEREICH 7 — SOCKET.IO ──────────────────────────────────────── */}
       <Section title="Socket.io" icon="⚡">
-        <Placeholder text="Socket.io noch nicht implementiert — wird in einem späteren Schritt hinzugefügt" />
+        {data?.socketio ? (
+          <>
+            <div className="flex items-center gap-2 mb-4">
+              <span className={`w-2.5 h-2.5 rounded-full ${data.socketio.ok ? "bg-[#00a400] animate-pulse" : "bg-[#fa3e3e]"}`} />
+              <span className={`text-sm font-bold ${data.socketio.ok ? "text-[#00a400]" : "text-[#fa3e3e]"}`}>
+                {data.socketio.ok ? "Aktiv" : "Nicht erreichbar"}
+              </span>
+              {data.socketio.ok && (
+                <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                  — {(data.socketio as { clients: unknown[] }).clients?.length ?? 0} Verbindungen
+                </span>
+              )}
+            </div>
+            {data.socketio.ok && (data.socketio as { clients: { id: string; kuerzel: string; rolle: string }[] }).clients?.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
+                      <th className="text-left py-2 pr-4">Socket ID</th>
+                      <th className="text-left py-2 px-2">Kürzel</th>
+                      <th className="text-left py-2 px-2">Rolle</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data.socketio as { clients: { id: string; kuerzel: string; rolle: string }[] }).clients.map((c) => (
+                      <tr key={c.id} className="border-b border-[#f0f2f5] dark:border-[#3e4042]">
+                        <td className="py-2 pr-4 font-mono text-[#65676b] dark:text-[#b0b3b8] text-[10px]">{c.id}</td>
+                        <td className="py-2 px-2 font-bold text-[#0064d2] dark:text-[#45bdff]">{c.kuerzel}</td>
+                        <td className="py-2 px-2">{c.rolle}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : data.socketio.ok ? (
+              <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Keine verbundenen Clients</p>
+            ) : (
+              <p className="text-xs text-[#fa3e3e]">{(data.socketio as { note?: string }).note}</p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Lade…</p>
+        )}
       </Section>
 
       {/* ── BEREICH 8 — SYSTEM LOG ─────────────────────────────────────── */}

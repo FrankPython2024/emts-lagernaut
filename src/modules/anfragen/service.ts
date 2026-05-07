@@ -3,6 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { sendeSystemNachricht } from "@/modules/nachrichten/service";
+import { emitToAdmins, emitToAll, emitToUser } from "@/modules/realtime/socket";
+import { EVENTS } from "@/modules/realtime/events";
 
 export type GruppenAnfrage = {
   gruppenNr:    string | null;
@@ -49,7 +51,7 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
   const status: AnfrageStatus =
     artikel.bestand > 0 ? AnfrageStatus.NEU : AnfrageStatus.BEDARF;
 
-  return prisma.anfrage.create({
+  const anfrage = await prisma.anfrage.create({
     data: {
       techniker:   data.techniker.toUpperCase().trim(),
       logId:       data.logId.trim(),
@@ -65,6 +67,18 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
       status,
     },
   });
+
+  // Socket.io: neue Anfrage live an Admins pushen
+  emitToAdmins(EVENTS.ANFRAGE_NEU, {
+    id:          anfrage.id,
+    techniker:   anfrage.techniker,
+    logId:       anfrage.logId,
+    geraeteName: anfrage.geraeteName,
+    teil:        anfrage.teil,
+    status:      anfrage.status,
+  });
+
+  return anfrage;
 }
 
 /**
@@ -121,6 +135,10 @@ export async function setzeStatus(id: number, status: AnfrageStatus): Promise<An
     data:  { status },
     include: { artikel: { select: { id: true, bezeichnung: true } } },
   });
+
+  // Socket.io: Status-Update live broadcasten
+  emitToAll(EVENTS.ANFRAGE_UPDATED, { id, status });
+  emitToUser(aktualisiert.techniker, EVENTS.ANFRAGE_UPDATED, { id, status });
 
   if (status === AnfrageStatus.ABGESCHLOSSEN) {
     await syncBestandAusHistorie(anfrage.artikelId);
