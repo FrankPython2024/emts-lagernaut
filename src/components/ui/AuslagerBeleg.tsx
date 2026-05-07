@@ -33,6 +33,7 @@ async function genQrSvg(content: string): Promise<string> {
 // ── Label-Inhalt (55×30mm, inline-Styles, Thermodruck-optimiert) ─────────────
 
 function AuslagerBelegInner({ data, qr }: { data: AuslagerBelegData; qr: string }) {
+  console.log("AuslagerBeleg props:", data);
   const grading = data.grading ?? "A+";
 
   return (
@@ -152,7 +153,19 @@ export function AuslagerBelegManager({ data, onReady }: ManagerProps) {
 
 // ── Direkt-Druck einzeln (neues Fenster) ─────────────────────────────────────
 
+const PRINT_SCRIPT = `<script>
+  (function(){
+    function p(){window.focus();window.print();}
+    if(document.readyState==='complete'){p();}
+    else{window.addEventListener('load',p);}
+  })();
+</script>`;
+
 export async function printAuslagerBeleg(data: AuslagerBelegData): Promise<void> {
+  // window.open MUSS synchron (vor await) aufgerufen werden
+  const w = window.open("", "_blank", "width=400,height=300");
+  if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
+
   const qr      = await genQrSvg(`AL:${data.belegNr}`);
   const grading = data.grading ?? "A+";
   const bez  = data.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -189,19 +202,21 @@ export async function printAuslagerBeleg(data: AuslagerBelegData): Promise<void>
       </div>
       <div class="right"><div class="emts">EMTS</div><img class="qr" src="${qr}" alt="" /></div>
     </div>
+    ${PRINT_SCRIPT}
   </body></html>`;
 
-  const w = window.open("", "_blank", "width=300,height=200");
-  if (!w) return;
+  w.document.open();
   w.document.write(html);
   w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 400);
 }
 
 // ── Mehrere Belege (ein Fenster, page-break-after) ────────────────────────────
 
 export async function printMehrereAuslagerBelege(liste: AuslagerBelegData[]): Promise<void> {
+  // window.open MUSS synchron (vor await) aufgerufen werden
+  const w = window.open("", "_blank", "width=400,height=250");
+  if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
+
   const entries = await Promise.all(
     liste.map(async (d) => ({ d, qr: await genQrSvg(`AL:${d.belegNr}`) })),
   );
@@ -245,12 +260,9 @@ export async function printMehrereAuslagerBelege(liste: AuslagerBelegData[]): Pr
       </div></div>`;
   }).join("\n");
 
-  const w = window.open("", "_blank", "width=400,height=250");
-  if (!w) return;
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${body}</body></html>`);
+  w.document.open();
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${body}${PRINT_SCRIPT}</body></html>`);
   w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 400);
 }
 
 // ── Vorschau (Bildschirm, skaliert) ──────────────────────────────────────────

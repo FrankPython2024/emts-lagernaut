@@ -148,6 +148,11 @@ export function EinlagerBelegManager({ data, onReady }: ManagerProps) {
 // ── Direkt-Druck (neues Fenster) ──────────────────────────────────────────────
 
 export async function printEinlagerBeleg(data: EinlagerBelegData): Promise<void> {
+  // window.open MUSS synchron (vor await) aufgerufen werden,
+  // sonst blockiert der Popup-Blocker den Aufruf.
+  const w = window.open("", "_blank", "width=400,height=300");
+  if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
+
   const qr  = await genQrSvg(`EL:${data.belegNr}`);
   const bez = data.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const lp  = (data.lagerplatz ?? "—").replace(/&/g, "&amp;");
@@ -172,6 +177,15 @@ export async function printEinlagerBeleg(data: EinlagerBelegData): Promise<void>
     .qr   { width: 14mm; height: 14mm; }
   `;
 
+  // Print-Trigger via window.onload (verlässlicher als setTimeout)
+  const printScript = `<script>
+    (function(){
+      function p(){window.focus();window.print();}
+      if(document.readyState==='complete'){p();}
+      else{window.addEventListener('load',p);}
+    })();
+  </script>`;
+
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>
     <div class="el">
       <div class="left">
@@ -182,14 +196,12 @@ export async function printEinlagerBeleg(data: EinlagerBelegData): Promise<void>
       </div>
       <div class="right"><div class="emts">EMTS</div><img class="qr" src="${qr}" alt="" /></div>
     </div>
+    ${printScript}
   </body></html>`;
 
-  const w = window.open("", "_blank", "width=300,height=200");
-  if (!w) return;
+  w.document.open();
   w.document.write(html);
   w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 400);
 }
 
 // ── Vorschau (Bildschirm, skaliert) ──────────────────────────────────────────

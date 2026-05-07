@@ -426,7 +426,7 @@ export default function BuchungenPage() {
       {belegModal && (
         <BelegModal
           titel="📥 Einlagerbeleg drucken"
-          beleg={<EinlagerBelegPreview data={belegModal} scale={2.5} />}
+          beleg={<EinlagerBelegPreview data={belegModal} />}
           onDrucken={() => printEinlagerBeleg(belegModal)}
           onSchliessen={() => setBelegModal(null)}
         />
@@ -436,7 +436,7 @@ export default function BuchungenPage() {
       {auslagerBelegModal && (
         <BelegModal
           titel="📤 Auslagerbeleg drucken"
-          beleg={<AuslagerBelegPreview data={auslagerBelegModal} scale={2.5} />}
+          beleg={<AuslagerBelegPreview data={auslagerBelegModal} />}
           onDrucken={() => printAuslagerBeleg(auslagerBelegModal)}
           onSchliessen={() => setAuslagerBelegModal(null)}
         />

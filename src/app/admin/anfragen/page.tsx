@@ -420,7 +420,7 @@ export default function AnfragenPage() {
       {belegModal && (
         <BelegModal
           titel="📤 Auslagerbeleg drucken"
-          beleg={<AuslagerBelegPreview data={belegModal} scale={2.5} />}
+          beleg={<AuslagerBelegPreview data={belegModal} />}
           onDrucken={() => printAuslagerBeleg(belegModal)}
           onSchliessen={() => setBelegModal(null)}
         />

@@ -23,12 +23,18 @@ export function BelegModal({ titel, beleg, onDrucken, onSchliessen }: BelegModal
           </button>
         </div>
 
-        {/* Vorschau — Label 2.5× skaliert, zentriert auf weißem Hintergrund */}
+        {/* Vorschau — Label 2.5× skaliert (55mm×30mm → ~520px×283px)
+            Wichtig: beleg wird mit scale=1 übergeben, Skalierung nur HIER */}
         <div
           className="flex justify-center items-center bg-[#f0f2f5] dark:bg-[#18191a] mx-6 my-6 rounded-xl"
-          style={{ height: "310px", overflow: "hidden" }}
+          style={{ height: "300px", overflow: "hidden" }}
         >
-          <div style={{ transform: "scale(2.5)", transformOrigin: "center center", display: "inline-block" }}>
+          <div style={{
+            transform:       "scale(2.5)",
+            transformOrigin: "center center",
+            display:         "inline-block",
+            lineHeight:      0,   /* verhindert extra Zeilenabstand um das div */
+          }}>
             {beleg}
           </div>
         </div>
