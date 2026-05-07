@@ -6,9 +6,10 @@
  * Nur EINGANG und AUSGANG zählen für den Bestand.
  */
 
-import { BuchungsTyp, type Buchung } from "@prisma/client";
+import { AnfrageStatus, BuchungsTyp, type Buchung } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
+import { sendeSystemNachricht } from "@/modules/nachrichten/service";
 
 export type BucheLagerData = {
   artikelId:   number;
@@ -102,6 +103,35 @@ export async function bucheLager(data: BucheLagerData): Promise<Buchung> {
 
     return [neueBuchung];
   });
+
+  // EINGANG: benachrichtige Techniker mit offenen BEDARF-Anfragen für diesen Artikel
+  if (data.typ === BuchungsTyp.EINGANG) {
+    const neuerBestand = await prisma.artikel.findUnique({
+      where:  { id: data.artikelId },
+      select: { bestand: true, bezeichnung: true },
+    });
+
+    const bedarfAnfragen = await prisma.anfrage.findMany({
+      where:  { artikelId: data.artikelId, status: AnfrageStatus.BEDARF },
+      select: { techniker: true, teil: true },
+    });
+
+    if (bedarfAnfragen.length > 0 && neuerBestand) {
+      // Dedupliziert nach Techniker
+      const technikerSet = new Set(bedarfAnfragen.map((a) => a.techniker));
+      await Promise.allSettled(
+        [...technikerSet].map((kuerzel) =>
+          sendeSystemNachricht({
+            empfKuerzel: kuerzel,
+            betreff:     "🎉 Teil wieder verfügbar",
+            inhalt:
+              `${neuerBestand.bezeichnung} ist wieder auf Lager ` +
+              `(Bestand: ${neuerBestand.bestand}). Du hattest dieses Teil als Bedarf angefragt.`,
+          }),
+        ),
+      );
+    }
+  }
 
   return buchung;
 }

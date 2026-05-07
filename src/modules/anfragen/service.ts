@@ -2,6 +2,7 @@ import { AnfrageStatus, type Anfrage } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { syncBestandAusHistorie } from "@/modules/buchungen/service";
+import { sendeSystemNachricht } from "@/modules/nachrichten/service";
 
 export type GruppenAnfrage = {
   gruppenNr:    string | null;
@@ -108,7 +109,7 @@ export async function storniereAnfrage(data: {
 export async function setzeStatus(id: number, status: AnfrageStatus): Promise<Anfrage> {
   const anfrage = await prisma.anfrage.findUnique({
     where:  { id },
-    select: { id: true, artikelId: true },
+    select: { id: true, artikelId: true, status: true },
   });
 
   if (!anfrage) {
@@ -123,6 +124,27 @@ export async function setzeStatus(id: number, status: AnfrageStatus): Promise<An
 
   if (status === AnfrageStatus.ABGESCHLOSSEN) {
     await syncBestandAusHistorie(anfrage.artikelId);
+    // System-Nachricht an Techniker: Teil bereit
+    await sendeSystemNachricht({
+      empfKuerzel: aktualisiert.techniker,
+      betreff:     "✅ Teil bereit zur Abholung",
+      inhalt:
+        `Dein angefragtes Teil "${aktualisiert.teil}" für Gerät ${aktualisiert.geraeteName ?? aktualisiert.geraet} ` +
+        `(LogID: ${aktualisiert.logId}) liegt zur Abholung bereit.` +
+        (aktualisiert.grading ? `\nGrading: ${aktualisiert.grading}` : ""),
+    }).catch(() => { /* Nachricht ist nicht kritisch */ });
+  }
+
+  if (status === AnfrageStatus.BEDARF && anfrage.status !== AnfrageStatus.BEDARF) {
+    // System-Nachricht an Techniker: Teil nicht verfügbar
+    await sendeSystemNachricht({
+      empfKuerzel: aktualisiert.techniker,
+      betreff:     "⚠️ Teil nicht verfügbar",
+      inhalt:
+        `Das angefragte Teil "${aktualisiert.teil}" für ` +
+        `${aktualisiert.geraeteName ?? aktualisiert.geraet} ist leider nicht auf Lager. ` +
+        `Wir informieren dich sobald es verfügbar ist.`,
+    }).catch(() => { /* Nachricht ist nicht kritisch */ });
   }
 
   return aktualisiert;

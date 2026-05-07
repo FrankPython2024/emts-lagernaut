@@ -173,3 +173,48 @@ model LagerplatzConfig {
   bereich      String?
   createdAt    DateTime @default(now())
 }
+
+model Nachricht {
+  id         Int                @id @default(autoincrement())
+  betreff    String
+  inhalt     String             @db.Text
+  vonKuerzel String
+  typ        NachrichtTyp       @default(DIREKT)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  empfaenger NachrichtEmpf[]
+  antworten  NachrichtAntwort[]
+
+  @@index([vonKuerzel])
+  @@index([createdAt])
+}
+
+model NachrichtEmpf {
+  id          Int       @id @default(autoincrement())
+  nachrichtId Int
+  empfKuerzel String
+  gelesen     Boolean   @default(false)
+  gelesenAt   DateTime?
+  nachricht   Nachricht @relation(fields: [nachrichtId], references: [id], onDelete: Cascade)
+
+  @@unique([nachrichtId, empfKuerzel])
+  @@index([empfKuerzel])
+  @@index([nachrichtId])
+}
+
+model NachrichtAntwort {
+  id          Int       @id @default(autoincrement())
+  nachrichtId Int
+  vonKuerzel  String
+  inhalt      String    @db.Text
+  createdAt   DateTime  @default(now())
+  nachricht   Nachricht @relation(fields: [nachrichtId], references: [id], onDelete: Cascade)
+
+  @@index([nachrichtId])
+}
+
+enum NachrichtTyp {
+  DIREKT
+  BROADCAST
+  SYSTEM
+}
