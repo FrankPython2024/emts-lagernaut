@@ -206,12 +206,403 @@ function TeamVergleich({ data }: {
   );
 }
 
+// ── Monats-Namen ──────────────────────────────────────────────────────────────
+
+const MONATE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+
+function rateColor(rate: number | null): string {
+  if (rate === null) return "text-[#65676b] dark:text-[#b0b3b8]";
+  if (rate >= 90)   return "text-[#00a400]";
+  if (rate >= 75)   return "text-[#f7b928]";
+  return "text-[#fa3e3e]";
+}
+
+function rateBg(rate: number | null): string {
+  if (rate === null) return "#ced4da";
+  if (rate >= 90)   return "#00a400";
+  if (rate >= 75)   return "#f7b928";
+  return "#fa3e3e";
+}
+
+// ── Monats-Balken-Chart ───────────────────────────────────────────────────────
+
+type MonatData = { monat: number; gesamt: number | null; erledigungsrate: number | null };
+
+function MonatsBalkenChart({
+  monate, onKlick, ausgewaehlt,
+}: {
+  monate:       MonatData[];
+  onKlick:      (m: MonatData) => void;
+  ausgewaehlt?: number;
+}) {
+  const max = Math.max(...monate.map((m) => m.gesamt ?? 0), 1);
+  return (
+    <div className="flex items-end gap-1 h-24 mt-2">
+      {monate.map((m) => {
+        const isCurrent = new Date().getMonth() + 1 === m.monat;
+        const isSelected = ausgewaehlt === m.monat;
+        const h = m.gesamt ? Math.max((m.gesamt / max) * 80, 4) : 0;
+        return (
+          <button
+            key={m.monat}
+            onClick={() => m.gesamt && onKlick(m)}
+            disabled={!m.gesamt}
+            title={m.gesamt ? `${MONATE[m.monat - 1]}: ${m.gesamt} Anfragen (${m.erledigungsrate ?? "—"}%)` : MONATE[m.monat - 1]}
+            className={`flex-1 flex flex-col items-center gap-0.5 group transition-opacity ${!m.gesamt ? "opacity-30 cursor-default" : "cursor-pointer"}`}
+          >
+            <div
+              className={`w-full rounded-t transition-all ${isSelected ? "ring-2 ring-[#0064d2]" : ""}`}
+              style={{
+                height:     `${h}px`,
+                background: rateBg(m.erledigungsrate),
+                opacity:    isCurrent ? 1 : 0.8,
+              }}
+            />
+            <span className={`text-[8px] ${isCurrent ? "font-black text-[#0064d2]" : "text-[#65676b] dark:text-[#b0b3b8]"}`}>
+              {MONATE[m.monat - 1]!.slice(0, 3)}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Jahresarchiv-Sektion ──────────────────────────────────────────────────────
+
+type MonatsDetailData = {
+  kuerzel: string; monat: number; jahr: number;
+  gesamt: number; erledigt: number; bedarf: number; storniert: number;
+  erledigungsrate: number; avgWartezeitH: number | null;
+  topTeile:   { teil: string; anzahl: number }[];
+  topGeraete: { geraet: string; name: string; anzahl: number }[];
+  anfragen:   { id: number; datum: Date | string; teil: string; geraeteName: string | null; geraet: string; logId: string; status: AnfrageStatus }[];
+};
+
+function MonatsDetailModal({ data, onClose }: { data: MonatsDetailData; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#ced4da] dark:border-[#3e4042]">
+          <h2 className="font-black text-lg text-[#1a1a1a] dark:text-[#e4e6eb]">
+            {data.kuerzel} · {MONATE[data.monat - 1]} {data.jahr}
+          </h2>
+          <button onClick={onClose} className="text-[#65676b] hover:text-[#fa3e3e] text-xl font-bold">×</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {/* KPIs */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
+              <div className="text-2xl font-black text-[#0064d2]">{data.gesamt}</div>
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Anfragen</div>
+            </div>
+            <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
+              <div className={`text-2xl font-black ${rateColor(data.erledigungsrate)}`}>{data.erledigungsrate}%</div>
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Erledigungsrate</div>
+            </div>
+            <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
+              <div className="text-2xl font-black text-[#f7b928]">{data.bedarf}</div>
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Bedarf</div>
+            </div>
+            <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
+              <div className="text-2xl font-black text-[#00a400]">{data.erledigt}</div>
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Erledigt</div>
+            </div>
+            <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
+              <div className="text-2xl font-black text-[#fa3e3e]">{data.storniert}</div>
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Storniert</div>
+            </div>
+            {data.avgWartezeitH !== null && (
+              <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
+                <div className="text-2xl font-black text-[#8e44ad]">{data.avgWartezeitH}h</div>
+                <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Ø Wartezeit</div>
+              </div>
+            )}
+          </div>
+
+          {/* Top Teile + Top Geräte */}
+          <div className="grid grid-cols-2 gap-4">
+            {data.topTeile.length > 0 && (
+              <div>
+                <h3 className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-2">Top 3 Teile</h3>
+                {data.topTeile.map((t, i) => (
+                  <div key={t.teil} className="flex items-center gap-2 py-1">
+                    <span className="text-xs text-[#65676b] w-4">{i + 1}.</span>
+                    <span className="text-sm font-medium text-[#1a1a1a] dark:text-[#e4e6eb] flex-1 truncate">{t.teil}</span>
+                    <span className="text-xs font-bold text-[#0064d2]">×{t.anzahl}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {data.topGeraete.length > 0 && (
+              <div>
+                <h3 className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-2">Top 3 Geräte</h3>
+                {data.topGeraete.map((g, i) => (
+                  <div key={g.geraet} className="flex items-center gap-2 py-1">
+                    <span className="text-xs text-[#65676b] w-4">{i + 1}.</span>
+                    <span className="text-sm font-medium text-[#1a1a1a] dark:text-[#e4e6eb] flex-1 truncate">{g.name}</span>
+                    <span className="text-xs font-bold text-[#0064d2]">×{g.anzahl}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Anfragen-Tabelle */}
+          <div>
+            <h3 className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-2">
+              Alle Anfragen ({data.anfragen.length})
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]">
+                    <th className="text-left py-1.5 pr-3">Datum</th>
+                    <th className="text-left py-1.5 px-3">Teil</th>
+                    <th className="text-left py-1.5 px-3">Gerät</th>
+                    <th className="text-left py-1.5 px-3">LogID</th>
+                    <th className="text-left py-1.5 pl-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+                  {data.anfragen.map((a) => (
+                    <tr key={a.id}>
+                      <td className="py-1.5 pr-3 whitespace-nowrap">
+                        {new Date(a.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+                      </td>
+                      <td className="py-1.5 px-3 max-w-[120px] truncate font-medium">{a.teil}</td>
+                      <td className="py-1.5 px-3 max-w-[100px] truncate text-[#65676b] dark:text-[#b0b3b8]">{a.geraeteName ?? a.geraet}</td>
+                      <td className="py-1.5 px-3 font-mono text-[#65676b] dark:text-[#b0b3b8]">{a.logId}</td>
+                      <td className="py-1.5 pl-3">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${STATUS_FARBE[a.status]}`}>{a.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Jahresarchiv-Sektion (innerhalb Techniker-Detail) ─────────────────────────
+
+function JahresArchivSektion({ kuerzel }: { kuerzel: string }) {
+  const aktuellesJahr              = new Date().getFullYear();
+  const [gewaehlterJahr, setJahr]  = useState(aktuellesJahr);
+  const [monatsModal, setMonatsModal] = useState<number | null>(null); // Monat 1-12
+
+  const verfuegbareJahre = api.statistik.getTechnikerVerfuegbareJahre.useQuery({ kuerzel });
+  const archiv           = api.statistik.getTechnikerJahresArchiv.useQuery({ kuerzel, jahr: gewaehlterJahr });
+  const monatsDetail     = api.statistik.getTechnikerMonatsDetail.useQuery(
+    { kuerzel, monat: monatsModal ?? 1, jahr: gewaehlterJahr },
+    { enabled: monatsModal !== null },
+  );
+
+  const jahre    = verfuegbareJahre.data ?? [aktuellesJahr];
+  const jahrIdx  = jahre.indexOf(gewaehlterJahr);
+  const monate   = archiv.data?.monate ?? [];
+  const jKpis    = archiv.data?.jahresKpis;
+
+  return (
+    <Panel title="Jahresarchiv">
+      {/* Jahr-Selector */}
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => setJahr(jahre[jahrIdx + 1] ?? gewaehlterJahr)}
+          disabled={jahrIdx >= jahre.length - 1}
+          className="px-3 py-1.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-sm disabled:opacity-30 hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors"
+        >
+          ←
+        </button>
+        <span className="text-xl font-black text-[#1a1a1a] dark:text-[#e4e6eb] min-w-[60px] text-center">{gewaehlterJahr}</span>
+        <button
+          onClick={() => setJahr(jahre[jahrIdx - 1] ?? gewaehlterJahr)}
+          disabled={jahrIdx <= 0}
+          className="px-3 py-1.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-sm disabled:opacity-30 hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors"
+        >
+          →
+        </button>
+        <span className="text-xs text-[#65676b] dark:text-[#b0b3b8] ml-2">Klick auf Monat für Details</span>
+      </div>
+
+      {archiv.isLoading && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-4 gap-3"><Skeleton /><Skeleton /><Skeleton /><Skeleton /></div>
+          <Skeleton h="h-28" />
+          <Skeleton h="h-48" />
+        </div>
+      )}
+
+      {archiv.data && (
+        <>
+          {/* Jahres-KPIs */}
+          {jKpis && jKpis.gesamt > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
+                <div className="text-2xl font-black text-[#0064d2]">{jKpis.gesamt}</div>
+                <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Anfragen {gewaehlterJahr}</div>
+              </div>
+              <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
+                <div className={`text-2xl font-black ${rateColor(jKpis.erledigungsrate)}`}>{jKpis.erledigungsrate}%</div>
+                <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Jahres-Rate</div>
+              </div>
+              {jKpis.besterMonat?.gesamt && (
+                <div className="bg-[#00a400]/10 rounded-xl p-3 text-center">
+                  <div className="text-lg font-black text-[#00a400]">{MONATE[jKpis.besterMonat.monat - 1]}</div>
+                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Bester Monat ({jKpis.besterMonat.erledigungsrate}%)</div>
+                </div>
+              )}
+              {jKpis.schlechtesterMonat?.gesamt && (
+                <div className="bg-[#fa3e3e]/10 rounded-xl p-3 text-center">
+                  <div className="text-lg font-black text-[#fa3e3e]">{MONATE[jKpis.schlechtesterMonat.monat - 1]}</div>
+                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Schlechtester ({jKpis.schlechtesterMonat.erledigungsrate}%)</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Monats-Balken */}
+          {monate.length > 0 && (
+            <div className="mb-4">
+              <div className="flex gap-2 text-[10px] text-[#65676b] dark:text-[#b0b3b8] mb-1">
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#00a400]" />≥90%</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#f7b928]" />75–89%</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#fa3e3e]" />&lt;75%</span>
+              </div>
+              <MonatsBalkenChart
+                monate={monate}
+                onKlick={(m) => setMonatsModal(m.monat)}
+                ausgewaehlt={monatsModal ?? undefined}
+              />
+            </div>
+          )}
+
+          {/* Monats-Tabelle */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
+                  <th className="text-left py-2 pr-3">Monat</th>
+                  <th className="text-center py-2 px-3">Anfragen</th>
+                  <th className="text-center py-2 px-3">Erledigt</th>
+                  <th className="text-center py-2 px-3">Bedarf</th>
+                  <th className="text-center py-2 px-3">Rate</th>
+                  <th className="text-center py-2 pl-3">Ø Warte</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+                {monate.map((m) => {
+                  const jetzt       = new Date();
+                  const istAktuell  = jetzt.getFullYear() === gewaehlterJahr && jetzt.getMonth() + 1 === m.monat;
+                  const istZukunft  = gewaehlterJahr > jetzt.getFullYear() || (gewaehlterJahr === jetzt.getFullYear() && m.monat > jetzt.getMonth() + 1);
+                  const hatDaten    = m.gesamt !== null;
+                  return (
+                    <tr
+                      key={m.monat}
+                      onClick={() => hatDaten && setMonatsModal(m.monat)}
+                      className={`transition-colors ${hatDaten ? "cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a]" : ""} ${istAktuell ? "bg-[#0064d2]/5 font-bold" : ""}`}
+                    >
+                      <td className={`py-2 pr-3 ${istAktuell ? "text-[#0064d2] font-black" : istZukunft ? "text-[#65676b] dark:text-[#b0b3b8]" : "text-[#1a1a1a] dark:text-[#e4e6eb]"}`}>
+                        {MONATE[m.monat - 1]}
+                        {istAktuell && <span className="ml-1 text-[10px] bg-[#0064d2] text-white px-1 rounded">lfd.</span>}
+                      </td>
+                      <td className="text-center py-2 px-3">{m.gesamt ?? <span className="text-[#65676b]">—</span>}</td>
+                      <td className="text-center py-2 px-3 text-[#00a400]">{m.erledigt ?? <span className="text-[#65676b]">—</span>}</td>
+                      <td className="text-center py-2 px-3 text-[#f7b928]">{m.bedarf ?? <span className="text-[#65676b]">—</span>}</td>
+                      <td className={`text-center py-2 px-3 font-bold ${rateColor(m.erledigungsrate)}`}>
+                        {m.erledigungsrate !== null ? `${m.erledigungsrate}%` : <span className="text-[#65676b]">—</span>}
+                      </td>
+                      <td className="text-center py-2 pl-3 text-[#65676b] dark:text-[#b0b3b8]">
+                        {m.avgWartezeitH !== null ? `${m.avgWartezeitH}h` : <span>—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* Monats-Detail Modal */}
+      {monatsModal !== null && monatsDetail.data && (
+        <MonatsDetailModal
+          data={monatsDetail.data as MonatsDetailData}
+          onClose={() => setMonatsModal(null)}
+        />
+      )}
+    </Panel>
+  );
+}
+
+// ── Jahresübersicht aller Techniker (Tab in Übersicht) ────────────────────────
+
+function AlleJahresOverview() {
+  const aktuellesJahr = new Date().getFullYear();
+  const overview = api.statistik.getAllTechnikerJahresOverview.useQuery({ jahr: aktuellesJahr });
+
+  if (overview.isLoading) return <Skeleton h="h-40" />;
+  if (!overview.data?.length) return <Empty />;
+
+  const max = Math.max(
+    ...overview.data.flatMap((t) => t.monate.map((m) => m ?? 0)),
+    1,
+  );
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]">
+            <th className="text-left py-2 pr-4 font-bold uppercase">Techniker</th>
+            {MONATE.map((m) => (
+              <th key={m} className="text-center py-2 px-1 font-normal">{m.slice(0, 3)}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+          {overview.data.map((t) => (
+            <tr key={t.techniker}>
+              <td className="py-2 pr-4 font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{t.techniker}</td>
+              {t.monate.map((anzahl, i) => (
+                <td key={i} className="text-center py-2 px-1">
+                  {anzahl ? (
+                    <div
+                      className="mx-auto rounded"
+                      title={`${MONATE[i]}: ${anzahl}`}
+                      style={{
+                        width:      "20px",
+                        height:     `${Math.max((anzahl / max) * 24, 4)}px`,
+                        background: "#0064d2",
+                        opacity:    0.4 + (anzahl / max) * 0.6,
+                      }}
+                    />
+                  ) : (
+                    <span className="text-[#ced4da] dark:text-[#3e4042]">·</span>
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── Hauptseite ────────────────────────────────────────────────────────────────
 
 export default function StatistikenPage() {
-  const [filter,    setFilter]    = useState<FilterRange>("monat");
-  const [kuerzel,   setKuerzel]   = useState<string>(""); // "" = Alle
-  const [letzteOff, setLetzteOff] = useState(0);
+  const [filter,     setFilter]    = useState<FilterRange>("monat");
+  const [kuerzel,    setKuerzel]   = useState<string>(""); // "" = Alle
+  const [letzteOff,  setLetzteOff] = useState(0);
+  const [uebersichtTab, setUebersichtTab] = useState<"overview" | "jahresarchiv">("overview");
 
   const tage     = TAGE_MAP[filter];
   const hatTech  = kuerzel !== "";
@@ -330,10 +721,29 @@ export default function StatistikenPage() {
             </Panel>
           </div>
 
-          {/* Team-Vergleich */}
-          <Panel title="Team-Vergleich" sub="Anfragen-Volumen · Erledigungsrate · Bedarf-Quote · Ø Wartezeit">
-            {teamVergl.isLoading && <Skeleton h="h-28" />}
-            {teamVergl.data && <TeamVergleich data={teamVergl.data} />}
+          {/* Team-Vergleich + Jahresarchiv Tab */}
+          <Panel title="Techniker-Analyse">
+            <div className="flex gap-1 mb-4 border-b border-[#ced4da] dark:border-[#3e4042] pb-3">
+              {(["overview", "jahresarchiv"] as const).map((tab) => (
+                <button key={tab} onClick={() => setUebersichtTab(tab)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                    uebersichtTab === tab
+                      ? "bg-[#0064d2] text-white"
+                      : "text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"
+                  }`}>
+                  {tab === "overview" ? "Team-Vergleich" : `Jahresarchiv ${new Date().getFullYear()}`}
+                </button>
+              ))}
+            </div>
+            {uebersichtTab === "overview" && (
+              <>
+                {teamVergl.isLoading && <Skeleton h="h-28" />}
+                {teamVergl.data && <TeamVergleich data={teamVergl.data} />}
+              </>
+            )}
+            {uebersichtTab === "jahresarchiv" && (
+              <AlleJahresOverview />
+            )}
           </Panel>
         </>
       )}
@@ -482,6 +892,9 @@ export default function StatistikenPage() {
               </>
             )}
           </Panel>
+
+          {/* Jahresarchiv-Sektion */}
+          <JahresArchivSektion kuerzel={kuerzel} />
         </>
       )}
     </div>

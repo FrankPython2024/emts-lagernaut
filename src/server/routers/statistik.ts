@@ -17,6 +17,10 @@ import {
   getTechnikerTageszeiten,
   getTechnikerLetzteAnfragen,
   getTechnikerTeamVergleich,
+  getTechnikerJahresArchiv,
+  getTechnikerVerfuegbareJahre,
+  getTechnikerMonatsDetail,
+  getAllTechnikerJahresOverview,
 } from "@/modules/statistik/service";
 
 const TageSchema = z.object({
@@ -132,5 +136,34 @@ export const statistikRouter = createTRPCRouter({
   getTechnikerTeamVergleich: adminProcedure
     .input(TageSchema)
     .query(({ input }) => getTechnikerTeamVergleich(input.tage)),
+
+  // ── Jahres-Archiv ─────────────────────────────────────────────────────────
+
+  // 12-Monats-Übersicht für ein Jahr (Redis-gecacht)
+  getTechnikerJahresArchiv: adminProcedure
+    .input(z.object({
+      kuerzel: z.string().min(1),
+      jahr:    z.number().int().min(2020).max(2100),
+    }))
+    .query(({ input }) => getTechnikerJahresArchiv(input.kuerzel, input.jahr)),
+
+  // Verfügbare Jahre für den Jahr-Selector
+  getTechnikerVerfuegbareJahre: adminProcedure
+    .input(z.object({ kuerzel: z.string().min(1) }))
+    .query(({ input }) => getTechnikerVerfuegbareJahre(input.kuerzel)),
+
+  // Monats-Detail mit Top Teile/Geräte + alle Anfragen (Redis-gecacht)
+  getTechnikerMonatsDetail: adminProcedure
+    .input(z.object({
+      kuerzel: z.string().min(1),
+      monat:   z.number().int().min(1).max(12),
+      jahr:    z.number().int().min(2020).max(2100),
+    }))
+    .query(({ input }) => getTechnikerMonatsDetail(input.kuerzel, input.monat, input.jahr)),
+
+  // Alle Techniker kompakt für Chefetage-Überblick
+  getAllTechnikerJahresOverview: adminProcedure
+    .input(z.object({ jahr: z.number().int().min(2020).max(2100) }))
+    .query(({ input }) => getAllTechnikerJahresOverview(input.jahr)),
 
 });

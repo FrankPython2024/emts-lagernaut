@@ -5,6 +5,7 @@ import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service"
 import { sendeSystemNachricht } from "@/modules/nachrichten/service";
 import { emitToAdmins, emitToAll, emitToUser } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
+import { invalidateTechnikerCache } from "@/modules/statistik/service";
 
 export type GruppenAnfrage = {
   gruppenNr:    string | null;
@@ -67,6 +68,9 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
       status,
     },
   });
+
+  // Statistik-Cache invalidieren
+  invalidateTechnikerCache(anfrage.techniker).catch(() => {});
 
   // Socket.io: neue Anfrage live an Admins pushen
   emitToAdmins(EVENTS.ANFRAGE_NEU, {
@@ -135,6 +139,9 @@ export async function setzeStatus(id: number, status: AnfrageStatus): Promise<An
     data:  { status },
     include: { artikel: { select: { id: true, bezeichnung: true } } },
   });
+
+  // Statistik-Cache invalidieren (Status-Änderung beeinflusst Erledigungsrate)
+  invalidateTechnikerCache(aktualisiert.techniker).catch(() => {});
 
   // Socket.io: Status-Update live broadcasten
   emitToAll(EVENTS.ANFRAGE_UPDATED, { id, status });

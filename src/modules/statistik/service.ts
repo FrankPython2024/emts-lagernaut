@@ -1,5 +1,6 @@
 import { AnfrageStatus } from "@prisma/client";
 import { prisma } from "@/core/db/prisma";
+import { redis } from "@/core/infra/redis";
 
 export type LiveStats = {
   gesamtArtikel:    number;
@@ -454,4 +455,203 @@ export async function getMonatsbericht(monat: number, jahr: number) {
       storniert:        anfragen.filter((a) => a.status === AnfrageStatus.STORNIERT).length,
     },
   };
+}
+
+// ── Jahres-Archiv Funktionen ────────────────────────────────────────────────
+
+/** Hilfsfunktion: Durchschnittliche Wartezeit in Stunden (1 Dezimalstelle). */
+function avgWartezeit(
+  anfragen: { status: AnfrageStatus; createdAt: Date; updatedAt: Date }[],
+): number | null {
+  const erledigte = anfragen.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN);
+  if (!erledigte.length) return null;
+  const sumMs = erledigte.reduce(
+    (s, a) => s + (a.updatedAt.getTime() - a.createdAt.getTime()),
+    0,
+  );
+  return Math.round((sumMs / erledigte.length / 3_600_000) * 10) / 10;
+}
+
+/** Cache-Key Helpers */
+const cacheKeyJahr   = (k: string, j: number) => `stats:techniker:${k}:jahr:${j}`;
+const cacheKeyMonat  = (k: string, j: number, m: number) => `stats:techniker:${k}:monat:${j}-${m}`;
+const cacheTTL       = (j: number, m: number) => {
+  const now = new Date();
+  const isCurrent = j === now.getFullYear() && m === now.getMonth() + 1;
+  return isCurrent ? 300 : 3_600; // 5min aktueller Monat, 1h vergangene
+};
+
+/** Cache-Invalidierung für einen Techniker (nach neuer Anfrage / Status-Änderung). */
+export async function invalidateTechnikerCache(kuerzel: string): Promise<void> {
+  try {
+    const pattern = `stats:techniker:${kuerzel}:*`;
+    const keys    = await redis.keys(pattern);
+    if (keys.length > 0) await redis.del(...keys);
+  } catch { /* Redis nicht kritisch */ }
+}
+
+/**
+ * Jahres-Archiv: 12 Monate mit Anfragen-KPIs.
+ * Redis-Cache: vergangene Jahre 1h, aktuelles Jahr 5min.
+ */
+export async function getTechnikerJahresArchiv(kuerzel: string, jahr: number) {
+  const key = cacheKeyJahr(kuerzel, jahr);
+  try {
+    const cached = await redis.get(key);
+    if (cached) return JSON.parse(cached) as ReturnType<typeof _buildJahresArchiv>;
+  } catch {}
+
+  const result = await _buildJahresArchiv(kuerzel, jahr);
+
+  const ttl = new Date().getFullYear() === jahr ? 300 : 3_600;
+  try { await redis.setex(key, ttl, JSON.stringify(result)); } catch {}
+  return result;
+}
+
+async function _buildJahresArchiv(kuerzel: string, jahr: number) {
+  const von = new Date(jahr, 0, 1);
+  const bis = new Date(jahr + 1, 0, 1);
+
+  const anfragen = await prisma.anfrage.findMany({
+    where:  { techniker: kuerzel, datum: { gte: von, lt: bis } },
+    select: { datum: true, status: true, createdAt: true, updatedAt: true },
+  });
+
+  const monate = Array.from({ length: 12 }, (_, i) => {
+    const ma = anfragen.filter((a) => new Date(a.datum).getMonth() === i);
+    if (!ma.length) return { monat: i + 1, gesamt: null, erledigt: null, bedarf: null, storniert: null, erledigungsrate: null, avgWartezeitH: null };
+    const gesamt    = ma.length;
+    const erledigt  = ma.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN).length;
+    const bedarf    = ma.filter((a) => a.status === AnfrageStatus.BEDARF).length;
+    const storniert = ma.filter((a) => a.status === AnfrageStatus.STORNIERT).length;
+    return {
+      monat: i + 1,
+      gesamt,
+      erledigt,
+      bedarf,
+      storniert,
+      erledigungsrate: Math.round((erledigt / gesamt) * 100),
+      avgWartezeitH:   avgWartezeit(ma),
+    };
+  });
+
+  // Jahres-KPIs
+  const mitDaten      = monate.filter((m) => m.gesamt !== null);
+  const jahrGesamt    = mitDaten.reduce((s, m) => s + (m.gesamt ?? 0), 0);
+  const jahrErledigt  = mitDaten.reduce((s, m) => s + (m.erledigt ?? 0), 0);
+  const jahrRate      = jahrGesamt > 0 ? Math.round((jahrErledigt / jahrGesamt) * 100) : 0;
+  const besterMonat   = mitDaten.reduce((best, m) => (m.erledigungsrate ?? 0) > (best?.erledigungsrate ?? -1) ? m : best, null as (typeof monate[0]) | null);
+  const schlechtesterMonat = mitDaten.length > 1
+    ? mitDaten.reduce((worst, m) => (m.erledigungsrate ?? 101) < (worst?.erledigungsrate ?? 101) ? m : worst, null as (typeof monate[0]) | null)
+    : null;
+
+  return {
+    kuerzel,
+    jahr,
+    monate,
+    jahresKpis: { gesamt: jahrGesamt, erledigt: jahrErledigt, erledigungsrate: jahrRate, besterMonat, schlechtesterMonat },
+  };
+}
+
+/**
+ * Verfügbare Jahre für einen Techniker (für den Jahr-Selector).
+ */
+export async function getTechnikerVerfuegbareJahre(kuerzel: string): Promise<number[]> {
+  const [minA, maxA] = await Promise.all([
+    prisma.anfrage.findFirst({ where: { techniker: kuerzel }, orderBy: { datum: "asc" },  select: { datum: true } }),
+    prisma.anfrage.findFirst({ where: { techniker: kuerzel }, orderBy: { datum: "desc" }, select: { datum: true } }),
+  ]);
+
+  const aktuellesJahr = new Date().getFullYear();
+  if (!minA) return [aktuellesJahr];
+
+  const minJahr = new Date(minA.datum).getFullYear();
+  const maxJahr = Math.max(new Date(maxA!.datum).getFullYear(), aktuellesJahr);
+  const jahre: number[] = [];
+  for (let j = maxJahr; j >= minJahr; j--) jahre.push(j);
+  return jahre;
+}
+
+/**
+ * Monats-Detail: alle KPIs + Top 3 Teile/Geräte + alle Anfragen.
+ * Redis-Cache: 5min aktueller Monat, 1h vergangene.
+ */
+export async function getTechnikerMonatsDetail(kuerzel: string, monat: number, jahr: number) {
+  const key = cacheKeyMonat(kuerzel, jahr, monat);
+  try {
+    const cached = await redis.get(key);
+    if (cached) return JSON.parse(cached) as ReturnType<typeof _buildMonatsDetail>;
+  } catch {}
+
+  const result = await _buildMonatsDetail(kuerzel, monat, jahr);
+  try { await redis.setex(key, cacheTTL(jahr, monat), JSON.stringify(result)); } catch {}
+  return result;
+}
+
+async function _buildMonatsDetail(kuerzel: string, monat: number, jahr: number) {
+  const von = new Date(jahr, monat - 1, 1);
+  const bis = new Date(jahr, monat, 1);
+
+  const anfragen = await prisma.anfrage.findMany({
+    where:   { techniker: kuerzel, datum: { gte: von, lt: bis } },
+    include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true } } },
+    orderBy: { datum: "desc" },
+  });
+
+  const gesamt    = anfragen.length;
+  const erledigt  = anfragen.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN).length;
+  const bedarf    = anfragen.filter((a) => a.status === AnfrageStatus.BEDARF).length;
+  const storniert = anfragen.filter((a) => a.status === AnfrageStatus.STORNIERT).length;
+
+  // Top 3 Teile
+  const teileMap = new Map<string, number>();
+  for (const a of anfragen) teileMap.set(a.teil, (teileMap.get(a.teil) ?? 0) + 1);
+  const topTeile = Array.from(teileMap.entries())
+    .sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([teil, anzahl]) => ({ teil, anzahl }));
+
+  // Top 3 Geräte
+  const geraetMap = new Map<string, { anzahl: number; name: string }>();
+  for (const a of anfragen) {
+    const e = geraetMap.get(a.geraet) ?? { anzahl: 0, name: a.geraeteName ?? a.geraet };
+    e.anzahl++;
+    geraetMap.set(a.geraet, e);
+  }
+  const topGeraete = Array.from(geraetMap.entries())
+    .sort((a, b) => b[1].anzahl - a[1].anzahl).slice(0, 3)
+    .map(([geraet, { anzahl, name }]) => ({ geraet, name, anzahl }));
+
+  return {
+    kuerzel, monat, jahr, gesamt, erledigt, bedarf, storniert,
+    erledigungsrate: gesamt > 0 ? Math.round((erledigt / gesamt) * 100) : 0,
+    avgWartezeitH:   avgWartezeit(anfragen),
+    topTeile, topGeraete,
+    anfragen,
+  };
+}
+
+/**
+ * Jahres-Überblick aller Techniker (kompakt, für Admin-Chefüberblick).
+ */
+export async function getAllTechnikerJahresOverview(jahr: number) {
+  const von = new Date(jahr, 0, 1);
+  const bis = new Date(jahr + 1, 0, 1);
+
+  const alle = await prisma.anfrage.findMany({
+    where:  { datum: { gte: von, lt: bis } },
+    select: { techniker: true, datum: true, status: true },
+  });
+
+  const techMap = new Map<string, (number | null)[]>();
+
+  for (const a of alle) {
+    const m = new Date(a.datum).getMonth(); // 0-based
+    if (!techMap.has(a.techniker)) techMap.set(a.techniker, new Array(12).fill(null));
+    const arr = techMap.get(a.techniker)!;
+    arr[m] = (arr[m] ?? 0) + 1;
+  }
+
+  return Array.from(techMap.entries())
+    .map(([techniker, monate]) => ({ techniker, monate }))
+    .sort((a, b) => a.techniker.localeCompare(b.techniker));
 }
