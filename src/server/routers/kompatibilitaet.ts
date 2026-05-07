@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
 import {
   sucheKompatibel,
@@ -87,5 +88,60 @@ export const kompatibilitaetRouter = createTRPCRouter({
   // Massen-Auto-Verknüpfung aller Modelle ohne Kompatibilität
   massAutoVerknuepfung: adminProcedure
     .mutation(() => massAutoVerknuepfung()),
+
+  // ── Neue Routen ────────────────────────────────────────────────────────────
+
+  // Alle Kompatibilitäten für ein Gerät (String) entfernen — Admin
+  removeAllByModell: adminProcedure
+    .input(z.object({ geraet: z.string().min(1).max(255) }))
+    .mutation(async ({ input }) => {
+      const result = await prisma.kompatibilitaet.deleteMany({
+        where: { geraet: input.geraet },
+      });
+      return { geloescht: result.count };
+    }),
+
+  // Detail-Daten eines Modells (für Detail-Modal)
+  getDetailForModell: adminProcedure
+    .input(z.object({ modellId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const modell = await prisma.geraeteModell.findUnique({
+        where: { id: input.modellId },
+      });
+      if (!modell) throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden." });
+
+      const geraetVoll = `${modell.hersteller} ${modell.modell}`;
+      const eintraege  = await prisma.kompatibilitaet.findMany({
+        where:   { geraet: geraetVoll },
+        include: {
+          artikel: {
+            select: { id: true, bezeichnung: true, bestand: true, lagerplatz: true, kategorie: true },
+          },
+        },
+        orderBy: { teiltyp: "asc" },
+      });
+
+      return { modell, geraetVoll, eintraege, anzahl: eintraege.length };
+    }),
+
+  // Artikel suchen für einen bestimmten Teiltyp — für Verknüpfungs-Suchfeld
+  sucheArtikelFuerTeil: adminProcedure
+    .input(z.object({
+      query:   z.string().max(200).default(""),
+      teiltyp: z.string().min(1).max(100),
+      limit:   z.number().int().min(1).max(20).default(10),
+    }))
+    .query(async ({ input }) => {
+      const trim = input.query.trim();
+      return prisma.artikel.findMany({
+        where: {
+          kategorie: input.teiltyp,
+          ...(trim ? { bezeichnung: { contains: trim } } : {}),
+        },
+        select: { id: true, bezeichnung: true, bestand: true, lagerplatz: true },
+        orderBy: [{ bestand: "desc" }, { bezeichnung: "asc" }],
+        take: input.limit,
+      });
+    }),
 
 });
