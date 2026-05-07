@@ -89,7 +89,20 @@ export const kompatibilitaetRouter = createTRPCRouter({
   massAutoVerknuepfung: adminProcedure
     .mutation(() => massAutoVerknuepfung()),
 
-  // ── Neue Routen ────────────────────────────────────────────────────────────
+  // ── Globale Routen ─────────────────────────────────────────────────────────
+
+  // Gesamtanzahl aller Kompatibilitäts-Einträge im System
+  getCount: adminProcedure
+    .query(() => prisma.kompatibilitaet.count()),
+
+  // ALLE Kompatibilitäten löschen — Admin only, nuklearer Reset
+  removeAll: adminProcedure
+    .mutation(async ({ ctx }) => {
+      const result = await prisma.kompatibilitaet.deleteMany({});
+      return { geloescht: result.count };
+    }),
+
+  // ── Modell-spezifische Routen ──────────────────────────────────────────────
 
   // Alle Kompatibilitäten für ein Gerät (String) entfernen — Admin
   removeAllByModell: adminProcedure

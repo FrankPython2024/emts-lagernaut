@@ -152,102 +152,22 @@ async function main() {
 ╚══════════════════════════════════╝
   `)
 
-  // ─── Phase 2: Auto-Kompatibilität anlegen ─────────────────────────────────
-  console.log('🤖 Phase 2: Auto-Kompatibilität anlegen...\n')
-
-  // Eindeutige bereinigte Gerätenamen sammeln
-  const alleNamen = notebooks
-    .map((r: Record<string, string>) => {
-      const h = String(r['Hersteller'] || '').trim()
-      const b = bereinige(String(r['Bezeichnung'] || '').trim(), h)
-      return getAnzeigename(h, b)
-    })
-    .filter(Boolean)
-
-  // Deduplizieren: max 1 Name pro Hersteller+Modell-Basis
-  const dedupMap = new Map<string, string>()
-  for (const name of alleNamen) {
-    const key = dedupKey(name)
-    if (!dedupMap.has(key)) dedupMap.set(key, name)
-  }
-
-  const uniqueModelle = [...dedupMap.values()]
-  console.log(`📊 ${alleNamen.length} Gerätenamen → ${uniqueModelle.length} nach Dedup (3-Wort-Schlüssel)`)
-
-  let modelle_neu      = 0
-  let modelle_vorhanden = 0
-  let modelle_fehler   = 0
-  let artikel_neu      = 0
-
-  const BATCH = 100
-
-  for (let i = 0; i < uniqueModelle.length; i += BATCH) {
-    const batch = uniqueModelle.slice(i, i + BATCH)
-
-    for (const name of batch) {
-      const parts      = name.split(' ')
-      const hersteller = parts[0] ?? ''
-      const modell     = parts.slice(1).join(' ')
-
-      if (!hersteller || !modell) continue
-
-      try {
-        const geraetVoll = `${hersteller} ${modell}`
-
-        // Prüfen ob Modell bereits existiert (sicherer als getTime-Vergleich)
-        const bestehendesModell = await prisma.geraeteModell.findUnique({
-          where:  { hersteller_modell: { hersteller, modell } },
-          select: { id: true },
-        })
-
-        if (bestehendesModell) { modelle_vorhanden++; continue }
-
-        // Neu anlegen
-        await prisma.geraeteModell.create({ data: { hersteller, modell } })
-        modelle_neu++
-
-        // 13 Standard-Artikel + Kompatibilitäts-Einträge anlegen
-        for (const teil of STANDARD_TEILE) {
-          const bezeichnung = `${modell} ${teil}`
-
-          // Artikel nur anlegen wenn noch nicht vorhanden
-          const vorher = await prisma.artikel.findUnique({
-            where:  { bezeichnung_kategorie: { bezeichnung, kategorie: teil } },
-            select: { id: true },
-          })
-
-          const artikel = vorher ?? await prisma.artikel.create({
-            data: { bezeichnung, kategorie: teil, lagerplatz: null, bestand: 0 },
-          })
-
-          if (!vorher) artikel_neu++
-
-          await prisma.kompatibilitaet.upsert({
-            where:  { geraet_teiltyp: { geraet: geraetVoll, teiltyp: teil } },
-            create: { geraet: geraetVoll, teiltyp: teil, artikelId: artikel.id },
-            update: {},
-          })
-        }
-      } catch (e) {
-        modelle_fehler++
-        if (modelle_fehler <= 3) console.error(`❌ Modell-Fehler: ${name}`, e)
-      }
-    }
-
-    if (i % (BATCH * 5) === 0 && i > 0) {
-      console.log(`⏳ Modelle: ${i}/${uniqueModelle.length} (${modelle_neu} neu)`)
-    }
-  }
+  // ─── Phase 2: Auto-Kompatibilität ─────────────────────────────────────────
+  // DEAKTIVIERT: Kompatibilitäten werden manuell im Admin angelegt (/admin/modelle).
+  // Der Import legt nur GeraeteLookup + GeraeteModell an — KEINE Kompatibilitäten.
+  //
+  // Grund: Automatisch angelegte Kompatibilitäten waren unzuverlässig und führten
+  // zu falschen Verknüpfungen. Manuelle Pflege über die Admin-Oberfläche
+  // mit Suchfeld pro Teiltyp ist deutlich präziser.
+  //
+  // console.log('🤖 Phase 2: Auto-Kompatibilität anlegen...\n')
+  // ... [Block auskommentiert] ...
 
   console.log(`
-╔══════════════════════════════════════╗
-║   Kompatibilität Auto-Import fertig  ║
-╠══════════════════════════════════════╣
-║ Neue Gerätemodelle:    ${String(modelle_neu).padStart(6)}      ║
-║ Bereits vorhanden:     ${String(modelle_vorhanden).padStart(6)}      ║
-║ Fehler:                ${String(modelle_fehler).padStart(6)}      ║
-║ Neue Artikel angelegt: ${String(artikel_neu).padStart(6)}      ║
-╚══════════════════════════════════════╝
+  ─────────────────────────────────────────
+  Phase 2 (Auto-Kompatibilität) übersprungen.
+  Kompatibilitäten manuell in /admin/modelle anlegen.
+  ─────────────────────────────────────────
   `)
 }
 

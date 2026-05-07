@@ -178,7 +178,8 @@ function VerknuepfungsModal({
     if (data && !initialized) {
       const init: Record<string, number | null> = {};
       for (const teil of STANDARD_TEILE) {
-        init[teil] = data.currentMap[teil] ?? data.vorschlaege[teil] ?? null;
+        // Nur bestehende Verknüpfungen vorauswählen — KEINE automatischen Vorschläge
+        init[teil] = data.currentMap[teil] ?? null;
       }
       setAuswahl(init);
       setInitialized(true);
@@ -188,15 +189,6 @@ function VerknuepfungsModal({
   const setVerknuepfung = api.kompatibilitaet.setVerknuepfung.useMutation({
     onSuccess: (r) => {
       show(`✅ ${r.gespeichert} Verknüpfungen gespeichert`, "success");
-      onSaved();
-      onClose();
-    },
-    onError: (e) => show(e.message, "error"),
-  });
-
-  const autoVerknuepfung = api.kompatibilitaet.autoVerknuepfung.useMutation({
-    onSuccess: (r) => {
-      show(`💡 ${r.neu} Vorschläge auto-verknüpft`, "success");
       onSaved();
       onClose();
     },
@@ -220,20 +212,13 @@ function VerknuepfungsModal({
 
   return (
     <div className="space-y-4">
-      {/* Info + Auto-Vorschlag */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+      {/* Info */}
+      <div>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
           <strong className="text-[#1a1a1a] dark:text-[#e4e6eb]">{data.geraetVoll}</strong>
           {" · "}Suchfeld pro Teiltyp ·
-          <span className="text-[#f7b928]"> 💡 = Vorschlag aus Modellname</span>
+          <span className="text-[#f7b928]"> 💡 = Suchvorschlag (nur Hinweis, kein Auto-Speichern)</span>
         </p>
-        <button
-          onClick={() => autoVerknuepfung.mutate({ modellId })}
-          disabled={autoVerknuepfung.isPending}
-          className="px-3 py-1.5 text-xs font-bold bg-[#f7b928]/10 text-[#f7b928] border border-[#f7b928]/30 rounded-lg hover:bg-[#f7b928]/20 disabled:opacity-50"
-        >
-          {autoVerknuepfung.isPending ? "..." : "💡 Auto-Vorschlag"}
-        </button>
       </div>
 
       {/* 13 Such-Sektionen */}
@@ -437,6 +422,77 @@ function ConfirmRemoveAllDialog({
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// Globaler Nuklear-Dialog (alle Kompatibilitäten löschen)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function GlobalRemoveAllDialog({
+  totalCount,
+  isPending,
+  onConfirm,
+  onCancel,
+}: {
+  totalCount: number;
+  isPending:  boolean;
+  onConfirm:  () => void;
+  onCancel:   () => void;
+}) {
+  const [eingabe, setEingabe] = useState("");
+  const bestaetigt = eingabe === "LÖSCHEN";
+
+  return (
+    <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/70 p-4">
+      <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+        {/* Header */}
+        <div className="text-center">
+          <div className="text-5xl mb-3">⚠️</div>
+          <h2 className="text-xl font-black text-[#fa3e3e]">ALLE Kompatibilitäten löschen?</h2>
+        </div>
+
+        {/* Warnung */}
+        <div className="bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 rounded-xl px-4 py-3 space-y-1 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+          <p>Das löscht <strong className="text-[#fa3e3e]">ALLE {totalCount.toLocaleString("de-DE")} Verknüpfungen</strong> aller Modelle im System.</p>
+          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Modelle und Artikel bleiben erhalten. Diese Aktion kann nicht rückgängig gemacht werden!</p>
+        </div>
+
+        {/* Bestätigungs-Eingabe */}
+        <div className="space-y-2">
+          <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+            Zum Bestätigen <code className="bg-[#f0f2f5] dark:bg-[#3e4042] px-1.5 py-0.5 rounded font-mono text-[#fa3e3e]">LÖSCHEN</code> eingeben:
+          </label>
+          <input
+            type="text"
+            value={eingabe}
+            onChange={(e) => setEingabe(e.target.value)}
+            placeholder="LÖSCHEN"
+            className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#fa3e3e] font-mono text-center text-lg tracking-widest"
+            autoFocus
+          />
+        </div>
+
+        {/* Buttons */}
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] font-semibold text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#ced4da] transition-colors"
+          >
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!bestaetigt || isPending}
+            className="flex-1 py-2.5 rounded-xl bg-[#fa3e3e] text-white font-black hover:bg-red-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            {isPending ? "Lösche…" : "Ja, alle löschen"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Haupt-Seite
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -452,27 +508,21 @@ export default function ModelleListePage() {
   const [debouncedSearch] = useDebounce(search, 300);
 
   // Modal-States
-  const [verknuepfenId, setVerknuepfenId] = useState<number | null>(null);
-  const [detailId,      setDetailId]      = useState<number | null>(null);
-  const [removeAllTarget, setRemoveAllTarget] = useState<Modell | null>(null);
+  const [verknuepfenId,    setVerknuepfenId]    = useState<number | null>(null);
+  const [detailId,         setDetailId]         = useState<number | null>(null);
+  const [removeAllTarget,  setRemoveAllTarget]  = useState<Modell | null>(null);
+  const [globalRemoveOpen, setGlobalRemoveOpen] = useState(false);
 
   const { data, isLoading, error, refetch } = api.geraete.getAllWithKompCount.useQuery(
     { search: debouncedSearch || undefined, hersteller: hersteller || undefined, ohneKomp, page, limit: 50 },
     { refetchOnMount: "always", staleTime: 0 },
   );
   const herstellerOpts = api.geraete.getHersteller.useQuery();
+  const globalCount    = api.kompatibilitaet.getCount.useQuery(undefined, { enabled: globalRemoveOpen });
 
   const setAktiv = api.geraete.setAktiv.useMutation({
     onSuccess: () => { refetch(); show("Status aktualisiert", "success"); },
     onError:   (e) => show(e.message, "error"),
-  });
-
-  const massAuto = api.kompatibilitaet.massAutoVerknuepfung.useMutation({
-    onSuccess: (r) => {
-      show(`✅ ${r.totalNeu} Verknüpfungen für ${r.verarbeitet} Modelle erstellt`, "success");
-      refetch();
-    },
-    onError: (e) => show(e.message, "error"),
   });
 
   const removeAll = api.kompatibilitaet.removeAllByModell.useMutation({
@@ -480,6 +530,15 @@ export default function ModelleListePage() {
       show(`🗑️ ${r.geloescht} Verknüpfungen entfernt`, "success");
       setRemoveAllTarget(null);
       setDetailId(null);
+      refetch();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
+  const removeAllGlobal = api.kompatibilitaet.removeAll.useMutation({
+    onSuccess: (r) => {
+      show(`🗑️ Alle ${r.geloescht} Verknüpfungen gelöscht`, "success");
+      setGlobalRemoveOpen(false);
       refetch();
     },
     onError: (e) => show(e.message, "error"),
@@ -502,11 +561,10 @@ export default function ModelleListePage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
-            onClick={() => massAuto.mutate()}
-            disabled={massAuto.isPending}
-            className="px-4 py-2 bg-[#f7b928]/10 text-[#f7b928] border border-[#f7b928]/30 font-bold rounded-xl hover:bg-[#f7b928]/20 disabled:opacity-50 text-sm"
+            onClick={() => setGlobalRemoveOpen(true)}
+            className="px-4 py-2 bg-[#fa3e3e]/10 text-[#fa3e3e] border border-[#fa3e3e]/30 font-bold rounded-xl hover:bg-[#fa3e3e]/20 text-sm transition-colors"
           >
-            {massAuto.isPending ? "⏳ Läuft..." : "⚡ Auto-Verknüpfung"}
+            🗑️ Alle Verknüpfungen löschen
           </button>
           <Link href="/admin/modelle/neu" className="px-4 py-2 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 shadow-sm text-sm">
             + Neues Modell
@@ -659,7 +717,7 @@ export default function ModelleListePage() {
         )}
       </Modal>
 
-      {/* Alle-Entfernen Bestätigung */}
+      {/* Pro-Modell: Alle-Entfernen Bestätigung */}
       {removeAllTarget && (
         <ConfirmRemoveAllDialog
           geraet={`${removeAllTarget.hersteller} ${removeAllTarget.modell}`}
@@ -671,6 +729,16 @@ export default function ModelleListePage() {
             })
           }
           onCancel={() => setRemoveAllTarget(null)}
+        />
+      )}
+
+      {/* Global: Alle Kompatibilitäten löschen */}
+      {globalRemoveOpen && (
+        <GlobalRemoveAllDialog
+          totalCount={globalCount.data ?? 0}
+          isPending={removeAllGlobal.isPending}
+          onConfirm={() => removeAllGlobal.mutate()}
+          onCancel={() => setGlobalRemoveOpen(false)}
         />
       )}
     </div>
