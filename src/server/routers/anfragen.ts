@@ -86,18 +86,18 @@ export const anfragenRouter = createTRPCRouter({
       return { ...result, belegNr };
     }),
 
-  // ── Status setzen (Haupt-Mutation für Admin) ──────────────────────────────
+  // ── Status setzen — Haupt-Mutation für Admin ──────────────────────────────
   //
   // Bei ABGESCHLOSSEN:
   //   1. AUSGANG-Buchung erstellen (Bestand -1)
-  //      → silently skip wenn Bestand = 0 (BEDARF-Anfragen)
-  //   2. Beleg-Nr generieren (AL-YYYY-NNNN via Redis)
-  //   3. Artikel-Daten für Beleg sammeln
+  //      → try/catch: bei Bestand=0 wird Buchung übersprungen
+  //      → WICHTIG: nur wenn Anfrage noch NICHT ABGESCHLOSSEN (kein Doppel-Buchen)
+  //   2. Beleg-Nr generieren (IMMER — unabhängig vom Vorher-Status)
+  //   3. Aktuellen Bestand + Artikel-Daten für Beleg sammeln
   //   4. setzeStatus() — setzt Status, sendet System-Nachricht, synct Bestand
-  //   5. Alles zurückgeben: { ...anfrage, belegNr, restBestand, artikel }
+  //   5. Gibt zurück: { ...anfrage, belegNr, restBestand, artikel }
   //
-  // Bei allen anderen Status:
-  //   → setzeStatus() direkt, belegNr/restBestand/artikel = null
+  // Bei allen anderen Status → direkt setzeStatus(), belegNr/artikel = null
   //
   setStatus: adminProcedure
     .input(z.object({
@@ -107,7 +107,7 @@ export const anfragenRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const user = ctx.session.user as SessionUser;
 
-      let belegNr:    string | null = null;
+      let belegNr:     string | null = null;
       let restBestand: number | null = null;
       let artikelInfo: {
         bezeichnung: string;
@@ -116,7 +116,7 @@ export const anfragenRouter = createTRPCRouter({
       } | null = null;
 
       if (input.status === AnfrageStatus.ABGESCHLOSSEN) {
-        // Anfrage + Artikel für Beleg-Daten laden
+        // Anfrage + Artikel laden (für Beleg + AUSGANG-Buchung)
         const anfrage = await ctx.prisma.anfrage.findUnique({
           where:   { id: input.id },
           include: {
@@ -126,21 +126,23 @@ export const anfragenRouter = createTRPCRouter({
           },
         });
 
-        if (anfrage && anfrage.status !== AnfrageStatus.ABGESCHLOSSEN) {
-          // AUSGANG-Buchung — bei Bestand 0 überspringen (keine Exception!)
-          try {
-            await bucheLager({
-              artikelId:   anfrage.artikelId,
-              menge:       anfrage.menge,
-              typ:         BuchungsTyp.AUSGANG,
-              mitarbeiter: user.kuerzel,
-              notiz:       `Anfrage #${input.id}`,
-            });
-          } catch {
-            // Kein Bestand vorhanden — Buchung überspringen, Status trotzdem setzen
+        if (anfrage) {
+          // AUSGANG nur wenn noch nicht abgeschlossen (kein Doppel-Buchen)
+          if (anfrage.status !== AnfrageStatus.ABGESCHLOSSEN) {
+            try {
+              await bucheLager({
+                artikelId:   anfrage.artikelId,
+                menge:       anfrage.menge,
+                typ:         BuchungsTyp.AUSGANG,
+                mitarbeiter: user.kuerzel,
+                notiz:       `Anfrage #${input.id}`,
+              });
+            } catch {
+              // Kein Bestand → Buchung überspringen, Status trotzdem setzen
+            }
           }
 
-          // Beleg-Nr (Redis INCR, Fallback auf Timestamp)
+          // Beleg-Nr IMMER generieren (auch bei Re-Klick auf bereits erledigte Anfrage)
           belegNr = await naechsteBelegNr("AL");
 
           // Aktuellen Bestand nach der Buchung
@@ -155,13 +157,35 @@ export const anfragenRouter = createTRPCRouter({
             lagerplatz:  anfrage.artikel.lagerplatz,
             kategorie:   anfrage.artikel.kategorie,
           };
+
+          console.log("[setStatus ABGESCHLOSSEN]", {
+            anfrageId:  input.id,
+            belegNr,
+            restBestand,
+            artikel:    artikelInfo,
+          });
         }
       }
 
       // Status setzen + System-Nachricht + syncBestandAusHistorie
       const aktualisiert = await setzeStatus(input.id, input.status);
 
-      return { ...aktualisiert, belegNr, restBestand, artikel: artikelInfo };
+      const result = {
+        ...aktualisiert,
+        belegNr,
+        restBestand,
+        artikel: artikelInfo,
+      };
+
+      console.log("[setStatus return]", {
+        id:          result.id,
+        status:      result.status,
+        belegNr:     result.belegNr,
+        restBestand: result.restBestand,
+        hasArtikel:  !!result.artikel,
+      });
+
+      return result;
     }),
 
   // Gruppenansicht — Admin

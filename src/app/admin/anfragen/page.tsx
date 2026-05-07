@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AnfrageStatus, type Anfrage } from "@prisma/client";
 import { useSession } from "next-auth/react";
 import { api } from "@/trpc/react";
@@ -21,15 +21,12 @@ function todayStr() { return new Date().toISOString().slice(0, 10); }
 
 function druckeA4(
   anfragen: (Anfrage & { artikel?: { bezeichnung: string } })[],
-  datum: string, statusFilter: string, tech: string,
+  datum: string, statusF: string, tech: string,
 ) {
   const datumDE = new Date(datum + "T12:00:00").toLocaleDateString("de-DE", {
     day: "2-digit", month: "2-digit", year: "numeric",
   });
-  const filterInfo = [
-    statusFilter ? `Status: ${statusFilter}` : "Status: Alle",
-    tech ? `Techniker: ${tech}` : "",
-  ].filter(Boolean).join(" · ");
+  const filterInfo = [statusF ? `Status: ${statusF}` : "Status: Alle", tech ? `Techniker: ${tech}` : ""].filter(Boolean).join(" · ");
   const statusColor: Record<AnfrageStatus, string> = {
     NEU: "#0064d2", BEDARF: "#f7b928", ABGESCHLOSSEN: "#00a400", STORNIERT: "#888",
   };
@@ -37,8 +34,7 @@ function druckeA4(
     const col = statusColor[a.status] ?? "#333";
     const bez = (a.artikel?.bezeichnung ?? a.teil).replace(/&/g, "&amp;").replace(/</g, "&lt;");
     return `<tr>
-      <td>${a.logId.replace(/</g, "&lt;")}</td>
-      <td>${a.techniker.replace(/</g, "&lt;")}</td>
+      <td>${a.logId.replace(/</g, "&lt;")}</td><td>${a.techniker.replace(/</g, "&lt;")}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${bez}</td>
       <td>${a.grading ?? "—"}</td>
       <td><span style="color:${col};font-weight:bold">${a.status}</span></td>
@@ -72,9 +68,9 @@ function druckeA4(
 // ── Tagesübersicht Modal ──────────────────────────────────────────────────────
 
 function TagesuebersichtModal({ onClose }: { onClose: () => void }) {
-  const [datum,     setDatum]     = useState(todayStr());
-  const [sfStatus,  setSfStatus]  = useState<"" | "offen" | "erledigt">("");
-  const [sfTech,    setSfTech]    = useState("");
+  const [datum,    setDatum]    = useState(todayStr());
+  const [sfStatus, setSfStatus] = useState<"" | "offen" | "erledigt">("");
+  const [sfTech,   setSfTech]   = useState("");
 
   const { data, isLoading } = api.anfragen.getAll.useQuery({
     von: new Date(datum + "T00:00:00"),
@@ -135,9 +131,11 @@ function TagesuebersichtModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ── Hilfsfunktion: Beleg-Daten aus setStatus-Ergebnis aufbauen ────────────────
+// ── Typ für setStatus-Rückgabe ────────────────────────────────────────────────
 
 type SetStatusResult = {
+  id:          number;
+  status:      AnfrageStatus;
   belegNr:     string | null;
   restBestand: number | null;
   artikel:     { bezeichnung: string; lagerplatz: string | null; kategorie: string } | null;
@@ -149,7 +147,16 @@ type SetStatusResult = {
 };
 
 function belegAusResult(r: SetStatusResult, ersteller: string): AuslagerBelegData | null {
-  if (!r.belegNr || !r.artikel) return null;
+  console.log("[belegAusResult] input:", {
+    belegNr:     r.belegNr,
+    artikel:     r.artikel,
+    techniker:   r.techniker,
+    logId:       r.logId,
+  });
+  if (!r.belegNr || !r.artikel) {
+    console.warn("[belegAusResult] → NULL (belegNr oder artikel fehlt)");
+    return null;
+  }
   return {
     belegNr:            r.belegNr,
     artikelBezeichnung: r.artikel.bezeichnung,
@@ -171,7 +178,7 @@ function belegAusResult(r: SetStatusResult, ersteller: string): AuslagerBelegDat
 export default function AnfragenPage() {
   const { show } = useToast();
   const { data: session } = useSession();
-  const user = session?.user as SessionUser | undefined;
+  const user     = session?.user as SessionUser | undefined;
   const ersteller = user?.kuerzel ?? "ADMIN";
 
   const [statusFilter, setStatusFilter] = useState<AnfrageStatus | "">("");
@@ -182,7 +189,9 @@ export default function AnfragenPage() {
   const [belegModal,    setBelegModal]    = useState<AuslagerBelegData | null>(null);
   const [gruppenBelege, setGruppenBelege] = useState<AuslagerBelegData[] | null>(null);
 
-  // Welche Anfrage wird gerade einzeln erledigt (für disabled state)
+  // Verhindert dass onSuccess für Gruppen-Calls das einzelne Modal setzt
+  const gruppenModus = useRef(false);
+  // Welche Anfrage wird gerade einzeln erledigt (für Spinner)
   const [erledigend, setErledigend] = useState<number | null>(null);
 
   const { data, isLoading, error, refetch } = api.anfragen.getGruppiert.useQuery({
@@ -190,28 +199,51 @@ export default function AnfragenPage() {
     ...(techFilter   ? { techniker: techFilter } : {}),
   });
 
-  // setStatus: onSuccess nur für STORNIERT (Toast + Refetch)
-  // Für ABGESCHLOSSEN: inline per mutateAsync (siehe handleErledigen)
+  // ── setStatus Mutation ────────────────────────────────────────────────────
+  // onSuccess ist die EINZIGE Stelle die setBelegModal setzt (vermeidet Timing-Bugs)
   const setStatus = api.anfragen.setStatus.useMutation({
     onSuccess: (r) => {
-      if (r.status === AnfrageStatus.STORNIERT) show("Anfrage storniert", "info");
+      console.log("[setStatus onSuccess] result:", {
+        id:          r.id,
+        status:      r.status,
+        belegNr:     (r as SetStatusResult).belegNr,
+        restBestand: (r as SetStatusResult).restBestand,
+        artikel:     (r as SetStatusResult).artikel,
+        techniker:   r.techniker,
+        logId:       r.logId,
+      });
+
       refetch();
+
+      if (r.status === AnfrageStatus.STORNIERT) {
+        show("Anfrage storniert", "info");
+        return;
+      }
+
+      if (r.status === AnfrageStatus.ABGESCHLOSSEN && !gruppenModus.current) {
+        const beleg = belegAusResult(r as SetStatusResult, ersteller);
+        console.log("[setStatus onSuccess] beleg für Modal:", beleg);
+        if (beleg) {
+          setBelegModal(beleg);
+        }
+      }
     },
-    onError: (e) => show(e.message, "error"),
+    onError: (e) => {
+      console.error("[setStatus onError]", e.message);
+      show(e.message, "error");
+    },
   });
 
-  // ── Einzelne Anfrage erledigen ──────────────────────────────────────────────
+  // ── Einzelne Anfrage erledigen ────────────────────────────────────────────
   async function handleErledigen(anfrageId: number) {
     if (erledigend !== null) return;
+    console.log("[handleErledigen] anfrageId:", anfrageId);
     setErledigend(anfrageId);
+    gruppenModus.current = false;
     try {
-      const r = await setStatus.mutateAsync({
-        id:     anfrageId,
-        status: AnfrageStatus.ABGESCHLOSSEN,
-      });
+      await setStatus.mutateAsync({ id: anfrageId, status: AnfrageStatus.ABGESCHLOSSEN });
+      // Modal wird in onSuccess gesetzt
       show("✅ Anfrage erledigt", "success");
-      const beleg = belegAusResult(r as SetStatusResult, ersteller);
-      if (beleg) setBelegModal(beleg);
     } catch {
       // Fehler wird in onError angezeigt
     } finally {
@@ -219,12 +251,14 @@ export default function AnfragenPage() {
     }
   }
 
-  // ── Alle Anfragen einer Gruppe erledigen ───────────────────────────────────
+  // ── Alle Anfragen einer Gruppe erledigen ──────────────────────────────────
   async function alleErledigen(anfragen: Anfrage[]) {
     const offen = anfragen.filter(
       (a) => a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT,
     );
     if (!offen.length) { show("Alle Anfragen bereits erledigt", "info"); return; }
+    console.log("[alleErledigen] offene Anfragen:", offen.length);
+    gruppenModus.current = true;
     try {
       const results = await Promise.all(
         offen.map((a) => setStatus.mutateAsync({ id: a.id, status: AnfrageStatus.ABGESCHLOSSEN })),
@@ -235,14 +269,15 @@ export default function AnfragenPage() {
         .map((r) => belegAusResult(r as SetStatusResult, ersteller))
         .filter((b): b is AuslagerBelegData => b !== null);
 
-      if (belegeData.length > 1) {
-        setGruppenBelege(belegeData);
-      } else if (belegeData.length === 1) {
-        setBelegModal(belegeData[0]);
-      }
+      console.log("[alleErledigen] belegeData:", belegeData.length);
+      setBelegModal(null);
+      if (belegeData.length > 1)     setGruppenBelege(belegeData);
+      else if (belegeData.length === 1) setBelegModal(belegeData[0]);
       refetch();
     } catch {
       show("Fehler beim Erledigen einiger Anfragen", "error");
+    } finally {
+      gruppenModus.current = false;
     }
   }
 
@@ -288,7 +323,6 @@ export default function AnfragenPage() {
       <div className="space-y-4">
         {data?.map((gruppe, gi) => (
           <div key={gi} className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
-            {/* Gruppen-Header */}
             <div className="flex items-center justify-between gap-3 px-5 py-4 bg-[#f0f2f5] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042] flex-wrap gap-y-2">
               <div className="flex items-center gap-4 flex-wrap">
                 <div>
@@ -307,31 +341,23 @@ export default function AnfragenPage() {
                   <span className="text-xs font-mono text-[#65676b] dark:text-[#b0b3b8]">{gruppe.gruppenNr}</span>
                 )}
               </div>
-              <button
-                onClick={() => alleErledigen(gruppe.anfragen)}
-                disabled={isBusy}
-                className="px-3 py-1.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors"
-              >
+              <button onClick={() => alleErledigen(gruppe.anfragen)} disabled={isBusy}
+                className="px-3 py-1.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors">
                 {isBusy ? "…" : "✅ Alle erledigen"}
               </button>
             </div>
 
-            {/* Anfragen-Items */}
             <div className="divide-y divide-[#ced4da] dark:divide-[#3e4042]">
               {gruppe.anfragen.map((a) => (
                 <div key={a.id} className="flex items-center gap-4 px-5 py-3 flex-wrap gap-y-1">
                   <div className="flex-1 min-w-0">
                     <span className="font-semibold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">{a.teil}</span>
-                    {a.grading && (
-                      <span className="ml-2 text-xs text-[#65676b] dark:text-[#b0b3b8]">{a.grading}</span>
-                    )}
-                    {a.kommentar && (
-                      <span className="ml-2 text-xs text-[#0064d2] dark:text-[#45bdff]">⌨️ {a.kommentar}</span>
-                    )}
+                    {a.grading && <span className="ml-2 text-xs text-[#65676b] dark:text-[#b0b3b8]">{a.grading}</span>}
+                    {a.kommentar && <span className="ml-2 text-xs text-[#0064d2] dark:text-[#45bdff]">⌨️ {a.kommentar}</span>}
                   </div>
                   <StatusBadge status={a.status} />
                   <div className="flex gap-1">
-                    {/* 🖨️ Beleg erneut drucken bei ABGESCHLOSSEN */}
+                    {/* 🖨️ Beleg erneut drucken */}
                     {a.status === AnfrageStatus.ABGESCHLOSSEN && (
                       <button
                         onClick={() => printAuslagerBeleg({
@@ -344,7 +370,7 @@ export default function AnfragenPage() {
                           logId:              a.logId,
                           restBestand:        0,
                           ersteller,
-                          datum:              new Date(),
+                          datum: new Date(),
                         })}
                         className="px-2 py-1 text-xs bg-[#0064d2]/10 text-[#0064d2] rounded hover:bg-[#0064d2]/20 font-bold transition-colors"
                         title="Auslagerbeleg erneut drucken"
@@ -353,7 +379,7 @@ export default function AnfragenPage() {
                       </button>
                     )}
 
-                    {/* ✓ Erledigen → AUSGANG Buchung + Beleg Modal */}
+                    {/* ✓ Erledigen */}
                     {a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT && (
                       <button
                         onClick={() => handleErledigen(a.id)}
