@@ -16,15 +16,54 @@ function dedupKey(bereinigt: string): string {
   return bereinigt.split(' ').slice(0, 3).join(' ').toLowerCase()
 }
 
-function bereinige(bezeichnung: string): string {
-  // Interne Codes entfernen: "ThinkPad T14 Gen 2i 20W1S06V00" → "ThinkPad T14 Gen 2i"
+function bereinige(bezeichnung: string, hersteller: string = ''): string {
   let result = bezeichnung.trim()
+
+  // 1. Alles ab " - " abschneiden (lange Beschreibungen)
+  //    "Latitude 7490 (F) - 14"..." → "Latitude 7490 (F)"
+  const dashIndex = result.indexOf(' - ')
+  if (dashIndex > 10) {
+    result = result.substring(0, dashIndex).trim()
+  }
+
+  // 2. Hersteller-Namen am Anfang entfernen wenn doppelt
+  //    "Dell Latitude 7490" → "Latitude 7490"
+  if (hersteller) {
+    const herstellerPattern = new RegExp(`^${hersteller}\\s+`, 'i')
+    result = result.replace(herstellerPattern, '').trim()
+  }
+
+  // 3. Business-Präfixe entfernen
+  result = result.replace(/^Business-NB\s+/i,          '').trim()
+  result = result.replace(/^Business-Convertible\s+/i, '').trim()
+  result = result.replace(/^Business-Laptop\s+/i,      '').trim()
+  result = result.replace(/^NB\s+/i,                   '').trim()
+
+  // 4. Interne Codes am Ende entfernen (Lenovo)
+  //    "ThinkPad T14 Gen 2i 20W1S06V00" → "ThinkPad T14 Gen 2i"
+  //    Pattern: Leerzeichen + 6+ Zeichen nur Großbuchstaben/Ziffern
   let prev = ''
   while (prev !== result) {
     prev = result
-    result = result.replace(/\s+[A-Z0-9]{4,}[-A-Z0-9]*$/, '').trim()
+    result = result.replace(/\s+[A-Z0-9]{6,}[-A-Z0-9]*$/, '').trim()
   }
+
+  // 5. Klammern am Ende entfernen: "Latitude 7490 (F)" → "Latitude 7490"
+  result = result.replace(/\s*\([^)]*\)\s*$/, '').trim()
+
+  // 6. Wenn Ergebnis nur Zahlen → original behalten (z.B. "5490")
+  if (/^\d+$/.test(result)) {
+    return bezeichnung.trim()
+  }
+
   return result
+}
+
+function getAnzeigename(hersteller: string, bereinigt: string): string {
+  if (bereinigt.toLowerCase().startsWith(hersteller.toLowerCase())) {
+    return bereinigt
+  }
+  return hersteller ? `${hersteller} ${bereinigt}` : bereinigt
 }
 
 async function main() {
@@ -71,11 +110,9 @@ async function main() {
       // LogId bereinigen: "212.826.176" → "212826176"
       const logIdClean = logId.replace(/\./g, '')
 
-      // Bezeichnung bereinigen + Hersteller voranstellen
-      const bezeichnungBereinigt = bereinige(bezeichnungRaw)
-      const bereinigt = hersteller
-        ? `${hersteller} ${bezeichnungBereinigt}`
-        : bezeichnungBereinigt
+      // Bezeichnung bereinigen + Anzeigename zusammensetzen
+      const bezeichnungBereinigt = bereinige(bezeichnungRaw, hersteller)
+      const bereinigt = getAnzeigename(hersteller, bezeichnungBereinigt)
 
       const existing = await prisma.geraeteLookup.findUnique({ where: { logId } })
 
@@ -119,8 +156,8 @@ async function main() {
   const alleNamen = notebooks
     .map((r: Record<string, string>) => {
       const h = String(r['Hersteller'] || '').trim()
-      const b = bereinige(String(r['Bezeichnung'] || '').trim())
-      return h ? `${h} ${b}` : b
+      const b = bereinige(String(r['Bezeichnung'] || '').trim(), h)
+      return getAnzeigename(h, b)
     })
     .filter(Boolean)
 
