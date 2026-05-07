@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { BelegModal } from "@/components/ui/BelegModal";
 import { EinlagerBelegPreview, printEinlagerBeleg, type EinlagerBelegData } from "@/components/ui/EinlagerBeleg";
+import { AuslagerBelegPreview, printAuslagerBeleg, type AuslagerBelegData } from "@/components/ui/AuslagerBeleg";
 import type { SessionUser } from "@/core/types";
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
@@ -180,9 +181,10 @@ export default function BuchungenPage() {
   const [form, setForm] = useState<{ menge: number; typ: BuchungsTyp; notiz: string }>({ menge: 1, typ: BuchungsTyp.EINGANG, notiz: "" });
 
   // Modals
-  const [editModal,    setEditModal]    = useState<(Buchung & { artikel?: { bezeichnung: string } }) | null>(null);
-  const [deleteModal,  setDeleteModal]  = useState<Buchung | null>(null);
-  const [belegModal,   setBelegModal]   = useState<EinlagerBelegData | null>(null);
+  const [editModal,         setEditModal]         = useState<(Buchung & { artikel?: { bezeichnung: string } }) | null>(null);
+  const [deleteModal,       setDeleteModal]        = useState<Buchung | null>(null);
+  const [belegModal,        setBelegModal]         = useState<EinlagerBelegData | null>(null);
+  const [auslagerBelegModal,setAuslagerBelegModal] = useState<AuslagerBelegData | null>(null);
 
   // Queries
   const { data, isLoading, refetch } = api.buchungen.getAll.useQuery({
@@ -203,6 +205,7 @@ export default function BuchungenPage() {
       setSuchArtikel("");
       setSelArtikelId(null);
       refetch();
+
       if (b.typ === BuchungsTyp.EINGANG && b.belegNr) {
         setBelegModal({
           belegNr:            b.belegNr,
@@ -212,6 +215,22 @@ export default function BuchungenPage() {
           menge:              b.menge,
           neuerBestand:       b.neuerBestand,
           notiz:              b.notiz ?? undefined,
+          ersteller:          user?.kuerzel ?? b.mitarbeiter,
+          datum:              new Date(b.datum),
+        });
+      }
+
+      if (b.typ === BuchungsTyp.AUSGANG && b.belegNr) {
+        setAuslagerBelegModal({
+          belegNr:            b.belegNr,
+          artikelBezeichnung: b.artikel.bezeichnung,
+          lagerplatz:         b.artikel.lagerplatz,
+          kategorie:          b.artikel.kategorie,
+          grading:            null,
+          techniker:          b.mitarbeiter,
+          logId:              "—",
+          restBestand:        b.neuerBestand,
+          kommentar:          b.notiz ?? undefined,
           ersteller:          user?.kuerzel ?? b.mitarbeiter,
           datum:              new Date(b.datum),
         });
@@ -410,6 +429,16 @@ export default function BuchungenPage() {
           beleg={<EinlagerBelegPreview data={belegModal} scale={2.5} />}
           onDrucken={() => printEinlagerBeleg(belegModal)}
           onSchliessen={() => setBelegModal(null)}
+        />
+      )}
+
+      {/* Auslagerbeleg Modal (nach AUSGANG) */}
+      {auslagerBelegModal && (
+        <BelegModal
+          titel="📤 Auslagerbeleg drucken"
+          beleg={<AuslagerBelegPreview data={auslagerBelegModal} scale={2.5} />}
+          onDrucken={() => printAuslagerBeleg(auslagerBelegModal)}
+          onSchliessen={() => setAuslagerBelegModal(null)}
         />
       )}
     </div>

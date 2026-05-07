@@ -13,7 +13,9 @@ import { naechsteBelegNr } from "@/core/infra/belegnr";
 export const buchungenRouter = createTRPCRouter({
 
   // Neue Buchung — EINGANG / AUSGANG / DIREKT
-  // Gibt bei EINGANG zusätzlich belegNr + artikel (lagerplatz, kategorie) zurück
+  // EINGANG → EL-YYYY-NNNN + artikel (lagerplatz, kategorie) für Einlagerbeleg
+  // AUSGANG → AL-YYYY-NNNN + artikel für Auslagerbeleg
+  // DIREKT  → belegNr = null (kein Beleg)
   create: protectedProcedure
     .input(z.object({
       artikelId:   z.number().int().positive(),
@@ -28,9 +30,10 @@ export const buchungenRouter = createTRPCRouter({
         where:  { id: input.artikelId },
         select: { bestand: true, bezeichnung: true, lagerplatz: true, kategorie: true },
       });
-      const belegNr = input.typ === BuchungsTyp.EINGANG
-        ? await naechsteBelegNr("EL")
-        : null;
+      const belegNr =
+        input.typ === BuchungsTyp.EINGANG ? await naechsteBelegNr("EL") :
+        input.typ === BuchungsTyp.AUSGANG ? await naechsteBelegNr("AL") :
+        null;
       return {
         ...buchung,
         neuerBestand: artikel?.bestand ?? 0,
