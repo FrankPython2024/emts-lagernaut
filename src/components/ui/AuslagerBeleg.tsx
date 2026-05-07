@@ -4,11 +4,18 @@ import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 
 export type AuslagerBelegData = {
-  anfrageId:   number;
-  bezeichnung: string;
-  grading:     string | null | undefined;
-  techniker:   string;
-  logId:       string;
+  belegNr:            string;
+  artikelBezeichnung: string;
+  lagerplatz:         string | null | undefined;
+  kategorie:          string;
+  grading:            string | null | undefined;
+  techniker:          string;
+  logId:              string;
+  geraeteName?:       string;
+  restBestand:        number;
+  kommentar?:         string;
+  ersteller:          string;
+  datum:              Date | string;
 };
 
 // ── QR-Code als SVG Data-URL ─────────────────────────────────────────────────
@@ -23,14 +30,9 @@ async function genQrSvg(content: string): Promise<string> {
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
-function makeBelegNr(id: number) {
-  return `AL-${new Date().getFullYear()}-${id.toString().padStart(4, "0")}`;
-}
-
 // ── Label-Inhalt (55×30mm, inline-Styles, Thermodruck-optimiert) ─────────────
 
 function AuslagerBelegInner({ data, qr }: { data: AuslagerBelegData; qr: string }) {
-  const belegNr = makeBelegNr(data.anfrageId);
   const grading = data.grading ?? "A+";
 
   return (
@@ -43,27 +45,24 @@ function AuslagerBelegInner({ data, qr }: { data: AuslagerBelegData; qr: string 
       boxSizing: "border-box", overflow: "hidden",
     }}>
       {/* LINKE SEITE */}
-      <div style={{
-        flex: 1, display: "flex", flexDirection: "column",
-        justifyContent: "space-between", overflow: "hidden",
-      }}>
-        {/* Z1: Typ-Header + Grade */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
+        {/* Z1: Typ + Grade */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1mm" }}>
           <span style={{ fontSize: "7pt", fontWeight: "bold", letterSpacing: "0.5px" }}>AUSLAGERUNG</span>
           <span style={{ fontSize: "6pt", color: "#444", whiteSpace: "nowrap", flexShrink: 0 }}>
-            Grade: {grading}
+            {grading}
           </span>
         </div>
 
         {/* Z2: Bezeichnung */}
         <div style={{
-          fontSize: data.bezeichnung.length > 22 ? "7.5pt" : "9pt",
+          fontSize: data.artikelBezeichnung.length > 22 ? "7.5pt" : "9pt",
           fontWeight: "bold", lineHeight: 1.2,
           wordBreak: "break-word", overflow: "hidden",
           display: "-webkit-box", WebkitLineClamp: 2,
           WebkitBoxOrient: "vertical" as const,
         }}>
-          {data.bezeichnung}
+          {data.artikelBezeichnung}
         </div>
 
         {/* Z3: Techniker · LogID */}
@@ -72,14 +71,13 @@ function AuslagerBelegInner({ data, qr }: { data: AuslagerBelegData; qr: string 
         </div>
 
         {/* Z4: BelegNr */}
-        <div style={{ fontSize: "6pt", color: "#666" }}>{belegNr}</div>
+        <div style={{ fontSize: "6pt", color: "#666" }}>{data.belegNr}</div>
       </div>
 
       {/* RECHTE SEITE — EMTS oben, QR unten */}
       <div style={{
         width: "16mm", display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "space-between",
-        flexShrink: 0,
+        alignItems: "center", justifyContent: "space-between", flexShrink: 0,
       }}>
         <div style={{ fontSize: "6pt", fontWeight: "bold", letterSpacing: "2px", color: "#000", textAlign: "center" }}>
           EMTS
@@ -130,12 +128,9 @@ export function AuslagerBelegManager({ data, onReady }: ManagerProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
-  useEffect(() => {
-    const belegNr = makeBelegNr(data.anfrageId);
-    genQrSvg(`AL:${belegNr}:${data.anfrageId}`).then(setQr);
-  }, [data.anfrageId]);
+  useEffect(() => { genQrSvg(`AL:${data.belegNr}`).then(setQr); }, [data.belegNr]);
 
-  const cssId   = `auslager_${data.anfrageId}`;
+  const cssId   = `auslager_${data.belegNr.replace(/-/g, "_")}`;
   const printFn = useCallback(() => {
     injectPrintCss(cssId);
     setTimeout(() => {
@@ -155,17 +150,15 @@ export function AuslagerBelegManager({ data, onReady }: ManagerProps) {
   );
 }
 
-// ── Direkt-Druck (neues Fenster, kein Portal-Overhead) ────────────────────────
+// ── Direkt-Druck einzeln (neues Fenster) ─────────────────────────────────────
 
 export async function printAuslagerBeleg(data: AuslagerBelegData): Promise<void> {
-  const belegNr = makeBelegNr(data.anfrageId);
-  const qr      = await genQrSvg(`AL:${belegNr}:${data.anfrageId}`);
+  const qr      = await genQrSvg(`AL:${data.belegNr}`);
   const grading = data.grading ?? "A+";
-
-  const bez  = data.bezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const bez  = data.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const tech = data.techniker.replace(/&/g, "&amp;");
   const log  = data.logId.replace(/&/g, "&amp;");
-  const sm   = data.bezeichnung.length > 22 ? "font-size:7.5pt;" : "font-size:9pt;";
+  const sm   = data.artikelBezeichnung.length > 22 ? "font-size:7.5pt;" : "font-size:9pt;";
 
   const css = `
     @page { size: 55mm 30mm; margin: 0; }
@@ -189,15 +182,12 @@ export async function printAuslagerBeleg(data: AuslagerBelegData): Promise<void>
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>
     <div class="al">
       <div class="left">
-        <div class="z1"><span class="typ">AUSLAGERUNG</span><span class="grd">Grade: ${grading}</span></div>
+        <div class="z1"><span class="typ">AUSLAGERUNG</span><span class="grd">${grading}</span></div>
         <div class="bez">${bez}</div>
         <div class="z3">${tech} · ${log}</div>
-        <div class="bnr">${belegNr}</div>
+        <div class="bnr">${data.belegNr}</div>
       </div>
-      <div class="right">
-        <div class="emts">EMTS</div>
-        <img class="qr" src="${qr}" alt="" />
-      </div>
+      <div class="right"><div class="emts">EMTS</div><img class="qr" src="${qr}" alt="" /></div>
     </div>
   </body></html>`;
 
@@ -209,14 +199,65 @@ export async function printAuslagerBeleg(data: AuslagerBelegData): Promise<void>
   setTimeout(() => w.print(), 400);
 }
 
+// ── Mehrere Belege (ein Fenster, page-break-after) ────────────────────────────
+
+export async function printMehrereAuslagerBelege(liste: AuslagerBelegData[]): Promise<void> {
+  const entries = await Promise.all(
+    liste.map(async (d) => ({ d, qr: await genQrSvg(`AL:${d.belegNr}`) })),
+  );
+
+  const css = `
+    @page { size: 55mm 30mm; margin: 0; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background: #fff; }
+    .lw   { width: 55mm; height: 30mm; overflow: hidden; page-break-after: always; }
+    .lw:last-child { page-break-after: avoid; }
+    .al   { width: 55mm; height: 30mm; padding: 1.5mm; display: flex; gap: 1.5mm; overflow: hidden; }
+    .left { flex: 1; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
+    .z1   { display: flex; justify-content: space-between; align-items: baseline; gap: 1mm; }
+    .typ  { font-size: 7pt; font-weight: bold; letter-spacing: .5px; }
+    .grd  { font-size: 6pt; color: #444; white-space: nowrap; flex-shrink: 0; }
+    .bez  { font-size: 9pt; font-weight: bold; line-height: 1.2; word-break: break-word; overflow: hidden;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .bez.sm { font-size: 7.5pt; }
+    .z3   { font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bnr  { font-size: 6pt; color: #666; }
+    .right { width: 16mm; display: flex; flex-direction: column; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .emts { font-size: 6pt; font-weight: bold; letter-spacing: 2px; }
+    .qr   { width: 14mm; height: 14mm; }
+  `;
+
+  const body = entries.map(({ d, qr }) => {
+    const bez  = d.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const tech = d.techniker.replace(/&/g, "&amp;");
+    const log  = d.logId.replace(/&/g, "&amp;");
+    const sm   = d.artikelBezeichnung.length > 22 ? " sm" : "";
+    const gr   = (d.grading ?? "A+").replace(/&/g, "&amp;");
+    return `
+      <div class="lw"><div class="al">
+        <div class="left">
+          <div class="z1"><span class="typ">AUSLAGERUNG</span><span class="grd">${gr}</span></div>
+          <div class="bez${sm}">${bez}</div>
+          <div class="z3">${tech} · ${log}</div>
+          <div class="bnr">${d.belegNr}</div>
+        </div>
+        <div class="right"><div class="emts">EMTS</div><img class="qr" src="${qr}" alt="" /></div>
+      </div></div>`;
+  }).join("\n");
+
+  const w = window.open("", "_blank", "width=400,height=250");
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${body}</body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 400);
+}
+
 // ── Vorschau (Bildschirm, skaliert) ──────────────────────────────────────────
 
 export function AuslagerBelegPreview({ data, scale = 1 }: { data: AuslagerBelegData; scale?: number }) {
   const [qr, setQr] = useState("");
-  useEffect(() => {
-    const belegNr = makeBelegNr(data.anfrageId);
-    genQrSvg(`AL:${belegNr}:${data.anfrageId}`).then(setQr);
-  }, [data.anfrageId]);
+  useEffect(() => { genQrSvg(`AL:${data.belegNr}`).then(setQr); }, [data.belegNr]);
 
   const inner = <AuslagerBelegInner data={data} qr={qr} />;
   if (scale === 1) return inner;

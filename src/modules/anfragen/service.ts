@@ -1,7 +1,7 @@
-import { AnfrageStatus, type Anfrage } from "@prisma/client";
+import { AnfrageStatus, BuchungsTyp, type Anfrage } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
-import { syncBestandAusHistorie } from "@/modules/buchungen/service";
+import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { sendeSystemNachricht } from "@/modules/nachrichten/service";
 
 export type GruppenAnfrage = {
@@ -148,6 +148,64 @@ export async function setzeStatus(id: number, status: AnfrageStatus): Promise<An
   }
 
   return aktualisiert;
+}
+
+/**
+ * Anfrage abschließen: erstellt AUSGANG-Buchung (Bestand -1), setzt Status ABGESCHLOSSEN,
+ * sendet System-Nachricht. Gibt Daten für den Auslagerbeleg zurück.
+ */
+export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
+  const anfrage = await prisma.anfrage.findUnique({
+    where:   { id },
+    include: { artikel: { select: { id: true, bezeichnung: true, lagerplatz: true, kategorie: true } } },
+  });
+
+  if (!anfrage) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
+  }
+  if (anfrage.status === AnfrageStatus.ABGESCHLOSSEN) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Anfrage bereits abgeschlossen." });
+  }
+
+  // AUSGANG Buchung erstellen (dekrementiert Bestand)
+  await bucheLager({
+    artikelId:   anfrage.artikelId,
+    menge:       anfrage.menge,
+    typ:         BuchungsTyp.AUSGANG,
+    mitarbeiter,
+    notiz:       `Anfrage #${id}`,
+  });
+
+  // Status setzen
+  await prisma.anfrage.update({ where: { id }, data: { status: AnfrageStatus.ABGESCHLOSSEN } });
+
+  // System-Nachricht an Techniker (non-blocking)
+  sendeSystemNachricht({
+    empfKuerzel: anfrage.techniker,
+    betreff:     "✅ Teil bereit zur Abholung",
+    inhalt:
+      `Dein angefragtes Teil "${anfrage.teil}" für ` +
+      `${anfrage.geraeteName ?? anfrage.geraet} (LogID: ${anfrage.logId}) liegt zur Abholung bereit.` +
+      (anfrage.grading ? `\nGrading: ${anfrage.grading}` : ""),
+  }).catch(() => {});
+
+  // Aktuellen Bestand holen
+  const aktuellerArtikel = await prisma.artikel.findUnique({
+    where:  { id: anfrage.artikelId },
+    select: { bestand: true },
+  });
+
+  return {
+    anfrageId:   id,
+    teilName:    anfrage.teil,
+    techniker:   anfrage.techniker,
+    logId:       anfrage.logId,
+    geraeteName: anfrage.geraeteName,
+    grading:     anfrage.grading,
+    kommentar:   anfrage.kommentar,
+    restBestand: aktuellerArtikel?.bestand ?? 0,
+    artikel:     anfrage.artikel,
+  };
 }
 
 /**

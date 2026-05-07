@@ -5,10 +5,13 @@ import {
   erstelleAnfrage,
   storniereAnfrage,
   setzeStatus,
+  schliesseAnfrageAb,
   getAnfragenByTechniker,
   getAnfragenAdmin,
   getAnfragenGruppiert,
 } from "@/modules/anfragen/service";
+import { naechsteBelegNr } from "@/core/infra/belegnr";
+import type { SessionUser } from "@/core/types";
 
 export const anfragenRouter = createTRPCRouter({
 
@@ -75,6 +78,16 @@ export const anfragenRouter = createTRPCRouter({
     .mutation(({ input }) =>
       storniereAnfrage(input),
     ),
+
+  // Anfrage abschließen: AUSGANG Buchung + ABGESCHLOSSEN + Auslagerbeleg-Daten — Admin only
+  abschliessen: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const user   = ctx.session.user as SessionUser;
+      const result = await schliesseAnfrageAb(input.id, user.kuerzel);
+      const belegNr = await naechsteBelegNr("AL");
+      return { ...result, belegNr };
+    }),
 
   // Status setzen — nur Admin
   setStatus: adminProcedure

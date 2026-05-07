@@ -4,11 +4,15 @@ import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 
 export type EinlagerBelegData = {
-  buchungId:   number;
-  bezeichnung: string;
-  lagerplatz:  string | null | undefined;
-  menge:       number;
-  artikelId:   number;
+  belegNr:            string;
+  artikelBezeichnung: string;
+  lagerplatz:         string | null | undefined;
+  kategorie:          string;
+  menge:              number;
+  neuerBestand:       number;
+  notiz?:             string;
+  ersteller:          string;
+  datum:              Date | string;
 };
 
 // ── QR-Code als SVG Data-URL ─────────────────────────────────────────────────
@@ -23,15 +27,9 @@ async function genQrSvg(content: string): Promise<string> {
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
-function makeBelegNr(id: number) {
-  return `EL-${new Date().getFullYear()}-${id.toString().padStart(4, "0")}`;
-}
-
 // ── Label-Inhalt (55×30mm, inline-Styles, Thermodruck-optimiert) ─────────────
 
 function EinlagerBelegInner({ data, qr }: { data: EinlagerBelegData; qr: string }) {
-  const belegNr = makeBelegNr(data.buchungId);
-
   return (
     <div style={{
       width: "55mm", height: "30mm",
@@ -42,48 +40,39 @@ function EinlagerBelegInner({ data, qr }: { data: EinlagerBelegData; qr: string 
       boxSizing: "border-box", overflow: "hidden",
     }}>
       {/* LINKE SEITE */}
-      <div style={{
-        flex: 1, display: "flex", flexDirection: "column",
-        justifyContent: "space-between", overflow: "hidden",
-      }}>
-        {/* Z1: Typ-Header */}
-        <div style={{ fontSize: "7pt", fontWeight: "bold", letterSpacing: "0.5px" }}>
-          EINLAGERUNG
-        </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
+        {/* Z1: Typ */}
+        <div style={{ fontSize: "7pt", fontWeight: "bold", letterSpacing: "0.5px" }}>EINLAGERUNG</div>
 
         {/* Z2: Bezeichnung */}
         <div style={{
-          fontSize: data.bezeichnung.length > 22 ? "7.5pt" : "9pt",
+          fontSize: data.artikelBezeichnung.length > 22 ? "7.5pt" : "9pt",
           fontWeight: "bold", lineHeight: 1.2,
           wordBreak: "break-word", overflow: "hidden",
           display: "-webkit-box", WebkitLineClamp: 2,
           WebkitBoxOrient: "vertical" as const,
         }}>
-          {data.bezeichnung}
+          {data.artikelBezeichnung}
         </div>
 
         {/* Z3: Lagerplatz + Menge */}
-        <div style={{
-          display: "flex", justifyContent: "space-between",
-          alignItems: "center", fontSize: "7pt", gap: "1mm",
-        }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "7pt", gap: "1mm" }}>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {data.lagerplatz ?? "—"}
           </span>
           <span style={{ fontWeight: "bold", color: "#006600", whiteSpace: "nowrap", flexShrink: 0 }}>
-            +{data.menge} Stück
+            +{data.menge} Stk
           </span>
         </div>
 
         {/* Z4: BelegNr */}
-        <div style={{ fontSize: "6pt", color: "#666" }}>{belegNr}</div>
+        <div style={{ fontSize: "6pt", color: "#666" }}>{data.belegNr}</div>
       </div>
 
       {/* RECHTE SEITE — EMTS oben, QR unten */}
       <div style={{
         width: "16mm", display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "space-between",
-        flexShrink: 0,
+        alignItems: "center", justifyContent: "space-between", flexShrink: 0,
       }}>
         <div style={{ fontSize: "6pt", fontWeight: "bold", letterSpacing: "2px", color: "#000", textAlign: "center" }}>
           EMTS
@@ -134,12 +123,9 @@ export function EinlagerBelegManager({ data, onReady }: ManagerProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
-  useEffect(() => {
-    const belegNr = makeBelegNr(data.buchungId);
-    genQrSvg(`EL:${belegNr}:${data.artikelId}`).then(setQr);
-  }, [data.buchungId, data.artikelId]);
+  useEffect(() => { genQrSvg(`EL:${data.belegNr}`).then(setQr); }, [data.belegNr]);
 
-  const cssId   = `einlager_${data.buchungId}`;
+  const cssId   = `einlager_${data.belegNr.replace(/-/g, "_")}`;
   const printFn = useCallback(() => {
     injectPrintCss(cssId);
     setTimeout(() => {
@@ -159,22 +145,20 @@ export function EinlagerBelegManager({ data, onReady }: ManagerProps) {
   );
 }
 
-// ── Direkt-Druck (neues Fenster, kein Portal-Overhead) ────────────────────────
+// ── Direkt-Druck (neues Fenster) ──────────────────────────────────────────────
 
 export async function printEinlagerBeleg(data: EinlagerBelegData): Promise<void> {
-  const belegNr = makeBelegNr(data.buchungId);
-  const qr      = await genQrSvg(`EL:${belegNr}:${data.artikelId}`);
-
-  const bez     = data.bezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  const lp      = (data.lagerplatz ?? "—").replace(/&/g, "&amp;");
-  const sm      = data.bezeichnung.length > 22 ? "font-size:7.5pt;" : "font-size:9pt;";
+  const qr  = await genQrSvg(`EL:${data.belegNr}`);
+  const bez = data.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const lp  = (data.lagerplatz ?? "—").replace(/&/g, "&amp;");
+  const sm  = data.artikelBezeichnung.length > 22 ? "font-size:7.5pt;" : "font-size:9pt;";
 
   const css = `
     @page { size: 55mm 30mm; margin: 0; }
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background: #fff;
            display: flex; align-items: center; justify-content: center; width: 55mm; height: 30mm; }
-    .el { width: 55mm; height: 30mm; padding: 1.5mm; display: flex; gap: 1.5mm; overflow: hidden; }
+    .el   { width: 55mm; height: 30mm; padding: 1.5mm; display: flex; gap: 1.5mm; overflow: hidden; }
     .left { flex: 1; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
     .typ  { font-size: 7pt; font-weight: bold; letter-spacing: .5px; }
     .bez  { ${sm} font-weight: bold; line-height: 1.2; word-break: break-word; overflow: hidden;
@@ -193,13 +177,10 @@ export async function printEinlagerBeleg(data: EinlagerBelegData): Promise<void>
       <div class="left">
         <div class="typ">EINLAGERUNG</div>
         <div class="bez">${bez}</div>
-        <div class="row3"><span class="lp">${lp}</span><span class="mng">+${data.menge} Stück</span></div>
-        <div class="bnr">${belegNr}</div>
+        <div class="row3"><span class="lp">${lp}</span><span class="mng">+${data.menge} Stk</span></div>
+        <div class="bnr">${data.belegNr}</div>
       </div>
-      <div class="right">
-        <div class="emts">EMTS</div>
-        <img class="qr" src="${qr}" alt="" />
-      </div>
+      <div class="right"><div class="emts">EMTS</div><img class="qr" src="${qr}" alt="" /></div>
     </div>
   </body></html>`;
 
@@ -215,10 +196,7 @@ export async function printEinlagerBeleg(data: EinlagerBelegData): Promise<void>
 
 export function EinlagerBelegPreview({ data, scale = 1 }: { data: EinlagerBelegData; scale?: number }) {
   const [qr, setQr] = useState("");
-  useEffect(() => {
-    const belegNr = makeBelegNr(data.buchungId);
-    genQrSvg(`EL:${belegNr}:${data.artikelId}`).then(setQr);
-  }, [data.buchungId, data.artikelId]);
+  useEffect(() => { genQrSvg(`EL:${data.belegNr}`).then(setQr); }, [data.belegNr]);
 
   const inner = <EinlagerBelegInner data={data} qr={qr} />;
   if (scale === 1) return inner;

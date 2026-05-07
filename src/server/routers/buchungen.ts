@@ -5,11 +5,15 @@ import {
   bucheLager,
   getBuchungsListe,
   syncAlleBestaende,
+  aktualisiereBuchung,
+  loescheBuchung,
 } from "@/modules/buchungen/service";
+import { naechsteBelegNr } from "@/core/infra/belegnr";
 
 export const buchungenRouter = createTRPCRouter({
 
-  // Neue Buchung erstellen — EINGANG / AUSGANG / DIREKT
+  // Neue Buchung — EINGANG / AUSGANG / DIREKT
+  // Gibt bei EINGANG zusätzlich belegNr + artikel (lagerplatz, kategorie) zurück
   create: protectedProcedure
     .input(z.object({
       artikelId:   z.number().int().positive(),
@@ -19,30 +23,61 @@ export const buchungenRouter = createTRPCRouter({
       notiz:       z.string().max(500).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const buchung = await bucheLager(input);
-      const artikel = await ctx.prisma.artikel.findUnique({
+      const buchung  = await bucheLager(input);
+      const artikel  = await ctx.prisma.artikel.findUnique({
         where:  { id: input.artikelId },
-        select: { bestand: true },
+        select: { bestand: true, bezeichnung: true, lagerplatz: true, kategorie: true },
       });
-      return { ...buchung, neuerBestand: artikel?.bestand ?? 0 };
+      const belegNr = input.typ === BuchungsTyp.EINGANG
+        ? await naechsteBelegNr("EL")
+        : null;
+      return {
+        ...buchung,
+        neuerBestand: artikel?.bestand ?? 0,
+        belegNr,
+        artikel: {
+          bezeichnung: artikel?.bezeichnung ?? buchung.bezeichnung,
+          lagerplatz:  artikel?.lagerplatz  ?? null,
+          kategorie:   artikel?.kategorie   ?? "",
+        },
+      };
     }),
 
-  // Buchungshistorie — mit Filter
+  // Buchung bearbeiten — nur Menge + Notiz, Typ NIE änderbar — Admin only
+  update: adminProcedure
+    .input(z.object({
+      id:    z.number().int().positive(),
+      menge: z.number().int().positive(),
+      notiz: z.string().max(500).optional().nullable(),
+    }))
+    .mutation(async ({ input }) => {
+      const neuerBestand = await aktualisiereBuchung(input.id, {
+        menge: input.menge,
+        notiz: input.notiz,
+      });
+      return { neuerBestand };
+    }),
+
+  // Buchung löschen — Bestand wird neu berechnet — Admin only
+  delete: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const neuerBestand = await loescheBuchung(input.id);
+      return { neuerBestand };
+    }),
+
+  // Buchungshistorie mit Filter
   getAll: protectedProcedure
     .input(z.object({
       artikelId: z.number().int().positive().optional(),
       typ:       z.nativeEnum(BuchungsTyp).optional(),
       von:       z.date().optional(),
       bis:       z.date().optional(),
-      limit:     z.number().int().min(1).max(100).default(50),
+      limit:     z.number().int().min(1).max(200).default(50),
       offset:    z.number().int().min(0).default(0),
     }).optional())
     .query(({ input }) =>
-      getBuchungsListe({
-        limit:  50,
-        offset: 0,
-        ...input,
-      }),
+      getBuchungsListe({ limit: 50, offset: 0, ...input }),
     ),
 
   // Buchungen für einen Artikel
@@ -53,14 +88,10 @@ export const buchungenRouter = createTRPCRouter({
       offset:    z.number().int().min(0).default(0),
     }))
     .query(({ input }) =>
-      getBuchungsListe({
-        artikelId: input.artikelId,
-        limit:     input.limit,
-        offset:    input.offset,
-      }),
+      getBuchungsListe({ artikelId: input.artikelId, limit: input.limit, offset: input.offset }),
     ),
 
-  // Alle Bestände neu berechnen — nur Admin
+  // Alle Bestände neu berechnen — Admin only
   syncAlleBestaende: adminProcedure
     .mutation(() => syncAlleBestaende()),
 

@@ -159,6 +159,39 @@ export async function syncAlleBestaende(): Promise<{ aktualisiert: number }> {
 }
 
 /**
+ * Buchung aktualisieren — nur Menge + Notiz änderbar, Typ NIE!
+ * Bestand wird danach aus der vollständigen Historie neu berechnet.
+ */
+export async function aktualisiereBuchung(id: number, data: { menge: number; notiz?: string | null }): Promise<number> {
+  const buchung = await prisma.buchung.findUnique({
+    where:  { id },
+    select: { artikelId: true, typ: true },
+  });
+  if (!buchung) throw new TRPCError({ code: "NOT_FOUND", message: "Buchung nicht gefunden." });
+
+  await prisma.buchung.update({
+    where: { id },
+    data:  { menge: data.menge, notiz: data.notiz ?? null },
+  });
+
+  return syncBestandAusHistorie(buchung.artikelId);
+}
+
+/**
+ * Buchung löschen — Bestand wird danach neu berechnet.
+ */
+export async function loescheBuchung(id: number): Promise<number> {
+  const buchung = await prisma.buchung.findUnique({
+    where:  { id },
+    select: { artikelId: true },
+  });
+  if (!buchung) throw new TRPCError({ code: "NOT_FOUND", message: "Buchung nicht gefunden." });
+
+  await prisma.buchung.delete({ where: { id } });
+  return syncBestandAusHistorie(buchung.artikelId);
+}
+
+/**
  * Buchungshistorie mit Filter und Pagination.
  */
 export async function getBuchungsListe(input: {
