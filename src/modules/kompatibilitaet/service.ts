@@ -112,6 +112,195 @@ export async function removeKompatibilitaet(id: number): Promise<void> {
   await prisma.kompatibilitaet.delete({ where: { id } });
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Modell-Verknüpfung (Admin)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Alle Kompatibilitäts-Einträge für ein GeraeteModell.
+ */
+export async function getByModell(modellId: number) {
+  const modell = await prisma.geraeteModell.findUnique({ where: { id: modellId } });
+  if (!modell) throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden." });
+
+  const geraetVoll = `${modell.hersteller} ${modell.modell}`;
+  const links = await prisma.kompatibilitaet.findMany({
+    where:   { geraet: geraetVoll },
+    include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true } } },
+    orderBy: { teiltyp: "asc" },
+  });
+
+  return { modell, geraetVoll, links };
+}
+
+/**
+ * Alle Daten für das Verknüpfungs-Modal in einem Aufruf:
+ * - Aktuelle Verknüpfungen
+ * - Artikel pro STANDARD_TEIL Kategorie
+ * - Smart-Vorschläge (Artikel mit Modell-Keyword in Bezeichnung)
+ */
+export async function getModalData(modellId: number) {
+  const modell = await prisma.geraeteModell.findUnique({ where: { id: modellId } });
+  if (!modell) throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden." });
+
+  const geraetVoll  = `${modell.hersteller} ${modell.modell}`;
+  const standardTeile = STANDARD_TEILE_ENUM;
+
+  // Aktuelle Verknüpfungen
+  const aktuelleLinks = await prisma.kompatibilitaet.findMany({
+    where: { geraet: geraetVoll },
+    select: { teiltyp: true, artikelId: true, id: true },
+  });
+  const currentMap = new Map(aktuelleLinks.map((l) => [l.teiltyp, l.artikelId]));
+
+  // Artikel pro Kategorie
+  const artikelPerKategorie: Record<string, { id: number; bezeichnung: string; bestand: number }[]> = {};
+  for (const teil of standardTeile) {
+    artikelPerKategorie[teil] = await prisma.artikel.findMany({
+      where:   { kategorie: teil },
+      select:  { id: true, bezeichnung: true, bestand: true },
+      orderBy: { bezeichnung: "asc" },
+    });
+  }
+
+  // Smart-Vorschläge: Keyword aus Modell-Namen
+  const keywords = extractKeywords(modell.modell);
+  const vorschlaege: Record<string, number | null> = {};
+
+  for (const teil of standardTeile) {
+    if (currentMap.has(teil)) { vorschlaege[teil] = null; continue; } // bereits verknüpft
+    let vorschlag: { id: number } | null = null;
+    for (const kw of keywords) {
+      vorschlag = await prisma.artikel.findFirst({
+        where: { AND: [{ bezeichnung: { contains: kw } }, { kategorie: teil }] },
+        select: { id: true },
+      });
+      if (vorschlag) break;
+    }
+    vorschlaege[teil] = vorschlag?.id ?? null;
+  }
+
+  return { modell, geraetVoll, currentMap: Object.fromEntries(currentMap), artikelPerKategorie, vorschlaege };
+}
+
+/**
+ * Alle Verknüpfungen eines Modells ersetzen.
+ * null = kein Artikel für diesen Teiltyp.
+ */
+export async function setVerknuepfung(input: {
+  modellId:       number;
+  verknuepfungen: { teiltyp: string; artikelId: number | null }[];
+}) {
+  const modell = await prisma.geraeteModell.findUnique({ where: { id: input.modellId } });
+  if (!modell) throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden." });
+
+  const geraetVoll = `${modell.hersteller} ${modell.modell}`;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.kompatibilitaet.deleteMany({ where: { geraet: geraetVoll } });
+
+    const toCreate = input.verknuepfungen.filter((v) => v.artikelId !== null);
+    if (toCreate.length > 0) {
+      await tx.kompatibilitaet.createMany({
+        data: toCreate.map((v) => ({ geraet: geraetVoll, teiltyp: v.teiltyp, artikelId: v.artikelId! })),
+        skipDuplicates: true,
+      });
+    }
+  });
+
+  return { geraet: geraetVoll, gespeichert: input.verknuepfungen.filter((v) => v.artikelId).length };
+}
+
+/**
+ * Auto-Verknüpfung: sucht passende Artikel per Keyword-Match.
+ * Überschreibt NUR fehlende Teile (bestehende bleiben erhalten).
+ */
+export async function autoVerknuepfung(modellId: number) {
+  const modell = await prisma.geraeteModell.findUnique({ where: { id: modellId } });
+  if (!modell) throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden." });
+
+  const geraetVoll   = `${modell.hersteller} ${modell.modell}`;
+  const keywords     = extractKeywords(modell.modell);
+  const standardTeile = STANDARD_TEILE_ENUM;
+
+  const existing = await prisma.kompatibilitaet.findMany({
+    where:  { geraet: geraetVoll },
+    select: { teiltyp: true },
+  });
+  const existingSet = new Set(existing.map((e) => e.teiltyp));
+
+  let neu = 0;
+  for (const teil of standardTeile) {
+    if (existingSet.has(teil)) continue;
+
+    let artikel: { id: number } | null = null;
+    for (const kw of keywords) {
+      artikel = await prisma.artikel.findFirst({
+        where: { AND: [{ bezeichnung: { contains: kw } }, { kategorie: teil }] },
+        select: { id: true },
+      });
+      if (artikel) break;
+    }
+
+    if (artikel) {
+      await prisma.kompatibilitaet.upsert({
+        where:  { geraet_teiltyp: { geraet: geraetVoll, teiltyp: teil } },
+        create: { geraet: geraetVoll, teiltyp: teil, artikelId: artikel.id },
+        update: {},
+      });
+      neu++;
+    }
+  }
+
+  return { geraet: geraetVoll, neu };
+}
+
+/**
+ * Massen-Auto-Verknüpfung: alle Modelle ohne Kompatibilität.
+ */
+export async function massAutoVerknuepfung() {
+  const alleModelle = await prisma.geraeteModell.findMany({
+    where: { aktiv: true },
+    select: { id: true, hersteller: true, modell: true },
+  });
+
+  const kompCounts = await prisma.kompatibilitaet.groupBy({
+    by:     ["geraet"],
+    _count: { geraet: true },
+  });
+  const mitKomp = new Set(kompCounts.map((k) => k.geraet));
+
+  let totalNeu = 0;
+  let verarbeitet = 0;
+
+  for (const m of alleModelle) {
+    const gv = `${m.hersteller} ${m.modell}`;
+    if (mitKomp.has(gv)) continue;
+    const { neu } = await autoVerknuepfung(m.id);
+    totalNeu += neu;
+    verarbeitet++;
+  }
+
+  return { verarbeitet, totalNeu };
+}
+
+// Hilfsfunktion: Schlüsselwörter aus Modell-Namen extrahieren
+function extractKeywords(modell: string): string[] {
+  const words = modell.split(" ").filter((w) => w.length >= 2 && !/^(Gen|Inc|Co|Ltd|GmbH)$/i.test(w));
+  const result: string[] = [];
+  // Progressiv kürzer: erst vollständig, dann weniger Wörter
+  for (let i = Math.min(words.length, 3); i >= 1; i--) {
+    result.push(words.slice(0, i).join(" "));
+  }
+  return [...new Set(result)];
+}
+
+const STANDARD_TEILE_ENUM = [
+  "Displaymodul", "Tastatur", "Touchpad", "Füße vorne", "Füße hinten",
+  "D Cover", "USB Board", "Power Button", "Lautsprecher", "Lüfter",
+  "Thermalmodul", "BIOS Batterie", "Akku",
+] as const;
+
 const STANDARD_TEILE_LOOKUP = [
   "Displaymodul", "Tastatur", "Touchpad", "Füße vorne", "Füße hinten",
   "D Cover", "USB Board", "Power Button", "Lautsprecher", "Lüfter",

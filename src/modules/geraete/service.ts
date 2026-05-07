@@ -129,6 +129,69 @@ export async function getAlleModelle(nurAktive = true) {
 }
 
 /**
+ * Alle Gerätemodelle mit Kompatibilitäts-Anzahl — für Admin-Tabelle.
+ */
+export async function getAlleModelleWithKompCount(input?: {
+  search?:      string;
+  hersteller?:  string;
+  ohneKomp?:    boolean;
+  page?:        number;
+  limit?:       number;
+}) {
+  const limit  = input?.limit ?? 50;
+  const page   = input?.page  ?? 1;
+  const offset = (page - 1) * limit;
+
+  const where: Record<string, unknown> = { aktiv: true };
+  if (input?.hersteller) where.hersteller = input.hersteller;
+  if (input?.search) {
+    where.OR = [
+      { hersteller: { contains: input.search } },
+      { modell:     { contains: input.search } },
+    ];
+  }
+
+  const [alleModelle, total, kompCounts] = await Promise.all([
+    prisma.geraeteModell.findMany({
+      where,
+      orderBy: [{ hersteller: "asc" }, { modell: "asc" }],
+      take:    limit,
+      skip:    offset,
+    }),
+    prisma.geraeteModell.count({ where }),
+    prisma.kompatibilitaet.groupBy({ by: ["geraet"], _count: { geraet: true } }),
+  ]);
+
+  const countMap = new Map(kompCounts.map((k) => [k.geraet, k._count.geraet]));
+
+  let modelle = alleModelle.map((m) => ({
+    ...m,
+    geraetVoll: `${m.hersteller} ${m.modell}`,
+    kompAnzahl: countMap.get(`${m.hersteller} ${m.modell}`) ?? 0,
+  }));
+
+  if (input?.ohneKomp) modelle = modelle.filter((m) => m.kompAnzahl === 0);
+
+  // Alle Hersteller für Filter-Dropdown
+  const hersteller = [...new Set(alleModelle.map((m) => m.hersteller))].sort();
+
+  return { modelle, total: input?.ohneKomp ? modelle.length : total, pages: Math.ceil(total / limit), page, hersteller };
+}
+
+/**
+ * Alle einzigartigen Hersteller.
+ */
+export async function getHersteller(): Promise<string[]> {
+  const result = await prisma.geraeteModell.findMany({
+    where:    { aktiv: true },
+    select:   { hersteller: true },
+    distinct: ["hersteller"],
+    orderBy:  { hersteller: "asc" },
+  });
+  return result.map((r) => r.hersteller);
+}
+
+/**
  * Gerätemodell aktivieren / deaktivieren.
  */
 export async function setzeModellAktiv(id: number, aktiv: boolean) {

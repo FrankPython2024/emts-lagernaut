@@ -4,12 +4,29 @@ import {
   legeModellAn,
   legeEinzelteilAn,
   getAlleModelle,
+  getAlleModelleWithKompCount,
+  getHersteller,
   setzeModellAktiv,
 } from "@/modules/geraete/service";
 import { prisma } from "@/core/db/prisma";
 import { TRPCError } from "@trpc/server";
 
 export const geraeteRouter = createTRPCRouter({
+
+  // Alle Gerätemodelle mit Kompatibilitäts-Anzahl — Admin-Tabelle
+  getAllWithKompCount: adminProcedure
+    .input(z.object({
+      search:     z.string().optional(),
+      hersteller: z.string().optional(),
+      ohneKomp:   z.boolean().default(false),
+      page:       z.number().int().min(1).default(1),
+      limit:      z.number().int().min(1).max(100).default(50),
+    }).optional())
+    .query(({ input }) => getAlleModelleWithKompCount(input)),
+
+  // Alle Hersteller für Filter-Dropdown
+  getHersteller: adminProcedure
+    .query(() => getHersteller()),
 
   // Alle Gerätemodelle auflisten
   getAll: protectedProcedure
