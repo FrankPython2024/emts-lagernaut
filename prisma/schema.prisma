@@ -53,6 +53,10 @@ model Buchung {
   notiz       String?
   artikel     Artikel     @relation(fields: [artikelId], references: [id])
   createdAt   DateTime    @default(now())
+
+  @@index([artikelId])
+  @@index([typ])
+  @@index([datum])
 }
 
 enum BuchungsTyp {
@@ -79,6 +83,12 @@ model Anfrage {
   artikel     Artikel       @relation(fields: [artikelId], references: [id])
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+
+  @@index([techniker])
+  @@index([status])
+  @@index([logId])
+  @@index([artikelId])
+  @@index([gruppenNr])
 }
 
 enum AnfrageStatus {

@@ -5,6 +5,7 @@ import { ZodError } from "zod";
 import { authOptions } from "@/core/auth/config";
 import { prisma } from "@/core/db/prisma";
 import type { Session } from "next-auth";
+import type { SessionUser } from "@/core/types";
 
 // Minimaler Kontext — funktioniert mit Fetch Adapter (App Router) und Server Caller
 export type TRPCContext = {
@@ -44,7 +45,7 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
 });
 
 export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if ((ctx.session.user as { rolle?: string }).rolle !== "ADMIN") {
+  if ((ctx.session.user as SessionUser).rolle !== "ADMIN") {
     throw new TRPCError({ code: "FORBIDDEN" });
   }
   return next({ ctx });

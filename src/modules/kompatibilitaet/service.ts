@@ -2,69 +2,76 @@ import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 
 /**
+ * Effiziente Fuzzy-Suche: findet passende Geräte-Strings per DB-Filter,
+ * lädt nur die Artikel für echte Treffer (kein volles Table-Scan in JS).
+ */
+async function findMatchingGeraete(geraetLow: string): Promise<string[]> {
+  // Richtung 1: DB-enthält-Suchanfrage (häufigster Fall)
+  const containsHits = await prisma.kompatibilitaet.findMany({
+    where:    { geraet: { contains: geraetLow } },
+    distinct: ["geraet"],
+    select:   { geraet: true },
+  });
+
+  // Richtung 2: Suchanfrage enthält DB-Eintrag (kürzere DB-Einträge)
+  // Nur Strings laden — kein Join
+  const allGeraeteStrings = await prisma.kompatibilitaet.findMany({
+    distinct: ["geraet"],
+    select:   { geraet: true },
+  });
+  const reverseHits = allGeraeteStrings
+    .filter((g) => geraetLow.includes(g.geraet.toLowerCase()) && !g.geraet.toLowerCase().includes(geraetLow))
+    .map((g) => g.geraet);
+
+  return [...new Set([...containsHits.map((g) => g.geraet), ...reverseHits])];
+}
+
+/**
  * Fuzzy-Suche nach kompatiblem Artikel für Gerät + Teiltyp.
  * Entspricht sucheModellUndBestand() aus code.gs.
- * Case-insensitive, contains-Matching in beide Richtungen.
  */
 export async function sucheKompatibel(geraet: string, teiltyp: string) {
   const geraetLow = geraet.trim().toLowerCase();
   const teilLow   = teiltyp.trim().toLowerCase();
 
-  const alle = await prisma.kompatibilitaet.findMany({
+  const matchingGeraete = await findMatchingGeraete(geraetLow);
+  if (!matchingGeraete.length) return [];
+
+  const treffer = await prisma.kompatibilitaet.findMany({
+    where: {
+      geraet: { in: matchingGeraete },
+      OR: [
+        { teiltyp: { contains: teilLow } },
+      ],
+    },
     include: {
-      artikel: {
-        select: { id: true, bezeichnung: true, kategorie: true, bestand: true },
-      },
+      artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true } },
     },
   });
 
-  // Fuzzy-Match: contains in beide Richtungen (wie in code.gs)
-  const treffer = alle.filter((k) => {
-    const kGeraet = k.geraet.toLowerCase();
-    const kTeil   = k.teiltyp.toLowerCase();
-
-    const geraetMatch = kGeraet.includes(geraetLow) || geraetLow.includes(kGeraet);
-    const teilMatch   = kTeil.includes(teilLow)     || teilLow.includes(kTeil);
-
-    return geraetMatch && teilMatch;
-  });
-
-  return treffer.map((k) => ({
-    id:          k.id,
-    geraet:      k.geraet,
-    teiltyp:     k.teiltyp,
-    artikel:     k.artikel,
-    verfuegbar:  k.artikel.bestand > 0,
-  }));
+  // Zweite Richtung für Teiltyp (in-JS, nur auf gefilterten Ergebnissen)
+  return treffer
+    .filter((k) => {
+      const kTeil = k.teiltyp.toLowerCase();
+      return kTeil.includes(teilLow) || teilLow.includes(kTeil);
+    })
+    .map((k) => ({ id: k.id, geraet: k.geraet, teiltyp: k.teiltyp, artikel: k.artikel, verfuegbar: k.artikel.bestand > 0 }));
 }
 
 /**
  * Alle kompatiblen Teile für ein Gerät — mit aktuellem Bestand.
- * Wird im Kompatibilitäts-Modal des Techniker-Portals verwendet.
  */
 export async function getByGeraet(geraet: string) {
-  const geraetLow = geraet.trim().toLowerCase();
+  const geraetLow      = geraet.trim().toLowerCase();
+  const matchingGeraete = await findMatchingGeraete(geraetLow);
+  if (!matchingGeraete.length) return [];
 
-  const alle = await prisma.kompatibilitaet.findMany({
-    include: {
-      artikel: {
-        select: { id: true, bezeichnung: true, kategorie: true, bestand: true },
-      },
-    },
+  const treffer = await prisma.kompatibilitaet.findMany({
+    where:   { geraet: { in: matchingGeraete } },
+    include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true } } },
   });
 
-  return alle
-    .filter((k) => {
-      const kGeraet = k.geraet.toLowerCase();
-      return kGeraet.includes(geraetLow) || geraetLow.includes(kGeraet);
-    })
-    .map((k) => ({
-      id:         k.id,
-      geraet:     k.geraet,
-      teiltyp:    k.teiltyp,
-      artikel:    k.artikel,
-      verfuegbar: k.artikel.bestand > 0,
-    }));
+  return treffer.map((k) => ({ id: k.id, geraet: k.geraet, teiltyp: k.teiltyp, artikel: k.artikel, verfuegbar: k.artikel.bestand > 0 }));
 }
 
 /**
@@ -153,31 +160,40 @@ export async function getModalData(modellId: number) {
   });
   const currentMap = new Map(aktuelleLinks.map((l) => [l.teiltyp, l.artikelId]));
 
-  // Artikel pro Kategorie
+  // Alle Artikel für STANDARD_TEILE-Kategorien in einem einzigen Query laden
+  const alleArtikel = await prisma.artikel.findMany({
+    where:   { kategorie: { in: [...standardTeile] } },
+    select:  { id: true, bezeichnung: true, bestand: true, kategorie: true },
+    orderBy: { bezeichnung: "asc" },
+  });
+
   const artikelPerKategorie: Record<string, { id: number; bezeichnung: string; bestand: number }[]> = {};
   for (const teil of standardTeile) {
-    artikelPerKategorie[teil] = await prisma.artikel.findMany({
-      where:   { kategorie: teil },
-      select:  { id: true, bezeichnung: true, bestand: true },
-      orderBy: { bezeichnung: "asc" },
-    });
+    artikelPerKategorie[teil] = alleArtikel.filter((a) => a.kategorie === teil);
   }
 
-  // Smart-Vorschläge: Keyword aus Modell-Namen
-  const keywords = extractKeywords(modell.modell);
-  const vorschlaege: Record<string, number | null> = {};
+  // Smart-Vorschläge: Keyword-Suche per IN-Query statt 13×N DB-Calls
+  const keywords   = extractKeywords(modell.modell);
+  const fehlendeTl = standardTeile.filter((t) => !currentMap.has(t));
 
-  for (const teil of standardTeile) {
-    if (currentMap.has(teil)) { vorschlaege[teil] = null; continue; } // bereits verknüpft
-    let vorschlag: { id: number } | null = null;
-    for (const kw of keywords) {
-      vorschlag = await prisma.artikel.findFirst({
-        where: { AND: [{ bezeichnung: { contains: kw } }, { kategorie: teil }] },
-        select: { id: true },
-      });
-      if (vorschlag) break;
+  const vorschlaege: Record<string, number | null> = {};
+  for (const teil of standardTeile) { vorschlaege[teil] = null; }
+
+  if (fehlendeTl.length > 0 && keywords.length > 0) {
+    // Alle Kandidaten für fehlende Teile in einem Query
+    const kandidaten = await prisma.artikel.findMany({
+      where: {
+        kategorie:   { in: fehlendeTl },
+        bezeichnung: { in: keywords.map((kw) => kw) }, // Fallback
+        OR: keywords.map((kw) => ({ bezeichnung: { contains: kw } })),
+      },
+      select: { id: true, kategorie: true, bezeichnung: true },
+    });
+
+    for (const teil of fehlendeTl) {
+      const kandidat = kandidaten.find((k) => k.kategorie === teil);
+      vorschlaege[teil] = kandidat?.id ?? null;
     }
-    vorschlaege[teil] = vorschlag?.id ?? null;
   }
 
   return { modell, geraetVoll, currentMap: Object.fromEntries(currentMap), artikelPerKategorie, vorschlaege };
@@ -229,26 +245,31 @@ export async function autoVerknuepfung(modellId: number) {
   });
   const existingSet = new Set(existing.map((e) => e.teiltyp));
 
+  const fehlendeTl = standardTeile.filter((t) => !existingSet.has(t));
   let neu = 0;
-  for (const teil of standardTeile) {
-    if (existingSet.has(teil)) continue;
 
-    let artikel: { id: number } | null = null;
-    for (const kw of keywords) {
-      artikel = await prisma.artikel.findFirst({
-        where: { AND: [{ bezeichnung: { contains: kw } }, { kategorie: teil }] },
-        select: { id: true },
-      });
-      if (artikel) break;
+  if (fehlendeTl.length > 0 && keywords.length > 0) {
+    // Alle Kandidaten in einer Query laden
+    const kandidaten = await prisma.artikel.findMany({
+      where: {
+        kategorie: { in: fehlendeTl },
+        OR: keywords.map((kw) => ({ bezeichnung: { contains: kw } })),
+      },
+      select: { id: true, kategorie: true },
+    });
+
+    const kandidatenMap = new Map<string, number>();
+    for (const k of kandidaten) {
+      if (!kandidatenMap.has(k.kategorie)) kandidatenMap.set(k.kategorie, k.id);
     }
 
-    if (artikel) {
-      await prisma.kompatibilitaet.upsert({
-        where:  { geraet_teiltyp: { geraet: geraetVoll, teiltyp: teil } },
-        create: { geraet: geraetVoll, teiltyp: teil, artikelId: artikel.id },
-        update: {},
-      });
-      neu++;
+    const toCreate = fehlendeTl
+      .filter((t) => kandidatenMap.has(t))
+      .map((t) => ({ geraet: geraetVoll, teiltyp: t, artikelId: kandidatenMap.get(t)! }));
+
+    if (toCreate.length > 0) {
+      await prisma.kompatibilitaet.createMany({ data: toCreate, skipDuplicates: true });
+      neu = toCreate.length;
     }
   }
 
@@ -329,33 +350,28 @@ export type GeraetMitStandardResult = {
  * Nicht gefunden → alle 13 Standard-Teile mit Bestand 0
  */
 export async function getByGeraetMitStandard(geraet: string): Promise<GeraetMitStandardResult> {
-  const geraetLow = geraet.trim().toLowerCase();
+  const geraetLow       = geraet.trim().toLowerCase();
+  const matchingGeraete = await findMatchingGeraete(geraetLow);
 
-  const alleKomp = await prisma.kompatibilitaet.findMany({
-    include: {
-      artikel: {
-        select: { id: true, bezeichnung: true, kategorie: true, bestand: true },
-      },
-    },
-  });
+  if (matchingGeraete.length > 0) {
+    const treffer = await prisma.kompatibilitaet.findMany({
+      where:   { geraet: { in: matchingGeraete } },
+      include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true } } },
+    });
 
-  const treffer = alleKomp.filter((k) => {
-    const kg = k.geraet.toLowerCase();
-    return kg.includes(geraetLow) || geraetLow.includes(kg);
-  });
-
-  if (treffer.length > 0) {
-    return {
-      kompatibilitaetVorhanden: true,
-      teile: treffer.map((k) => ({
-        teiltyp:     k.teiltyp,
-        artikelId:   k.artikel.id,
-        bezeichnung: k.artikel.bezeichnung,
-        kategorie:   k.artikel.kategorie,
-        bestand:     k.artikel.bestand,
-        verfuegbar:  k.artikel.bestand > 0,
-      })),
-    };
+    if (treffer.length > 0) {
+      return {
+        kompatibilitaetVorhanden: true,
+        teile: treffer.map((k) => ({
+          teiltyp:     k.teiltyp,
+          artikelId:   k.artikel.id,
+          bezeichnung: k.artikel.bezeichnung,
+          kategorie:   k.artikel.kategorie,
+          bestand:     k.artikel.bestand,
+          verfuegbar:  k.artikel.bestand > 0,
+        })),
+      };
+    }
   }
 
   // Keine Kompatibilität → Standard-Teile mit Bestand 0
