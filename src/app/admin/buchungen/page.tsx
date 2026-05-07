@@ -7,8 +7,8 @@ import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { BelegModal } from "@/components/ui/BelegModal";
-import { EinlagerBelegPreview, printEinlagerBeleg, type EinlagerBelegData } from "@/components/ui/EinlagerBeleg";
-import { AuslagerBelegPreview, printAuslagerBeleg, type AuslagerBelegData } from "@/components/ui/AuslagerBeleg";
+import { buildEinlagerBelegHtml, type EinlagerBelegData } from "@/components/ui/EinlagerBeleg";
+import { buildAuslagerBelegHtml, type AuslagerBelegData } from "@/components/ui/AuslagerBeleg";
 import type { SessionUser } from "@/core/types";
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
@@ -426,8 +426,7 @@ export default function BuchungenPage() {
       {belegModal && (
         <BelegModal
           titel="📥 Einlagerbeleg drucken"
-          beleg={<EinlagerBelegPreview data={belegModal} />}
-          onDrucken={() => printEinlagerBeleg(belegModal)}
+          buildHtml={() => buildEinlagerBelegHtml(belegModal)}
           onSchliessen={() => setBelegModal(null)}
         />
       )}
@@ -436,8 +435,7 @@ export default function BuchungenPage() {
       {auslagerBelegModal && (
         <BelegModal
           titel="📤 Auslagerbeleg drucken"
-          beleg={<AuslagerBelegPreview data={auslagerBelegModal} />}
-          onDrucken={() => printAuslagerBeleg(auslagerBelegModal)}
+          buildHtml={() => buildAuslagerBelegHtml(auslagerBelegModal)}
           onSchliessen={() => setAuslagerBelegModal(null)}
         />
       )}

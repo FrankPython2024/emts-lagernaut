@@ -145,28 +145,33 @@ export function EinlagerBelegManager({ data, onReady }: ManagerProps) {
   );
 }
 
-// ── Direkt-Druck (neues Fenster) ──────────────────────────────────────────────
+// ── HTML-Builder (für iframe-Vorschau und Druck) ─────────────────────────────
+// @media screen: label skaliert auf 342×192px für iframe-Vorschau
+// @media print:  label exakt 55×30mm für Thermodrucker
 
-export async function printEinlagerBeleg(data: EinlagerBelegData): Promise<void> {
-  // window.open MUSS synchron (vor await) aufgerufen werden,
-  // sonst blockiert der Popup-Blocker den Aufruf.
-  const w = window.open("", "_blank", "width=400,height=300");
-  if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
-
+export async function buildEinlagerBelegHtml(data: EinlagerBelegData): Promise<string> {
   const qr  = await genQrSvg(`EL:${data.belegNr}`);
   const bez = data.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const lp  = (data.lagerplatz ?? "—").replace(/&/g, "&amp;");
-  const sm  = data.artikelBezeichnung.length > 22 ? "font-size:7.5pt;" : "font-size:9pt;";
+  const sm  = data.artikelBezeichnung.length > 22 ? "7.5pt" : "9pt";
 
-  const css = `
-    @page { size: 55mm 30mm; margin: 0; }
-    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background: #fff;
-           display: flex; align-items: center; justify-content: center; width: 55mm; height: 30mm; }
-    .el   { width: 55mm; height: 30mm; padding: 1.5mm; display: flex; gap: 1.5mm; overflow: hidden; }
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: Arial, Helvetica, sans-serif; }
+    @media screen {
+      body { margin: 0; padding: 0; width: 342px; height: 192px; overflow: hidden; background: #fff;
+             display: flex; align-items: center; justify-content: center; }
+      .wrap { transform: scale(1.64); transform-origin: center; display: inline-block; flex-shrink: 0; }
+    }
+    @media print {
+      @page { size: 55mm 30mm; margin: 0; }
+      body { margin: 0; padding: 0; width: 55mm; height: 30mm; overflow: hidden; background: #fff;
+             display: flex; align-items: center; justify-content: center; }
+      .wrap { transform: none; display: inline-block; }
+    }
+    .el   { width: 55mm; height: 30mm; padding: 1.5mm; display: flex; gap: 1.5mm; overflow: hidden; background: #fff; color: #000; }
     .left { flex: 1; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
     .typ  { font-size: 7pt; font-weight: bold; letter-spacing: .5px; }
-    .bez  { ${sm} font-weight: bold; line-height: 1.2; word-break: break-word; overflow: hidden;
+    .bez  { font-size: ${sm}; font-weight: bold; line-height: 1.2; word-break: break-word; overflow: hidden;
             display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .row3 { display: flex; justify-content: space-between; align-items: center; font-size: 7pt; gap: 1mm; }
     .lp   { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -175,19 +180,8 @@ export async function printEinlagerBeleg(data: EinlagerBelegData): Promise<void>
     .right { width: 16mm; display: flex; flex-direction: column; align-items: center; justify-content: space-between; flex-shrink: 0; }
     .emts { font-size: 6pt; font-weight: bold; letter-spacing: 2px; }
     .qr   { width: 14mm; height: 14mm; }
-  `;
-
-  // Print-Trigger via window.onload (verlässlicher als setTimeout)
-  const printScript = `<script>
-    (function(){
-      function p(){window.focus();window.print();}
-      if(document.readyState==='complete'){p();}
-      else{window.addEventListener('load',p);}
-    })();
-  </script>`;
-
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>
-    <div class="el">
+  </style></head><body>
+    <div class="wrap"><div class="el">
       <div class="left">
         <div class="typ">EINLAGERUNG</div>
         <div class="bez">${bez}</div>
@@ -195,12 +189,21 @@ export async function printEinlagerBeleg(data: EinlagerBelegData): Promise<void>
         <div class="bnr">${data.belegNr}</div>
       </div>
       <div class="right"><div class="emts">EMTS</div><img class="qr" src="${qr}" alt="" /></div>
-    </div>
-    ${printScript}
+    </div></div>
   </body></html>`;
+}
+
+// ── Direkt-Druck (neues Fenster — window.open VOR await!) ─────────────────────
+
+export async function printEinlagerBeleg(data: EinlagerBelegData): Promise<void> {
+  const w = window.open("", "_blank", "width=400,height=300");
+  if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
+
+  const html = await buildEinlagerBelegHtml(data);
+  const ps   = `<script>(function(){function p(){window.focus();window.print();}document.readyState==='complete'?p():window.addEventListener('load',p);})();</script>`;
 
   w.document.open();
-  w.document.write(html);
+  w.document.write(html.replace("</body>", ps + "</body>"));
   w.document.close();
 }
 

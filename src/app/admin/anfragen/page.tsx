@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { BelegModal, MehrBelegModal } from "@/components/ui/BelegModal";
 import {
-  AuslagerBelegPreview,
+  buildAuslagerBelegHtml,
   printAuslagerBeleg,
   printMehrereAuslagerBelege,
   type AuslagerBelegData,
@@ -420,8 +420,7 @@ export default function AnfragenPage() {
       {belegModal && (
         <BelegModal
           titel="📤 Auslagerbeleg drucken"
-          beleg={<AuslagerBelegPreview data={belegModal} />}
-          onDrucken={() => printAuslagerBeleg(belegModal)}
+          buildHtml={() => buildAuslagerBelegHtml(belegModal)}
           onSchliessen={() => setBelegModal(null)}
         />
       )}

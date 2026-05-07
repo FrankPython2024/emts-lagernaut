@@ -151,49 +151,43 @@ export function AuslagerBelegManager({ data, onReady }: ManagerProps) {
   );
 }
 
-// ── Direkt-Druck einzeln (neues Fenster) ─────────────────────────────────────
+// ── HTML-Builder (für iframe-Vorschau und Druck) ─────────────────────────────
 
-const PRINT_SCRIPT = `<script>
-  (function(){
-    function p(){window.focus();window.print();}
-    if(document.readyState==='complete'){p();}
-    else{window.addEventListener('load',p);}
-  })();
-</script>`;
-
-export async function printAuslagerBeleg(data: AuslagerBelegData): Promise<void> {
-  // window.open MUSS synchron (vor await) aufgerufen werden
-  const w = window.open("", "_blank", "width=400,height=300");
-  if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
-
+export async function buildAuslagerBelegHtml(data: AuslagerBelegData): Promise<string> {
   const qr      = await genQrSvg(`AL:${data.belegNr}`);
   const grading = data.grading ?? "A+";
   const bez  = data.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const tech = data.techniker.replace(/&/g, "&amp;");
   const log  = data.logId.replace(/&/g, "&amp;");
-  const sm   = data.artikelBezeichnung.length > 22 ? "font-size:7.5pt;" : "font-size:9pt;";
+  const sm   = data.artikelBezeichnung.length > 22 ? "7.5pt" : "9pt";
 
-  const css = `
-    @page { size: 55mm 30mm; margin: 0; }
-    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background: #fff;
-           display: flex; align-items: center; justify-content: center; width: 55mm; height: 30mm; }
-    .al   { width: 55mm; height: 30mm; padding: 1.5mm; display: flex; gap: 1.5mm; overflow: hidden; }
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: Arial, Helvetica, sans-serif; }
+    @media screen {
+      body { margin: 0; padding: 0; width: 342px; height: 192px; overflow: hidden; background: #fff;
+             display: flex; align-items: center; justify-content: center; }
+      .wrap { transform: scale(1.64); transform-origin: center; display: inline-block; flex-shrink: 0; }
+    }
+    @media print {
+      @page { size: 55mm 30mm; margin: 0; }
+      body { margin: 0; padding: 0; width: 55mm; height: 30mm; overflow: hidden; background: #fff;
+             display: flex; align-items: center; justify-content: center; }
+      .wrap { transform: none; display: inline-block; }
+    }
+    .al   { width: 55mm; height: 30mm; padding: 1.5mm; display: flex; gap: 1.5mm; overflow: hidden; background: #fff; color: #000; }
     .left { flex: 1; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
     .z1   { display: flex; justify-content: space-between; align-items: baseline; gap: 1mm; }
     .typ  { font-size: 7pt; font-weight: bold; letter-spacing: .5px; }
     .grd  { font-size: 6pt; color: #444; white-space: nowrap; flex-shrink: 0; }
-    .bez  { ${sm} font-weight: bold; line-height: 1.2; word-break: break-word; overflow: hidden;
+    .bez  { font-size: ${sm}; font-weight: bold; line-height: 1.2; word-break: break-word; overflow: hidden;
             display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .z3   { font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .bnr  { font-size: 6pt; color: #666; }
     .right { width: 16mm; display: flex; flex-direction: column; align-items: center; justify-content: space-between; flex-shrink: 0; }
     .emts { font-size: 6pt; font-weight: bold; letter-spacing: 2px; }
     .qr   { width: 14mm; height: 14mm; }
-  `;
-
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>
-    <div class="al">
+  </style></head><body>
+    <div class="wrap"><div class="al">
       <div class="left">
         <div class="z1"><span class="typ">AUSLAGERUNG</span><span class="grd">${grading}</span></div>
         <div class="bez">${bez}</div>
@@ -201,12 +195,21 @@ export async function printAuslagerBeleg(data: AuslagerBelegData): Promise<void>
         <div class="bnr">${data.belegNr}</div>
       </div>
       <div class="right"><div class="emts">EMTS</div><img class="qr" src="${qr}" alt="" /></div>
-    </div>
-    ${PRINT_SCRIPT}
+    </div></div>
   </body></html>`;
+}
 
+// ── Direkt-Druck einzeln (neues Fenster — window.open VOR await!) ─────────────
+
+const PRINT_SCRIPT = `<script>(function(){function p(){window.focus();window.print();}document.readyState==='complete'?p():window.addEventListener('load',p);})();</script>`;
+
+export async function printAuslagerBeleg(data: AuslagerBelegData): Promise<void> {
+  const w = window.open("", "_blank", "width=400,height=300");
+  if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
+
+  const html = await buildAuslagerBelegHtml(data);
   w.document.open();
-  w.document.write(html);
+  w.document.write(html.replace("</body>", PRINT_SCRIPT + "</body>"));
   w.document.close();
 }
 
