@@ -35,11 +35,22 @@ export default function GeraeteLookupPage() {
   const searchValue = formatLogId(debouncedRaw);
   const isReady     = searchValue.replace(/\D/g, "").length >= 6;
 
-  const stats = api.geraeteLookup.getStats.useQuery();
-  const query = api.geraeteLookup.byLogId.useQuery(
+  const stats    = api.geraeteLookup.getStats.useQuery();
+  const query    = api.geraeteLookup.byLogId.useQuery(
     { logId: searchValue },
     { enabled: isReady },
   );
+
+  // Ersatzteile laden wenn Gerät gefunden
+  const geraetName   = query.data?.gefunden ? query.data.bereinigt : "";
+  const teileQuery   = api.kompatibilitaet.getByGeraetMitStandard.useQuery(
+    { geraet: geraetName },
+    { enabled: !!geraetName },
+  );
+
+  const legeModellAn = api.geraete.legeModellAn.useMutation({
+    onSuccess: () => teileQuery.refetch(),
+  });
 
   // localStorage nach Hydration laden
   useEffect(() => { setHistory(loadHistory()); }, []);
@@ -147,6 +158,81 @@ export default function GeraeteLookupPage() {
                 </p>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Ersatzteile-Tabelle — zeigt immer wenn Gerät gefunden */}
+      {result?.gefunden && (
+        <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
+          {/* Banner wenn keine echte Kompatibilität */}
+          {teileQuery.data && !teileQuery.data.kompatibilitaetVorhanden && (
+            <div className="flex items-center justify-between gap-3 px-5 py-3 bg-[#f7b928]/10 border-b border-[#f7b928]/30 flex-wrap gap-y-2">
+              <div className="flex items-center gap-2">
+                <span>⚠️</span>
+                <span className="text-sm font-bold text-[#f7b928]">
+                  Keine Kompatibilität hinterlegt — Standard-Ersatzteile werden angezeigt
+                </span>
+              </div>
+              <button
+                disabled={legeModellAn.isPending}
+                onClick={() => {
+                  const parts      = (result as { bereinigt: string }).bereinigt.split(" ");
+                  const hersteller = parts[0] ?? "";
+                  const modell     = parts.slice(1).join(" ");
+                  if (hersteller && modell) legeModellAn.mutate({ hersteller, modell });
+                }}
+                className="px-3 py-1.5 text-xs font-bold bg-[#f7b928] text-black rounded-lg hover:bg-yellow-500 disabled:opacity-50"
+              >
+                {legeModellAn.isPending ? "..." : "Kompatibilität jetzt anlegen"}
+              </button>
+            </div>
+          )}
+
+          <div className="p-4 pb-2 flex items-center justify-between">
+            <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Ersatzteile</h2>
+            {teileQuery.data?.kompatibilitaetVorhanden && (
+              <span className="text-xs text-[#00a400] font-bold">✓ Kompatibilität hinterlegt</span>
+            )}
+          </div>
+
+          {teileQuery.isLoading && (
+            <div className="flex justify-center py-8">
+              <div className="w-6 h-6 border-2 border-[#0064d2]/20 border-t-[#0064d2] rounded-full animate-spin" />
+            </div>
+          )}
+
+          {teileQuery.data && (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-[#f0f2f5] dark:bg-[#18191a] text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8]">
+                  <th className="px-4 py-2 text-left">Teil</th>
+                  <th className="px-4 py-2 text-left">Bezeichnung</th>
+                  <th className="px-4 py-2 text-center">Bestand</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teileQuery.data.teile.map((t, i) => {
+                  const bestandColor =
+                    t.bestand > 3 ? "text-[#00a400]" :
+                    t.bestand > 0 ? "text-[#f7b928]" :
+                    "text-[#fa3e3e]";
+                  const bestandLabel =
+                    t.bestand > 3 ? `✅ ${t.bestand}` :
+                    t.bestand > 0 ? `⚠️ ${t.bestand}` :
+                    "❌ 0";
+                  return (
+                    <tr key={i} className="border-t border-[#ced4da] dark:border-[#3e4042] hover:bg-[#f0f2f5] dark:hover:bg-[#18191a]">
+                      <td className="px-4 py-2.5 font-medium text-[#1a1a1a] dark:text-[#e4e6eb]">{t.teiltyp}</td>
+                      <td className="px-4 py-2.5 text-[#65676b] dark:text-[#b0b3b8] text-xs">
+                        {t.bezeichnung ?? <span className="italic">Noch nicht hinterlegt</span>}
+                      </td>
+                      <td className={`px-4 py-2.5 text-center font-black ${bestandColor}`}>{bestandLabel}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </div>
       )}

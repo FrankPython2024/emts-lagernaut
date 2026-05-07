@@ -6,6 +6,7 @@ import {
   getKompatibileGeraete,
   addKompatibilitaet,
   removeKompatibilitaet,
+  getByGeraetMitStandard,
 } from "@/modules/kompatibilitaet/service";
 import { prisma } from "@/core/db/prisma";
 
@@ -60,6 +61,13 @@ export const kompatibilitaetRouter = createTRPCRouter({
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input }) =>
       removeKompatibilitaet(input.id),
+    ),
+
+  // Teile für Gerät — mit Standard-Fallback (LogID-Suche + Techniker-Portal)
+  getByGeraetMitStandard: protectedProcedure
+    .input(z.object({ geraet: z.string().min(1) }))
+    .query(({ input }) =>
+      getByGeraetMitStandard(input.geraet),
     ),
 
 });

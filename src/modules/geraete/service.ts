@@ -20,7 +20,7 @@ const STANDARD_TEILE = [
 
 export type ModellAnlegenResult = {
   modell:        { id: number; hersteller: string; modell: string };
-  angelegtTeile: { artikelId: number; bezeichnung: string; teiltyp: string }[];
+  angelegtTeile: { artikelId: number; bezeichnung: string; teiltyp: string; neu: boolean }[];
 };
 
 /**
@@ -40,22 +40,12 @@ export async function legeModellAn(
   const modellClean     = modell.trim();
   const geraetVoll      = `${herstellerClean} ${modellClean}`;
 
-  // Prüfen ob Modell bereits existiert
-  const bestehendes = await prisma.geraeteModell.findUnique({
-    where: { hersteller_modell: { hersteller: herstellerClean, modell: modellClean } },
-  });
-
-  if (bestehendes) {
-    throw new TRPCError({
-      code:    "CONFLICT",
-      message: `Modell '${geraetVoll}' existiert bereits (ID: ${bestehendes.id}).`,
-    });
-  }
-
   const result = await prisma.$transaction(async (tx) => {
-    // Gerätemodell anlegen
-    const neuesModell = await tx.geraeteModell.create({
-      data: { hersteller: herstellerClean, modell: modellClean },
+    // Gerätemodell anlegen oder finden
+    const neuesModell = await tx.geraeteModell.upsert({
+      where:  { hersteller_modell: { hersteller: herstellerClean, modell: modellClean } },
+      create: { hersteller: herstellerClean, modell: modellClean },
+      update: {},
     });
 
     const angelegtTeile: ModellAnlegenResult["angelegtTeile"] = [];
@@ -63,24 +53,24 @@ export async function legeModellAn(
     for (const teil of STANDARD_TEILE) {
       const bezeichnung = `${modellClean} ${teil}`;
 
-      // Artikel anlegen
-      const artikel = await tx.artikel.create({
-        data: {
-          bezeichnung,
-          kategorie:  teil,
-          lagerplatz: null,
-          bestand:    0,
-        },
+      // Artikel per upsert — kein Fehler wenn bereits vorhanden
+      const vorher = await tx.artikel.findUnique({
+        where: { bezeichnung_kategorie: { bezeichnung, kategorie: teil } },
+        select: { id: true },
       });
 
-      // Kompatibilitätseintrag anlegen (unique: geraet + teiltyp)
+      const artikel = vorher ?? await tx.artikel.create({
+        data: { bezeichnung, kategorie: teil, lagerplatz: null, bestand: 0 },
+      });
+
+      // Kompatibilitätseintrag upsert
       await tx.kompatibilitaet.upsert({
         where:  { geraet_teiltyp: { geraet: geraetVoll, teiltyp: teil } },
         create: { geraet: geraetVoll, teiltyp: teil, artikelId: artikel.id },
         update: {},
       });
 
-      angelegtTeile.push({ artikelId: artikel.id, bezeichnung, teiltyp: teil });
+      angelegtTeile.push({ artikelId: artikel.id, bezeichnung, teiltyp: teil, neu: !vorher });
     }
 
     return { modell: neuesModell, angelegtTeile };

@@ -111,3 +111,74 @@ export async function removeKompatibilitaet(id: number): Promise<void> {
   }
   await prisma.kompatibilitaet.delete({ where: { id } });
 }
+
+const STANDARD_TEILE_LOOKUP = [
+  "Displaymodul", "Tastatur", "Touchpad", "Füße vorne", "Füße hinten",
+  "D Cover", "USB Board", "Power Button", "Lautsprecher", "Lüfter",
+  "Thermalmodul", "BIOS Batterie", "Akku",
+] as const;
+
+export type TeilMitBestand = {
+  teiltyp:   string;
+  artikelId: number | null;
+  bezeichnung: string | null;
+  kategorie:   string;
+  bestand:   number;
+  verfuegbar: boolean;
+};
+
+export type GeraetMitStandardResult = {
+  kompatibilitaetVorhanden: boolean;
+  teile: TeilMitBestand[];
+};
+
+/**
+ * Kompatible Teile für ein Gerät — mit Fallback auf Standard-Teile.
+ * Wird in LogID-Suche und Techniker-Portal verwendet.
+ *
+ * Gefunden → echte Kompatibilitäts-Einträge mit Bestand
+ * Nicht gefunden → alle 13 Standard-Teile mit Bestand 0
+ */
+export async function getByGeraetMitStandard(geraet: string): Promise<GeraetMitStandardResult> {
+  const geraetLow = geraet.trim().toLowerCase();
+
+  const alleKomp = await prisma.kompatibilitaet.findMany({
+    include: {
+      artikel: {
+        select: { id: true, bezeichnung: true, kategorie: true, bestand: true },
+      },
+    },
+  });
+
+  const treffer = alleKomp.filter((k) => {
+    const kg = k.geraet.toLowerCase();
+    return kg.includes(geraetLow) || geraetLow.includes(kg);
+  });
+
+  if (treffer.length > 0) {
+    return {
+      kompatibilitaetVorhanden: true,
+      teile: treffer.map((k) => ({
+        teiltyp:     k.teiltyp,
+        artikelId:   k.artikel.id,
+        bezeichnung: k.artikel.bezeichnung,
+        kategorie:   k.artikel.kategorie,
+        bestand:     k.artikel.bestand,
+        verfuegbar:  k.artikel.bestand > 0,
+      })),
+    };
+  }
+
+  // Keine Kompatibilität → Standard-Teile mit Bestand 0
+  return {
+    kompatibilitaetVorhanden: false,
+    teile: STANDARD_TEILE_LOOKUP.map((teil) => ({
+      teiltyp:     teil,
+      artikelId:   null,
+      bezeichnung: null,
+      kategorie:   teil,
+      bestand:     0,
+      verfuegbar:  false,
+    })),
+  };
+}
