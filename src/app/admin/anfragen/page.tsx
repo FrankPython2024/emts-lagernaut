@@ -21,12 +21,15 @@ function todayStr() { return new Date().toISOString().slice(0, 10); }
 
 function druckeA4(
   anfragen: (Anfrage & { artikel?: { bezeichnung: string } })[],
-  datum: string, status: string, tech: string,
+  datum: string, statusFilter: string, tech: string,
 ) {
   const datumDE = new Date(datum + "T12:00:00").toLocaleDateString("de-DE", {
     day: "2-digit", month: "2-digit", year: "numeric",
   });
-  const filterInfo = [status ? `Status: ${status}` : "Status: Alle", tech ? `Techniker: ${tech}` : ""].filter(Boolean).join(" · ");
+  const filterInfo = [
+    statusFilter ? `Status: ${statusFilter}` : "Status: Alle",
+    tech ? `Techniker: ${tech}` : "",
+  ].filter(Boolean).join(" · ");
   const statusColor: Record<AnfrageStatus, string> = {
     NEU: "#0064d2", BEDARF: "#f7b928", ABGESCHLOSSEN: "#00a400", STORNIERT: "#888",
   };
@@ -34,12 +37,12 @@ function druckeA4(
     const col = statusColor[a.status] ?? "#333";
     const bez = (a.artikel?.bezeichnung ?? a.teil).replace(/&/g, "&amp;").replace(/</g, "&lt;");
     return `<tr>
-      <td>${a.logId.replace(/</g,"&lt;")}</td>
-      <td>${a.techniker.replace(/</g,"&lt;")}</td>
+      <td>${a.logId.replace(/</g, "&lt;")}</td>
+      <td>${a.techniker.replace(/</g, "&lt;")}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${bez}</td>
       <td>${a.grading ?? "—"}</td>
       <td><span style="color:${col};font-weight:bold">${a.status}</span></td>
-      <td>${new Date(a.datum ?? a.createdAt).toLocaleDateString("de-DE",{hour:"2-digit",minute:"2-digit"})}</td>
+      <td>${new Date(a.datum ?? a.createdAt).toLocaleDateString("de-DE", { hour: "2-digit", minute: "2-digit" })}</td>
     </tr>`;
   }).join("");
   const css = `
@@ -69,21 +72,21 @@ function druckeA4(
 // ── Tagesübersicht Modal ──────────────────────────────────────────────────────
 
 function TagesuebersichtModal({ onClose }: { onClose: () => void }) {
-  const [datum,  setDatum]  = useState(todayStr());
-  const [status, setStatus] = useState<"" | "offen" | "erledigt">("");
-  const [tech,   setTech]   = useState("");
+  const [datum,     setDatum]     = useState(todayStr());
+  const [sfStatus,  setSfStatus]  = useState<"" | "offen" | "erledigt">("");
+  const [sfTech,    setSfTech]    = useState("");
 
   const { data, isLoading } = api.anfragen.getAll.useQuery({
     von: new Date(datum + "T00:00:00"),
     bis: new Date(datum + "T23:59:59"),
-    ...(tech ? { techniker: tech } : {}),
+    ...(sfTech ? { techniker: sfTech } : {}),
     limit: 500, offset: 0,
   });
 
-  const anfragen = (data?.anfragen ?? []) as (Anfrage & { artikel?: { bezeichnung: string } })[];
-  const gefiltert = status === "offen"
+  const anfragen  = (data?.anfragen ?? []) as (Anfrage & { artikel?: { bezeichnung: string } })[];
+  const gefiltert = sfStatus === "offen"
     ? anfragen.filter((a) => a.status === AnfrageStatus.NEU || a.status === AnfrageStatus.BEDARF)
-    : status === "erledigt"
+    : sfStatus === "erledigt"
     ? anfragen.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN)
     : anfragen;
 
@@ -99,12 +102,12 @@ function TagesuebersichtModal({ onClose }: { onClose: () => void }) {
             <div>
               <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase tracking-wider">Datum</label>
               <input type="date" value={datum} onChange={(e) => setDatum(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm outline-none focus:border-[#0064d2]" />
+                className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-sm outline-none focus:border-[#0064d2]" />
             </div>
             <div>
               <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase tracking-wider">Status</label>
-              <select value={status} onChange={(e) => setStatus(e.target.value as "" | "offen" | "erledigt")}
-                className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm outline-none focus:border-[#0064d2]">
+              <select value={sfStatus} onChange={(e) => setSfStatus(e.target.value as "" | "offen" | "erledigt")}
+                className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-sm outline-none focus:border-[#0064d2]">
                 <option value="">Alle</option>
                 <option value="offen">Offen (NEU + BEDARF)</option>
                 <option value="erledigt">Erledigt</option>
@@ -112,8 +115,8 @@ function TagesuebersichtModal({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase tracking-wider">Techniker</label>
-              <input placeholder="z.B. FS" value={tech} onChange={(e) => setTech(e.target.value.toUpperCase())}
-                className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm outline-none focus:border-[#0064d2]" />
+              <input placeholder="z.B. FS" value={sfTech} onChange={(e) => setSfTech(e.target.value.toUpperCase())}
+                className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-sm outline-none focus:border-[#0064d2]" />
             </div>
           </div>
           <div className="py-3 px-4 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
@@ -121,8 +124,8 @@ function TagesuebersichtModal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#ced4da] dark:border-[#3e4042]">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] transition-colors">Abbrechen</button>
-          <button onClick={() => druckeA4(gefiltert, datum, status, tech)} disabled={isLoading || gefiltert.length === 0}
+          <button onClick={onClose} className="px-4 py-2 text-sm text-[#65676b] hover:text-[#fa3e3e] transition-colors">Abbrechen</button>
+          <button onClick={() => druckeA4(gefiltert, datum, sfStatus, sfTech)} disabled={isLoading || gefiltert.length === 0}
             className="flex items-center gap-2 px-5 py-2 bg-[#0064d2] text-white text-sm font-bold rounded-lg hover:bg-[#0056b3] disabled:opacity-50 transition-colors">
             🖨️ A4 Drucken
           </button>
@@ -132,23 +135,44 @@ function TagesuebersichtModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ── Haupt-Seite ───────────────────────────────────────────────────────────────
+// ── Hilfsfunktion: Beleg-Daten aus setStatus-Ergebnis aufbauen ────────────────
 
-type AbschliessenResult = {
-  belegNr:     string;
-  artikel:     { bezeichnung: string; lagerplatz: string | null; kategorie: string };
+type SetStatusResult = {
+  belegNr:     string | null;
+  restBestand: number | null;
+  artikel:     { bezeichnung: string; lagerplatz: string | null; kategorie: string } | null;
   grading:     string | null;
   techniker:   string;
   logId:       string;
-  geraeteName: string | null | undefined;
-  restBestand: number;
-  kommentar:   string | null | undefined;
+  geraeteName: string | null;
+  kommentar:   string | null;
 };
+
+function belegAusResult(r: SetStatusResult, ersteller: string): AuslagerBelegData | null {
+  if (!r.belegNr || !r.artikel) return null;
+  return {
+    belegNr:            r.belegNr,
+    artikelBezeichnung: r.artikel.bezeichnung,
+    lagerplatz:         r.artikel.lagerplatz,
+    kategorie:          r.artikel.kategorie,
+    grading:            r.grading,
+    techniker:          r.techniker,
+    logId:              r.logId,
+    geraeteName:        r.geraeteName ?? undefined,
+    restBestand:        r.restBestand ?? 0,
+    kommentar:          r.kommentar ?? undefined,
+    ersteller,
+    datum: new Date(),
+  };
+}
+
+// ── Haupt-Seite ───────────────────────────────────────────────────────────────
 
 export default function AnfragenPage() {
   const { show } = useToast();
   const { data: session } = useSession();
   const user = session?.user as SessionUser | undefined;
+  const ersteller = user?.kuerzel ?? "ADMIN";
 
   const [statusFilter, setStatusFilter] = useState<AnfrageStatus | "">("");
   const [techFilter,   setTechFilter]   = useState("");
@@ -158,66 +182,64 @@ export default function AnfragenPage() {
   const [belegModal,    setBelegModal]    = useState<AuslagerBelegData | null>(null);
   const [gruppenBelege, setGruppenBelege] = useState<AuslagerBelegData[] | null>(null);
 
+  // Welche Anfrage wird gerade einzeln erledigt (für disabled state)
+  const [erledigend, setErledigend] = useState<number | null>(null);
+
   const { data, isLoading, error, refetch } = api.anfragen.getGruppiert.useQuery({
     ...(statusFilter ? { status: statusFilter as AnfrageStatus } : {}),
     ...(techFilter   ? { techniker: techFilter } : {}),
   });
 
-  const abschliessen = api.anfragen.abschliessen.useMutation({
+  // setStatus: onSuccess nur für STORNIERT (Toast + Refetch)
+  // Für ABGESCHLOSSEN: inline per mutateAsync (siehe handleErledigen)
+  const setStatus = api.anfragen.setStatus.useMutation({
     onSuccess: (r) => {
-      if (r) {
-        setBelegModal({
-          belegNr:            r.belegNr,
-          artikelBezeichnung: r.artikel.bezeichnung,
-          lagerplatz:         r.artikel.lagerplatz,
-          kategorie:          r.artikel.kategorie,
-          grading:            r.grading,
-          techniker:          r.techniker,
-          logId:              r.logId,
-          geraeteName:        r.geraeteName ?? undefined,
-          restBestand:        r.restBestand,
-          kommentar:          r.kommentar ?? undefined,
-          ersteller:          user?.kuerzel ?? "ADMIN",
-          datum:              new Date(),
-        });
-      }
+      if (r.status === AnfrageStatus.STORNIERT) show("Anfrage storniert", "info");
       refetch();
     },
     onError: (e) => show(e.message, "error"),
   });
 
-  const setStatus = api.anfragen.setStatus.useMutation({
-    onSuccess: () => { show("Status aktualisiert", "success"); refetch(); },
-    onError:   (e) => show(e.message, "error"),
-  });
+  // ── Einzelne Anfrage erledigen ──────────────────────────────────────────────
+  async function handleErledigen(anfrageId: number) {
+    if (erledigend !== null) return;
+    setErledigend(anfrageId);
+    try {
+      const r = await setStatus.mutateAsync({
+        id:     anfrageId,
+        status: AnfrageStatus.ABGESCHLOSSEN,
+      });
+      show("✅ Anfrage erledigt", "success");
+      const beleg = belegAusResult(r as SetStatusResult, ersteller);
+      if (beleg) setBelegModal(beleg);
+    } catch {
+      // Fehler wird in onError angezeigt
+    } finally {
+      setErledigend(null);
+    }
+  }
 
-  async function alleAbschliessen(anfragen: Anfrage[]) {
+  // ── Alle Anfragen einer Gruppe erledigen ───────────────────────────────────
+  async function alleErledigen(anfragen: Anfrage[]) {
     const offen = anfragen.filter(
       (a) => a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT,
     );
     if (!offen.length) { show("Alle Anfragen bereits erledigt", "info"); return; }
     try {
-      const results = await Promise.all(offen.map((a) => abschliessen.mutateAsync({ id: a.id })));
-      const belegeData: AuslagerBelegData[] = results
-        .filter(Boolean)
-        .map((r) => ({
-          belegNr:            r!.belegNr,
-          artikelBezeichnung: r!.artikel.bezeichnung,
-          lagerplatz:         r!.artikel.lagerplatz,
-          kategorie:          r!.artikel.kategorie,
-          grading:            r!.grading,
-          techniker:          r!.techniker,
-          logId:              r!.logId,
-          geraeteName:        r!.geraeteName ?? undefined,
-          restBestand:        r!.restBestand,
-          kommentar:          r!.kommentar ?? undefined,
-          ersteller:          user?.kuerzel ?? "ADMIN",
-          datum:              new Date(),
-        }));
+      const results = await Promise.all(
+        offen.map((a) => setStatus.mutateAsync({ id: a.id, status: AnfrageStatus.ABGESCHLOSSEN })),
+      );
       show(`✅ ${offen.length} Anfrage(n) erledigt`, "success");
-      setBelegModal(null);
-      if (belegeData.length > 1) setGruppenBelege(belegeData);
-      else if (belegeData.length === 1) setBelegModal(belegeData[0]);
+
+      const belegeData = results
+        .map((r) => belegAusResult(r as SetStatusResult, ersteller))
+        .filter((b): b is AuslagerBelegData => b !== null);
+
+      if (belegeData.length > 1) {
+        setGruppenBelege(belegeData);
+      } else if (belegeData.length === 1) {
+        setBelegModal(belegeData[0]);
+      }
       refetch();
     } catch {
       show("Fehler beim Erledigen einiger Anfragen", "error");
@@ -230,6 +252,8 @@ export default function AnfragenPage() {
       Fehler: {error.message}
     </div>
   );
+
+  const isBusy = setStatus.isPending || erledigend !== null;
 
   return (
     <div className="space-y-5">
@@ -264,6 +288,7 @@ export default function AnfragenPage() {
       <div className="space-y-4">
         {data?.map((gruppe, gi) => (
           <div key={gi} className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
+            {/* Gruppen-Header */}
             <div className="flex items-center justify-between gap-3 px-5 py-4 bg-[#f0f2f5] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042] flex-wrap gap-y-2">
               <div className="flex items-center gap-4 flex-wrap">
                 <div>
@@ -283,25 +308,30 @@ export default function AnfragenPage() {
                 )}
               </div>
               <button
-                onClick={() => alleAbschliessen(gruppe.anfragen)}
-                disabled={abschliessen.isPending}
+                onClick={() => alleErledigen(gruppe.anfragen)}
+                disabled={isBusy}
                 className="px-3 py-1.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors"
               >
-                {abschliessen.isPending ? "…" : "✅ Alle erledigen"}
+                {isBusy ? "…" : "✅ Alle erledigen"}
               </button>
             </div>
 
+            {/* Anfragen-Items */}
             <div className="divide-y divide-[#ced4da] dark:divide-[#3e4042]">
               {gruppe.anfragen.map((a) => (
                 <div key={a.id} className="flex items-center gap-4 px-5 py-3 flex-wrap gap-y-1">
                   <div className="flex-1 min-w-0">
                     <span className="font-semibold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">{a.teil}</span>
-                    {a.grading && <span className="ml-2 text-xs text-[#65676b] dark:text-[#b0b3b8]">{a.grading}</span>}
-                    {a.kommentar && <span className="ml-2 text-xs text-[#0064d2] dark:text-[#45bdff]">⌨️ {a.kommentar}</span>}
+                    {a.grading && (
+                      <span className="ml-2 text-xs text-[#65676b] dark:text-[#b0b3b8]">{a.grading}</span>
+                    )}
+                    {a.kommentar && (
+                      <span className="ml-2 text-xs text-[#0064d2] dark:text-[#45bdff]">⌨️ {a.kommentar}</span>
+                    )}
                   </div>
                   <StatusBadge status={a.status} />
                   <div className="flex gap-1">
-                    {/* Auslagerbeleg erneut drucken bei ABGESCHLOSSEN */}
+                    {/* 🖨️ Beleg erneut drucken bei ABGESCHLOSSEN */}
                     {a.status === AnfrageStatus.ABGESCHLOSSEN && (
                       <button
                         onClick={() => printAuslagerBeleg({
@@ -313,7 +343,7 @@ export default function AnfragenPage() {
                           techniker:          a.techniker,
                           logId:              a.logId,
                           restBestand:        0,
-                          ersteller:          user?.kuerzel ?? "ADMIN",
+                          ersteller,
                           datum:              new Date(),
                         })}
                         className="px-2 py-1 text-xs bg-[#0064d2]/10 text-[#0064d2] rounded hover:bg-[#0064d2]/20 font-bold transition-colors"
@@ -322,22 +352,25 @@ export default function AnfragenPage() {
                         🖨️
                       </button>
                     )}
-                    {/* Erledigen → abschliessen (AUSGANG + Beleg) */}
+
+                    {/* ✓ Erledigen → AUSGANG Buchung + Beleg Modal */}
                     {a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT && (
                       <button
-                        onClick={() => abschliessen.mutate({ id: a.id })}
-                        disabled={abschliessen.isPending}
-                        className="px-2 py-1 text-xs bg-[#00a400]/10 text-[#00a400] rounded hover:bg-[#00a400]/20 font-bold disabled:opacity-50"
-                        title="Erledigen (AUSGANG + Beleg)"
+                        onClick={() => handleErledigen(a.id)}
+                        disabled={isBusy}
+                        className="px-2 py-1 text-xs bg-[#00a400]/10 text-[#00a400] rounded hover:bg-[#00a400]/20 font-bold disabled:opacity-50 transition-colors"
+                        title="Erledigen (AUSGANG Buchung + Auslagerbeleg)"
                       >
-                        ✓
+                        {erledigend === a.id ? "…" : "✓"}
                       </button>
                     )}
+
+                    {/* ✕ Stornieren */}
                     {(a.status === AnfrageStatus.NEU || a.status === AnfrageStatus.BEDARF) && (
                       <button
                         onClick={() => setStatus.mutate({ id: a.id, status: AnfrageStatus.STORNIERT })}
-                        disabled={setStatus.isPending}
-                        className="px-2 py-1 text-xs bg-[#fa3e3e]/10 text-[#fa3e3e] rounded hover:bg-[#fa3e3e]/20 font-bold disabled:opacity-50"
+                        disabled={isBusy}
+                        className="px-2 py-1 text-xs bg-[#fa3e3e]/10 text-[#fa3e3e] rounded hover:bg-[#fa3e3e]/20 font-bold disabled:opacity-50 transition-colors"
                         title="Stornieren"
                       >
                         ✕
