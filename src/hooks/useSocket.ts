@@ -19,10 +19,12 @@ export function useSocket() {
 
     if (!globalSocket) {
       globalSocket = io({
-        path:  "/socket.io",
-        auth:  { kuerzel: user.kuerzel, rolle: user.rolle },
+        path:                "/api/socketio",
+        addTrailingSlash:    false,
+        auth:                { kuerzel: user.kuerzel, rolle: user.rolle },
         reconnectionAttempts: 5,
-        reconnectionDelay:    2_000,
+        reconnectionDelay:    1_000,
+        transports:          ["websocket", "polling"],
       });
     }
 

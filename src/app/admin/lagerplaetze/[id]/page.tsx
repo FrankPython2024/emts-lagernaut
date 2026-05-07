@@ -9,8 +9,8 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 
 export default function LagerplatzDetailPage() {
-  const { id }    = useParams<{ id: string }>();
-  const code      = decodeURIComponent(id);
+  const params    = useParams<{ id: string }>();
+  const code      = decodeURIComponent(params?.id ?? "");
   const router    = useRouter();
   const { show }  = useToast();
   const { data: session } = useSession();

@@ -1,14 +1,17 @@
 /**
- * Custom Next.js Server mit Socket.io + BullMQ
+ * Custom Next.js Server Entry Point
  *
- * Start (Dev):   tsx src/server.ts
- * Start (Prod):  tsx src/server.ts   (tsx ist in dependencies)
+ * Socket.io wird NICHT hier initialisiert — das übernimmt
+ * src/pages/api/socketio.ts über den Pages-Router-Trick (res.socket.server).
+ *
+ * Dieser Server startet nur Next.js + BullMQ Worker.
+ *
+ * Start: tsx src/server.ts
  */
 
 import { createServer } from "http";
 import { parse } from "url";
 import next from "next";
-import { initSocketIO } from "./modules/realtime/socket";
 import { startWorkers } from "./modules/jobs/worker";
 
 const dev  = process.env.NODE_ENV !== "production";
@@ -24,15 +27,13 @@ app.prepare().then(() => {
     handle(req, res, parsedUrl);
   });
 
-  // Socket.io an den HTTP-Server anhängen
-  initSocketIO(httpServer);
-
   // BullMQ Worker starten
   startWorkers();
 
   httpServer.listen(port, host, () => {
     console.log(`> Next.js läuft auf http://${host}:${port}`);
-    console.log(`> Socket.io aktiv auf /socket.io`);
+    console.log(`> Socket.io wird via /api/socketio (Pages Router) initialisiert`);
+    console.log(`> BullMQ Worker aktiv`);
     console.log(`> Umgebung: ${process.env.NODE_ENV ?? "development"}`);
   });
 });

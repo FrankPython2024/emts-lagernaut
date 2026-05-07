@@ -8,10 +8,10 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 
 export default function BenutzerDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const router  = useRouter();
+  const params   = useParams<{ id: string }>();
+  const router   = useRouter();
   const { show } = useToast();
-  const userId   = Number(id);
+  const userId   = Number(params?.id);
 
   const { data: user, isLoading, refetch } = api.benutzer.getById.useQuery({ id: userId });
   const [form, setForm]       = useState<{ name: string; email: string; rolle: UserRolle }>({ name: "", email: "", rolle: UserRolle.TECHNIKER });

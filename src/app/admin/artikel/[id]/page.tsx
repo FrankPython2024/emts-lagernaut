@@ -10,8 +10,8 @@ import { ArtikelLabelPreview, ArtikelLabelManager } from "@/components/ui/Artike
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 
 export default function ArtikelDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const artikelId = Number(id);
+  const params    = useParams<{ id: string }>();
+  const artikelId = Number(params?.id);
   const router    = useRouter();
   const { show }  = useToast();
   const { data: session } = useSession();

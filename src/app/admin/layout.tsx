@@ -62,7 +62,7 @@ function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => v
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         {NAV.map(({ href, label, icon }) => {
-          const active = href === "/admin" ? pathname === href : pathname.startsWith(href);
+          const active = href === "/admin" ? pathname === href : (pathname ?? "").startsWith(href);
           return (
             <Link
               key={href}

@@ -19,7 +19,7 @@ function LoginForm() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      const cb = params.get("callbackUrl") ?? "/";
+      const cb = params?.get("callbackUrl") ?? "/";
       router.replace(cb);
     }
   }, [status, router, params]);
