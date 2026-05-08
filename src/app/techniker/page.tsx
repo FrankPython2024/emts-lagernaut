@@ -1,11 +1,11 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useSession }  from "next-auth/react";
+import { useState, useEffect, useMemo } from "react";
+import { useSession }    from "next-auth/react";
 import { AnfrageStatus } from "@prisma/client";
-import { api }          from "@/trpc/react";
-import { useToast }     from "@/components/ui/Toast";
-import { useSocket }    from "@/hooks/useSocket";
-import { EVENTS }       from "@/modules/realtime/events";
+import { api }           from "@/trpc/react";
+import { useToast }      from "@/components/ui/Toast";
+import { useSocket }     from "@/hooks/useSocket";
+import { EVENTS }        from "@/modules/realtime/events";
 import { TastaturModal } from "@/components/ui/TastaturModal";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -111,34 +111,6 @@ const modalContent: React.CSSProperties = {
   color:        "var(--text)",
 };
 
-// ── StatusPill ────────────────────────────────────────────────────────────────
-
-const STATUS_CFG: Record<string, { label: string; bg: string; color: string }> = {
-  NEU:           { label: "NEU",           bg: "#dbeafe", color: "#1d4ed8" },
-  BEDARF:        { label: "BEDARF",        bg: "#ede9fe", color: "#7c3aed" },
-  ABGESCHLOSSEN: { label: "ERLEDIGT",      bg: "#dcfce7", color: "#15803d" },
-  STORNIERT:     { label: "STORNIERT",     bg: "#f3f4f6", color: "#6b7280" },
-};
-
-function StatusPill({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status] ?? { label: status, bg: "#f3f4f6", color: "#6b7280" };
-  return (
-    <span style={{
-      padding:       "0.25rem 0.7rem",
-      borderRadius:  12,
-      fontWeight:    800,
-      fontSize:      "0.75rem",
-      textTransform: "uppercase",
-      whiteSpace:    "nowrap",
-      display:       "inline-block",
-      background:    cfg.bg,
-      color:         cfg.color,
-      letterSpacing: "0.05em",
-    }}>
-      {cfg.label}
-    </span>
-  );
-}
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
@@ -166,10 +138,11 @@ export default function TechnikerPage() {
   // ── Storno state ──────────────────────────────────────────────────────────
   const [stornoItem, setStornoItem] = useState<{ id: number; teil: string; techniker: string; logId: string } | null>(null);
 
-  // ── Anfragen filter ────────────────────────────────────────────────────────
-  const [showAllAnfragen, setShowAllAnfragen]   = useState(false);
-  const [anfragenFilter,  setAnfragenFilter]    = useState("");
-  const [nurOffene,       setNurOffene]          = useState(false);
+  // ── Anfragen filter & Gruppen ─────────────────────────────────────────────
+  const [filterTab,      setFilterTab]      = useState<"alle" | "aktiv" | "erledigt">("alle");
+  const [logIdSearch,    setLogIdSearch]    = useState("");
+  const [showAllAnfragen, setShowAllAnfragen] = useState(false);
+  const [lastRefresh,    setLastRefresh]    = useState<Date>(new Date());
 
   // ── tRPC Queries ──────────────────────────────────────────────────────────
 
@@ -255,9 +228,28 @@ export default function TechnikerPage() {
 
   // ── Socket events ─────────────────────────────────────────────────────────
   useEffect(() => {
-    on(EVENTS.ANFRAGE_UPDATED, () => { anfragenQuery.refetch(); });
-    return () => { off(EVENTS.ANFRAGE_UPDATED); };
-  }, [on, off, anfragenQuery]);
+    const doRefreshAnfragen = () => { anfragenQuery.refetch(); setLastRefresh(new Date()); };
+    on(EVENTS.ANFRAGE_UPDATED, doRefreshAnfragen);
+    on(EVENTS.ANFRAGE_NEU,     doRefreshAnfragen);
+    on(EVENTS.BESTAND_UPDATED, () => { if (selectedGeraet) teileQuery.refetch(); });
+    return () => {
+      off(EVENTS.ANFRAGE_UPDATED);
+      off(EVENTS.ANFRAGE_NEU);
+      off(EVENTS.BESTAND_UPDATED);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [on, off]);
+
+  // ── Auto-Refresh (5-Sekunden-Fallback wenn Socket kurz getrennt) ──────────
+  useEffect(() => {
+    const interval = setInterval(() => {
+      anfragenQuery.refetch();
+      korbQuery.refetch();
+      setLastRefresh(new Date());
+    }, 5_000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Helper functions ──────────────────────────────────────────────────────
 
@@ -328,23 +320,33 @@ export default function TechnikerPage() {
     });
   }
 
-  // ── Filtered Anfragen ──────────────────────────────────────────────────────
+  // ── Anfragen ───────────────────────────────────────────────────────────────
   const alleAnfragen = anfragenQuery.data?.anfragen ?? [];
-  const filteredAnfragen = alleAnfragen
-    .filter((a) => {
-      if (nurOffene && a.status !== "NEU" && a.status !== "BEDARF") return false;
-      if (anfragenFilter) {
-        const q = anfragenFilter.toLowerCase();
-        return (
-          a.logId.toLowerCase().includes(q) ||
-          a.teil.toLowerCase().includes(q) ||
-          (a.geraet?.toLowerCase().includes(q) ?? false)
-        );
+  const offeneCount  = alleAnfragen.filter((a) => a.status === "NEU" || a.status === "BEDARF").length;
+
+  // Gruppen nach logId (neueste Anfrage bestimmt Gruppen-Datum)
+  const gruppen = useMemo(() => {
+    const map = new Map<string, { logId: string; geraeteName: string | null; datum: Date; anfragen: typeof alleAnfragen }>();
+    for (const a of alleAnfragen) {
+      if (!map.has(a.logId)) {
+        map.set(a.logId, { logId: a.logId, geraeteName: a.geraeteName ?? null, datum: new Date(a.datum), anfragen: [] });
       }
+      map.get(a.logId)!.anfragen.push(a);
+    }
+    return Array.from(map.values()).sort((a, b) => b.datum.getTime() - a.datum.getTime());
+  }, [alleAnfragen]);
+
+  const gefilterteGruppen = useMemo(() => {
+    return gruppen.filter((g) => {
+      if (logIdSearch) {
+        const q = logIdSearch.toLowerCase();
+        if (!g.logId.toLowerCase().includes(q) && !(g.geraeteName ?? "").toLowerCase().includes(q)) return false;
+      }
+      if (filterTab === "aktiv")    return g.anfragen.some((a) => a.status === "NEU" || a.status === "BEDARF");
+      if (filterTab === "erledigt") return g.anfragen.every((a) => a.status === "ABGESCHLOSSEN" || a.status === "STORNIERT");
       return true;
     });
-
-  const offeneCount  = alleAnfragen.filter((a) => a.status === "NEU" || a.status === "BEDARF").length;
+  }, [gruppen, filterTab, logIdSearch]);
   const koerbe       = korbQuery.data ?? [];
   const alleKorbItems = koerbe.flatMap((k) => k.items);
   const totalKorbTeile = alleKorbItems.length;
@@ -780,126 +782,98 @@ export default function TechnikerPage() {
             )}
           </div>
 
-          {/* ── Meine Anfragen ── */}
+          {/* ── Meine Anfragen (gruppiert nach LogID) ── */}
           <div style={{ ...cardStyle, flex: 1 }}>
             {/* Header */}
-            <div style={{
-              display:        "flex",
-              justifyContent: "space-between",
-              alignItems:     "center",
-              marginBottom:   "1rem",
-              borderBottom:   "1px solid var(--border)",
-              paddingBottom:  "1rem",
-            }}>
-              <h3 style={{ margin: 0 }}>Meine Anfragen</h3>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", borderBottom: "1px solid var(--border)", paddingBottom: "1rem" }}>
+              <h3 style={{ margin: 0 }}>
+                Meine Anfragen
                 {offeneCount > 0 && (
-                  <button
-                    onClick={() => setNurOffene(!nurOffene)}
-                    style={{
-                      display:      "flex",
-                      alignItems:   "center",
-                      gap:          4,
-                      background:   nurOffene ? "var(--warning)" : "var(--bg)",
-                      color:        nurOffene ? "#000" : "var(--text)",
-                      border:       `1px solid ${nurOffene ? "var(--warning)" : "var(--border)"}`,
-                      padding:      "4px 10px",
-                      borderRadius: 20,
-                      fontWeight:   "bold",
-                      cursor:       "pointer",
-                      fontSize:     "0.85rem",
-                    }}
-                  >
+                  <span style={{ marginLeft: 8, background: "var(--warning)", color: "#000", borderRadius: 20, padding: "2px 8px", fontSize: "0.75rem", fontWeight: "bold" }}>
                     {offeneCount} offen
-                  </button>
+                  </span>
                 )}
+              </h3>
+              <small style={{ color: "var(--text-dim)", fontSize: "0.72rem" }}>
+                🔄 {lastRefresh.toLocaleTimeString("de-DE")}
+              </small>
+            </div>
+
+            {/* Filter-Tabs */}
+            <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap" }}>
+              {(["alle", "aktiv", "erledigt"] as const).map((tab) => (
                 <button
-                  onClick={() => anfragenQuery.refetch()}
-                  style={{ ...btnIconStyle, padding: "4px 8px" }}
-                  title="Aktualisieren"
+                  key={tab}
+                  onClick={() => setFilterTab(tab)}
+                  style={{
+                    padding:      "0.3rem 0.8rem",
+                    borderRadius: 20,
+                    border:       `1px solid ${filterTab === tab ? "var(--primary)" : "var(--border)"}`,
+                    background:   filterTab === tab ? "var(--primary)" : "var(--bg)",
+                    color:        filterTab === tab ? "white" : "var(--text-dim)",
+                    cursor:       "pointer",
+                    fontWeight:   filterTab === tab ? 700 : 500,
+                    fontSize:     "0.82rem",
+                    fontFamily:   "'Ubuntu', sans-serif",
+                    transition:   "all 0.15s",
+                  }}
                 >
-                  🔄
+                  {tab === "alle" ? "Alle" : tab === "aktiv" ? "Aktiv" : "Erledigt"}
                 </button>
+              ))}
+              {/* LogID-Scan */}
+              <div style={{ position: "relative", flex: 1, minWidth: 100 }}>
+                <input
+                  type="text"
+                  value={logIdSearch}
+                  onChange={(e) => setLogIdSearch(e.target.value)}
+                  placeholder="🔍 LogID..."
+                  style={{
+                    width:        "100%",
+                    padding:      "0.3rem 1.8rem 0.3rem 0.7rem",
+                    borderRadius: 20,
+                    border:       "1px solid var(--border)",
+                    background:   "var(--bg)",
+                    color:        "var(--text)",
+                    boxSizing:    "border-box",
+                    outline:      "none",
+                    fontSize:     "0.82rem",
+                    fontFamily:   "'Ubuntu', sans-serif",
+                  }}
+                  onFocus={(e)  => (e.currentTarget.style.borderColor = "var(--primary)")}
+                  onBlur={(e)   => (e.currentTarget.style.borderColor = "var(--border)")}
+                />
+                {logIdSearch && (
+                  <button onClick={() => setLogIdSearch("")} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer" }}>✕</button>
+                )}
               </div>
             </div>
 
-            {/* Search */}
-            <div style={{ position: "relative", marginBottom: "1rem" }}>
-              <input
-                type="text"
-                value={anfragenFilter}
-                onChange={(e) => setAnfragenFilter(e.target.value)}
-                placeholder="🔍 LogID, Teil oder Gerät suchen..."
-                style={{
-                  width:        "100%",
-                  padding:      "0.6rem 2rem 0.6rem 0.9rem",
-                  borderRadius: 8,
-                  border:       "1px solid var(--border)",
-                  background:   "var(--bg)",
-                  color:        "var(--text)",
-                  boxSizing:    "border-box",
-                  outline:      "none",
-                  fontFamily:   "'Ubuntu', sans-serif",
-                  transition:   "border-color 0.2s",
-                }}
-                onFocus={(e)  => (e.currentTarget.style.borderColor = "var(--primary)")}
-                onBlur={(e)   => (e.currentTarget.style.borderColor = "var(--border)")}
-              />
-              {anfragenFilter && (
-                <button
-                  onClick={() => setAnfragenFilter("")}
-                  style={{
-                    position:  "absolute", right: 10, top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none", border: "none",
-                    color: "var(--text-dim)", cursor: "pointer",
-                    fontWeight: "bold",
-                  }}
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            {/* List */}
-            <div style={{ maxHeight: 620, overflowY: "auto" }}>
+            {/* Gruppen-Liste */}
+            <div style={{ maxHeight: 580, overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {anfragenQuery.isLoading && (
+                <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>Laden...</div>
+              )}
+              {!anfragenQuery.isLoading && gefilterteGruppen.length === 0 && (
                 <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>
-                  Laden...
+                  {logIdSearch ? "Keine Treffer" : "Noch keine Anfragen"}
                 </div>
               )}
-              {!anfragenQuery.isLoading && filteredAnfragen.length === 0 && (
-                <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>
-                  {anfragenFilter ? "Keine Treffer" : "Noch keine Anfragen"}
-                </div>
-              )}
-              {filteredAnfragen.map((a) => (
-                <AnfrageZeile
-                  key={a.id}
-                  anfrage={a}
-                  onStorno={() => setStornoItem({
-                    id:        a.id,
-                    teil:      a.teil,
-                    techniker: a.techniker,
-                    logId:     a.logId,
-                  })}
+              {gefilterteGruppen.map((g) => (
+                <AnfrageGruppe
+                  key={g.logId}
+                  gruppe={g}
+                  onStorno={(item) => setStornoItem(item)}
                 />
               ))}
             </div>
 
-            {/* Toggle alle/offene */}
-            {alleAnfragen.length > 10 && (
+            {gruppen.length > 5 && (
               <button
                 onClick={() => setShowAllAnfragen(!showAllAnfragen)}
-                style={{
-                  ...btnIconStyle,
-                  width:    "100%",
-                  marginTop: "0.8rem",
-                  textAlign: "center",
-                  color:    "var(--text-dim)",
-                }}
+                style={{ ...btnIconStyle, width: "100%", marginTop: "0.8rem", textAlign: "center", color: "var(--text-dim)" }}
               >
-                {showAllAnfragen ? "▲ Weniger anzeigen" : `▼ Alle ${alleAnfragen.length} anzeigen`}
+                {showAllAnfragen ? "▲ Weniger" : `▼ Alle ${gruppen.length} Gruppen`}
               </button>
             )}
           </div>
@@ -1115,7 +1089,7 @@ function TeilKarte({
   );
 }
 
-// ── AnfrageZeile sub-component ────────────────────────────────────────────────
+// ── AnfrageGruppe sub-component ──────────────────────────────────────────────
 
 type AnfrageRow = {
   id:          number;
@@ -1126,97 +1100,147 @@ type AnfrageRow = {
   teil:        string;
   status:      string;
   datum:       Date;
+  grading?:    string | null;
   kommentar?:  string | null;
-  gruppenNr?:  string | null;
 };
 
-const STATUS_CFG_PILL: Record<string, { bg: string; color: string; label: string }> = {
-  NEU:           { bg: "#dbeafe", color: "#1d4ed8", label: "Neu" },
-  BEDARF:        { bg: "#ede9fe", color: "#7c3aed", label: "Bedarf" },
-  ABGESCHLOSSEN: { bg: "#dcfce7", color: "#15803d", label: "Erledigt" },
-  STORNIERT:     { bg: "#f3f4f6", color: "#9ca3af", label: "Storniert" },
+type GruppeData = {
+  logId:       string;
+  geraeteName: string | null;
+  datum:       Date;
+  anfragen:    AnfrageRow[];
 };
 
-function AnfrageZeile({ anfrage, onStorno }: { anfrage: AnfrageRow; onStorno: () => void }) {
-  const cfg      = STATUS_CFG_PILL[anfrage.status] ?? STATUS_CFG_PILL.STORNIERT;
-  const canStorno = anfrage.status === "NEU" || anfrage.status === "BEDARF";
-  const datum    = new Date(anfrage.datum);
-  const dateStr  = datum.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
-  const timeStr  = datum.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+type StornoPayload = { id: number; teil: string; techniker: string; logId: string };
+
+const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
+  NEU:           { bg: "#dbeafe", color: "#1d4ed8", label: "NEU" },
+  BEDARF:        { bg: "#ede9fe", color: "#7c3aed", label: "BEDARF" },
+  ABGESCHLOSSEN: { bg: "#dcfce7", color: "#15803d", label: "ERLEDIGT ✅" },
+  STORNIERT:     { bg: "#f3f4f6", color: "#9ca3af", label: "STORNIERT" },
+};
+
+function AnfrageGruppe({ gruppe, onStorno }: { gruppe: GruppeData; onStorno: (item: StornoPayload) => void }) {
+  const anfragen = gruppe.anfragen;
+
+  const alleErledigt = anfragen.every((a) => a.status === "ABGESCHLOSSEN" || a.status === "STORNIERT");
+  const irgendErledigt = anfragen.some((a) => a.status === "ABGESCHLOSSEN");
+  const hatBedarf  = anfragen.some((a) => a.status === "BEDARF");
+
+  // Header-Farbe
+  const headerBg = alleErledigt
+    ? "#16a34a"
+    : "var(--primary)";
+  const headerBorderLeft = !alleErledigt && irgendErledigt
+    ? "5px solid #16a34a"
+    : !alleErledigt && hatBedarf
+    ? "5px solid #f97316"
+    : undefined;
+
+  const datum = new Date(gruppe.datum);
+  const datumStr = datum.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
 
   return (
-    <div style={{
-      padding:      "0.8rem",
-      borderBottom: "1px solid var(--border)",
-      display:      "flex",
-      gap:          12,
-      alignItems:   "flex-start",
-    }}>
-      {/* Icon */}
-      <span style={{ fontSize: "1.3rem", marginTop: 2, flexShrink: 0 }}>
-        {TEIL_ICONS[anfrage.teil] ?? "🔧"}
-      </span>
-
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
-          <strong style={{ fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {anfrage.teil}
-          </strong>
-          <span style={{
-            padding:       "0.2rem 0.6rem",
-            borderRadius:  10,
-            fontWeight:    800,
-            fontSize:      "0.7rem",
-            textTransform: "uppercase",
-            whiteSpace:    "nowrap",
-            flexShrink:    0,
-            background:    cfg.bg,
-            color:         cfg.color,
-          }}>
-            {cfg.label}
-          </span>
-        </div>
-
-        <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", marginTop: 2 }}>
-          <span style={{ fontWeight: 600 }}>#{anfrage.logId}</span>
-          {anfrage.geraeteName && (
-            <span style={{ marginLeft: 6 }}>— {anfrage.geraeteName}</span>
+    <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+      {/* Gruppen-Header */}
+      <div style={{
+        background:  headerBg,
+        borderLeft:  headerBorderLeft,
+        color:       "white",
+        padding:     "0.55rem 1rem",
+        display:     "flex",
+        justifyContent: "space-between",
+        alignItems:  "center",
+        gap:         8,
+      }}>
+        <div>
+          <span style={{ fontSize: "0.8rem", opacity: 0.9 }}>🖥️ LogID: <strong>{gruppe.logId}</strong></span>
+          {gruppe.geraeteName && (
+            <div style={{ fontSize: "0.78rem", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
+              {gruppe.geraeteName}
+            </div>
           )}
         </div>
+        <small style={{ opacity: 0.85, flexShrink: 0 }}>{datumStr}</small>
+      </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-          <small style={{ color: "var(--text-dim)" }}>
-            {dateStr} {timeStr}
-          </small>
-          {canStorno && (
-            <button
-              onClick={onStorno}
-              style={{
-                background: "none",
-                border:     "1px solid var(--danger)",
-                color:      "var(--danger)",
-                padding:    "0.15rem 0.5rem",
-                borderRadius: 6,
-                cursor:     "pointer",
-                fontSize:   "0.75rem",
-                fontWeight: "bold",
-                fontFamily: "'Ubuntu', sans-serif",
-              }}
-            >
-              Storno
-            </button>
-          )}
-        </div>
+      {/* Anfragen-Zeilen (Zebra) */}
+      {anfragen.map((a, idx) => {
+        const cfg       = STATUS_CFG[a.status] ?? STATUS_CFG.STORNIERT;
+        const canStorno = a.status === "NEU" || a.status === "BEDARF";
+        const isAbgeschlossen = a.status === "ABGESCHLOSSEN";
+        const odd = idx % 2 === 1;
 
-        {anfrage.kommentar && (
-          <div style={{
-            fontSize: "0.75rem", color: "var(--text-dim)",
-            marginTop: 4, fontStyle: "italic",
+        return (
+          <div key={a.id} style={{
+            padding:    "0.5rem 0.8rem",
+            background: odd ? "var(--card-bg)" : "var(--bg)",
+            borderTop:  idx > 0 ? "1px solid var(--border)" : "none",
           }}>
-            💬 {anfrage.kommentar}
+            {/* Zeile 1: Icon + Teilname + Status */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: "1.1rem", flexShrink: 0 }}>{TEIL_ICONS[a.teil] ?? "🔧"}</span>
+              <strong style={{ flex: 1, fontSize: "0.85rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {a.teil}
+              </strong>
+              {a.grading && (
+                <span style={{ padding: "0.1rem 0.4rem", borderRadius: 4, background: "var(--border)", color: "var(--text-dim)", fontSize: "0.7rem", fontWeight: 700, flexShrink: 0 }}>
+                  {a.grading}
+                </span>
+              )}
+              <span style={{
+                padding:     "0.15rem 0.55rem",
+                borderRadius: 10,
+                fontWeight:  800,
+                fontSize:    "0.68rem",
+                textTransform: "uppercase",
+                whiteSpace:  "nowrap",
+                flexShrink:  0,
+                background:  cfg.bg,
+                color:       cfg.color,
+              }}>
+                {cfg.label}
+              </span>
+            </div>
+
+            {/* Zeile 2: Kommentar + Storno */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 3 }}>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", fontStyle: "italic" }}>
+                {isAbgeschlossen && <span style={{ color: "#15803d", fontStyle: "normal", fontWeight: 700 }}>✅ Bereit zur Abholung!</span>}
+                {a.kommentar && !isAbgeschlossen && <span>💬 {a.kommentar}</span>}
+              </div>
+              {canStorno && (
+                <button
+                  onClick={() => onStorno({ id: a.id, teil: a.teil, techniker: a.techniker, logId: a.logId })}
+                  style={{
+                    background: "none",
+                    border:     "1px solid var(--danger)",
+                    color:      "var(--danger)",
+                    padding:    "0.1rem 0.5rem",
+                    borderRadius: 5,
+                    cursor:     "pointer",
+                    fontSize:   "0.72rem",
+                    fontWeight: "bold",
+                    fontFamily: "'Ubuntu', sans-serif",
+                    flexShrink: 0,
+                  }}
+                >
+                  Stornieren
+                </button>
+              )}
+              {a.status === "ABGESCHLOSSEN" && (
+                <small style={{ color: "var(--text-dim)", fontSize: "0.72rem" }}>
+                  {new Date(a.datum).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
+                </small>
+              )}
+            </div>
           </div>
-        )}
+        );
+      })}
+
+      {/* Gruppen-Footer */}
+      <div style={{ padding: "0.3rem 1rem", background: "var(--bg)", fontSize: "0.72rem", color: "var(--text-dim)", textAlign: "right", borderTop: "1px solid var(--border)" }}>
+        {anfragen.length} {anfragen.length === 1 ? "Teil" : "Teile"}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
-import { useState, useRef } from "react";
-import { AnfrageStatus, type Anfrage } from "@prisma/client";
+import { useState, useRef, useEffect } from "react";
+import { AnfrageStatus, NachrichtTyp, type Anfrage } from "@prisma/client";
 import { useSession } from "next-auth/react";
 import { api } from "@/trpc/react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -181,9 +181,16 @@ export default function AnfragenPage() {
   const user     = session?.user as SessionUser | undefined;
   const ersteller = user?.kuerzel ?? "ADMIN";
 
-  const [statusFilter, setStatusFilter] = useState<AnfrageStatus | "">("");
-  const [techFilter,   setTechFilter]   = useState("");
-  const [tagesModal,   setTagesModal]   = useState(false);
+  const [statusFilter,   setStatusFilter]   = useState<AnfrageStatus | "">("");
+  const [techFilter,     setTechFilter]     = useState("");
+  const [tagesModal,     setTagesModal]     = useState(false);
+
+  // ── Nachricht-Modal State ─────────────────────────────────────────────────
+  const [nachrichtModal, setNachrichtModal] = useState<{
+    kuerzel: string; logId: string; geraeteName: string | null;
+  } | null>(null);
+  const [nachrichtBetreff, setNachrichtBetreff] = useState("");
+  const [nachrichtInhalt,  setNachrichtInhalt]  = useState("");
 
   // Beleg-Modals
   const [belegModal,    setBelegModal]    = useState<AuslagerBelegData | null>(null);
@@ -198,6 +205,48 @@ export default function AnfragenPage() {
     ...(statusFilter ? { status: statusFilter as AnfrageStatus } : {}),
     ...(techFilter   ? { techniker: techFilter } : {}),
   });
+
+  // ── Nachricht-Mutation ────────────────────────────────────────────────────
+  const sendeNachrichtMutation = api.nachrichten.senden.useMutation({
+    onSuccess: () => {
+      show(`✅ Nachricht an ${nachrichtModal?.kuerzel} gesendet`, "success");
+      setNachrichtModal(null);
+      setNachrichtBetreff("");
+      setNachrichtInhalt("");
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
+  // ── Auto-Refresh alle 5 Sekunden ──────────────────────────────────────────
+  useEffect(() => {
+    const interval = setInterval(() => { refetch(); }, 5_000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Nachrichten-Vorlage anwenden ──────────────────────────────────────────
+  function applyVorlage(label: string) {
+    const gn  = nachrichtModal?.geraeteName ?? "dein Gerät";
+    const lid = nachrichtModal?.logId ?? "—";
+    switch (label) {
+      case "Gerät bereitstellen":
+        setNachrichtBetreff("Gerät bereitstellen");
+        setNachrichtInhalt(`Bitte stelle das Gerät ${gn} (LogID: ${lid}) bei der nächsten Abholung dem EMTS bereit.`);
+        break;
+      case "Rückfrage zum Gerät":
+        setNachrichtBetreff(`Rückfrage: ${gn}`);
+        setNachrichtInhalt(`Wir haben eine Rückfrage zu deiner Anfrage für ${gn} (LogID: ${lid}).`);
+        break;
+      case "Teil liegt bereit":
+        setNachrichtBetreff("✅ Teil liegt bereit");
+        setNachrichtInhalt(`Dein angefragtes Teil für ${gn} liegt zur Abholung bereit!`);
+        break;
+      case "Bitte melden":
+        setNachrichtBetreff("Bitte melden");
+        setNachrichtInhalt("Bitte melde dich kurz beim EMTS-Lager.");
+        break;
+    }
+  }
 
   // ── setStatus Mutation ────────────────────────────────────────────────────
   // onSuccess ist die EINZIGE Stelle die setBelegModal setzt (vermeidet Timing-Bugs)
@@ -341,10 +390,19 @@ export default function AnfragenPage() {
                   <span className="text-xs font-mono text-[#65676b] dark:text-[#b0b3b8]">{gruppe.gruppenNr}</span>
                 )}
               </div>
-              <button onClick={() => alleErledigen(gruppe.anfragen)} disabled={isBusy}
-                className="px-3 py-1.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors">
-                {isBusy ? "…" : "✅ Alle erledigen"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setNachrichtModal({ kuerzel: gruppe.techniker, logId: gruppe.logId, geraeteName: gruppe.geraeteName ?? null })}
+                  className="px-3 py-1.5 bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] text-xs font-bold rounded-lg hover:bg-[#0064d2]/20 transition-colors"
+                  title="Nachricht senden"
+                >
+                  💬 {gruppe.techniker}
+                </button>
+                <button onClick={() => alleErledigen(gruppe.anfragen)} disabled={isBusy}
+                  className="px-3 py-1.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors">
+                  {isBusy ? "…" : "✅ Alle erledigen"}
+                </button>
+              </div>
             </div>
 
             <div className="divide-y divide-[#ced4da] dark:divide-[#3e4042]">
@@ -415,6 +473,98 @@ export default function AnfragenPage() {
 
       {/* Tagesübersicht Modal */}
       {tagesModal && <TagesuebersichtModal onClose={() => setTagesModal(false)} />}
+
+      {/* ── Nachricht-Modal ── */}
+      {nachrichtModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-lg">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#ced4da] dark:border-[#3e4042]">
+              <div>
+                <h3 className="font-black text-lg text-[#1a1a1a] dark:text-[#e4e6eb]">
+                  💬 Nachricht an {nachrichtModal.kuerzel}
+                </h3>
+                <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
+                  Bezug: {nachrichtModal.geraeteName ?? "—"} · LogID: {nachrichtModal.logId}
+                </p>
+              </div>
+              <button
+                onClick={() => { setNachrichtModal(null); setNachrichtBetreff(""); setNachrichtInhalt(""); }}
+                className="text-[#65676b] hover:text-[#fa3e3e] text-xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {/* Vorlagen */}
+              <div>
+                <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-2 uppercase tracking-wider">Vorlagen:</p>
+                <div className="flex flex-wrap gap-2">
+                  {["Gerät bereitstellen", "Rückfrage zum Gerät", "Teil liegt bereit", "Bitte melden"].map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => applyVorlage(v)}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] hover:border-[#0064d2] hover:text-[#0064d2] transition-colors"
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Betreff */}
+              <div>
+                <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase tracking-wider">Betreff</label>
+                <input
+                  type="text"
+                  value={nachrichtBetreff}
+                  onChange={(e) => setNachrichtBetreff(e.target.value)}
+                  placeholder="Betreff..."
+                  className="w-full px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] text-sm"
+                />
+              </div>
+
+              {/* Inhalt */}
+              <div>
+                <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase tracking-wider">Nachricht</label>
+                <textarea
+                  rows={4}
+                  value={nachrichtInhalt}
+                  onChange={(e) => setNachrichtInhalt(e.target.value)}
+                  placeholder="Nachricht..."
+                  className="w-full px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] text-sm resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 px-6 pb-5">
+              <button
+                onClick={() => { setNachrichtModal(null); setNachrichtBetreff(""); setNachrichtInhalt(""); }}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-semibold text-sm hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => {
+                  if (!nachrichtBetreff.trim() || !nachrichtInhalt.trim()) return;
+                  sendeNachrichtMutation.mutate({
+                    empfaenger: [nachrichtModal.kuerzel],
+                    betreff:    nachrichtBetreff.trim(),
+                    inhalt:     nachrichtInhalt.trim(),
+                    typ:        NachrichtTyp.DIREKT,
+                  });
+                }}
+                disabled={!nachrichtBetreff.trim() || !nachrichtInhalt.trim() || sendeNachrichtMutation.isPending}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-[#0064d2] text-white font-bold text-sm hover:bg-[#0055b8] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {sendeNachrichtMutation.isPending ? "Wird gesendet…" : "✉️ Senden"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Einzel-Auslagerbeleg Modal */}
       {belegModal && (

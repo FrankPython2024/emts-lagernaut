@@ -44,6 +44,26 @@ body.font-large  { --base-font: 22px; }
   to { transform: rotate(360deg); }
 }
 
+@keyframes slideInFromTop {
+  from { opacity: 0; transform: translateX(-50%) translateY(-40px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(120%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.animate-slide-in { animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+@keyframes bellShake {
+  0%,100% { transform: rotate(0deg); }
+  20%     { transform: rotate(-15deg); }
+  40%     { transform: rotate(15deg); }
+  60%     { transform: rotate(-10deg); }
+  80%     { transform: rotate(10deg); }
+}
+
 @keyframes shake {
   0%   { transform: translateX(0); }
   25%  { transform: translateX(-8px); }

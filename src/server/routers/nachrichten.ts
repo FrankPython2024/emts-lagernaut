@@ -12,6 +12,8 @@ import {
   getAlleNachrichten,
 } from "@/modules/nachrichten/service";
 import type { SessionUser } from "@/core/types";
+import { emitToUser }  from "@/modules/realtime/socket";
+import { EVENTS }      from "@/modules/realtime/events";
 
 export const nachrichtenRouter = createTRPCRouter({
 
@@ -26,9 +28,21 @@ export const nachrichtenRouter = createTRPCRouter({
       inhalt:  z.string().min(1).max(5000).trim(),
       typ:     z.nativeEnum(NachrichtTyp),
     }))
-    .mutation(({ input, ctx }) => {
-      const user = ctx.session.user as SessionUser;
-      return sendeNachricht({ ...input, vonKuerzel: user.kuerzel });
+    .mutation(async ({ input, ctx }) => {
+      const user      = ctx.session.user as SessionUser;
+      const nachricht = await sendeNachricht({ ...input, vonKuerzel: user.kuerzel });
+
+      // Socket-Push an alle Empfänger
+      for (const empf of nachricht.empfaenger) {
+        emitToUser(empf.empfKuerzel, EVENTS.NACHRICHT_NEU, {
+          id:         nachricht.id,
+          betreff:    nachricht.betreff,
+          inhalt:     nachricht.inhalt.substring(0, 150),
+          vonKuerzel: user.kuerzel,
+        });
+      }
+
+      return nachricht;
     }),
 
   // Eigene Inbox — sichergestellt: nur eigene Nachrichten
