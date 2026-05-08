@@ -5,18 +5,19 @@ import {
   addItem,
   removeItem,
   submit,
+  submitAlle,
 } from "@/modules/warenkorb/service";
 
 export const warenkorbRouter = createTRPCRouter({
 
-  // Aktiven Warenkorb eines Technikers abrufen
+  // Alle aktiven Körbe eines Technikers (je einer pro logId)
   getAktiv: protectedProcedure
     .input(z.object({ techniker: z.string().min(1).max(50) }))
     .query(({ input }) =>
       getAktiv(input.techniker),
     ),
 
-  // Item zum Warenkorb hinzufügen
+  // Item hinzufügen — gibt aktualisierten Warenkorb zurück
   addItem: protectedProcedure
     .input(z.object({
       techniker:   z.string().min(1).max(50),
@@ -31,14 +32,14 @@ export const warenkorbRouter = createTRPCRouter({
       addItem(input),
     ),
 
-  // Item entfernen
+  // Item entfernen (leerer Korb wird automatisch gelöscht)
   removeItem: protectedProcedure
     .input(z.object({ itemId: z.number().int().positive() }))
     .mutation(({ input }) =>
       removeItem(input.itemId),
     ),
 
-  // Warenkorb absenden → erstellt alle Anfragen mit gruppenNr
+  // Einzelnen Warenkorb absenden
   submit: protectedProcedure
     .input(z.object({
       korbId:     z.number().int().positive(),
@@ -46,6 +47,16 @@ export const warenkorbRouter = createTRPCRouter({
     }))
     .mutation(({ input }) =>
       submit(input),
+    ),
+
+  // Alle aktiven Körbe auf einmal absenden
+  submitAlle: protectedProcedure
+    .input(z.object({
+      techniker:  z.string().min(1).max(50),
+      zusatzinfo: z.string().max(500).optional(),
+    }))
+    .mutation(({ input }) =>
+      submitAlle(input),
     ),
 
 });

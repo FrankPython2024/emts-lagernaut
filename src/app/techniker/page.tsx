@@ -160,7 +160,8 @@ export default function TechnikerPage() {
   const [pendingCartItem, setPendingCartItem] = useState<{ teil: TeilInfo; grading: string } | null>(null);
 
   // ── Cart state ─────────────────────────────────────────────────────────────
-  const [cartOpen,       setCartOpen]       = useState(false);
+  const [cartOpen,          setCartOpen]          = useState(false);
+  const [globalZusatzinfo,  setGlobalZusatzinfo]  = useState("");
 
   // ── Storno state ──────────────────────────────────────────────────────────
   const [stornoItem, setStornoItem] = useState<{ id: number; teil: string; techniker: string; logId: string } | null>(null);
@@ -234,10 +235,20 @@ export default function TechnikerPage() {
 
   const submitCartMutation = api.warenkorb.submit.useMutation({
     onSuccess: (data) => {
-      show(`✅ ${data.anzahl} Anfragen abgesendet! (${data.gruppenNr})`, "success");
+      show(`✅ ${data.anzahl} Teile angefragt! (${data.gruppenNr})`, "success");
+      korbQuery.refetch();
+      anfragenQuery.refetch();
+    },
+    onError: (e) => show(`Fehler: ${e.message}`, "error"),
+  });
+
+  const submitAlleMutation = api.warenkorb.submitAlle.useMutation({
+    onSuccess: (data) => {
+      show(`✅ ${data.anzahl} Teile erfolgreich angefragt!`, "success");
       korbQuery.refetch();
       anfragenQuery.refetch();
       setCartOpen(false);
+      setGlobalZusatzinfo("");
     },
     onError: (e) => show(`Fehler: ${e.message}`, "error"),
   });
@@ -333,9 +344,10 @@ export default function TechnikerPage() {
       return true;
     });
 
-  const offeneCount = alleAnfragen.filter((a) => a.status === "NEU" || a.status === "BEDARF").length;
-  const korb        = korbQuery.data;
-  const korbItems   = korb?.items ?? [];
+  const offeneCount  = alleAnfragen.filter((a) => a.status === "NEU" || a.status === "BEDARF").length;
+  const koerbe       = korbQuery.data ?? [];
+  const alleKorbItems = koerbe.flatMap((k) => k.items);
+  const totalKorbTeile = alleKorbItems.length;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -545,7 +557,7 @@ export default function TechnikerPage() {
                       key={teil.teiltyp}
                       teil={teil}
                       onCart={handleAddToCart}
-                      inCart={korbItems.some((i) => i.artikelId === teil.artikelId && teil.artikelId !== null)}
+                      inCart={alleKorbItems.some((i) => i.artikelId === teil.artikelId && teil.artikelId !== null)}
                     />
                   ))}
                 </div>
@@ -557,37 +569,37 @@ export default function TechnikerPage() {
         {/* ══════════════════════════════ RIGHT COLUMN ═════════════════════════ */}
         <aside style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
 
-          {/* ── Warenkorb ── */}
+          {/* ── Warenkorb (gruppiert nach logId) ── */}
           <div style={cardStyle}>
+            {/* Header */}
             <div
               style={{
-                display:        "flex",
-                justifyContent: "space-between",
-                alignItems:     "center",
-                marginBottom:   korbItems.length > 0 || cartOpen ? "1rem" : 0,
-                borderBottom:   korbItems.length > 0 || cartOpen ? "1px solid var(--border)" : "none",
-                paddingBottom:  korbItems.length > 0 || cartOpen ? "1rem" : 0,
-                cursor:         "pointer",
+                display:       "flex",
+                justifyContent:"space-between",
+                alignItems:    "center",
+                marginBottom:  totalKorbTeile > 0 || cartOpen ? "1rem" : 0,
+                borderBottom:  totalKorbTeile > 0 || cartOpen ? "1px solid var(--border)" : "none",
+                paddingBottom: totalKorbTeile > 0 || cartOpen ? "1rem" : 0,
+                cursor:        "pointer",
               }}
               onClick={() => setCartOpen(!cartOpen)}
             >
-              <h3 style={{ margin: 0 }}>
+              <h3 style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
                 🛒 Warenkorb
-                {korbItems.length > 0 && (
+                {totalKorbTeile > 0 && (
                   <span style={{
-                    marginLeft:   8,
-                    background:   "var(--warning)",
-                    color:        "#000",
-                    borderRadius: "50%",
-                    width:        22,
-                    height:       22,
-                    display:      "inline-flex",
-                    alignItems:   "center",
+                    background:     "var(--warning)",
+                    color:          "#000",
+                    borderRadius:   "50%",
+                    width:          22,
+                    height:         22,
+                    display:        "inline-flex",
+                    alignItems:     "center",
                     justifyContent: "center",
-                    fontSize:     "0.75rem",
-                    fontWeight:   "bold",
+                    fontSize:       "0.75rem",
+                    fontWeight:     "bold",
                   }}>
-                    {korbItems.length}
+                    {totalKorbTeile}
                   </span>
                 )}
               </h3>
@@ -596,60 +608,172 @@ export default function TechnikerPage() {
               </span>
             </div>
 
-            {(cartOpen || korbItems.length > 0) && (
+            {(cartOpen || totalKorbTeile > 0) && (
               <>
-                {korbItems.length === 0 ? (
-                  <p style={{ color: "var(--text-dim)", textAlign: "center", padding: "1rem 0" }}>
-                    Warenkorb ist leer
-                  </p>
+                {koerbe.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "1.5rem 0", color: "var(--text-dim)" }}>
+                    <div style={{ fontSize: "2rem", marginBottom: 8 }}>🛒</div>
+                    <div style={{ fontWeight: 600 }}>Warenkorb ist leer</div>
+                    <div style={{ fontSize: "0.85rem", marginTop: 4 }}>Wähle Ersatzteile auf der linken Seite</div>
+                  </div>
                 ) : (
                   <>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: "1rem" }}>
-                      {korbItems.map((item) => (
-                        <div
-                          key={item.id}
-                          style={{
-                            display:    "flex",
-                            alignItems: "center",
-                            gap:        8,
-                            padding:    "0.5rem 0.8rem",
-                            background: "var(--bg)",
-                            borderRadius: 8,
-                          }}
-                        >
-                          <span style={{ fontSize: "1.2rem" }}>
-                            {TEIL_ICONS[item.artikel?.kategorie ?? item.teiltyp ?? ""] ?? "🔧"}
-                          </span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {item.artikel?.kategorie ?? item.teiltyp ?? "Unbekanntes Teil"}
-                            </div>
-                            <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {item.artikel?.bezeichnung ?? "kein Artikel verknüpft"}
-                            </div>
-                          </div>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); removeFromCartMutation.mutate({ itemId: item.id }); }}
-                            style={{
-                              background: "none", border: "none",
-                              color: "var(--danger)", cursor: "pointer",
-                              fontSize: "1rem", padding: "0 4px",
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    {korb && (
-                      <button
-                        onClick={() => submitCartMutation.mutate({ korbId: korb.id })}
-                        disabled={submitCartMutation.isPending}
-                        style={{ ...btnOrderStyle, opacity: submitCartMutation.isPending ? 0.7 : 1 }}
+                    {/* Gruppen-Karten */}
+                    {koerbe.map((korb) => (
+                      <div
+                        key={korb.id}
+                        style={{
+                          border:       "1px solid var(--border)",
+                          borderRadius: 10,
+                          overflow:     "hidden",
+                          marginBottom: "0.75rem",
+                        }}
                       >
-                        {submitCartMutation.isPending ? "Wird gesendet..." : `Alle bestellen (${korbItems.length})`}
+                        {/* Gruppen-Header */}
+                        <div style={{
+                          background:     "var(--primary)",
+                          color:          "white",
+                          padding:        "0.55rem 1rem",
+                          display:        "flex",
+                          justifyContent: "space-between",
+                          alignItems:     "center",
+                          gap:            8,
+                        }}>
+                          <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>
+                            🖥️ LogID: <strong>{korb.logId}</strong>
+                          </span>
+                          <span style={{ fontSize: "0.85rem", fontWeight: 700, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
+                            {korb.geraeteName ?? "Gerät"}
+                          </span>
+                        </div>
+
+                        {/* Items (Zebra-Muster) */}
+                        {korb.items.map((item, idx) => {
+                          const teilName  = item.artikel?.kategorie ?? item.teiltyp ?? "Unbekannt";
+                          const artName   = item.artikel?.bezeichnung ?? "—";
+                          const isNeu     = (item.artikel?.bestand ?? 0) > 0;
+                          const odd       = idx % 2 === 1;
+                          return (
+                            <div
+                              key={item.id}
+                              style={{
+                                display:    "flex",
+                                alignItems: "center",
+                                gap:        8,
+                                padding:    "0.45rem 0.8rem",
+                                background: odd ? "var(--card-bg)" : "var(--bg)",
+                              }}
+                            >
+                              <span style={{ fontSize: "1.1rem", flexShrink: 0 }}>
+                                {TEIL_ICONS[teilName] ?? "🔧"}
+                              </span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 600, fontSize: "0.85rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {teilName}
+                                </div>
+                                <div style={{ fontSize: "0.72rem", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {artName}
+                                </div>
+                              </div>
+                              {/* Grading badge */}
+                              <span style={{
+                                padding:     "0.1rem 0.45rem",
+                                borderRadius: 5,
+                                background:  "var(--border)",
+                                color:       "var(--text-dim)",
+                                fontSize:    "0.72rem",
+                                fontWeight:  700,
+                                flexShrink:  0,
+                              }}>
+                                {item.grading}
+                              </span>
+                              {/* Status prediction */}
+                              <span style={{
+                                padding:     "0.1rem 0.45rem",
+                                borderRadius: 10,
+                                background:  isNeu ? "#dbeafe" : "#ede9fe",
+                                color:       isNeu ? "#1d4ed8" : "#7c3aed",
+                                fontSize:    "0.68rem",
+                                fontWeight:  800,
+                                flexShrink:  0,
+                              }}>
+                                {isNeu ? "NEU" : "BEDARF"}
+                              </span>
+                              {/* Entfernen */}
+                              <button
+                                onClick={() => removeFromCartMutation.mutate({ itemId: item.id })}
+                                style={{
+                                  background: "none",
+                                  border:     "none",
+                                  color:      "var(--danger)",
+                                  cursor:     "pointer",
+                                  fontSize:   "1rem",
+                                  padding:    "0 2px",
+                                  flexShrink: 0,
+                                }}
+                                title="Entfernen"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          );
+                        })}
+
+                        {/* Gruppen-Footer */}
+                        <div style={{
+                          padding:    "0.3rem 1rem",
+                          background: "var(--bg)",
+                          fontSize:   "0.75rem",
+                          color:      "var(--text-dim)",
+                          textAlign:  "right",
+                          borderTop:  "1px solid var(--border)",
+                        }}>
+                          {korb.items.length} {korb.items.length === 1 ? "Teil" : "Teile"}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Globale Optionen + Submit */}
+                    <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.8rem", marginTop: "0.4rem" }}>
+                      <textarea
+                        value={globalZusatzinfo}
+                        onChange={(e) => setGlobalZusatzinfo(e.target.value)}
+                        placeholder="Kommentar für alle Teile (optional)..."
+                        rows={2}
+                        style={{
+                          ...searchInputStyle,
+                          marginBottom: "0.75rem",
+                          resize:       "vertical",
+                          fontSize:     "0.85rem",
+                          padding:      "0.5rem 0.8rem",
+                        }}
+                      />
+                      <button
+                        onClick={() => submitAlleMutation.mutate({
+                          techniker:  kuerzel,
+                          zusatzinfo: globalZusatzinfo || undefined,
+                        })}
+                        disabled={submitAlleMutation.isPending || totalKorbTeile === 0}
+                        style={{
+                          background:   "#16a34a",
+                          color:        "white",
+                          border:       "none",
+                          padding:      "0.9rem 1.2rem",
+                          borderRadius: "10px",
+                          fontWeight:   "bold",
+                          cursor:       "pointer",
+                          fontFamily:   "'Ubuntu', sans-serif",
+                          width:        "100%",
+                          fontSize:     "1rem",
+                          opacity:      submitAlleMutation.isPending ? 0.7 : 1,
+                          boxShadow:    "0 3px 8px rgba(22,163,74,0.3)",
+                        }}
+                      >
+                        {submitAlleMutation.isPending
+                          ? "⏳ Wird gesendet..."
+                          : `✓ Alle ${totalKorbTeile} Teile anfragen`}
                       </button>
-                    )}
+                    </div>
                   </>
                 )}
               </>

@@ -3,31 +3,35 @@ import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { erstelleAnfrage } from "@/modules/anfragen/service";
 
-/**
- * Aktiven Warenkorb eines Technikers abrufen (null wenn keiner existiert).
- */
-export async function getAktiv(techniker: string) {
-  return prisma.warenkorb.findFirst({
-    where: {
-      techniker: techniker.toUpperCase().trim(),
-      status:    KorbStatus.AKTIV,
-    },
+// ── Shared include ──────────────────────────────────────────────────────────
+
+const ITEMS_INCLUDE = {
+  items: {
     include: {
-      items: {
-        include: {
-          artikel: {
-            select: { id: true, bezeichnung: true, kategorie: true, bestand: true },
-          },
-        },
+      artikel: {
+        select: { id: true, bezeichnung: true, kategorie: true, bestand: true },
       },
     },
+    orderBy: { id: "asc" as const },
+  },
+} as const;
+
+// ── Public API ──────────────────────────────────────────────────────────────
+
+/**
+ * Alle aktiven Warenkörbe eines Technikers (je einer pro logId).
+ */
+export async function getAktiv(techniker: string) {
+  return prisma.warenkorb.findMany({
+    where:   { techniker: techniker.toUpperCase().trim(), status: KorbStatus.AKTIV },
+    include: ITEMS_INCLUDE,
+    orderBy: { createdAt: "asc" },
   });
 }
 
 /**
- * Item zum Warenkorb hinzufügen.
+ * Item hinzufügen. Gibt den aktualisierten kompletten Warenkorb zurück.
  * artikelId kann null sein (ZUSTAND C: kein Artikel verknüpft).
- * In diesem Fall wird nur der teiltyp gespeichert.
  */
 export async function addItem(data: {
   techniker:    string;
@@ -41,7 +45,6 @@ export async function addItem(data: {
   const techniker = data.techniker.toUpperCase().trim();
   const logId     = data.logId.trim();
 
-  // Artikel nur prüfen wenn vorhanden
   if (data.artikelId) {
     const artikel = await prisma.artikel.findUnique({
       where:  { id: data.artikelId },
@@ -52,7 +55,7 @@ export async function addItem(data: {
     }
   }
 
-  return prisma.$transaction(async (tx) => {
+  const korbId = await prisma.$transaction(async (tx) => {
     let korb = await tx.warenkorb.findFirst({
       where: { techniker, logId, status: KorbStatus.AKTIV },
     });
@@ -63,7 +66,7 @@ export async function addItem(data: {
       });
     }
 
-    const item = await tx.warenkorbItem.create({
+    await tx.warenkorbItem.create({
       data: {
         korbId:     korb.id,
         artikelId:  data.artikelId,
@@ -71,17 +74,20 @@ export async function addItem(data: {
         grading:    data.grading ?? "A+",
         zusatzinfo: data.zusatzinfo,
       },
-      include: {
-        artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true } },
-      },
     });
 
-    return { korb, item };
+    return korb.id;
+  });
+
+  // Kompletten Warenkorb zurückgeben
+  return prisma.warenkorb.findUnique({
+    where:   { id: korbId },
+    include: ITEMS_INCLUDE,
   });
 }
 
 /**
- * Item aus dem Warenkorb entfernen.
+ * Item entfernen.
  */
 export async function removeItem(itemId: number): Promise<void> {
   const item = await prisma.warenkorbItem.findUnique({ where: { id: itemId } });
@@ -89,14 +95,17 @@ export async function removeItem(itemId: number): Promise<void> {
     throw new TRPCError({ code: "NOT_FOUND", message: "Warenkorb-Item nicht gefunden." });
   }
   await prisma.warenkorbItem.delete({ where: { id: itemId } });
+
+  // Leeren Warenkorb automatisch löschen
+  const remaining = await prisma.warenkorbItem.count({ where: { korbId: item.korbId } });
+  if (remaining === 0) {
+    await prisma.warenkorb.delete({ where: { id: item.korbId } });
+  }
 }
 
 /**
- * Warenkorb absenden — erstellt Anfragen für alle Items.
- *
- * Generiert gruppenNr im Format: YYYY-MM-DD-KUERZEL-NNN
- * Verknüpft alle Anfragen mit gruppenNr + korbId.
- * Setzt Warenkorb auf ABGESENDET.
+ * Einen Warenkorb absenden → erstellt Anfragen, löscht danach Korb + Items.
+ * Kein ABGESENDET-Status — Korb wird komplett gelöscht (kein Unique-Konflikt).
  */
 export async function submit(data: {
   korbId:      number;
@@ -104,13 +113,7 @@ export async function submit(data: {
 }): Promise<{ anzahl: number; gruppenNr: string }> {
   const korb = await prisma.warenkorb.findUnique({
     where:   { id: data.korbId },
-    include: {
-      items: {
-        include: {
-          artikel: { select: { id: true, kategorie: true, bezeichnung: true } },
-        },
-      },
-    },
+    include: { items: { include: { artikel: { select: { id: true, kategorie: true, bezeichnung: true } } } } },
   });
 
   if (!korb) {
@@ -125,27 +128,19 @@ export async function submit(data: {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Warenkorb ist leer." });
   }
 
-  // gruppenNr generieren: YYYY-MM-DD-KUERZEL-NNN
-  const heute = new Date();
-  const datumStr = heute.toISOString().slice(0, 10); // YYYY-MM-DD
-
+  // GruppenNr generieren
+  const datumStr   = new Date().toISOString().slice(0, 10);
   const heuteStart = new Date(datumStr);
   const heuteEnde  = new Date(heuteStart);
   heuteEnde.setDate(heuteEnde.getDate() + 1);
 
   const anzahlHeute = await prisma.anfrage.count({
-    where: {
-      techniker:  korb.techniker,
-      gruppenNr:  { not: null },
-      datum:      { gte: heuteStart, lt: heuteEnde },
-    },
+    where: { techniker: korb.techniker, gruppenNr: { not: null }, datum: { gte: heuteStart, lt: heuteEnde } },
   });
 
   const seq      = String(Math.floor(anzahlHeute / korb.items.length) + 1).padStart(3, "0");
   const gruppenNr = `${datumStr}-${korb.techniker}-${seq}`;
 
-  // Anfragen für alle Items erstellen
-  // item.artikelId kann null sein (ZUSTAND C) → Status BEDARF
   await Promise.all(
     korb.items.map((item) =>
       erstelleAnfrage({
@@ -163,11 +158,39 @@ export async function submit(data: {
     ),
   );
 
-  // Warenkorb auf ABGESENDET setzen
-  await prisma.warenkorb.update({
-    where: { id: korb.id },
-    data:  { status: KorbStatus.ABGESENDET },
-  });
+  // Korb + Items löschen (kein ABGESENDET → kein Unique-Konflikt bei Neuanlage)
+  await prisma.warenkorbItem.deleteMany({ where: { korbId: korb.id } });
+  await prisma.warenkorb.delete({ where: { id: korb.id } });
 
   return { anzahl: korb.items.length, gruppenNr };
+}
+
+/**
+ * Alle aktiven Körbe eines Technikers auf einmal absenden.
+ */
+export async function submitAlle(data: {
+  techniker:   string;
+  zusatzinfo?: string;
+}): Promise<{ anzahl: number; gruppenNrs: string[] }> {
+  const techniker = data.techniker.toUpperCase().trim();
+  const koerbe    = await prisma.warenkorb.findMany({
+    where:   { techniker, status: KorbStatus.AKTIV },
+    select:  { id: true, items: { select: { id: true } } },
+  });
+
+  const mitItems = koerbe.filter((k) => k.items.length > 0);
+  if (mitItems.length === 0) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Warenkorb ist leer." });
+  }
+
+  let totalAnzahl  = 0;
+  const gruppenNrs: string[] = [];
+
+  for (const korb of mitItems) {
+    const result = await submit({ korbId: korb.id, zusatzinfo: data.zusatzinfo });
+    totalAnzahl += result.anzahl;
+    gruppenNrs.push(result.gruppenNr);
+  }
+
+  return { anzahl: totalAnzahl, gruppenNrs };
 }
