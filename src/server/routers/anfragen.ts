@@ -53,7 +53,7 @@ export const anfragenRouter = createTRPCRouter({
     .input(z.object({
       kuerzel: z.string().min(1).max(50),
       showAll: z.boolean().default(false),
-      limit:   z.number().int().min(1).max(50).default(20),
+      limit:   z.number().int().min(1).max(200).default(50),
       offset:  z.number().int().min(0).default(0),
     }))
     .query(({ input }) =>
