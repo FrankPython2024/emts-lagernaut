@@ -74,8 +74,8 @@ export function ChatModal({
   const [antwortext, setAntwortext] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Nachricht + Antworten laden (pollt alle 3s)
-  const { data: nachricht, isLoading } = api.nachrichten.getById.useQuery(
+  // Nachricht + Antworten laden — eine einzige Query, refetch nach Antwort
+  const { data: nachricht, isLoading, refetch } = api.nachrichten.getById.useQuery(
     { id: nachrichtId },
     { refetchInterval: 3_000, staleTime: 2_000 },
   );
@@ -96,10 +96,6 @@ export function ChatModal({
   }, [antwortenLen]);
 
   // Antworten senden
-  const { data: _antworten, refetch } = api.nachrichten.getById.useQuery(
-    { id: nachrichtId },
-    { refetchInterval: 3_000, staleTime: 2_000, enabled: false }
-  );
   const antwortenMutation = api.nachrichten.antworten.useMutation({
     onSuccess: () => {
       setAntwortext("");

@@ -21,10 +21,11 @@ export default function GruppenNachrichten({ logId, kuerzel }: Props) {
   );
 
   if (process.env.NODE_ENV !== "production") {
-    console.log("[GruppenNachrichten]", logId, "→", data.length, "Nachrichten");
+    console.log("[GruppenNachrichten]", logId, "→", data.length, "Nachrichten", chatId !== null ? "(Chat offen)" : "");
   }
 
-  if (!data.length) return null;
+  // WICHTIG: null nur wenn kein Chat offen — sonst würde Modal durch markGelesen-Refetch geschlossen!
+  if (!data.length && chatId === null) return null;
 
   // Erste Nachricht für Vorschau (neueste)
   const first      = data[0]!;
