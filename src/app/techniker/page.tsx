@@ -1,13 +1,12 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { useRouter }     from "next/navigation";
-import { useSession }    from "next-auth/react";
-import { AnfrageStatus } from "@prisma/client";
-import { api }           from "@/trpc/react";
+import { useSession } from "next-auth/react";
+import { api }        from "@/trpc/react";
 import { useToast }      from "@/components/ui/Toast";
 import { useSocket }     from "@/hooks/useSocket";
 import { EVENTS }        from "@/modules/realtime/events";
 import { TastaturModal } from "@/components/ui/TastaturModal";
+import AnfragenBox      from "./components/AnfragenBox";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -136,14 +135,7 @@ export default function TechnikerPage() {
   const [cartOpen,          setCartOpen]          = useState(false);
   const [globalZusatzinfo,  setGlobalZusatzinfo]  = useState("");
 
-  // ── Storno state ──────────────────────────────────────────────────────────
-  const [stornoItem, setStornoItem] = useState<{ id: number; teil: string; techniker: string; logId: string } | null>(null);
-
-  // ── Anfragen filter & Gruppen ─────────────────────────────────────────────
-  const [filterTab,      setFilterTab]      = useState<"alle" | "aktiv" | "erledigt">("alle");
-  const [logIdSearch,    setLogIdSearch]    = useState("");
-  const [showAllAnfragen, setShowAllAnfragen] = useState(false);
-  const [lastRefresh,    setLastRefresh]    = useState<Date>(new Date());
+  // (Storno + Anfragen-Filter → jetzt in AnfragenBox Komponente)
 
   // ── tRPC Queries ──────────────────────────────────────────────────────────
 
@@ -157,12 +149,6 @@ export default function TechnikerPage() {
   const teileQuery = api.kompatibilitaet.getByGeraetMitStandard.useQuery(
     { geraet: selectedGeraet?.bereinigt ?? "" },
     { enabled: !!selectedGeraet, staleTime: 60_000 },
-  );
-
-  // My Anfragen
-  const anfragenQuery = api.anfragen.getByTechniker.useQuery(
-    { kuerzel, showAll: true, limit: 50 },
-    { enabled: !!kuerzel, refetchInterval: 20_000 },
   );
 
   // Warenkorb
@@ -184,16 +170,7 @@ export default function TechnikerPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logIdLookup.data]);
 
-  // ── Mutations ─────────────────────────────────────────────────────────────
-
-  const storniereMutation = api.anfragen.storniere.useMutation({
-    onSuccess: () => {
-      show("Anfrage storniert", "success");
-      anfragenQuery.refetch();
-      setStornoItem(null);
-    },
-    onError: (e) => show(`Fehler: ${e.message}`, "error"),
-  });
+  // ── Mutations (Cart) ──────────────────────────────────────────────────────
 
   const addToCartMutation = api.warenkorb.addItem.useMutation({
     onSuccess: () => {
@@ -212,7 +189,6 @@ export default function TechnikerPage() {
     onSuccess: (data) => {
       show(`✅ ${data.anzahl} Teile angefragt! (${data.gruppenNr})`, "success");
       korbQuery.refetch();
-      anfragenQuery.refetch();
     },
     onError: (e) => show(`Fehler: ${e.message}`, "error"),
   });
@@ -221,36 +197,23 @@ export default function TechnikerPage() {
     onSuccess: (data) => {
       show(`✅ ${data.anzahl} Teile erfolgreich angefragt!`, "success");
       korbQuery.refetch();
-      anfragenQuery.refetch();
       setCartOpen(false);
       setGlobalZusatzinfo("");
     },
     onError: (e) => show(`Fehler: ${e.message}`, "error"),
   });
 
-  // ── Socket events ─────────────────────────────────────────────────────────
+  // ── Socket: nur Teile-Refresh (Anfragen-Refresh ist in AnfragenBox) ───────
   useEffect(() => {
-    const doRefreshAnfragen = () => { anfragenQuery.refetch(); setLastRefresh(new Date()); };
-    on(EVENTS.ANFRAGE_UPDATED, doRefreshAnfragen);
-    on(EVENTS.ANFRAGE_NEU,     doRefreshAnfragen);
     on(EVENTS.BESTAND_UPDATED, () => { if (selectedGeraet) teileQuery.refetch(); });
-    // NACHRICHT_NEU wird von AnfrageGruppe per eigenem getByLogId-Query behandelt
-    return () => {
-      off(EVENTS.ANFRAGE_UPDATED);
-      off(EVENTS.ANFRAGE_NEU);
-      off(EVENTS.BESTAND_UPDATED);
-      off(EVENTS.NACHRICHT_NEU);
-    };
+    return () => { off(EVENTS.BESTAND_UPDATED); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [on, off]);
 
   // ── Auto-Refresh (5-Sekunden-Fallback wenn Socket kurz getrennt) ──────────
+  // Warenkorb-Auto-Refresh (Anfragen werden von AnfragenBox selbst gepollt)
   useEffect(() => {
-    const interval = setInterval(() => {
-      anfragenQuery.refetch();
-      korbQuery.refetch();
-      setLastRefresh(new Date());
-    }, 5_000);
+    const interval = setInterval(() => { korbQuery.refetch(); }, 5_000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -324,60 +287,6 @@ export default function TechnikerPage() {
     });
   }
 
-  // ── Anfragen ───────────────────────────────────────────────────────────────
-  const alleAnfragen = anfragenQuery.data?.anfragen ?? [];
-  const offeneCount  = alleAnfragen.filter((a) => a.status === "NEU" || a.status === "BEDARF").length;
-
-  // Gruppen nach logId (FIX 1: robuster Key; FIX 3: Teil-Deduplizierung)
-  const gruppen = useMemo(() => {
-    type GruppeEntry = { key: string; logId: string | null; gruppenNr: string | null; geraeteName: string | null; datum: Date; anfragen: typeof alleAnfragen };
-    const map = new Map<string, GruppeEntry>();
-
-    for (const a of alleAnfragen) {
-      const rawLogId  = (a.logId ?? "").trim();
-      const cleanLogId = rawLogId.replace(/\./g, "");
-      const key =
-        rawLogId && rawLogId !== "unbekannt" ? rawLogId
-        : (a as { gruppenNr?: string | null }).gruppenNr         ? (a as { gruppenNr?: string | null }).gruppenNr!
-        : `datum-${new Date(a.datum).toISOString().slice(0, 10)}`;
-
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          logId:       rawLogId || null,
-          gruppenNr:   (a as { gruppenNr?: string | null }).gruppenNr ?? null,
-          geraeteName: a.geraeteName ?? null,
-          datum:       new Date(a.datum),
-          anfragen:    [],
-        });
-      }
-      const gruppe = map.get(key)!;
-
-      // FIX 3: Deduplizierung — gleicher Teil + gleicher Status wird nur einmal gezeigt
-      const isDuplicate = gruppe.anfragen.some(
-        (existing) => existing.teil === a.teil && existing.status === a.status
-      );
-      if (!isDuplicate) {
-        gruppe.anfragen.push(a);
-      }
-      // Datum auf neueste Anfrage der Gruppe aktualisieren
-      if (new Date(a.datum) > gruppe.datum) gruppe.datum = new Date(a.datum);
-    }
-
-    return Array.from(map.values()).sort((a, b) => b.datum.getTime() - a.datum.getTime());
-  }, [alleAnfragen]);
-
-  const gefilterteGruppen = useMemo(() => {
-    return gruppen.filter((g) => {
-      if (logIdSearch) {
-        const q = logIdSearch.toLowerCase();
-        if (!(g.logId ?? "").toLowerCase().includes(q) && !(g.geraeteName ?? "").toLowerCase().includes(q)) return false;
-      }
-      if (filterTab === "aktiv")    return g.anfragen.some((a) => a.status === "NEU" || a.status === "BEDARF");
-      if (filterTab === "erledigt") return g.anfragen.every((a) => a.status === "ABGESCHLOSSEN" || a.status === "STORNIERT");
-      return true;
-    });
-  }, [gruppen, filterTab, logIdSearch]);
   const koerbe       = korbQuery.data ?? [];
   const alleKorbItems = koerbe.flatMap((k) => k.items);
   const totalKorbTeile = alleKorbItems.length;
@@ -394,37 +303,7 @@ export default function TechnikerPage() {
         onClose={() => { setShowTastatur(false); setPendingCartItem(null); }}
       />
 
-      {/* ── Storno Modal ── */}
-      {stornoItem && (
-        <div style={modalOverlay()} onClick={() => setStornoItem(null)}>
-          <div
-            style={{ ...modalContent, border: "2px solid var(--danger)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>🗑️</div>
-            <h3 style={{ margin: "0 0 8px", color: "var(--danger)" }}>Anfrage stornieren</h3>
-            <p style={{ color: "var(--text-dim)", margin: "0 0 1.5rem" }}>
-              Möchtest du <strong style={{ color: "var(--text)" }}>{stornoItem.teil}</strong> wirklich stornieren?
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <button onClick={() => setStornoItem(null)} style={btnIconStyle}>Abbrechen</button>
-              <button
-                onClick={() => {
-                  storniereMutation.mutate({
-                    techniker: stornoItem.techniker,
-                    logId:     stornoItem.logId,
-                    teil:      stornoItem.teil,
-                  });
-                }}
-                disabled={storniereMutation.isPending}
-                style={{ ...btnOrderStyle, background: "var(--danger)" }}
-              >
-                Ja, stornieren
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Storno-Modal ist jetzt in AnfragenBox */}
 
       {/* ── Main Grid ── */}
       <main style={{
@@ -813,102 +692,8 @@ export default function TechnikerPage() {
             )}
           </div>
 
-          {/* ── Meine Anfragen (gruppiert nach LogID) ── */}
-          <div style={{ ...cardStyle, flex: 1 }}>
-            {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", borderBottom: "1px solid var(--border)", paddingBottom: "1rem" }}>
-              <h3 style={{ margin: 0 }}>
-                Meine Anfragen
-                {offeneCount > 0 && (
-                  <span style={{ marginLeft: 8, background: "var(--warning)", color: "#000", borderRadius: 20, padding: "2px 8px", fontSize: "0.75rem", fontWeight: "bold" }}>
-                    {offeneCount} offen
-                  </span>
-                )}
-              </h3>
-              <small style={{ color: "var(--text-dim)", fontSize: "0.72rem" }}>
-                🔄 {lastRefresh.toLocaleTimeString("de-DE")}
-              </small>
-            </div>
-
-            {/* Filter-Tabs */}
-            <div style={{ display: "flex", gap: 4, marginBottom: "0.75rem", flexWrap: "wrap" }}>
-              {(["alle", "aktiv", "erledigt"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setFilterTab(tab)}
-                  style={{
-                    padding:      "0.3rem 0.8rem",
-                    borderRadius: 20,
-                    border:       `1px solid ${filterTab === tab ? "var(--primary)" : "var(--border)"}`,
-                    background:   filterTab === tab ? "var(--primary)" : "var(--bg)",
-                    color:        filterTab === tab ? "white" : "var(--text-dim)",
-                    cursor:       "pointer",
-                    fontWeight:   filterTab === tab ? 700 : 500,
-                    fontSize:     "0.82rem",
-                    fontFamily:   "'Ubuntu', sans-serif",
-                    transition:   "all 0.15s",
-                  }}
-                >
-                  {tab === "alle" ? "Alle" : tab === "aktiv" ? "Aktiv" : "Erledigt"}
-                </button>
-              ))}
-              {/* LogID-Scan */}
-              <div style={{ position: "relative", flex: 1, minWidth: 100 }}>
-                <input
-                  type="text"
-                  value={logIdSearch}
-                  onChange={(e) => setLogIdSearch(e.target.value)}
-                  placeholder="🔍 LogID..."
-                  style={{
-                    width:        "100%",
-                    padding:      "0.3rem 1.8rem 0.3rem 0.7rem",
-                    borderRadius: 20,
-                    border:       "1px solid var(--border)",
-                    background:   "var(--bg)",
-                    color:        "var(--text)",
-                    boxSizing:    "border-box",
-                    outline:      "none",
-                    fontSize:     "0.82rem",
-                    fontFamily:   "'Ubuntu', sans-serif",
-                  }}
-                  onFocus={(e)  => (e.currentTarget.style.borderColor = "var(--primary)")}
-                  onBlur={(e)   => (e.currentTarget.style.borderColor = "var(--border)")}
-                />
-                {logIdSearch && (
-                  <button onClick={() => setLogIdSearch("")} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer" }}>✕</button>
-                )}
-              </div>
-            </div>
-
-            {/* Gruppen-Liste */}
-            <div style={{ maxHeight: 580, overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              {anfragenQuery.isLoading && (
-                <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>Laden...</div>
-              )}
-              {!anfragenQuery.isLoading && gefilterteGruppen.length === 0 && (
-                <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>
-                  {logIdSearch ? "Keine Treffer" : "Noch keine Anfragen"}
-                </div>
-              )}
-              {gefilterteGruppen.map((g) => (
-                <AnfrageGruppe
-                  key={g.key}
-                  gruppe={g}
-                  kuerzel={kuerzel}
-                  onStorno={(item) => setStornoItem(item)}
-                />
-              ))}
-            </div>
-
-            {gruppen.length > 5 && (
-              <button
-                onClick={() => setShowAllAnfragen(!showAllAnfragen)}
-                style={{ ...btnIconStyle, width: "100%", marginTop: "0.8rem", textAlign: "center", color: "var(--text-dim)" }}
-              >
-                {showAllAnfragen ? "▲ Weniger" : `▼ Alle ${gruppen.length} Gruppen`}
-              </button>
-            )}
-          </div>
+          {/* ── Meine Anfragen — in separate AnfragenBox Komponente ausgelagert ── */}
+          <AnfragenBox kuerzel={kuerzel} />
         </aside>
       </main>
 
@@ -1117,263 +902,6 @@ function TeilKarte({
       >
         {btn.label}
       </button>
-    </div>
-  );
-}
-
-// ── AnfrageGruppe sub-component ──────────────────────────────────────────────
-
-type AnfrageRow = {
-  id:          number;
-  techniker:   string;
-  logId:       string;
-  geraet:      string;
-  geraeteName: string | null;
-  teil:        string;
-  status:      string;
-  datum:       Date;
-  grading?:    string | null;
-  kommentar?:  string | null;
-};
-
-type GruppeData = {
-  key:         string;
-  logId:       string | null;
-  gruppenNr:   string | null;
-  geraeteName: string | null;
-  datum:       Date;
-  anfragen:    AnfrageRow[];
-};
-
-type StornoPayload = { id: number; teil: string; techniker: string; logId: string };
-
-
-const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
-  NEU:           { bg: "#dbeafe", color: "#1d4ed8", label: "NEU" },
-  BEDARF:        { bg: "#ede9fe", color: "#7c3aed", label: "BEDARF" },
-  ABGESCHLOSSEN: { bg: "#dcfce7", color: "#15803d", label: "ERLEDIGT ✅" },
-  STORNIERT:     { bg: "#f3f4f6", color: "#9ca3af", label: "STORNIERT" },
-};
-
-// ── GruppenNachrichten — eigenständige Komponente mit eigenem Query ───────────
-// Isoliert den Nachrichten-Query damit AnfrageGruppe clean bleibt.
-// Verwendet Text-Suche im inhalt (kein logId-Spalten-Query) → kein DB-Upgrade nötig.
-
-function GruppenNachrichten({ logId, kuerzel }: { logId: string; kuerzel: string }) {
-  const router = useRouter();
-
-  const { data = [], refetch } = api.nachrichten.getByLogId.useQuery(
-    { kuerzel, logId },
-    { enabled: !!(kuerzel && logId && logId !== "unbekannt"), refetchInterval: 5_000, staleTime: 4_000 },
-  );
-
-  const markGelesenMutation = api.nachrichten.markGelesen.useMutation({
-    onSuccess: () => refetch(),
-  });
-
-  if (!data.length) return null;
-
-  return (
-    <div style={{ borderTop: "2px solid var(--primary)" }}>
-      {data.slice(0, 3).map((r) => {
-        // Inhalt-Vorschau: eingebettetes [LogID: ...] am Ende ausblenden
-        const logIdTag  = `\n\n[LogID: ${logId}]`;
-        const inCleaned = r.nachricht.inhalt.endsWith(logIdTag)
-          ? r.nachricht.inhalt.slice(0, -logIdTag.length).trim()
-          : r.nachricht.inhalt;
-        return (
-          <div key={r.id} style={{
-            background:   "rgba(0, 100, 210, 0.07)",
-            borderLeft:   "4px solid var(--primary)",
-            padding:      "0.7rem 0.8rem",
-            borderBottom: "1px solid rgba(0,100,210,0.15)",
-          }}>
-            <div style={{ fontWeight: 800, fontSize: "0.82rem", color: "var(--primary)", marginBottom: 4, display: "flex", alignItems: "center", gap: 5 }}>
-              <span>📬</span>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                Neue Nachricht · {r.nachricht.betreff}
-              </span>
-            </div>
-            <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", marginBottom: 8, lineHeight: 1.4 }}>
-              {inCleaned.substring(0, 120)}{inCleaned.length > 120 ? "…" : ""}
-            </div>
-            <button
-              onClick={() => {
-                markGelesenMutation.mutate({ nachrichtId: r.nachrichtId, kuerzel });
-                router.push("/techniker/nachrichten");
-              }}
-              style={{
-                background:   "var(--primary)",
-                color:        "white",
-                padding:      "0.25rem 0.75rem",
-                borderRadius: 20,
-                fontSize:     "0.75rem",
-                fontWeight:   700,
-                fontFamily:   "'Ubuntu', sans-serif",
-                border:       "none",
-                cursor:       "pointer",
-              }}
-            >
-              📖 Lesen & Antworten
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── AnfrageGruppe ─────────────────────────────────────────────────────────────
-
-function AnfrageGruppe({
-  gruppe,
-  kuerzel,
-  onStorno,
-}: {
-  gruppe:   GruppeData;
-  kuerzel:  string;
-  onStorno: (item: StornoPayload) => void;
-}) {
-  const anfragen     = gruppe.anfragen;
-  const hasRealLogId = !!(gruppe.logId && gruppe.logId !== "unbekannt");
-
-  const alleErledigt   = anfragen.every((a) => a.status === "ABGESCHLOSSEN" || a.status === "STORNIERT");
-  const irgendErledigt = anfragen.some((a) => a.status === "ABGESCHLOSSEN");
-  const hatBedarf      = anfragen.some((a) => a.status === "BEDARF");
-
-  const headerBg         = alleErledigt ? "#16a34a" : "var(--primary)";
-  const headerBorderLeft = !alleErledigt && irgendErledigt
-    ? "5px solid #16a34a"
-    : !alleErledigt && hatBedarf
-    ? "5px solid #f97316"
-    : undefined;
-
-  const datum    = new Date(gruppe.datum);
-  const datumStr = datum.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
-
-  // Header-Text: echte LogID > GeräteNameName > kurze GruppenNr > Datum
-  const headerLogIdText = hasRealLogId
-    ? `LogID: ${gruppe.logId}`
-    : gruppe.geraeteName
-    ? gruppe.geraeteName
-    : gruppe.gruppenNr
-    ? `Anfrage ${gruppe.gruppenNr.slice(-6)}`
-    : `Anfrage ${datumStr}`;
-
-  const headerIcon = hasRealLogId ? "📡" : "🔍";
-
-  return (
-    // FIX 2: width 100% + overflow hidden verhindert Abschneiden
-    <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", width: "100%", minWidth: 0 }}>
-      {/* Gruppen-Header */}
-      <div style={{
-        background:     headerBg,
-        borderLeft:     headerBorderLeft,
-        color:          "white",
-        padding:        "0.5rem 0.8rem",
-        display:        "flex",
-        justifyContent: "space-between",
-        alignItems:     "center",
-        gap:            6,
-        minWidth:       0,
-      }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <span style={{ fontSize: "0.78rem", opacity: 0.9, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {headerIcon} <strong>{headerLogIdText}</strong>
-          </span>
-          {/* Zeige GeräteNamen zusätzlich wenn echte LogID vorhanden */}
-          {hasRealLogId && gruppe.geraeteName && (
-            <span style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.92 }}>
-              {gruppe.geraeteName}
-            </span>
-          )}
-        </div>
-        <small style={{ opacity: 0.85, flexShrink: 0, fontSize: "0.72rem" }}>{datumStr}</small>
-      </div>
-
-      {/* Anfragen-Zeilen (Zebra) */}
-      {anfragen.map((a, idx) => {
-        const cfg             = STATUS_CFG[a.status] ?? STATUS_CFG.STORNIERT;
-        const canStorno       = a.status === "NEU" || a.status === "BEDARF";
-        const isAbgeschlossen = a.status === "ABGESCHLOSSEN";
-        const odd             = idx % 2 === 1;
-
-        return (
-          <div key={a.id} style={{
-            padding:   "0.45rem 0.8rem",
-            background: odd ? "var(--card-bg)" : "var(--bg)",
-            borderTop: idx > 0 ? "1px solid var(--border)" : "none",
-            minWidth:  0,
-          }}>
-            {/* Zeile 1: Icon + Teilname + Grading + Status */}
-            <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
-              <span style={{ fontSize: "1rem", flexShrink: 0 }}>{TEIL_ICONS[a.teil] ?? "🔧"}</span>
-              <strong style={{ flex: 1, fontSize: "0.82rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
-                {a.teil}
-              </strong>
-              {a.grading && (
-                <span style={{ padding: "0.1rem 0.4rem", borderRadius: 4, background: "var(--border)", color: "var(--text-dim)", fontSize: "0.68rem", fontWeight: 700, flexShrink: 0 }}>
-                  {a.grading}
-                </span>
-              )}
-              <span style={{
-                padding:       "0.12rem 0.5rem",
-                borderRadius:  10,
-                fontWeight:    800,
-                fontSize:      "0.65rem",
-                textTransform: "uppercase",
-                whiteSpace:    "nowrap",
-                flexShrink:    0,
-                background:    cfg.bg,
-                color:         cfg.color,
-              }}>
-                {cfg.label}
-              </span>
-            </div>
-
-            {/* Zeile 2: Info + Storno */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2, minWidth: 0 }}>
-              <div style={{ fontSize: "0.72rem", color: "var(--text-dim)", fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                {isAbgeschlossen
-                  ? <span style={{ color: "#15803d", fontStyle: "normal", fontWeight: 700 }}>✅ Bereit zur Abholung!</span>
-                  : a.kommentar
-                  ? <span>💬 {a.kommentar}</span>
-                  : null
-                }
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                {isAbgeschlossen && (
-                  <small style={{ color: "var(--text-dim)", fontSize: "0.68rem" }}>
-                    {new Date(a.datum).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
-                  </small>
-                )}
-                {canStorno && (
-                  <button
-                    onClick={() => onStorno({ id: a.id, teil: a.teil, techniker: a.techniker, logId: a.logId })}
-                    style={{
-                      background: "none", border: "1px solid var(--danger)", color: "var(--danger)",
-                      padding: "0.1rem 0.45rem", borderRadius: 5, cursor: "pointer",
-                      fontSize: "0.68rem", fontWeight: "bold", fontFamily: "'Ubuntu', sans-serif",
-                    }}
-                  >
-                    Storno
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Nachrichten-Panel — eigenständige Komponente */}
-      {gruppe.logId && gruppe.logId !== "unbekannt" && (
-        <GruppenNachrichten logId={gruppe.logId} kuerzel={kuerzel} />
-      )}
-
-      {/* Gruppen-Footer */}
-      <div style={{ padding: "0.28rem 0.8rem", background: "var(--bg)", fontSize: "0.68rem", color: "var(--text-dim)", textAlign: "right", borderTop: "1px solid var(--border)" }}>
-        {anfragen.length} {anfragen.length === 1 ? "Teil" : "Teile"}
-      </div>
     </div>
   );
 }
