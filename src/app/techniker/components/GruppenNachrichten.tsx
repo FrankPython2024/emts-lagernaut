@@ -24,15 +24,8 @@ export default function GruppenNachrichten({ logId, kuerzel }: Props) {
     console.log("[GruppenNachrichten]", logId, "→", data.length, "Nachrichten", chatId !== null ? "(Chat offen)" : "");
   }
 
-  // WICHTIG: null nur wenn kein Chat offen — sonst würde Modal durch markGelesen-Refetch geschlossen!
+  // WICHTIG: null nur wenn kein Chat offen UND keine Daten — sonst crasht data[0]! wenn data=[]
   if (!data.length && chatId === null) return null;
-
-  // Erste Nachricht für Vorschau (neueste)
-  const first      = data[0]!;
-  const logIdTag   = `\n\n[LogID: ${logId}]`;
-  const inCleaned  = first.nachricht.inhalt.endsWith(logIdTag)
-    ? first.nachricht.inhalt.slice(0, -logIdTag.length).trim()
-    : first.nachricht.inhalt;
 
   return (
     <>

@@ -75,9 +75,9 @@ export function ChatModal({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Nachricht + Antworten laden — eine einzige Query, refetch nach Antwort
-  const { data: nachricht, isLoading, refetch } = api.nachrichten.getById.useQuery(
+  const { data: nachricht, isLoading, error, refetch } = api.nachrichten.getById.useQuery(
     { id: nachrichtId },
-    { refetchInterval: 3_000, staleTime: 2_000 },
+    { enabled: !!nachrichtId && !!currentUser, refetchInterval: 3_000, staleTime: 2_000 },
   );
 
   // Als gelesen markieren beim Öffnen
@@ -134,6 +134,9 @@ export function ChatModal({
 
   const sub = [geraeteName, logId && logId !== "unbekannt" ? logId : undefined]
     .filter(Boolean).join(" · ");
+
+  // Frühe Returns — immer NACH allen Hooks!
+  if (!nachrichtId || !currentUser) return null;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -200,7 +203,12 @@ export function ChatModal({
           {isLoading && (
             <div style={{ textAlign: "center", color: "var(--text-dim)", padding: "2rem" }}>Laden...</div>
           )}
-          {!isLoading && messages.length === 0 && (
+          {error && (
+            <div style={{ textAlign: "center", color: "var(--danger)", padding: "2rem", fontSize: "0.85rem" }}>
+              Fehler: {error.message}
+            </div>
+          )}
+          {!isLoading && !error && messages.length === 0 && (
             <div style={{ textAlign: "center", color: "var(--text-dim)", padding: "2rem" }}>Keine Nachrichten</div>
           )}
           {messages.map((m) => (
