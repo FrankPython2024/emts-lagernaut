@@ -1155,6 +1155,76 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
   STORNIERT:     { bg: "#f3f4f6", color: "#9ca3af", label: "STORNIERT" },
 };
 
+// ── GruppenNachrichten — eigenständige Komponente mit eigenem Query ───────────
+// Isoliert den Nachrichten-Query damit AnfrageGruppe clean bleibt.
+// Verwendet Text-Suche im inhalt (kein logId-Spalten-Query) → kein DB-Upgrade nötig.
+
+function GruppenNachrichten({ logId, kuerzel }: { logId: string; kuerzel: string }) {
+  const router = useRouter();
+
+  const { data = [], refetch } = api.nachrichten.getByLogId.useQuery(
+    { kuerzel, logId },
+    { enabled: !!(kuerzel && logId && logId !== "unbekannt"), refetchInterval: 5_000, staleTime: 4_000 },
+  );
+
+  const markGelesenMutation = api.nachrichten.markGelesen.useMutation({
+    onSuccess: () => refetch(),
+  });
+
+  if (!data.length) return null;
+
+  return (
+    <div style={{ borderTop: "2px solid var(--primary)" }}>
+      {data.slice(0, 3).map((r) => {
+        // Inhalt-Vorschau: eingebettetes [LogID: ...] am Ende ausblenden
+        const logIdTag  = `\n\n[LogID: ${logId}]`;
+        const inCleaned = r.nachricht.inhalt.endsWith(logIdTag)
+          ? r.nachricht.inhalt.slice(0, -logIdTag.length).trim()
+          : r.nachricht.inhalt;
+        return (
+          <div key={r.id} style={{
+            background:   "rgba(0, 100, 210, 0.07)",
+            borderLeft:   "4px solid var(--primary)",
+            padding:      "0.7rem 0.8rem",
+            borderBottom: "1px solid rgba(0,100,210,0.15)",
+          }}>
+            <div style={{ fontWeight: 800, fontSize: "0.82rem", color: "var(--primary)", marginBottom: 4, display: "flex", alignItems: "center", gap: 5 }}>
+              <span>📬</span>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                Neue Nachricht · {r.nachricht.betreff}
+              </span>
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", marginBottom: 8, lineHeight: 1.4 }}>
+              {inCleaned.substring(0, 120)}{inCleaned.length > 120 ? "…" : ""}
+            </div>
+            <button
+              onClick={() => {
+                markGelesenMutation.mutate({ nachrichtId: r.nachrichtId, kuerzel });
+                router.push("/techniker/nachrichten");
+              }}
+              style={{
+                background:   "var(--primary)",
+                color:        "white",
+                padding:      "0.25rem 0.75rem",
+                borderRadius: 20,
+                fontSize:     "0.75rem",
+                fontWeight:   700,
+                fontFamily:   "'Ubuntu', sans-serif",
+                border:       "none",
+                cursor:       "pointer",
+              }}
+            >
+              📖 Lesen & Antworten
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── AnfrageGruppe ─────────────────────────────────────────────────────────────
+
 function AnfrageGruppe({
   gruppe,
   kuerzel,
@@ -1164,21 +1234,8 @@ function AnfrageGruppe({
   kuerzel:  string;
   onStorno: (item: StornoPayload) => void;
 }) {
-  const router = useRouter();
-
-  // Eigener Query für Nachrichten zu dieser LogID
-  // Nur wenn echte LogID vorhanden (nicht "unbekannt" aus Modell-Suche)
+  const anfragen     = gruppe.anfragen;
   const hasRealLogId = !!(gruppe.logId && gruppe.logId !== "unbekannt");
-  const nachrichtenQuery = api.nachrichten.getByLogId.useQuery(
-    { kuerzel, logId: gruppe.logId ?? "" },
-    { enabled: !!(kuerzel && hasRealLogId), refetchInterval: 5_000, staleTime: 4_000 },
-  );
-  const nachrichten = nachrichtenQuery.data ?? [];
-
-  const markGelesenMutation = api.nachrichten.markGelesen.useMutation({
-    onSuccess: () => nachrichtenQuery.refetch(),
-  });
-  const anfragen = gruppe.anfragen;
 
   const alleErledigt   = anfragen.every((a) => a.status === "ABGESCHLOSSEN" || a.status === "STORNIERT");
   const irgendErledigt = anfragen.some((a) => a.status === "ABGESCHLOSSEN");
@@ -1308,58 +1365,14 @@ function AnfrageGruppe({
         );
       })}
 
-      {/* Nachrichten-Panel (falls Nachrichten für diese LogID vorhanden) */}
-      {nachrichten.length > 0 && (
-        <div style={{ borderTop: "2px solid var(--primary)" }}>
-          {nachrichten.slice(0, 2).map((r) => (
-            <div key={r.id} style={{
-              background:   "rgba(0, 100, 210, 0.07)",
-              borderLeft:   "4px solid var(--primary)",
-              padding:      "0.6rem 0.8rem",
-              borderBottom: "1px solid var(--border)",
-            }}>
-              <div style={{ fontWeight: 800, fontSize: "0.8rem", color: "var(--primary)", marginBottom: 3, display: "flex", alignItems: "center", gap: 5 }}>
-                <span>📬</span>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {r.nachricht.betreff}
-                </span>
-              </div>
-              <div style={{ fontSize: "0.72rem", color: "var(--text-dim)", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {r.nachricht.inhalt.substring(0, 80)}{r.nachricht.inhalt.length > 80 ? "…" : ""}
-              </div>
-              <button
-                onClick={() => {
-                  markGelesenMutation.mutate({ nachrichtId: r.nachrichtId, kuerzel });
-                  router.push("/techniker/nachrichten");
-                }}
-                style={{
-                  display:      "inline-block",
-                  background:   "var(--primary)",
-                  color:        "white",
-                  padding:      "0.2rem 0.6rem",
-                  borderRadius: 6,
-                  fontSize:     "0.72rem",
-                  fontWeight:   700,
-                  fontFamily:   "'Ubuntu', sans-serif",
-                  border:       "none",
-                  cursor:       "pointer",
-                }}
-              >
-                📖 Lesen & Antworten
-              </button>
-            </div>
-          ))}
-        </div>
+      {/* Nachrichten-Panel — eigenständige Komponente */}
+      {gruppe.logId && gruppe.logId !== "unbekannt" && (
+        <GruppenNachrichten logId={gruppe.logId} kuerzel={kuerzel} />
       )}
 
       {/* Gruppen-Footer */}
       <div style={{ padding: "0.28rem 0.8rem", background: "var(--bg)", fontSize: "0.68rem", color: "var(--text-dim)", textAlign: "right", borderTop: "1px solid var(--border)" }}>
         {anfragen.length} {anfragen.length === 1 ? "Teil" : "Teile"}
-        {nachrichten.length > 0 && (
-          <span style={{ marginLeft: 8, color: "var(--primary)", fontWeight: 700 }}>
-            · {nachrichten.length} Nachricht{nachrichten.length > 1 ? "en" : ""}
-          </span>
-        )}
       </div>
     </div>
   );

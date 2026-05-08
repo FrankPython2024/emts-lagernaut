@@ -23,13 +23,18 @@ export async function sendeNachricht(data: SendeNachrichtData) {
     empfKuerzel = data.empfaenger;
   }
 
+  // logId in inhalt einbetten damit Text-Suche funktioniert (kein DB-Schema-Upgrade nötig)
+  const inhalt = data.logId && !data.inhalt.includes(data.logId)
+    ? `${data.inhalt}\n\n[LogID: ${data.logId}]`
+    : data.inhalt;
+
   return prisma.nachricht.create({
     data: {
       betreff:    data.betreff,
-      inhalt:     data.inhalt,
+      inhalt,                    // enthält logId als eingebetteten Text
       vonKuerzel: data.vonKuerzel,
       typ:        data.typ,
-      logId:      data.logId ?? null,
+      // logId als Spalte erst nach ALTER TABLE Nachricht ADD COLUMN logId VARCHAR(100) NULL;
       empfaenger: {
         create: empfKuerzel.map((kuerzel) => ({ empfKuerzel: kuerzel })),
       },
@@ -39,14 +44,18 @@ export async function sendeNachricht(data: SendeNachrichtData) {
 }
 
 /**
- * Alle ungelesenen Nachrichten eines Technikers für eine bestimmte LogID.
+ * Ungelesene Nachrichten für eine LogID — per Text-Suche im inhalt.
+ * Funktioniert OHNE DB-Migration (kein logId-Spalten-Query).
+ * Der logId-Wert wird beim Senden automatisch in inhalt eingebettet.
  */
 export async function getByLogId(kuerzel: string, logId: string) {
   return prisma.nachrichtEmpf.findMany({
     where: {
       empfKuerzel: kuerzel,
       gelesen:     false,
-      nachricht:   { logId },
+      nachricht: {
+        inhalt: { contains: logId },
+      },
     },
     include: {
       nachricht: {
