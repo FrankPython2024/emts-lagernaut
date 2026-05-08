@@ -13,7 +13,8 @@
     "db:studio": "prisma studio",
     "import:lager": "tsx scripts/importLagerbestand.ts",
     "migrate:lager":  "tsx scripts/migrateLagerplaetze.ts",
-    "import:geraete": "tsx scripts/importGeraete.ts"
+    "import:geraete": "tsx scripts/importGeraete.ts",
+    "seed:techniker": "tsx scripts/seedTechniker.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
