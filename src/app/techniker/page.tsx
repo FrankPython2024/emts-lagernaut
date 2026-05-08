@@ -1,12 +1,13 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
-import { useSession } from "next-auth/react";
-import { api }        from "@/trpc/react";
+import { useState, useEffect } from "react";
+import { useSession }    from "next-auth/react";
+import { api }           from "@/trpc/react";
 import { useToast }      from "@/components/ui/Toast";
 import { useSocket }     from "@/hooks/useSocket";
 import { EVENTS }        from "@/modules/realtime/events";
 import { TastaturModal } from "@/components/ui/TastaturModal";
-import AnfragenBox      from "./components/AnfragenBox";
+import AnfragenBox       from "./components/AnfragenBox";
+import { TEIL_ICONS }    from "./components/constants";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -20,24 +21,6 @@ type TeilInfo = {
   bezeichnung: string | null;
   bestand:    number;
   verfuegbar: boolean;
-};
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const TEIL_ICONS: Record<string, string> = {
-  Displaymodul:    "🖥️",
-  Tastatur:        "⌨️",
-  Touchpad:        "🖱️",
-  "Füße vorne":   "🦶",
-  "Füße hinten":  "🦶",
-  "D Cover":       "🔲",
-  "USB Board":     "🔌",
-  "Power Button":  "⏻",
-  Lautsprecher:    "🔊",
-  Lüfter:          "💨",
-  Thermalmodul:    "🌡️",
-  "BIOS Batterie": "🔋",
-  Akku:            "🔋",
 };
 
 // ── Inline style helpers ──────────────────────────────────────────────────────

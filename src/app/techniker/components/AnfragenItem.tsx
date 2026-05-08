@@ -70,7 +70,7 @@ export default function AnfragenItem({ anfrage, idx, onStorno }: Props) {
           </small>
         )}
 
-        {/* Storno button */}
+        {/* Storno button — min 44px touch target */}
         {canStorno && (
           <button
             onClick={onStorno}
@@ -78,13 +78,16 @@ export default function AnfragenItem({ anfrage, idx, onStorno }: Props) {
               background:   "none",
               border:       "1px solid var(--danger)",
               color:        "var(--danger)",
-              padding:      "2px 8px",
-              borderRadius: 5,
+              padding:      "10px 12px",
+              minHeight:    44,
+              borderRadius: 8,
               cursor:       "pointer",
               fontSize:     "0.72rem",
               fontWeight:   "bold",
               fontFamily:   "'Ubuntu', sans-serif",
               flexShrink:   0,
+              display:      "flex",
+              alignItems:   "center",
             }}
           >
             Storno
@@ -94,7 +97,7 @@ export default function AnfragenItem({ anfrage, idx, onStorno }: Props) {
 
       {/* Row 2: Kommentar / Status-Hinweis */}
       {isAbgeschlossen && (
-        <div style={{ fontSize: "0.78rem", color: "#15803d", fontWeight: 700, marginTop: 4, paddingLeft: 28 }}>
+        <div style={{ fontSize: "0.78rem", color: "var(--success)", fontWeight: 700, marginTop: 4, paddingLeft: 28 }}>
           ✅ Bereit zur Abholung!
         </div>
       )}

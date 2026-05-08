@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc";
 import {
   getAktiv,
@@ -7,15 +8,26 @@ import {
   submit,
   submitAlle,
 } from "@/modules/warenkorb/service";
+import type { SessionUser } from "@/core/types";
+
+// ── Ownership helper ──────────────────────────────────────────────────────────
+
+function assertOwner(sessionUser: unknown, techniker: string) {
+  const user = sessionUser as SessionUser;
+  if (user?.rolle !== "ADMIN" && (user?.kuerzel ?? "").toUpperCase() !== techniker.toUpperCase()) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Nur eigenen Warenkorb zugreifbar." });
+  }
+}
 
 export const warenkorbRouter = createTRPCRouter({
 
   // Alle aktiven Körbe eines Technikers (je einer pro logId)
   getAktiv: protectedProcedure
     .input(z.object({ techniker: z.string().min(1).max(50) }))
-    .query(({ input }) =>
-      getAktiv(input.techniker),
-    ),
+    .query(({ input, ctx }) => {
+      assertOwner(ctx.session.user, input.techniker);
+      return getAktiv(input.techniker);
+    }),
 
   // Item hinzufügen — gibt aktualisierten Warenkorb zurück
   addItem: protectedProcedure
@@ -28,9 +40,10 @@ export const warenkorbRouter = createTRPCRouter({
       grading:     z.string().max(10).optional(),
       zusatzinfo:  z.string().max(500).optional(),
     }))
-    .mutation(({ input }) =>
-      addItem(input),
-    ),
+    .mutation(({ input, ctx }) => {
+      assertOwner(ctx.session.user, input.techniker);
+      return addItem(input);
+    }),
 
   // Item entfernen (leerer Korb wird automatisch gelöscht)
   removeItem: protectedProcedure
@@ -55,8 +68,9 @@ export const warenkorbRouter = createTRPCRouter({
       techniker:  z.string().min(1).max(50),
       zusatzinfo: z.string().max(500).optional(),
     }))
-    .mutation(({ input }) =>
-      submitAlle(input),
-    ),
+    .mutation(({ input, ctx }) => {
+      assertOwner(ctx.session.user, input.techniker);
+      return submitAlle(input);
+    }),
 
 });

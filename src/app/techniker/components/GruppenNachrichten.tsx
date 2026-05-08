@@ -1,7 +1,7 @@
 "use client";
-import { useState }         from "react";
-import { api }              from "@/trpc/react";
-import { ChatModal }        from "@/components/ui/ChatModal";
+import { useState, useEffect } from "react";
+import { api }                 from "@/trpc/react";
+import { ChatModal }           from "@/components/ui/ChatModal";
 
 interface Props {
   logId:   string;
@@ -20,9 +20,12 @@ export default function GruppenNachrichten({ logId, kuerzel }: Props) {
     },
   );
 
-  if (process.env.NODE_ENV !== "production") {
-    console.log("[GruppenNachrichten]", logId, "→", data.length, "Nachrichten", chatId !== null ? "(Chat offen)" : "");
-  }
+  // Dev-Debug: nur wenn sich die relevanten Werte ändern (nicht bei jedem Render)
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[GruppenNachrichten]", logId, "→", data.length, "Nachrichten", chatId !== null ? "(Chat offen)" : "");
+    }
+  }, [logId, data.length, chatId]);
 
   // WICHTIG: null nur wenn kein Chat offen UND keine Daten — sonst crasht data[0]! wenn data=[]
   if (!data.length && chatId === null) return null;

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AnfrageStatus, BuchungsTyp } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
 import {
   erstelleAnfrage,
@@ -56,14 +57,18 @@ export const anfragenRouter = createTRPCRouter({
       limit:   z.number().int().min(1).max(200).default(50),
       offset:  z.number().int().min(0).default(0),
     }))
-    .query(({ input }) =>
-      getAnfragenByTechniker({
+    .query(({ input, ctx }) => {
+      const user = ctx.session.user as SessionUser;
+      if (user.rolle !== "ADMIN" && user.kuerzel.toUpperCase() !== input.kuerzel.toUpperCase()) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Nur eigene Anfragen abrufbar." });
+      }
+      return getAnfragenByTechniker({
         techniker: input.kuerzel,
         showAll:   input.showAll,
         limit:     input.limit,
         offset:    input.offset,
-      }),
-    ),
+      });
+    }),
 
   // Anfrage stornieren — Techniker: nur eigene, nur NEU/BEDARF
   storniere: protectedProcedure
@@ -72,9 +77,13 @@ export const anfragenRouter = createTRPCRouter({
       logId:     z.string().min(1).max(100),
       teil:      z.string().min(1).max(255),
     }))
-    .mutation(({ input }) =>
-      storniereAnfrage(input),
-    ),
+    .mutation(({ input, ctx }) => {
+      const user = ctx.session.user as SessionUser;
+      if (user.rolle !== "ADMIN" && user.kuerzel.toUpperCase() !== input.techniker.toUpperCase()) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Nur eigene Anfragen stornierbar." });
+      }
+      return storniereAnfrage(input);
+    }),
 
   // Anfrage abschließen (Legacy-Route — weiterhin verfügbar)
   abschliessen: adminProcedure
