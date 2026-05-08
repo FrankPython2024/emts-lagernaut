@@ -1167,9 +1167,11 @@ function AnfrageGruppe({
   const router = useRouter();
 
   // Eigener Query für Nachrichten zu dieser LogID
+  // Nur wenn echte LogID vorhanden (nicht "unbekannt" aus Modell-Suche)
+  const hasRealLogId = !!(gruppe.logId && gruppe.logId !== "unbekannt");
   const nachrichtenQuery = api.nachrichten.getByLogId.useQuery(
     { kuerzel, logId: gruppe.logId ?? "" },
-    { enabled: !!(kuerzel && gruppe.logId), refetchInterval: 5_000, staleTime: 4_000 },
+    { enabled: !!(kuerzel && hasRealLogId), refetchInterval: 5_000, staleTime: 4_000 },
   );
   const nachrichten = nachrichtenQuery.data ?? [];
 
@@ -1192,12 +1194,16 @@ function AnfrageGruppe({
   const datum    = new Date(gruppe.datum);
   const datumStr = datum.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
 
-  // FIX 1: Aussagekräftiger Header-Text
-  const headerLogIdText = gruppe.logId && gruppe.logId !== "unbekannt"
+  // Header-Text: echte LogID > GeräteNameName > kurze GruppenNr > Datum
+  const headerLogIdText = hasRealLogId
     ? `LogID: ${gruppe.logId}`
+    : gruppe.geraeteName
+    ? gruppe.geraeteName
     : gruppe.gruppenNr
-    ? `Gruppe: ${gruppe.gruppenNr}`
-    : `Anfrage vom ${datumStr}`;
+    ? `Anfrage ${gruppe.gruppenNr.slice(-6)}`
+    : `Anfrage ${datumStr}`;
+
+  const headerIcon = hasRealLogId ? "📡" : "🔍";
 
   return (
     // FIX 2: width 100% + overflow hidden verhindert Abschneiden
@@ -1216,9 +1222,10 @@ function AnfrageGruppe({
       }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <span style={{ fontSize: "0.78rem", opacity: 0.9, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            🖥️ <strong>{headerLogIdText}</strong>
+            {headerIcon} <strong>{headerLogIdText}</strong>
           </span>
-          {gruppe.geraeteName && (
+          {/* Zeige GeräteNamen zusätzlich wenn echte LogID vorhanden */}
+          {hasRealLogId && gruppe.geraeteName && (
             <span style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.92 }}>
               {gruppe.geraeteName}
             </span>

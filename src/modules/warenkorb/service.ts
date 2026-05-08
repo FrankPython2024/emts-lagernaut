@@ -147,7 +147,7 @@ export async function submit(data: {
         techniker:   korb.techniker,
         logId:       korb.logId,
         geraeteName: korb.geraeteName ?? undefined,
-        geraet:      korb.geraeteName ?? korb.logId,
+        geraet:      korb.geraeteName ?? (korb.logId !== "unbekannt" ? korb.logId : "Unbekannt"),
         artikelId:   item.artikelId,
         teil:        item.teiltyp ?? item.artikel?.kategorie ?? "Unbekannt",
         grading:     item.grading,
