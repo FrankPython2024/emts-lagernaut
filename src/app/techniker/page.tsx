@@ -155,12 +155,9 @@ export default function TechnikerPage() {
   const [logIdQuery,     setLogIdQuery]     = useState<string | null>(null);
   const [selectedGeraet, setSelectedGeraet] = useState<GeraetInfo | null>(null);
 
-  // ── Order state ────────────────────────────────────────────────────────────
-  const [orderPart,      setOrderPart]      = useState<TeilInfo | null>(null);
-  const [showTastatur,   setShowTastatur]   = useState(false);
-  const [showOrderModal, setShowOrderModal] = useState(false);
-  const [orderLogId,     setOrderLogId]     = useState("");
-  const [orderKommentar, setOrderKommentar] = useState("");
+  // ── Tastatur / Cart pending ────────────────────────────────────────────────
+  const [showTastatur,    setShowTastatur]    = useState(false);
+  const [pendingCartItem, setPendingCartItem] = useState<{ teil: TeilInfo; grading: string } | null>(null);
 
   // ── Cart state ─────────────────────────────────────────────────────────────
   const [cartOpen,       setCartOpen]       = useState(false);
@@ -172,6 +169,9 @@ export default function TechnikerPage() {
   const [showAllAnfragen, setShowAllAnfragen]   = useState(false);
   const [anfragenFilter,  setAnfragenFilter]    = useState("");
   const [nurOffene,       setNurOffene]          = useState(false);
+
+  // ── tRPC Utils (for imperative fetch in ZUSTAND C) ────────────────────────
+  const utils = api.useUtils();
 
   // ── tRPC Queries ──────────────────────────────────────────────────────────
 
@@ -212,15 +212,6 @@ export default function TechnikerPage() {
   }, [logIdLookup.data]);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
-
-  const createAnfrage = api.anfragen.create.useMutation({
-    onSuccess: () => {
-      show("✅ Anfrage erfolgreich gesendet!", "success");
-      anfragenQuery.refetch();
-      closeOrderModal();
-    },
-    onError: (e) => show(`Fehler: ${e.message}`, "error"),
-  });
 
   const storniereMutation = api.anfragen.storniere.useMutation({
     onSuccess: () => {
@@ -264,7 +255,6 @@ export default function TechnikerPage() {
 
   function selectGeraet(geraet: GeraetInfo) {
     setSelectedGeraet(geraet);
-    setOrderLogId(geraet.logId === "---" ? "" : geraet.logId);
     setIdentInput("");
     show(`💻 ${geraet.bereinigt}`, "success");
   }
@@ -285,58 +275,63 @@ export default function TechnikerPage() {
     }
   }
 
-  function handleOrderPart(teil: TeilInfo) {
-    if (!teil.artikelId) {
-      show("Kein Artikel für dieses Teil verknüpft", "warning");
-      return;
-    }
-    setOrderPart(teil);
-    if (teil.teiltyp === "Tastatur") {
-      setShowTastatur(true);
-    } else {
-      setShowOrderModal(true);
-    }
-  }
-
-  function handleTastaturConfirm(kommentar: string) {
-    setOrderKommentar(kommentar);
-    setShowTastatur(false);
-    setShowOrderModal(true);
-  }
-
-  function closeOrderModal() {
-    setShowOrderModal(false);
-    setShowTastatur(false);
-    setOrderPart(null);
-    setOrderKommentar("");
-    setOrderLogId(selectedGeraet?.logId === "---" ? "" : (selectedGeraet?.logId ?? ""));
-  }
-
-  function handleOrderSubmit() {
-    if (!orderPart?.artikelId || !kuerzel) return;
-    const logIdFinal = orderLogId.trim() || selectedGeraet?.logId || "---";
-
-    createAnfrage.mutate({
-      techniker:    kuerzel,
-      logId:        logIdFinal,
-      geraeteName:  selectedGeraet?.bereinigt,
-      geraet:       selectedGeraet?.bereinigt ?? orderPart.teiltyp,
-      artikelId:    orderPart.artikelId,
-      teil:         orderPart.teiltyp,
-      kommentar:    orderKommentar || undefined,
-    });
-  }
-
-  function handleAddToCart(teil: TeilInfo) {
-    if (!teil.artikelId || !selectedGeraet || !kuerzel) {
+  // Haupt-Handler: Teil in Warenkorb legen (alle 4 Zustände)
+  async function handleAddToCart(teil: TeilInfo, grading: string, zusatzinfo: string) {
+    if (!selectedGeraet || !kuerzel) {
       show("Bitte zuerst ein Gerät auswählen", "warning");
       return;
     }
+
+    // Tastatur → zuerst TastaturModal öffnen
+    if (teil.teiltyp === "Tastatur") {
+      setPendingCartItem({ teil, grading });
+      setShowTastatur(true);
+      return;
+    }
+
+    let artikelId = teil.artikelId;
+
+    // ZUSTAND C: kein Artikel verknüpft → Fallback via DB-Suche
+    if (!artikelId) {
+      try {
+        const fallback = await utils.lager.ersteNachKategorie.fetch({ kategorie: teil.teiltyp });
+        if (!fallback) {
+          show(`❌ Kein Artikel für "${teil.teiltyp}" im System gefunden`, "error");
+          return;
+        }
+        artikelId = fallback.id;
+        show(`ℹ️ Fallback: ${fallback.bezeichnung}`, "info");
+      } catch {
+        show(`❌ Suche für "${teil.teiltyp}" fehlgeschlagen`, "error");
+        return;
+      }
+    }
+
     addToCartMutation.mutate({
       techniker:   kuerzel,
       logId:       selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId,
       geraeteName: selectedGeraet.bereinigt,
-      artikelId:   teil.artikelId,
+      artikelId,
+      grading:     grading || "A+",
+      zusatzinfo:  zusatzinfo || undefined,
+    });
+  }
+
+  // Nach Tastatur-Auswahl: in Warenkorb mit zusatzinfo = Tastatur-Kommentar
+  function handleTastaturConfirm(kommentar: string) {
+    setShowTastatur(false);
+    if (!pendingCartItem || !selectedGeraet || !kuerzel) { setPendingCartItem(null); return; }
+
+    const { teil, grading } = pendingCartItem;
+    setPendingCartItem(null);
+
+    addToCartMutation.mutate({
+      techniker:   kuerzel,
+      logId:       selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId,
+      geraeteName: selectedGeraet.bereinigt,
+      artikelId:   teil.artikelId!,
+      grading:     grading || "A+",
+      zusatzinfo:  kommentar,
     });
   }
 
@@ -364,91 +359,13 @@ export default function TechnikerPage() {
 
   return (
     <>
-      {/* ── Tastatur Modal ── */}
+      {/* ── Tastatur Modal (für Warenkorb-Flow) ── */}
       <TastaturModal
         open={showTastatur}
-        articleName={orderPart?.bezeichnung ?? orderPart?.teiltyp ?? "Tastatur"}
+        articleName={pendingCartItem?.teil.bezeichnung ?? pendingCartItem?.teil.teiltyp ?? "Tastatur"}
         onConfirm={handleTastaturConfirm}
-        onClose={() => { setShowTastatur(false); setOrderPart(null); }}
+        onClose={() => { setShowTastatur(false); setPendingCartItem(null); }}
       />
-
-      {/* ── Order Confirmation Modal ── */}
-      {showOrderModal && orderPart && (
-        <div style={modalOverlay()} onClick={closeOrderModal}>
-          <div
-            style={{ ...modalContent, border: "2px solid var(--primary)", textAlign: "left" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ marginTop: 0, color: "var(--primary)" }}>Ersatzteilanfrage Details</h3>
-            <p style={{ color: "var(--text-dim)", marginBottom: 20 }}>
-              {orderPart.bezeichnung ?? orderPart.teiltyp}
-              {selectedGeraet && (
-                <span> — <strong style={{ color: "var(--text)" }}>{selectedGeraet.bereinigt}</strong></span>
-              )}
-            </p>
-
-            {/* Tastatur info if set */}
-            {orderKommentar && (
-              <div style={{
-                marginBottom: 15, padding: "10px 14px",
-                background: "var(--bg)", borderRadius: 8,
-                borderLeft: "3px solid var(--primary)",
-              }}>
-                <small style={{ color: "var(--text-dim)", display: "block", marginBottom: 4 }}>⌨️ Tastatur-Auswahl:</small>
-                <span style={{ fontWeight: "bold", color: "var(--primary)" }}>{orderKommentar}</span>
-              </div>
-            )}
-
-            {/* LogID input */}
-            <label style={{ display: "block", textAlign: "center", fontSize: "0.8rem", fontWeight: "bold", marginBottom: 5 }}>
-              LogID des Gerätes:
-            </label>
-            <input
-              type="text"
-              value={orderLogId}
-              onChange={(e) => setOrderLogId(e.target.value)}
-              placeholder="LogID scannen oder eingeben..."
-              inputMode="numeric"
-              style={{
-                ...searchInputStyle,
-                textAlign:    "center",
-                fontSize:     "1.5rem",
-                fontWeight:   "bold",
-                letterSpacing: 4,
-                borderColor:  "var(--primary)",
-                marginBottom: 10,
-              }}
-              onKeyDown={(e) => { if (e.key === "Enter") handleOrderSubmit(); }}
-            />
-
-            {/* Kommentar */}
-            {!orderKommentar && (
-              <textarea
-                value={orderKommentar}
-                onChange={(e) => setOrderKommentar(e.target.value)}
-                placeholder="Kommentar (optional)..."
-                rows={2}
-                style={{
-                  ...searchInputStyle,
-                  marginBottom: 15,
-                  resize: "vertical",
-                }}
-              />
-            )}
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
-              <button onClick={closeOrderModal} style={btnIconStyle}>Abbrechen</button>
-              <button
-                onClick={handleOrderSubmit}
-                disabled={createAnfrage.isPending}
-                style={{ ...btnOrderStyle, opacity: createAnfrage.isPending ? 0.7 : 1 }}
-              >
-                {createAnfrage.isPending ? "Wird gesendet..." : "Durchführen"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Storno Modal ── */}
       {stornoItem && (
@@ -645,7 +562,6 @@ export default function TechnikerPage() {
                     <TeilKarte
                       key={teil.teiltyp}
                       teil={teil}
-                      onOrder={handleOrderPart}
                       onCart={handleAddToCart}
                       inCart={korbItems.some((i) => i.artikelId === teil.artikelId && teil.artikelId !== null)}
                     />
@@ -897,131 +813,197 @@ export default function TechnikerPage() {
 }
 
 // ── TeilKarte sub-component ───────────────────────────────────────────────────
+// 4 Zustände:
+//   A — artikelId vorhanden + bestand > 0  → blau  "🛒 In Warenkorb"
+//   B — artikelId vorhanden + bestand = 0  → lila  "📋 Als Bedarf anfragen"
+//   C — artikelId null                     → orange "📋 Trotzdem anfragen"
+//   D — bereits im Warenkorb               → grün  "✓ Im Warenkorb" (disabled)
+
+const MAX_BESTAND = 10;
 
 function TeilKarte({
   teil,
-  onOrder,
   onCart,
   inCart,
 }: {
-  teil:    TeilInfo;
-  onOrder: (t: TeilInfo) => void;
-  onCart:  (t: TeilInfo) => void;
-  inCart:  boolean;
+  teil:   TeilInfo;
+  onCart: (t: TeilInfo, grading: string, zusatzinfo: string) => void;
+  inCart: boolean;
 }) {
+  const [grading,    setGrading]    = useState("A+");
+  const [zusatzinfo, setZusatzinfo] = useState("");
+
   const hasArtikel  = !!teil.artikelId;
   const isAvailable = teil.verfuegbar;
 
-  // Cart button appearance
-  const cartBg    = inCart ? "#16a34a" : isAvailable ? "var(--primary)" : "var(--purple)";
-  const cartLabel = inCart ? "✓ Im Warenkorb" : isAvailable ? "In Warenkorb" : "Als Bedarf anfragen";
+  // Zustand bestimmen
+  const zustand: "A" | "B" | "C" | "D" =
+    inCart       ? "D" :
+    !hasArtikel  ? "C" :
+    isAvailable  ? "A" : "B";
+
+  const BTN: Record<"A"|"B"|"C"|"D", { bg: string; label: string; cursor: string }> = {
+    A: { bg: "var(--primary)", label: "🛒 In Warenkorb",       cursor: "pointer"     },
+    B: { bg: "var(--purple)",  label: "📋 Als Bedarf anfragen", cursor: "pointer"     },
+    C: { bg: "#f97316",        label: "📋 Trotzdem anfragen",   cursor: "pointer"     },
+    D: { bg: "#16a34a",        label: "✓ Im Warenkorb",         cursor: "not-allowed" },
+  };
+
+  const btn = BTN[zustand];
+
+  // Bestandsbalken
+  const pct      = Math.min(100, (teil.bestand / MAX_BESTAND) * 100);
+  const barColor = teil.bestand > 5 ? "#22c55e" : teil.bestand > 0 ? "#f97316" : "#ef4444";
 
   return (
     <div style={{
-      border:        `1px solid var(--border)`,
-      borderRadius:  10,
+      border:        "1px solid var(--border)",
+      borderRadius:  12,
       padding:       "1rem 0.8rem",
       display:       "flex",
       flexDirection: "column",
       gap:           "0.5rem",
       background:    "var(--card-bg)",
-      opacity:       hasArtikel ? 1 : 0.55,
+      boxShadow:     "0 2px 8px rgba(0,0,0,0.06)",
       transition:    "box-shadow 0.2s",
-      boxShadow:     hasArtikel ? "0 2px 8px rgba(0,0,0,0.05)" : "none",
     }}>
       {/* Icon */}
       <div style={{ fontSize: "1.8rem", textAlign: "center", lineHeight: 1 }}>
         {TEIL_ICONS[teil.teiltyp] ?? "🔧"}
       </div>
 
-      {/* Name */}
+      {/* Teiltyp name */}
       <div style={{ fontWeight: 700, fontSize: "0.85rem", textAlign: "center", lineHeight: 1.3 }}>
         {teil.teiltyp}
       </div>
 
-      {/* Artikel name */}
-      {teil.bezeichnung && (
-        <div style={{
-          fontSize:        "0.7rem",
-          color:           "var(--text-dim)",
-          textAlign:       "center",
-          overflow:        "hidden",
-          textOverflow:    "ellipsis",
-          display:         "-webkit-box",
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical",
-          lineHeight:      1.3,
-        }}>
-          {teil.bezeichnung}
+      {/* Artikel-Bezeichnung */}
+      <div style={{
+        fontSize:        "0.7rem",
+        color:           "var(--text-dim)",
+        textAlign:       "center",
+        overflow:        "hidden",
+        textOverflow:    "ellipsis",
+        display:         "-webkit-box",
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: "vertical",
+        lineHeight:      1.3,
+        minHeight:       "2.2em",
+      }}>
+        {teil.bezeichnung ?? "(kein spezifischer Artikel)"}
+      </div>
+
+      {/* Bestand-Anzeige */}
+      {zustand === "A" && (
+        <>
+          <div style={{
+            textAlign:  "center",
+            fontWeight: 800,
+            fontSize:   "0.8rem",
+            color:      "#15803d",
+          }}>
+            ✅ {teil.bestand} Stück verfügbar
+          </div>
+          <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 3, transition: "width 0.4s" }} />
+          </div>
+        </>
+      )}
+      {zustand === "B" && (
+        <div style={{ textAlign: "center", fontWeight: 800, fontSize: "0.8rem", color: "#7c3aed" }}>
+          ❌ Nicht auf Lager
+        </div>
+      )}
+      {zustand === "C" && (
+        <div style={{ textAlign: "center", fontWeight: 700, fontSize: "0.75rem", color: "#f97316" }}>
+          ⚠️ Nicht im Lager erfasst
+        </div>
+      )}
+      {zustand === "D" && (
+        <div style={{ textAlign: "center", fontWeight: 800, fontSize: "0.8rem", color: "#16a34a" }}>
+          ✓ Hinzugefügt
         </div>
       )}
 
-      {/* Bestand badge */}
-      <div style={{ textAlign: "center" }}>
-        {hasArtikel ? (
-          <span style={{
-            padding:       "0.2rem 0.7rem",
-            borderRadius:  12,
-            fontWeight:    800,
-            fontSize:      "0.75rem",
-            textTransform: "uppercase",
-            display:       "inline-block",
-            background:    isAvailable ? "#dcfce7" : "#ede9fe",
-            color:         isAvailable ? "#15803d"  : "#7c3aed",
-          }}>
-            {isAvailable ? `✓ ${teil.bestand}×` : "Bedarf"}
-          </span>
-        ) : (
-          <span style={{
-            padding:     "0.2rem 0.7rem",
-            borderRadius: 12,
-            background:  "#f3f4f6",
-            color:       "#9ca3af",
-            fontSize:    "0.75rem",
-            fontWeight:  "bold",
-          }}>
-            —
-          </span>
-        )}
-      </div>
+      {/* Grading-Auswahl */}
+      {zustand !== "D" && (
+        <div>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", marginBottom: 3, fontWeight: 600 }}>
+            Grading:
+          </div>
+          <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+            {(["A+", "A", "B", "C"] as const).map((g) => (
+              <button
+                key={g}
+                onClick={() => setGrading(g)}
+                style={{
+                  padding:      "0.15rem 0.45rem",
+                  borderRadius: 5,
+                  border:       `1px solid ${grading === g ? "var(--primary)" : "var(--border)"}`,
+                  background:   grading === g ? "var(--primary)" : "var(--bg)",
+                  color:        grading === g ? "white" : "var(--text)",
+                  cursor:       "pointer",
+                  fontSize:     "0.72rem",
+                  fontWeight:   700,
+                  fontFamily:   "'Ubuntu', sans-serif",
+                  transition:   "all 0.15s",
+                }}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
-      {/* Bestellen — direkte Einzelbestellung */}
+      {/* Zusatzinfo (außer bei Tastatur und D) */}
+      {zustand !== "D" && teil.teiltyp !== "Tastatur" && (
+        <input
+          type="text"
+          value={zusatzinfo}
+          onChange={(e) => setZusatzinfo(e.target.value)}
+          placeholder="Zusatzinfo..."
+          style={{
+            padding:      "0.3rem 0.5rem",
+            borderRadius: 6,
+            border:       "1px solid var(--border)",
+            background:   "var(--bg)",
+            color:        "var(--text)",
+            fontSize:     "0.75rem",
+            fontFamily:   "'Ubuntu', sans-serif",
+            outline:      "none",
+            width:        "100%",
+            boxSizing:    "border-box",
+          }}
+          onFocus={(e)  => (e.currentTarget.style.borderColor = "var(--primary)")}
+          onBlur={(e)   => (e.currentTarget.style.borderColor = "var(--border)")}
+        />
+      )}
+      {zustand !== "D" && teil.teiltyp === "Tastatur" && (
+        <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", fontStyle: "italic", textAlign: "center" }}>
+          ⌨️ Tastatur-Auswahl folgt…
+        </div>
+      )}
+
+      {/* Haupt-Button */}
       <button
-        onClick={() => onOrder(teil)}
-        disabled={!hasArtikel}
+        onClick={() => zustand !== "D" && onCart(teil, grading, zusatzinfo)}
+        disabled={zustand === "D"}
         style={{
-          background:   hasArtikel ? "var(--primary)" : "var(--border)",
-          color:        hasArtikel ? "white"          : "var(--text-dim)",
+          background:   btn.bg,
+          color:        "white",
           border:       "none",
           padding:      "0.6rem",
           borderRadius: 8,
           fontWeight:   "bold",
-          cursor:       hasArtikel ? "pointer" : "not-allowed",
+          cursor:       btn.cursor,
           fontFamily:   "'Ubuntu', sans-serif",
-          fontSize:     "0.85rem",
+          fontSize:     "0.82rem",
+          opacity:      zustand === "D" ? 0.85 : 1,
+          marginTop:    "auto",
         }}
       >
-        Bestellen
-      </button>
-
-      {/* In Warenkorb — NIEMALS disabled wegen Bestand, nur wenn bereits drin */}
-      <button
-        onClick={() => onCart(teil)}
-        disabled={!hasArtikel || inCart}
-        style={{
-          background:   hasArtikel ? cartBg : "var(--border)",
-          color:        hasArtikel ? "white" : "var(--text-dim)",
-          border:       "none",
-          padding:      "0.5rem",
-          borderRadius: 6,
-          cursor:       (hasArtikel && !inCart) ? "pointer" : "not-allowed",
-          fontFamily:   "'Ubuntu', sans-serif",
-          fontSize:     "0.8rem",
-          fontWeight:   700,
-          opacity:      inCart ? 0.85 : 1,
-        }}
-      >
-        {hasArtikel ? cartLabel : "🛒 Warenkorb"}
+        {btn.label}
       </button>
     </div>
   );

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { prisma } from "@/core/db/prisma";
 import {
   sucheArtikel,
   sucheArtikelAdmin,
@@ -65,6 +66,17 @@ export const lagerRouter = createTRPCRouter({
     .input(z.object({ id: z.number().int().positive() }))
     .query(({ input }) =>
       getArtikelMitLagerplatz(input.id),
+    ),
+
+  // Ersten Artikel einer Kategorie finden — Fallback für Techniker-Portal (ZUSTAND C)
+  ersteNachKategorie: protectedProcedure
+    .input(z.object({ kategorie: z.string().min(1).max(100) }))
+    .query(({ input }) =>
+      prisma.artikel.findFirst({
+        where:   { kategorie: input.kategorie },
+        select:  { id: true, bezeichnung: true, bestand: true },
+        orderBy: { bestand: "desc" },
+      }),
     ),
 
   // Alle Kategorien
