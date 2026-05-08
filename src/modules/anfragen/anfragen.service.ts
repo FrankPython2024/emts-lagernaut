@@ -166,8 +166,8 @@ export async function storniereAnfrage(input: {
     data:  { status: AnfrageStatus.STORNIERT },
   });
 
-  // Bestand neu berechnen nach Stornierung
-  await aktualisiereBestand(anfrage.artikelId);
+  // Bestand neu berechnen nach Stornierung (nur wenn Artikel verknüpft)
+  if (anfrage.artikelId) await aktualisiereBestand(anfrage.artikelId);
 
   return { erfolg: true, meldung: "Storniert & Bestand automatisch korrigiert." };
 }

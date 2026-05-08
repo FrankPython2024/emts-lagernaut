@@ -23,7 +23,7 @@ export const anfragenRouter = createTRPCRouter({
       logId:       z.string().min(1).max(100),
       geraeteName: z.string().max(255).optional(),
       geraet:      z.string().min(1).max(255),
-      artikelId:   z.number().int().positive(),
+      artikelId:   z.number().int().positive().nullable(),
       teil:        z.string().min(1).max(255),
       grading:     z.string().max(10).optional(),
       kommentar:   z.string().max(1000).optional(),
@@ -127,8 +127,8 @@ export const anfragenRouter = createTRPCRouter({
         });
 
         if (anfrage) {
-          // AUSGANG nur wenn noch nicht abgeschlossen (kein Doppel-Buchen)
-          if (anfrage.status !== AnfrageStatus.ABGESCHLOSSEN) {
+          // AUSGANG nur wenn Artikel verknüpft + noch nicht abgeschlossen
+          if (anfrage.artikelId && anfrage.status !== AnfrageStatus.ABGESCHLOSSEN) {
             try {
               await bucheLager({
                 artikelId:   anfrage.artikelId,
@@ -142,21 +142,26 @@ export const anfragenRouter = createTRPCRouter({
             }
           }
 
-          // Beleg-Nr IMMER generieren (auch bei Re-Klick auf bereits erledigte Anfrage)
+          // Beleg-Nr IMMER generieren
           belegNr = await naechsteBelegNr("AL");
 
-          // Aktuellen Bestand nach der Buchung
-          const aktuell = await ctx.prisma.artikel.findUnique({
-            where:  { id: anfrage.artikelId },
-            select: { bestand: true },
-          });
-          restBestand = aktuell?.bestand ?? 0;
+          // Aktuellen Bestand (nur wenn Artikel verknüpft)
+          if (anfrage.artikelId) {
+            const aktuell = await ctx.prisma.artikel.findUnique({
+              where:  { id: anfrage.artikelId },
+              select: { bestand: true },
+            });
+            restBestand = aktuell?.bestand ?? 0;
+          }
 
-          artikelInfo = {
-            bezeichnung: anfrage.artikel.bezeichnung,
-            lagerplatz:  anfrage.artikel.lagerplatz,
-            kategorie:   anfrage.artikel.kategorie,
-          };
+          // artikelInfo nur wenn Artikel vorhanden
+          if (anfrage.artikel) {
+            artikelInfo = {
+              bezeichnung: anfrage.artikel.bezeichnung,
+              lagerplatz:  anfrage.artikel.lagerplatz,
+              kategorie:   anfrage.artikel.kategorie,
+            };
+          }
 
           console.log("[setStatus ABGESCHLOSSEN]", {
             anfrageId:  input.id,

@@ -72,7 +72,7 @@ model Anfrage {
   logId       String
   geraeteName String?
   geraet      String
-  artikelId   Int
+  artikelId   Int?
   teil        String
   menge       Int           @default(1)
   grading     String?
@@ -80,7 +80,7 @@ model Anfrage {
   gruppenNr   String?
   korbId      Int?
   status      AnfrageStatus @default(NEU)
-  artikel     Artikel       @relation(fields: [artikelId], references: [id])
+  artikel     Artikel?      @relation(fields: [artikelId], references: [id])
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -152,11 +152,12 @@ enum KorbStatus {
 model WarenkorbItem {
   id         Int       @id @default(autoincrement())
   korbId     Int
-  artikelId  Int
+  artikelId  Int?
+  teiltyp    String?
   grading    String    @default("A+")
   zusatzinfo String?
   korb       Warenkorb @relation(fields: [korbId], references: [id])
-  artikel    Artikel   @relation(fields: [artikelId], references: [id])
+  artikel    Artikel?  @relation(fields: [artikelId], references: [id])
 }
 
 model TechnikerSession {

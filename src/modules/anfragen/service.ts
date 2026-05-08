@@ -23,7 +23,7 @@ export type ErstelleAnfrageData = {
   logId:       string;
   geraeteName?: string;
   geraet:      string;
-  artikelId:   number;
+  artikelId:   number | null;
   teil:        string;
   grading?:    string;
   kommentar?:  string;
@@ -33,24 +33,28 @@ export type ErstelleAnfrageData = {
 
 /**
  * Neue Ersatzteil-Anfrage erstellen.
- * Bestand > 0 → Status NEU
- * Bestand = 0 → Status BEDARF
+ * artikelId null  → Status BEDARF (kein Artikel verknüpft)
+ * Bestand > 0     → Status NEU
+ * Bestand = 0     → Status BEDARF
  */
 export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrage> {
-  const artikel = await prisma.artikel.findUnique({
-    where:  { id: data.artikelId },
-    select: { id: true, kategorie: true, bestand: true },
-  });
+  let status: AnfrageStatus = AnfrageStatus.BEDARF;
 
-  if (!artikel) {
-    throw new TRPCError({
-      code:    "NOT_FOUND",
-      message: `Artikel ${data.artikelId} nicht gefunden.`,
+  if (data.artikelId) {
+    const artikel = await prisma.artikel.findUnique({
+      where:  { id: data.artikelId },
+      select: { id: true, kategorie: true, bestand: true },
     });
-  }
 
-  const status: AnfrageStatus =
-    artikel.bestand > 0 ? AnfrageStatus.NEU : AnfrageStatus.BEDARF;
+    if (!artikel) {
+      throw new TRPCError({
+        code:    "NOT_FOUND",
+        message: `Artikel ${data.artikelId} nicht gefunden.`,
+      });
+    }
+
+    status = artikel.bestand > 0 ? AnfrageStatus.NEU : AnfrageStatus.BEDARF;
+  }
 
   const anfrage = await prisma.anfrage.create({
     data: {
@@ -117,7 +121,7 @@ export async function storniereAnfrage(data: {
     data:  { status: AnfrageStatus.STORNIERT },
   });
 
-  await syncBestandAusHistorie(anfrage.artikelId);
+  if (anfrage.artikelId) await syncBestandAusHistorie(anfrage.artikelId);
 }
 
 /**
@@ -147,7 +151,7 @@ export async function setzeStatus(id: number, status: AnfrageStatus): Promise<An
   emitToAll(EVENTS.ANFRAGE_UPDATED, { id, status });
   emitToUser(aktualisiert.techniker, EVENTS.ANFRAGE_UPDATED, { id, status });
 
-  if (status === AnfrageStatus.ABGESCHLOSSEN) {
+  if (status === AnfrageStatus.ABGESCHLOSSEN && anfrage.artikelId) {
     await syncBestandAusHistorie(anfrage.artikelId);
     // System-Nachricht an Techniker: Teil bereit
     await sendeSystemNachricht({
@@ -192,14 +196,16 @@ export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Anfrage bereits abgeschlossen." });
   }
 
-  // AUSGANG Buchung erstellen (dekrementiert Bestand)
-  await bucheLager({
-    artikelId:   anfrage.artikelId,
-    menge:       anfrage.menge,
-    typ:         BuchungsTyp.AUSGANG,
-    mitarbeiter,
-    notiz:       `Anfrage #${id}`,
-  });
+  // AUSGANG Buchung nur wenn Artikel verknüpft
+  if (anfrage.artikelId) {
+    await bucheLager({
+      artikelId:   anfrage.artikelId,
+      menge:       anfrage.menge,
+      typ:         BuchungsTyp.AUSGANG,
+      mitarbeiter,
+      notiz:       `Anfrage #${id}`,
+    });
+  }
 
   // Status setzen
   await prisma.anfrage.update({ where: { id }, data: { status: AnfrageStatus.ABGESCHLOSSEN } });
@@ -214,11 +220,10 @@ export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
       (anfrage.grading ? `\nGrading: ${anfrage.grading}` : ""),
   }).catch(() => {});
 
-  // Aktuellen Bestand holen
-  const aktuellerArtikel = await prisma.artikel.findUnique({
-    where:  { id: anfrage.artikelId },
-    select: { bestand: true },
-  });
+  // Aktuellen Bestand holen (nur wenn Artikel verknüpft)
+  const aktuellerArtikel = anfrage.artikelId
+    ? await prisma.artikel.findUnique({ where: { id: anfrage.artikelId }, select: { bestand: true } })
+    : null;
 
   return {
     anfrageId:   id,
@@ -229,7 +234,7 @@ export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
     grading:     anfrage.grading,
     kommentar:   anfrage.kommentar,
     restBestand: aktuellerArtikel?.bestand ?? 0,
-    artikel:     anfrage.artikel,
+    artikel:     anfrage.artikel ?? null,
   };
 }
 

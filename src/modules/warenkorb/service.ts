@@ -26,30 +26,33 @@ export async function getAktiv(techniker: string) {
 
 /**
  * Item zum Warenkorb hinzufügen.
- * Erstellt den Warenkorb automatisch falls noch nicht vorhanden.
+ * artikelId kann null sein (ZUSTAND C: kein Artikel verknüpft).
+ * In diesem Fall wird nur der teiltyp gespeichert.
  */
 export async function addItem(data: {
-  techniker:   string;
-  logId:       string;
+  techniker:    string;
+  logId:        string;
   geraeteName?: string;
-  artikelId:   number;
-  grading?:    string;
-  zusatzinfo?: string;
+  artikelId:    number | null;
+  teiltyp?:     string;
+  grading?:     string;
+  zusatzinfo?:  string;
 }) {
   const techniker = data.techniker.toUpperCase().trim();
   const logId     = data.logId.trim();
 
-  const artikel = await prisma.artikel.findUnique({
-    where:  { id: data.artikelId },
-    select: { id: true, bezeichnung: true },
-  });
-
-  if (!artikel) {
-    throw new TRPCError({ code: "NOT_FOUND", message: `Artikel ${data.artikelId} nicht gefunden.` });
+  // Artikel nur prüfen wenn vorhanden
+  if (data.artikelId) {
+    const artikel = await prisma.artikel.findUnique({
+      where:  { id: data.artikelId },
+      select: { id: true },
+    });
+    if (!artikel) {
+      throw new TRPCError({ code: "NOT_FOUND", message: `Artikel ${data.artikelId} nicht gefunden.` });
+    }
   }
 
   return prisma.$transaction(async (tx) => {
-    // Aktiven Korb finden oder neu anlegen
     let korb = await tx.warenkorb.findFirst({
       where: { techniker, logId, status: KorbStatus.AKTIV },
     });
@@ -62,9 +65,10 @@ export async function addItem(data: {
 
     const item = await tx.warenkorbItem.create({
       data: {
-        korbId:    korb.id,
-        artikelId: data.artikelId,
-        grading:   data.grading ?? "A+",
+        korbId:     korb.id,
+        artikelId:  data.artikelId,
+        teiltyp:    data.teiltyp,
+        grading:    data.grading ?? "A+",
         zusatzinfo: data.zusatzinfo,
       },
       include: {
@@ -141,6 +145,7 @@ export async function submit(data: {
   const gruppenNr = `${datumStr}-${korb.techniker}-${seq}`;
 
   // Anfragen für alle Items erstellen
+  // item.artikelId kann null sein (ZUSTAND C) → Status BEDARF
   await Promise.all(
     korb.items.map((item) =>
       erstelleAnfrage({
@@ -149,7 +154,7 @@ export async function submit(data: {
         geraeteName: korb.geraeteName ?? undefined,
         geraet:      korb.geraeteName ?? korb.logId,
         artikelId:   item.artikelId,
-        teil:        item.artikel.kategorie,
+        teil:        item.teiltyp ?? item.artikel?.kategorie ?? "Unbekannt",
         grading:     item.grading,
         kommentar:   item.zusatzinfo ?? data.zusatzinfo,
         gruppenNr,

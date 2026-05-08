@@ -170,9 +170,6 @@ export default function TechnikerPage() {
   const [anfragenFilter,  setAnfragenFilter]    = useState("");
   const [nurOffene,       setNurOffene]          = useState(false);
 
-  // ── tRPC Utils (for imperative fetch in ZUSTAND C) ────────────────────────
-  const utils = api.useUtils();
-
   // ── tRPC Queries ──────────────────────────────────────────────────────────
 
   // LogID lookup (on demand)
@@ -276,7 +273,8 @@ export default function TechnikerPage() {
   }
 
   // Haupt-Handler: Teil in Warenkorb legen (alle 4 Zustände)
-  async function handleAddToCart(teil: TeilInfo, grading: string, zusatzinfo: string) {
+  // artikelId kann null sein — KEIN Fallback auf anderen Artikel!
+  function handleAddToCart(teil: TeilInfo, grading: string, zusatzinfo: string) {
     if (!selectedGeraet || !kuerzel) {
       show("Bitte zuerst ein Gerät auswählen", "warning");
       return;
@@ -289,35 +287,18 @@ export default function TechnikerPage() {
       return;
     }
 
-    let artikelId = teil.artikelId;
-
-    // ZUSTAND C: kein Artikel verknüpft → Fallback via DB-Suche
-    if (!artikelId) {
-      try {
-        const fallback = await utils.lager.ersteNachKategorie.fetch({ kategorie: teil.teiltyp });
-        if (!fallback) {
-          show(`❌ Kein Artikel für "${teil.teiltyp}" im System gefunden`, "error");
-          return;
-        }
-        artikelId = fallback.id;
-        show(`ℹ️ Fallback: ${fallback.bezeichnung}`, "info");
-      } catch {
-        show(`❌ Suche für "${teil.teiltyp}" fehlgeschlagen`, "error");
-        return;
-      }
-    }
-
     addToCartMutation.mutate({
       techniker:   kuerzel,
       logId:       selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId,
       geraeteName: selectedGeraet.bereinigt,
-      artikelId,
+      artikelId:   teil.artikelId,   // null erlaubt (ZUSTAND C)
+      teiltyp:     teil.teiltyp,
       grading:     grading || "A+",
       zusatzinfo:  zusatzinfo || undefined,
     });
   }
 
-  // Nach Tastatur-Auswahl: in Warenkorb mit zusatzinfo = Tastatur-Kommentar
+  // Nach Tastatur-Auswahl: in Warenkorb
   function handleTastaturConfirm(kommentar: string) {
     setShowTastatur(false);
     if (!pendingCartItem || !selectedGeraet || !kuerzel) { setPendingCartItem(null); return; }
@@ -329,7 +310,8 @@ export default function TechnikerPage() {
       techniker:   kuerzel,
       logId:       selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId,
       geraeteName: selectedGeraet.bereinigt,
-      artikelId:   teil.artikelId!,
+      artikelId:   teil.artikelId,   // null wenn ZUSTAND C
+      teiltyp:     teil.teiltyp,
       grading:     grading || "A+",
       zusatzinfo:  kommentar,
     });
@@ -636,14 +618,14 @@ export default function TechnikerPage() {
                           }}
                         >
                           <span style={{ fontSize: "1.2rem" }}>
-                            {TEIL_ICONS[item.artikel.kategorie] ?? "🔧"}
+                            {TEIL_ICONS[item.artikel?.kategorie ?? item.teiltyp ?? ""] ?? "🔧"}
                           </span>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 600, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {item.artikel.kategorie}
+                              {item.artikel?.kategorie ?? item.teiltyp ?? "Unbekanntes Teil"}
                             </div>
                             <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {item.artikel.bezeichnung}
+                              {item.artikel?.bezeichnung ?? "kein Artikel verknüpft"}
                             </div>
                           </div>
                           <button

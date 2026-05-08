@@ -22,7 +22,8 @@ export const warenkorbRouter = createTRPCRouter({
       techniker:   z.string().min(1).max(50),
       logId:       z.string().min(1).max(100),
       geraeteName: z.string().max(255).optional(),
-      artikelId:   z.number().int().positive(),
+      artikelId:   z.number().int().positive().nullable(),
+      teiltyp:     z.string().max(100).optional(),
       grading:     z.string().max(10).optional(),
       zusatzinfo:  z.string().max(500).optional(),
     }))
