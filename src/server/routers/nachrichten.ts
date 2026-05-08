@@ -10,6 +10,7 @@ import {
   alleMarkierenGelesen,
   erstelleAntwort,
   getAlleNachrichten,
+  getByLogId,
 } from "@/modules/nachrichten/service";
 import type { SessionUser } from "@/core/types";
 import { emitToUser }  from "@/modules/realtime/socket";
@@ -27,6 +28,7 @@ export const nachrichtenRouter = createTRPCRouter({
       betreff: z.string().min(1).max(200).trim(),
       inhalt:  z.string().min(1).max(5000).trim(),
       typ:     z.nativeEnum(NachrichtTyp),
+      logId:   z.string().max(100).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const user      = ctx.session.user as SessionUser;
@@ -105,6 +107,20 @@ export const nachrichtenRouter = createTRPCRouter({
         vonKuerzel:  user.kuerzel,
         inhalt:      input.inhalt,
       });
+    }),
+
+  // Ungelesene Nachrichten für eine LogID (Techniker-Portal Karten)
+  getByLogId: protectedProcedure
+    .input(z.object({
+      kuerzel: z.string().min(1).max(20),
+      logId:   z.string().min(1).max(100),
+    }))
+    .query(({ input, ctx }) => {
+      const user = ctx.session.user as SessionUser;
+      if (user.rolle !== "ADMIN" && user.kuerzel !== input.kuerzel) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return getByLogId(input.kuerzel, input.logId);
     }),
 
   // Admin: alle Nachrichten im System

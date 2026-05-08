@@ -7,6 +7,7 @@ export type SendeNachrichtData = {
   inhalt:     string;
   typ:        NachrichtTyp;
   vonKuerzel: string;
+  logId?:     string;
 };
 
 export async function sendeNachricht(data: SendeNachrichtData) {
@@ -28,11 +29,32 @@ export async function sendeNachricht(data: SendeNachrichtData) {
       inhalt:     data.inhalt,
       vonKuerzel: data.vonKuerzel,
       typ:        data.typ,
+      logId:      data.logId ?? null,
       empfaenger: {
         create: empfKuerzel.map((kuerzel) => ({ empfKuerzel: kuerzel })),
       },
     },
     include: { empfaenger: true },
+  });
+}
+
+/**
+ * Alle ungelesenen Nachrichten eines Technikers für eine bestimmte LogID.
+ */
+export async function getByLogId(kuerzel: string, logId: string) {
+  return prisma.nachrichtEmpf.findMany({
+    where: {
+      empfKuerzel: kuerzel,
+      gelesen:     false,
+      nachricht:   { logId },
+    },
+    include: {
+      nachricht: {
+        include: { antworten: { orderBy: { createdAt: "asc" } } },
+      },
+    },
+    orderBy: { nachricht: { createdAt: "desc" } },
+    take: 5,
   });
 }
 

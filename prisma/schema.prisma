@@ -181,6 +181,7 @@ model Nachricht {
   inhalt     String             @db.Text
   vonKuerzel String
   typ        NachrichtTyp       @default(DIREKT)
+  logId      String?
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
   empfaenger NachrichtEmpf[]
@@ -188,6 +189,7 @@ model Nachricht {
 
   @@index([vonKuerzel])
   @@index([createdAt])
+  @@index([logId])
 }
 
 model NachrichtEmpf {

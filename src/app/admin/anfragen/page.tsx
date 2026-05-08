@@ -554,6 +554,7 @@ export default function AnfragenPage() {
                     betreff:    nachrichtBetreff.trim(),
                     inhalt:     nachrichtInhalt.trim(),
                     typ:        NachrichtTyp.DIREKT,
+                    logId:      nachrichtModal.logId || undefined,
                   });
                 }}
                 disabled={!nachrichtBetreff.trim() || !nachrichtInhalt.trim() || sendeNachrichtMutation.isPending}

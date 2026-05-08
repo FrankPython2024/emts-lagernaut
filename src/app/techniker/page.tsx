@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
+import { useRouter }     from "next/navigation";
 import { useSession }    from "next-auth/react";
 import { AnfrageStatus } from "@prisma/client";
 import { api }           from "@/trpc/react";
@@ -170,11 +171,6 @@ export default function TechnikerPage() {
     { enabled: !!kuerzel },
   );
 
-  // Inbox für nachrichten-Panel in Anfragen-Karten
-  const inboxQuery = api.nachrichten.getInbox.useQuery(
-    { kuerzel },
-    { enabled: !!kuerzel, refetchInterval: 5_000, staleTime: 4_000 },
-  );
 
   // ── Handle LogID lookup result ────────────────────────────────────────────
   useEffect(() => {
@@ -238,7 +234,7 @@ export default function TechnikerPage() {
     on(EVENTS.ANFRAGE_UPDATED, doRefreshAnfragen);
     on(EVENTS.ANFRAGE_NEU,     doRefreshAnfragen);
     on(EVENTS.BESTAND_UPDATED, () => { if (selectedGeraet) teileQuery.refetch(); });
-    on(EVENTS.NACHRICHT_NEU,   () => { inboxQuery.refetch(); });
+    // NACHRICHT_NEU wird von AnfrageGruppe per eigenem getByLogId-Query behandelt
     return () => {
       off(EVENTS.ANFRAGE_UPDATED);
       off(EVENTS.ANFRAGE_NEU);
@@ -331,9 +327,6 @@ export default function TechnikerPage() {
   // ── Anfragen ───────────────────────────────────────────────────────────────
   const alleAnfragen = anfragenQuery.data?.anfragen ?? [];
   const offeneCount  = alleAnfragen.filter((a) => a.status === "NEU" || a.status === "BEDARF").length;
-
-  // Ungelesene Nachrichten — gefiltert per logId in der Karte
-  const ungeleseneEmpf = (inboxQuery.data?.nachrichten ?? []).filter((r) => !r.gelesen);
 
   // Gruppen nach logId (FIX 1: robuster Key; FIX 3: Teil-Deduplizierung)
   const gruppen = useMemo(() => {
@@ -897,23 +890,14 @@ export default function TechnikerPage() {
                   {logIdSearch ? "Keine Treffer" : "Noch keine Anfragen"}
                 </div>
               )}
-              {gefilterteGruppen.map((g) => {
-                // Nachrichten die diese logId im Betreff/Inhalt enthalten
-                const gruppeNachrichten = g.logId
-                  ? ungeleseneEmpf.filter((r) =>
-                      r.nachricht.betreff.includes(g.logId!) ||
-                      r.nachricht.inhalt.includes(g.logId!)
-                    )
-                  : [];
-                return (
-                  <AnfrageGruppe
-                    key={g.key}
-                    gruppe={g}
-                    nachrichten={gruppeNachrichten}
-                    onStorno={(item) => setStornoItem(item)}
-                  />
-                );
-              })}
+              {gefilterteGruppen.map((g) => (
+                <AnfrageGruppe
+                  key={g.key}
+                  gruppe={g}
+                  kuerzel={kuerzel}
+                  onStorno={(item) => setStornoItem(item)}
+                />
+              ))}
             </div>
 
             {gruppen.length > 5 && (
@@ -1163,12 +1147,6 @@ type GruppeData = {
 
 type StornoPayload = { id: number; teil: string; techniker: string; logId: string };
 
-type NachrichtEmpfRecord = {
-  id:          number;
-  nachrichtId: number;
-  gelesen:     boolean;
-  nachricht:   { id: number; betreff: string; inhalt: string; vonKuerzel: string; createdAt: Date };
-};
 
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   NEU:           { bg: "#dbeafe", color: "#1d4ed8", label: "NEU" },
@@ -1179,13 +1157,25 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
 
 function AnfrageGruppe({
   gruppe,
-  nachrichten,
+  kuerzel,
   onStorno,
 }: {
-  gruppe:       GruppeData;
-  nachrichten:  NachrichtEmpfRecord[];
-  onStorno:     (item: StornoPayload) => void;
+  gruppe:   GruppeData;
+  kuerzel:  string;
+  onStorno: (item: StornoPayload) => void;
 }) {
+  const router = useRouter();
+
+  // Eigener Query für Nachrichten zu dieser LogID
+  const nachrichtenQuery = api.nachrichten.getByLogId.useQuery(
+    { kuerzel, logId: gruppe.logId ?? "" },
+    { enabled: !!(kuerzel && gruppe.logId), refetchInterval: 5_000, staleTime: 4_000 },
+  );
+  const nachrichten = nachrichtenQuery.data ?? [];
+
+  const markGelesenMutation = api.nachrichten.markGelesen.useMutation({
+    onSuccess: () => nachrichtenQuery.refetch(),
+  });
   const anfragen = gruppe.anfragen;
 
   const alleErledigt   = anfragen.every((a) => a.status === "ABGESCHLOSSEN" || a.status === "STORNIERT");
@@ -1330,8 +1320,11 @@ function AnfrageGruppe({
               <div style={{ fontSize: "0.72rem", color: "var(--text-dim)", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {r.nachricht.inhalt.substring(0, 80)}{r.nachricht.inhalt.length > 80 ? "…" : ""}
               </div>
-              <a
-                href="/techniker/nachrichten"
+              <button
+                onClick={() => {
+                  markGelesenMutation.mutate({ nachrichtId: r.nachrichtId, kuerzel });
+                  router.push("/techniker/nachrichten");
+                }}
                 style={{
                   display:      "inline-block",
                   background:   "var(--primary)",
@@ -1341,11 +1334,12 @@ function AnfrageGruppe({
                   fontSize:     "0.72rem",
                   fontWeight:   700,
                   fontFamily:   "'Ubuntu', sans-serif",
-                  textDecoration: "none",
+                  border:       "none",
+                  cursor:       "pointer",
                 }}
               >
                 📖 Lesen & Antworten
-              </a>
+              </button>
             </div>
           ))}
         </div>
