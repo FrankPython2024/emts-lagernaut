@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useSession }  from "next-auth/react";
 import { AnfrageStatus } from "@prisma/client";
 import { api }          from "@/trpc/react";
@@ -7,7 +7,6 @@ import { useToast }     from "@/components/ui/Toast";
 import { useSocket }    from "@/hooks/useSocket";
 import { EVENTS }       from "@/modules/realtime/events";
 import { TastaturModal } from "@/components/ui/TastaturModal";
-import { useDebounce }  from "use-debounce";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -155,7 +154,6 @@ export default function TechnikerPage() {
   const [identInput,     setIdentInput]     = useState("");
   const [logIdQuery,     setLogIdQuery]     = useState<string | null>(null);
   const [selectedGeraet, setSelectedGeraet] = useState<GeraetInfo | null>(null);
-  const [recentGeraete,  setRecentGeraete]  = useState<GeraetInfo[]>([]);
 
   // ── Order state ────────────────────────────────────────────────────────────
   const [orderPart,      setOrderPart]      = useState<TeilInfo | null>(null);
@@ -174,18 +172,6 @@ export default function TechnikerPage() {
   const [showAllAnfragen, setShowAllAnfragen]   = useState(false);
   const [anfragenFilter,  setAnfragenFilter]    = useState("");
   const [nurOffene,       setNurOffene]          = useState(false);
-
-  // ── Load recent devices ────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!kuerzel) return;
-    try {
-      const s = localStorage.getItem(`lgnt_recent_${kuerzel}`);
-      if (s) setRecentGeraete(JSON.parse(s));
-    } catch {}
-  }, [kuerzel]);
-
-  // ── Debounce model search ──────────────────────────────────────────────────
-  const [debouncedModell] = useDebounce(identInput, 400);
 
   // ── tRPC Queries ──────────────────────────────────────────────────────────
 
@@ -280,13 +266,6 @@ export default function TechnikerPage() {
     setSelectedGeraet(geraet);
     setOrderLogId(geraet.logId === "---" ? "" : geraet.logId);
     setIdentInput("");
-
-    const next = [geraet, ...recentGeraete.filter((g) => g.logId !== geraet.logId)].slice(0, 5);
-    setRecentGeraete(next);
-    try {
-      if (kuerzel) localStorage.setItem(`lgnt_recent_${kuerzel}`, JSON.stringify(next));
-    } catch {}
-
     show(`💻 ${geraet.bereinigt}`, "success");
   }
 
@@ -621,31 +600,6 @@ export default function TechnikerPage() {
               </div>
             )}
 
-            {/* Recent devices */}
-            {recentGeraete.length > 0 && (
-              <div>
-                <small style={{ color: "var(--text-dim)", fontWeight: "bold", display: "block", marginBottom: 6 }}>
-                  Zuletzt verwendet:
-                </small>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {recentGeraete.map((g) => (
-                    <button
-                      key={g.logId}
-                      onClick={() => selectGeraet(g)}
-                      style={{
-                        ...btnIconStyle,
-                        padding:   "0.3rem 0.8rem",
-                        fontSize:  "0.85rem",
-                        color:     selectedGeraet?.logId === g.logId ? "var(--primary)" : "var(--text-dim)",
-                        border:    `1px solid ${selectedGeraet?.logId === g.logId ? "var(--primary)" : "var(--border)"}`,
-                      }}
-                    >
-                      {g.bereinigt.split(" ").slice(0, 3).join(" ")}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </section>
 
           {/* ── Ersatzteile Grid ── */}
@@ -693,7 +647,7 @@ export default function TechnikerPage() {
                       teil={teil}
                       onOrder={handleOrderPart}
                       onCart={handleAddToCart}
-                      cartLoading={addToCartMutation.isPending}
+                      inCart={korbItems.some((i) => i.artikelId === teil.artikelId && teil.artikelId !== null)}
                     />
                   ))}
                 </div>
@@ -948,15 +902,19 @@ function TeilKarte({
   teil,
   onOrder,
   onCart,
-  cartLoading,
+  inCart,
 }: {
-  teil:        TeilInfo;
-  onOrder:     (t: TeilInfo) => void;
-  onCart:      (t: TeilInfo) => void;
-  cartLoading: boolean;
+  teil:    TeilInfo;
+  onOrder: (t: TeilInfo) => void;
+  onCart:  (t: TeilInfo) => void;
+  inCart:  boolean;
 }) {
   const hasArtikel  = !!teil.artikelId;
   const isAvailable = teil.verfuegbar;
+
+  // Cart button appearance
+  const cartBg    = inCart ? "#16a34a" : isAvailable ? "var(--primary)" : "var(--purple)";
+  const cartLabel = inCart ? "✓ Im Warenkorb" : isAvailable ? "In Warenkorb" : "Als Bedarf anfragen";
 
   return (
     <div style={{
@@ -984,15 +942,15 @@ function TeilKarte({
       {/* Artikel name */}
       {teil.bezeichnung && (
         <div style={{
-          fontSize:     "0.7rem",
-          color:        "var(--text-dim)",
-          textAlign:    "center",
-          overflow:     "hidden",
-          textOverflow: "ellipsis",
-          display:      "-webkit-box",
+          fontSize:        "0.7rem",
+          color:           "var(--text-dim)",
+          textAlign:       "center",
+          overflow:        "hidden",
+          textOverflow:    "ellipsis",
+          display:         "-webkit-box",
           WebkitLineClamp: 2,
           WebkitBoxOrient: "vertical",
-          lineHeight:   1.3,
+          lineHeight:      1.3,
         }}>
           {teil.bezeichnung}
         </div>
@@ -1015,19 +973,19 @@ function TeilKarte({
           </span>
         ) : (
           <span style={{
-            padding:    "0.2rem 0.7rem",
+            padding:     "0.2rem 0.7rem",
             borderRadius: 12,
-            background: "#f3f4f6",
-            color:      "#9ca3af",
-            fontSize:   "0.75rem",
-            fontWeight: "bold",
+            background:  "#f3f4f6",
+            color:       "#9ca3af",
+            fontSize:    "0.75rem",
+            fontWeight:  "bold",
           }}>
             —
           </span>
         )}
       </div>
 
-      {/* Bestellen button */}
+      {/* Bestellen — direkte Einzelbestellung */}
       <button
         onClick={() => onOrder(teil)}
         disabled={!hasArtikel}
@@ -1046,23 +1004,24 @@ function TeilKarte({
         Bestellen
       </button>
 
-      {/* Cart button */}
+      {/* In Warenkorb — NIEMALS disabled wegen Bestand, nur wenn bereits drin */}
       <button
         onClick={() => onCart(teil)}
-        disabled={!hasArtikel || cartLoading}
+        disabled={!hasArtikel || inCart}
         style={{
-          background:   "var(--bg)",
-          color:        hasArtikel ? "var(--text)" : "var(--text-dim)",
-          border:       `1px solid var(--border)`,
-          padding:      "0.4rem",
+          background:   hasArtikel ? cartBg : "var(--border)",
+          color:        hasArtikel ? "white" : "var(--text-dim)",
+          border:       "none",
+          padding:      "0.5rem",
           borderRadius: 6,
-          cursor:       hasArtikel ? "pointer" : "not-allowed",
+          cursor:       (hasArtikel && !inCart) ? "pointer" : "not-allowed",
           fontFamily:   "'Ubuntu', sans-serif",
           fontSize:     "0.8rem",
-          fontWeight:   600,
+          fontWeight:   700,
+          opacity:      inCart ? 0.85 : 1,
         }}
       >
-        🛒 Warenkorb
+        {hasArtikel ? cartLabel : "🛒 Warenkorb"}
       </button>
     </div>
   );

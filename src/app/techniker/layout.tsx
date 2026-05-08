@@ -81,7 +81,7 @@ function TechnikerHeader() {
           style={{ height: "2.5rem", marginRight: "1.2rem" }}
         />
         <div style={{ borderLeft: "2px solid var(--border)", paddingLeft: "1.2rem" }}>
-          <strong style={{ display: "block" }}>EMTS | Ersatzteil Bestellsystem</strong>
+          <strong style={{ display: "block" }}>EMTS | Lagernaut</strong>
           <small style={{ color: "var(--primary)", fontWeight: "bold", textTransform: "uppercase", letterSpacing: 1 }}>
             AfB Sömmerda
           </small>
