@@ -170,6 +170,12 @@ export default function TechnikerPage() {
     { enabled: !!kuerzel },
   );
 
+  // Inbox für nachrichten-Panel in Anfragen-Karten
+  const inboxQuery = api.nachrichten.getInbox.useQuery(
+    { kuerzel },
+    { enabled: !!kuerzel, refetchInterval: 5_000, staleTime: 4_000 },
+  );
+
   // ── Handle LogID lookup result ────────────────────────────────────────────
   useEffect(() => {
     if (!logIdLookup.data) return;
@@ -232,10 +238,12 @@ export default function TechnikerPage() {
     on(EVENTS.ANFRAGE_UPDATED, doRefreshAnfragen);
     on(EVENTS.ANFRAGE_NEU,     doRefreshAnfragen);
     on(EVENTS.BESTAND_UPDATED, () => { if (selectedGeraet) teileQuery.refetch(); });
+    on(EVENTS.NACHRICHT_NEU,   () => { inboxQuery.refetch(); });
     return () => {
       off(EVENTS.ANFRAGE_UPDATED);
       off(EVENTS.ANFRAGE_NEU);
       off(EVENTS.BESTAND_UPDATED);
+      off(EVENTS.NACHRICHT_NEU);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [on, off]);
@@ -324,15 +332,45 @@ export default function TechnikerPage() {
   const alleAnfragen = anfragenQuery.data?.anfragen ?? [];
   const offeneCount  = alleAnfragen.filter((a) => a.status === "NEU" || a.status === "BEDARF").length;
 
-  // Gruppen nach logId (neueste Anfrage bestimmt Gruppen-Datum)
+  // Ungelesene Nachrichten — gefiltert per logId in der Karte
+  const ungeleseneEmpf = (inboxQuery.data?.nachrichten ?? []).filter((r) => !r.gelesen);
+
+  // Gruppen nach logId (FIX 1: robuster Key; FIX 3: Teil-Deduplizierung)
   const gruppen = useMemo(() => {
-    const map = new Map<string, { logId: string; geraeteName: string | null; datum: Date; anfragen: typeof alleAnfragen }>();
+    type GruppeEntry = { key: string; logId: string | null; gruppenNr: string | null; geraeteName: string | null; datum: Date; anfragen: typeof alleAnfragen };
+    const map = new Map<string, GruppeEntry>();
+
     for (const a of alleAnfragen) {
-      if (!map.has(a.logId)) {
-        map.set(a.logId, { logId: a.logId, geraeteName: a.geraeteName ?? null, datum: new Date(a.datum), anfragen: [] });
+      const rawLogId  = (a.logId ?? "").trim();
+      const cleanLogId = rawLogId.replace(/\./g, "");
+      const key =
+        rawLogId && rawLogId !== "unbekannt" ? rawLogId
+        : (a as { gruppenNr?: string | null }).gruppenNr         ? (a as { gruppenNr?: string | null }).gruppenNr!
+        : `datum-${new Date(a.datum).toISOString().slice(0, 10)}`;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          logId:       rawLogId || null,
+          gruppenNr:   (a as { gruppenNr?: string | null }).gruppenNr ?? null,
+          geraeteName: a.geraeteName ?? null,
+          datum:       new Date(a.datum),
+          anfragen:    [],
+        });
       }
-      map.get(a.logId)!.anfragen.push(a);
+      const gruppe = map.get(key)!;
+
+      // FIX 3: Deduplizierung — gleicher Teil + gleicher Status wird nur einmal gezeigt
+      const isDuplicate = gruppe.anfragen.some(
+        (existing) => existing.teil === a.teil && existing.status === a.status
+      );
+      if (!isDuplicate) {
+        gruppe.anfragen.push(a);
+      }
+      // Datum auf neueste Anfrage der Gruppe aktualisieren
+      if (new Date(a.datum) > gruppe.datum) gruppe.datum = new Date(a.datum);
     }
+
     return Array.from(map.values()).sort((a, b) => b.datum.getTime() - a.datum.getTime());
   }, [alleAnfragen]);
 
@@ -340,7 +378,7 @@ export default function TechnikerPage() {
     return gruppen.filter((g) => {
       if (logIdSearch) {
         const q = logIdSearch.toLowerCase();
-        if (!g.logId.toLowerCase().includes(q) && !(g.geraeteName ?? "").toLowerCase().includes(q)) return false;
+        if (!(g.logId ?? "").toLowerCase().includes(q) && !(g.geraeteName ?? "").toLowerCase().includes(q)) return false;
       }
       if (filterTab === "aktiv")    return g.anfragen.some((a) => a.status === "NEU" || a.status === "BEDARF");
       if (filterTab === "erledigt") return g.anfragen.every((a) => a.status === "ABGESCHLOSSEN" || a.status === "STORNIERT");
@@ -859,13 +897,23 @@ export default function TechnikerPage() {
                   {logIdSearch ? "Keine Treffer" : "Noch keine Anfragen"}
                 </div>
               )}
-              {gefilterteGruppen.map((g) => (
-                <AnfrageGruppe
-                  key={g.logId}
-                  gruppe={g}
-                  onStorno={(item) => setStornoItem(item)}
-                />
-              ))}
+              {gefilterteGruppen.map((g) => {
+                // Nachrichten die diese logId im Betreff/Inhalt enthalten
+                const gruppeNachrichten = g.logId
+                  ? ungeleseneEmpf.filter((r) =>
+                      r.nachricht.betreff.includes(g.logId!) ||
+                      r.nachricht.inhalt.includes(g.logId!)
+                    )
+                  : [];
+                return (
+                  <AnfrageGruppe
+                    key={g.key}
+                    gruppe={g}
+                    nachrichten={gruppeNachrichten}
+                    onStorno={(item) => setStornoItem(item)}
+                  />
+                );
+              })}
             </div>
 
             {gruppen.length > 5 && (
@@ -1105,13 +1153,22 @@ type AnfrageRow = {
 };
 
 type GruppeData = {
-  logId:       string;
+  key:         string;
+  logId:       string | null;
+  gruppenNr:   string | null;
   geraeteName: string | null;
   datum:       Date;
   anfragen:    AnfrageRow[];
 };
 
 type StornoPayload = { id: number; teil: string; techniker: string; logId: string };
+
+type NachrichtEmpfRecord = {
+  id:          number;
+  nachrichtId: number;
+  gelesen:     boolean;
+  nachricht:   { id: number; betreff: string; inhalt: string; vonKuerzel: string; createdAt: Date };
+};
 
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   NEU:           { bg: "#dbeafe", color: "#1d4ed8", label: "NEU" },
@@ -1120,127 +1177,188 @@ const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> =
   STORNIERT:     { bg: "#f3f4f6", color: "#9ca3af", label: "STORNIERT" },
 };
 
-function AnfrageGruppe({ gruppe, onStorno }: { gruppe: GruppeData; onStorno: (item: StornoPayload) => void }) {
+function AnfrageGruppe({
+  gruppe,
+  nachrichten,
+  onStorno,
+}: {
+  gruppe:       GruppeData;
+  nachrichten:  NachrichtEmpfRecord[];
+  onStorno:     (item: StornoPayload) => void;
+}) {
   const anfragen = gruppe.anfragen;
 
-  const alleErledigt = anfragen.every((a) => a.status === "ABGESCHLOSSEN" || a.status === "STORNIERT");
+  const alleErledigt   = anfragen.every((a) => a.status === "ABGESCHLOSSEN" || a.status === "STORNIERT");
   const irgendErledigt = anfragen.some((a) => a.status === "ABGESCHLOSSEN");
-  const hatBedarf  = anfragen.some((a) => a.status === "BEDARF");
+  const hatBedarf      = anfragen.some((a) => a.status === "BEDARF");
 
-  // Header-Farbe
-  const headerBg = alleErledigt
-    ? "#16a34a"
-    : "var(--primary)";
+  const headerBg         = alleErledigt ? "#16a34a" : "var(--primary)";
   const headerBorderLeft = !alleErledigt && irgendErledigt
     ? "5px solid #16a34a"
     : !alleErledigt && hatBedarf
     ? "5px solid #f97316"
     : undefined;
 
-  const datum = new Date(gruppe.datum);
+  const datum    = new Date(gruppe.datum);
   const datumStr = datum.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
 
+  // FIX 1: Aussagekräftiger Header-Text
+  const headerLogIdText = gruppe.logId && gruppe.logId !== "unbekannt"
+    ? `LogID: ${gruppe.logId}`
+    : gruppe.gruppenNr
+    ? `Gruppe: ${gruppe.gruppenNr}`
+    : `Anfrage vom ${datumStr}`;
+
   return (
-    <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+    // FIX 2: width 100% + overflow hidden verhindert Abschneiden
+    <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", width: "100%", minWidth: 0 }}>
       {/* Gruppen-Header */}
       <div style={{
-        background:  headerBg,
-        borderLeft:  headerBorderLeft,
-        color:       "white",
-        padding:     "0.55rem 1rem",
-        display:     "flex",
+        background:     headerBg,
+        borderLeft:     headerBorderLeft,
+        color:          "white",
+        padding:        "0.5rem 0.8rem",
+        display:        "flex",
         justifyContent: "space-between",
-        alignItems:  "center",
-        gap:         8,
+        alignItems:     "center",
+        gap:            6,
+        minWidth:       0,
       }}>
-        <div>
-          <span style={{ fontSize: "0.8rem", opacity: 0.9 }}>🖥️ LogID: <strong>{gruppe.logId}</strong></span>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <span style={{ fontSize: "0.78rem", opacity: 0.9, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            🖥️ <strong>{headerLogIdText}</strong>
+          </span>
           {gruppe.geraeteName && (
-            <div style={{ fontSize: "0.78rem", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.92 }}>
               {gruppe.geraeteName}
-            </div>
+            </span>
           )}
         </div>
-        <small style={{ opacity: 0.85, flexShrink: 0 }}>{datumStr}</small>
+        <small style={{ opacity: 0.85, flexShrink: 0, fontSize: "0.72rem" }}>{datumStr}</small>
       </div>
 
       {/* Anfragen-Zeilen (Zebra) */}
       {anfragen.map((a, idx) => {
-        const cfg       = STATUS_CFG[a.status] ?? STATUS_CFG.STORNIERT;
-        const canStorno = a.status === "NEU" || a.status === "BEDARF";
+        const cfg             = STATUS_CFG[a.status] ?? STATUS_CFG.STORNIERT;
+        const canStorno       = a.status === "NEU" || a.status === "BEDARF";
         const isAbgeschlossen = a.status === "ABGESCHLOSSEN";
-        const odd = idx % 2 === 1;
+        const odd             = idx % 2 === 1;
 
         return (
           <div key={a.id} style={{
-            padding:    "0.5rem 0.8rem",
+            padding:   "0.45rem 0.8rem",
             background: odd ? "var(--card-bg)" : "var(--bg)",
-            borderTop:  idx > 0 ? "1px solid var(--border)" : "none",
+            borderTop: idx > 0 ? "1px solid var(--border)" : "none",
+            minWidth:  0,
           }}>
-            {/* Zeile 1: Icon + Teilname + Status */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: "1.1rem", flexShrink: 0 }}>{TEIL_ICONS[a.teil] ?? "🔧"}</span>
-              <strong style={{ flex: 1, fontSize: "0.85rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {/* Zeile 1: Icon + Teilname + Grading + Status */}
+            <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+              <span style={{ fontSize: "1rem", flexShrink: 0 }}>{TEIL_ICONS[a.teil] ?? "🔧"}</span>
+              <strong style={{ flex: 1, fontSize: "0.82rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                 {a.teil}
               </strong>
               {a.grading && (
-                <span style={{ padding: "0.1rem 0.4rem", borderRadius: 4, background: "var(--border)", color: "var(--text-dim)", fontSize: "0.7rem", fontWeight: 700, flexShrink: 0 }}>
+                <span style={{ padding: "0.1rem 0.4rem", borderRadius: 4, background: "var(--border)", color: "var(--text-dim)", fontSize: "0.68rem", fontWeight: 700, flexShrink: 0 }}>
                   {a.grading}
                 </span>
               )}
               <span style={{
-                padding:     "0.15rem 0.55rem",
-                borderRadius: 10,
-                fontWeight:  800,
-                fontSize:    "0.68rem",
+                padding:       "0.12rem 0.5rem",
+                borderRadius:  10,
+                fontWeight:    800,
+                fontSize:      "0.65rem",
                 textTransform: "uppercase",
-                whiteSpace:  "nowrap",
-                flexShrink:  0,
-                background:  cfg.bg,
-                color:       cfg.color,
+                whiteSpace:    "nowrap",
+                flexShrink:    0,
+                background:    cfg.bg,
+                color:         cfg.color,
               }}>
                 {cfg.label}
               </span>
             </div>
 
-            {/* Zeile 2: Kommentar + Storno */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 3 }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", fontStyle: "italic" }}>
-                {isAbgeschlossen && <span style={{ color: "#15803d", fontStyle: "normal", fontWeight: 700 }}>✅ Bereit zur Abholung!</span>}
-                {a.kommentar && !isAbgeschlossen && <span>💬 {a.kommentar}</span>}
+            {/* Zeile 2: Info + Storno */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2, minWidth: 0 }}>
+              <div style={{ fontSize: "0.72rem", color: "var(--text-dim)", fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                {isAbgeschlossen
+                  ? <span style={{ color: "#15803d", fontStyle: "normal", fontWeight: 700 }}>✅ Bereit zur Abholung!</span>
+                  : a.kommentar
+                  ? <span>💬 {a.kommentar}</span>
+                  : null
+                }
               </div>
-              {canStorno && (
-                <button
-                  onClick={() => onStorno({ id: a.id, teil: a.teil, techniker: a.techniker, logId: a.logId })}
-                  style={{
-                    background: "none",
-                    border:     "1px solid var(--danger)",
-                    color:      "var(--danger)",
-                    padding:    "0.1rem 0.5rem",
-                    borderRadius: 5,
-                    cursor:     "pointer",
-                    fontSize:   "0.72rem",
-                    fontWeight: "bold",
-                    fontFamily: "'Ubuntu', sans-serif",
-                    flexShrink: 0,
-                  }}
-                >
-                  Stornieren
-                </button>
-              )}
-              {a.status === "ABGESCHLOSSEN" && (
-                <small style={{ color: "var(--text-dim)", fontSize: "0.72rem" }}>
-                  {new Date(a.datum).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
-                </small>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                {isAbgeschlossen && (
+                  <small style={{ color: "var(--text-dim)", fontSize: "0.68rem" }}>
+                    {new Date(a.datum).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
+                  </small>
+                )}
+                {canStorno && (
+                  <button
+                    onClick={() => onStorno({ id: a.id, teil: a.teil, techniker: a.techniker, logId: a.logId })}
+                    style={{
+                      background: "none", border: "1px solid var(--danger)", color: "var(--danger)",
+                      padding: "0.1rem 0.45rem", borderRadius: 5, cursor: "pointer",
+                      fontSize: "0.68rem", fontWeight: "bold", fontFamily: "'Ubuntu', sans-serif",
+                    }}
+                  >
+                    Storno
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         );
       })}
 
+      {/* Nachrichten-Panel (falls Nachrichten für diese LogID vorhanden) */}
+      {nachrichten.length > 0 && (
+        <div style={{ borderTop: "2px solid var(--primary)" }}>
+          {nachrichten.slice(0, 2).map((r) => (
+            <div key={r.id} style={{
+              background:   "rgba(0, 100, 210, 0.07)",
+              borderLeft:   "4px solid var(--primary)",
+              padding:      "0.6rem 0.8rem",
+              borderBottom: "1px solid var(--border)",
+            }}>
+              <div style={{ fontWeight: 800, fontSize: "0.8rem", color: "var(--primary)", marginBottom: 3, display: "flex", alignItems: "center", gap: 5 }}>
+                <span>📬</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {r.nachricht.betreff}
+                </span>
+              </div>
+              <div style={{ fontSize: "0.72rem", color: "var(--text-dim)", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {r.nachricht.inhalt.substring(0, 80)}{r.nachricht.inhalt.length > 80 ? "…" : ""}
+              </div>
+              <a
+                href="/techniker/nachrichten"
+                style={{
+                  display:      "inline-block",
+                  background:   "var(--primary)",
+                  color:        "white",
+                  padding:      "0.2rem 0.6rem",
+                  borderRadius: 6,
+                  fontSize:     "0.72rem",
+                  fontWeight:   700,
+                  fontFamily:   "'Ubuntu', sans-serif",
+                  textDecoration: "none",
+                }}
+              >
+                📖 Lesen & Antworten
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Gruppen-Footer */}
-      <div style={{ padding: "0.3rem 1rem", background: "var(--bg)", fontSize: "0.72rem", color: "var(--text-dim)", textAlign: "right", borderTop: "1px solid var(--border)" }}>
+      <div style={{ padding: "0.28rem 0.8rem", background: "var(--bg)", fontSize: "0.68rem", color: "var(--text-dim)", textAlign: "right", borderTop: "1px solid var(--border)" }}>
         {anfragen.length} {anfragen.length === 1 ? "Teil" : "Teile"}
+        {nachrichten.length > 0 && (
+          <span style={{ marginLeft: 8, color: "var(--primary)", fontWeight: 700 }}>
+            · {nachrichten.length} Nachricht{nachrichten.length > 1 ? "en" : ""}
+          </span>
+        )}
       </div>
     </div>
   );
