@@ -48,38 +48,37 @@ export async function sendeNachricht(data: SendeNachrichtData) {
  * Primär: logId-Spalte (nach ALTER TABLE Nachricht ADD COLUMN logId VARCHAR(100) NULL)
  * Fallback: Text-Suche im inhalt (logId wird beim Senden eingebettet als "[LogID: XXX]")
  */
-export async function getByLogId(kuerzel: string, logId: string) {
+export async function getByLogId(kuerzel: string, logId: string, allStatus = false) {
   const INCLUDE = {
     nachricht: { include: { antworten: { orderBy: { createdAt: "asc" as const } } } },
   } as const;
   const ORDER = { nachricht: { createdAt: "desc" as const } } as const;
 
+  const gelesenFilter = allStatus ? {} : { gelesen: false };
+
   // Primär: exakter logId-Spalten-Match (schnell, präzise)
   try {
     const results = await prisma.nachrichtEmpf.findMany({
-      where:   { empfKuerzel: kuerzel, gelesen: false, nachricht: { logId } },
+      where:   { empfKuerzel: kuerzel, ...gelesenFilter, nachricht: { logId } },
       include: INCLUDE,
       orderBy: ORDER,
-      take:    5,
+      take:    10,
     });
-    // Wenn Spalte existiert aber keine Ergebnisse → Text-Suche als Ergänzung
     if (results.length > 0) return results;
   } catch {
     // Spalte existiert noch nicht → weiter zum Fallback
   }
 
-  // Fallback: Text-Suche im inhalt (logId wurde beim Senden eingebettet)
+  // Fallback: Text-Suche im inhalt
   return prisma.nachrichtEmpf.findMany({
     where: {
       empfKuerzel: kuerzel,
-      gelesen:     false,
-      nachricht: {
-        inhalt: { contains: logId },
-      },
+      ...gelesenFilter,
+      nachricht: { inhalt: { contains: logId } },
     },
     include: INCLUDE,
     orderBy: ORDER,
-    take:    5,
+    take:    10,
   });
 }
 

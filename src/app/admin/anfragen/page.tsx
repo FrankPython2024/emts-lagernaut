@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { AnfrageStatus, NachrichtTyp, type Anfrage } from "@prisma/client";
 import { useSession } from "next-auth/react";
 import { api } from "@/trpc/react";
+import { ChatModal } from "@/components/ui/ChatModal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
@@ -192,6 +193,12 @@ export default function AnfragenPage() {
   const [nachrichtBetreff, setNachrichtBetreff] = useState("");
   const [nachrichtInhalt,  setNachrichtInhalt]  = useState("");
 
+  // ── Chat-Modal State ──────────────────────────────────────────────────────
+  const [chatModal, setChatModal] = useState<{
+    nachrichtId: number; logId: string; geraeteName: string | null; technikerKuerzel: string;
+  } | null>(null);
+  const utils = api.useUtils();
+
   // Beleg-Modals
   const [belegModal,    setBelegModal]    = useState<AuslagerBelegData | null>(null);
   const [gruppenBelege, setGruppenBelege] = useState<AuslagerBelegData[] | null>(null);
@@ -245,6 +252,24 @@ export default function AnfragenPage() {
         setNachrichtBetreff("Bitte melden");
         setNachrichtInhalt("Bitte melde dich kurz beim EMTS-Lager.");
         break;
+    }
+  }
+
+  // ── Chat öffnen: holt neueste Nachricht für logId, öffnet Chat-Modal ────────
+  async function openChat(technikerKuerzel: string, logId: string, geraeteName: string | null) {
+    try {
+      const results = await utils.nachrichten.getByLogIdAll.fetch({ kuerzel: technikerKuerzel, logId });
+      if (results.length > 0) {
+        const latest = results.reduce((a, b) =>
+          new Date(a.nachricht.createdAt) > new Date(b.nachricht.createdAt) ? a : b
+        );
+        setChatModal({ nachrichtId: latest.nachrichtId, logId, geraeteName, technikerKuerzel });
+      } else {
+        // Noch keine Nachrichten → Neue Nachricht erstellen
+        setNachrichtModal({ kuerzel: technikerKuerzel, logId, geraeteName });
+      }
+    } catch {
+      setNachrichtModal({ kuerzel: technikerKuerzel, logId, geraeteName });
     }
   }
 
@@ -394,9 +419,16 @@ export default function AnfragenPage() {
                 <button
                   onClick={() => setNachrichtModal({ kuerzel: gruppe.techniker, logId: gruppe.logId, geraeteName: gruppe.geraeteName ?? null })}
                   className="px-3 py-1.5 bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] text-xs font-bold rounded-lg hover:bg-[#0064d2]/20 transition-colors"
-                  title="Nachricht senden"
+                  title="Neue Nachricht senden"
                 >
-                  💬 {gruppe.techniker}
+                  💬 Nachricht
+                </button>
+                <button
+                  onClick={() => openChat(gruppe.techniker, gruppe.logId, gruppe.geraeteName ?? null)}
+                  className="px-3 py-1.5 bg-[#8e44ad]/10 text-[#8e44ad] dark:text-[#c39bd3] text-xs font-bold rounded-lg hover:bg-[#8e44ad]/20 transition-colors"
+                  title="Chat-Verlauf öffnen"
+                >
+                  💭 Chat
                 </button>
                 <button onClick={() => alleErledigen(gruppe.anfragen)} disabled={isBusy}
                   className="px-3 py-1.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors">
@@ -582,6 +614,18 @@ export default function AnfragenPage() {
           anzahl={gruppenBelege.length}
           onDrucken={() => printMehrereAuslagerBelege(gruppenBelege)}
           onSchliessen={() => setGruppenBelege(null)}
+        />
+      )}
+
+      {/* ── Chat-Modal ── */}
+      {chatModal && (
+        <ChatModal
+          nachrichtId={chatModal.nachrichtId}
+          logId={chatModal.logId}
+          geraeteName={chatModal.geraeteName ?? undefined}
+          currentUser={ersteller}
+          title={`Chat mit ${chatModal.technikerKuerzel}`}
+          onClose={() => { setChatModal(null); refetch(); }}
         />
       )}
     </div>
