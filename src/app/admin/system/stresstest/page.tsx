@@ -9,7 +9,7 @@ import { Line } from "react-chartjs-2";
 import { api }       from "@/trpc/react";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS }    from "@/modules/realtime/events";
-import type { TestEvent, MetricUpdate, FinalResult } from "@/modules/stresstest/runner";
+import type { TestEvent, MetricUpdate, FinalResult, ErrorDetail, ErrorKategorie } from "@/modules/stresstest/runner";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip);
 
@@ -221,6 +221,180 @@ function ConfigScreen({ onStart }: { onStart: (cfg: { duration: number; numTechn
   );
 }
 
+// ── Fehler-Sektion ────────────────────────────────────────────────────────────
+
+const KAT_CFG: Record<ErrorKategorie, { label: string; color: string; icon: string }> = {
+  race:       { label: "Race Condition",      color: C.green,   icon: "🟢" },
+  validation: { label: "Validierungs-Fehler", color: C.yellow,  icon: "🟡" },
+  bug:        { label: "Echter Bug",          color: C.red,     icon: "🔴" },
+};
+
+function FehlerKarte({ err, idx }: { err: ErrorDetail; idx: number }) {
+  const [offen, setOffen] = useState(false);
+  const kat = KAT_CFG[err.kategorie];
+  const zeit = new Date(err.ts).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+  return (
+    <div style={{
+      background:   "#1c1c24",
+      border:       `1px solid ${kat.color}44`,
+      borderLeft:   `3px solid ${kat.color}`,
+      borderRadius: 8,
+      overflow:     "hidden",
+    }}>
+      {/* Header — immer sichtbar */}
+      <button
+        onClick={() => setOffen((v) => !v)}
+        style={{
+          display: "flex", alignItems: "center", gap: 10,
+          width: "100%", padding: "0.65rem 1rem",
+          background: "none", border: "none", cursor: "pointer",
+          color: C.text, fontFamily: "monospace", textAlign: "left",
+        }}
+      >
+        <span style={{ color: C.dim, fontSize: "0.65rem", flexShrink: 0, width: 20 }}>#{idx + 1}</span>
+        <span style={{ fontSize: "0.85rem" }}>{kat.icon}</span>
+        <span style={{ color: kat.color, fontSize: "0.72rem", fontWeight: 700, flexShrink: 0 }}>
+          {kat.label}
+        </span>
+        <span style={{ color: C.dim, fontSize: "0.65rem", flexShrink: 0 }}>[{zeit}]</span>
+        <span style={{ color: C.cyan, fontSize: "0.72rem", fontWeight: 700, flex: 1 }}>{err.actor}</span>
+        <span style={{ color: C.dim, fontSize: "0.72rem" }}>{err.action}</span>
+        <span style={{ color: offen ? C.cyan : C.dim, marginLeft: "auto", fontSize: "0.7rem" }}>
+          {offen ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {/* Message — immer sichtbar */}
+      <div style={{ padding: "0 1rem 0.6rem 3.2rem", fontSize: "0.75rem", color: kat.color }}>
+        {err.message.slice(0, 120)}{err.message.length > 120 ? "…" : ""}
+      </div>
+
+      {/* Stack-Trace — aufklappbar */}
+      {offen && err.stack && (
+        <div style={{ padding: "0.6rem 1rem", borderTop: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: "0.6rem", color: C.dim, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Stack Trace
+          </div>
+          <pre style={{
+            margin: 0, fontSize: "0.65rem", color: "#888", lineHeight: 1.5,
+            overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all",
+          }}>
+            {err.stack}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FehlerSektion({ errors }: { errors: ErrorDetail[] }) {
+  const [filter, setFilter] = useState<ErrorKategorie | "alle">("alle");
+  const [filterAkteur, setFilterAkteur] = useState("");
+
+  if (errors.length === 0) return null;
+
+  const gefiltert = errors.filter((e) => {
+    if (filter !== "alle" && e.kategorie !== filter) return false;
+    if (filterAkteur && !e.actor.toUpperCase().includes(filterAkteur.toUpperCase())) return false;
+    return true;
+  });
+
+  const counts: Record<ErrorKategorie, number> = { race: 0, validation: 0, bug: 0 };
+  for (const e of errors) counts[e.kategorie]++;
+
+  function exportJson() {
+    const blob = new Blob([JSON.stringify(errors, null, 2)], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `stresstest-errors-${Date.now()}.json`;
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  const tabStyle = (active: boolean, color: string): React.CSSProperties => ({
+    padding: "3px 10px", borderRadius: 99, border: `1px solid ${active ? color : C.border}`,
+    background: active ? `${color}22` : "transparent",
+    color: active ? color : C.dim, fontSize: "0.65rem", fontFamily: "monospace",
+    fontWeight: active ? 700 : 400, cursor: "pointer",
+  });
+
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.red}44`, borderRadius: 12, overflow: "hidden" }}>
+      {/* Header */}
+      <div style={{ padding: "0.7rem 1rem", background: "#1c1c24", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ color: C.red, fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+          ❌ Fehler ({errors.length})
+        </span>
+
+        {/* Kategorie-Badges */}
+        <div style={{ display: "flex", gap: 4, flex: 1 }}>
+          <button onClick={() => setFilter("alle")} style={tabStyle(filter === "alle", C.text)}>
+            Alle {errors.length}
+          </button>
+          {counts.race > 0 && (
+            <button onClick={() => setFilter("race")} style={tabStyle(filter === "race", C.green)}>
+              🟢 Race {counts.race}
+            </button>
+          )}
+          {counts.validation > 0 && (
+            <button onClick={() => setFilter("validation")} style={tabStyle(filter === "validation", C.yellow)}>
+              🟡 Validierung {counts.validation}
+            </button>
+          )}
+          {counts.bug > 0 && (
+            <button onClick={() => setFilter("bug")} style={tabStyle(filter === "bug", C.red)}>
+              🔴 Bugs {counts.bug}
+            </button>
+          )}
+        </div>
+
+        {/* Akteur-Filter */}
+        <input
+          value={filterAkteur}
+          onChange={(e) => setFilterAkteur(e.target.value)}
+          placeholder="Akteur…"
+          style={{
+            background: "#14141a", border: `1px solid ${C.border}`, color: C.text,
+            padding: "3px 8px", borderRadius: 6, fontSize: "0.65rem", fontFamily: "monospace",
+            width: 80, outline: "none",
+          }}
+        />
+
+        {/* Export */}
+        <button
+          onClick={exportJson}
+          style={{
+            background: "#ffffff08", border: `1px solid ${C.border}`, color: C.dim,
+            padding: "3px 10px", borderRadius: 6, fontSize: "0.65rem", fontFamily: "monospace",
+            cursor: "pointer",
+          }}
+        >
+          ⬇ JSON
+        </button>
+      </div>
+
+      {/* Erklärung Kategorien */}
+      <div style={{ padding: "0.5rem 1rem", background: "#14141a", borderBottom: `1px solid ${C.border}`, display: "flex", gap: "1.5rem", fontSize: "0.62rem", color: C.dim }}>
+        <span>🟢 Race Conditions — erwartet, kein Code-Fehler</span>
+        <span>🟡 Validierungs-Fehler — Eingabedaten prüfen</span>
+        <span>🔴 Echte Bugs — Code-Überprüfung nötig</span>
+      </div>
+
+      {/* Fehler-Liste */}
+      <div style={{ padding: "0.75rem", display: "flex", flexDirection: "column", gap: 6, maxHeight: 400, overflowY: "auto" }}>
+        {gefiltert.length === 0 && (
+          <div style={{ textAlign: "center", padding: "1.5rem", color: C.dim, fontSize: "0.75rem" }}>
+            Keine Fehler für diesen Filter
+          </div>
+        )}
+        {gefiltert.map((err, i) => (
+          <FehlerKarte key={`${err.ts}-${i}`} err={err} idx={i} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Running Dashboard ─────────────────────────────────────────────────────────
 
 function RunningDashboard({
@@ -240,6 +414,7 @@ function RunningDashboard({
   const [chartLabels, setChartLabels] = useState<string[]>([]);
   const [chartOps,    setChartOps]    = useState<number[]>([]);
   const [workerHist,  setWorkerHist]  = useState<Record<string, number[]>>({});
+  const [errors,      setErrors]      = useState<ErrorDetail[]>([]);
   const logRef       = useRef<HTMLDivElement>(null);
   const atBottomRef  = useRef(true);
   const startRef     = useRef(Date.now());
@@ -257,6 +432,14 @@ function RunningDashboard({
     neu.forEach((ev) => seenTsRef.current.add(ev.ts));
     setEvents((prev) => [...neu.reverse(), ...prev].slice(0, 150));
   }, [pollData]);
+
+  // Fehler aus Poll-State synchronisieren
+  useEffect(() => {
+    const serverErrors = pollData?.state?.errors;
+    if (serverErrors?.length) {
+      setErrors(serverErrors as ErrorDetail[]);
+    }
+  }, [pollData?.state?.errors?.length]);
 
   // Stoppe wenn Server sagt: nicht mehr running
   useEffect(() => {
@@ -501,6 +684,9 @@ function RunningDashboard({
           ⏹ STOP TEST
         </button>
       </div>
+
+      {/* ── Fehler-Sektion ── */}
+      <FehlerSektion errors={errors} />
     </div>
   );
 }

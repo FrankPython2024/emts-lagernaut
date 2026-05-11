@@ -52,6 +52,17 @@ export interface MetricUpdate {
   socketClients:    number;
 }
 
+export type ErrorKategorie = "race" | "validation" | "bug";
+
+export interface ErrorDetail {
+  ts:        number;
+  actor:     string;
+  action:    string;
+  message:   string;
+  stack?:    string;
+  kategorie: ErrorKategorie;
+}
+
 export interface FinalResult {
   runId:            string;
   duration:         number;
@@ -82,6 +93,7 @@ interface RunnerStats {
   aktionen:         number;
   responseTimes:    number[];
   recentEvents:     TestEvent[];
+  errors:           ErrorDetail[];
   workerActivity:   Record<string, number[]>;
 }
 
@@ -112,7 +124,12 @@ export function getState() {
     totalOps:     state.stats.aktionen,
     fehler:       state.stats.fehler,
     recentEvents: state.stats.recentEvents.slice(-100),
+    errors:       state.stats.errors.slice(-50),
   };
+}
+
+export function getErrors(): ErrorDetail[] {
+  return state?.stats.errors ?? [];
 }
 
 export function stopRunner() {
@@ -120,6 +137,19 @@ export function stopRunner() {
     state.stopSignal = true;
     console.log("[Stresstest] Stop-Signal gesetzt");
   }
+}
+
+// ── Fehler-Kategorisierung ────────────────────────────────────────────────────
+
+function kategorisiere(message: string): ErrorKategorie {
+  const m = message.toLowerCase();
+  if (m.includes("bearbeitung") || m.includes("bereits") || m.includes("conflict") || m.includes("lock") || m.includes("gewonnen") || m.includes("übernommen")) {
+    return "race";
+  }
+  if (m.includes("zod") || m.includes("validation") || m.includes("invalid") || m.includes("required") || m.includes("expected") || m.includes("too_small") || m.includes("too_big")) {
+    return "validation";
+  }
+  return "bug";
 }
 
 // ── Konstanten ────────────────────────────────────────────────────────────────
@@ -180,8 +210,21 @@ async function messe<T>(actor: string, action: string, fn: () => Promise<T>): Pr
   } catch (err) {
     const dauer = Date.now() - start;
     const msg   = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack?.split("\n").slice(0, 6).join("\n") : undefined;
     state.stats.fehler++;
-    logEvent(actor, action, dauer, false, msg.slice(0, 80));
+    logEvent(actor, action, dauer, false, msg.slice(0, 120));
+
+    // Vollständige Fehlerdetails für Dashboard
+    const detail: ErrorDetail = {
+      ts:        Date.now(),
+      actor,
+      action,
+      message:   msg,
+      stack,
+      kategorie: kategorisiere(msg),
+    };
+    state.stats.errors = [detail, ...state.stats.errors].slice(0, 200);
+
     throw err;
   }
 }
@@ -483,7 +526,7 @@ export async function startRunner(config: TestConfig): Promise<string> {
       anfrageErstellt: 0, anfrageErledigt: 0, anfrageStorniert: 0,
       inBearbeitung: 0, buchungen: 0, chat: 0, lockKonflikte: 0,
       lockGewonnen: 0, fehler: 0, aktionen: 0,
-      responseTimes: [], recentEvents: [], workerActivity: {},
+      responseTimes: [], recentEvents: [], errors: [], workerActivity: {},
     },
   };
 

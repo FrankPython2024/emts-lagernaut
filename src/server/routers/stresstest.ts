@@ -5,6 +5,7 @@ import {
   stopRunner,
   isRunning,
   getState,
+  getErrors,
   cleanupTestData,
 } from "@/modules/stresstest/runner";
 
@@ -37,6 +38,10 @@ export const stresstestRouter = createTRPCRouter({
         recentEvents: s?.recentEvents ?? [],
       };
     }),
+
+  // Alle Fehler des laufenden/letzten Tests mit Stack-Traces
+  getErrors: adminProcedure
+    .query(() => getErrors()),
 
   cleanup: adminProcedure
     .input(z.object({ runId: z.string().optional() }))
