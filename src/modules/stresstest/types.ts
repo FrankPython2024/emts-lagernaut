@@ -43,20 +43,51 @@ export interface MetricUpdate {
 }
 
 export interface FinalResult {
-  runId:            string;
-  duration:         number;
-  totalOps:         number;
-  anfrageErstellt:  number;
-  anfrageErledigt:  number;
-  anfrageStorniert: number;
-  buchungen:        number;
-  chat:             number;
-  lockKonflikte:    number;
-  avgResponseTime:  number;
-  peakResponseTime: number;
-  p95:              number;
-  fehler:           number;
-  score:            number;
+  runId:             string;
+  duration:          number;
+  totalOps:          number;
+  anfrageErstellt:   number;
+  anfrageErledigt:   number;
+  anfrageStorniert:  number;
+  buchungen:         number;
+  chat:              number;
+  lockKonflikte:     number;
+  avgResponseTime:   number;
+  peakResponseTime:  number;
+  p95:               number;
+  fehler:            number;
+  score:             number;
+  // Erweiterte Felder für Detailed Report
+  modus:             LoadMode;
+  numTechniker:      number;
+  numAdmins:         number;
+  startTime:         number;
+  memMBStart:        number;
+  memMBPeak:         number;
+  aktionenPerAkteur: Record<string, number>;
+  fehlerPerAkteur:   Record<string, number>;
+  fehlerPerKategorie: Partial<Record<ErrorKategorie, number>>;
+}
+
+export interface TestDataCount {
+  anfragen:    number;
+  buchungen:   number;
+  nachrichten: number;
+  gesamt:      number;
+}
+
+export interface HistoryRun {
+  id:           number;
+  startedAt:    Date;
+  endedAt:      Date;
+  modus:        string;
+  technikerAnz: number;
+  adminAnz:     number;
+  score:        number;
+  totalOps:     number;
+  fehler:       number;
+  avgResponseMs: number;
+  p95Ms:        number;
 }
 
 export interface ErrorDetail {

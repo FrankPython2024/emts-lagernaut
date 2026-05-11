@@ -181,6 +181,24 @@ model LagerplatzConfig {
   createdAt    DateTime @default(now())
 }
 
+// ── Stresstest-Historie ───────────────────────────────────────────────────────
+
+model StressTestRun {
+  id            Int      @id @default(autoincrement())
+  startedAt     DateTime
+  endedAt       DateTime
+  modus         String
+  technikerAnz  Int
+  adminAnz      Int
+  score         Int
+  totalOps      Int
+  fehler        Int
+  avgResponseMs Int
+  p95Ms         Int
+  report        Json
+  createdAt     DateTime @default(now())
+}
+
 // ── Nachrichten ──────────────────────────────────────────────────────────────
 // Chat-Nachrichten nutzen logId = "chat:{anfrageId}" zur Zuordnung.
 

@@ -31,20 +31,24 @@ import { senden as chatSenden } from "@/modules/chat/service";
 
 
 interface RunnerStats {
-  anfrageErstellt:  number;
-  anfrageErledigt:  number;
-  anfrageStorniert: number;
-  inBearbeitung:    number;
-  buchungen:        number;
-  chat:             number;
-  lockKonflikte:    number;
-  lockGewonnen:     number;
-  fehler:           number;
-  aktionen:         number;
-  responseTimes:    number[];
-  recentEvents:     TestEvent[];
-  errors:           ErrorDetail[];
-  workerActivity:   Record<string, number[]>;
+  anfrageErstellt:   number;
+  anfrageErledigt:   number;
+  anfrageStorniert:  number;
+  inBearbeitung:     number;
+  buchungen:         number;
+  chat:              number;
+  lockKonflikte:     number;
+  lockGewonnen:      number;
+  fehler:            number;
+  aktionen:          number;
+  responseTimes:     number[];
+  recentEvents:      TestEvent[];
+  errors:            ErrorDetail[];
+  workerActivity:    Record<string, number[]>;
+  aktionenPerAkteur: Record<string, number>;
+  fehlerPerAkteur:   Record<string, number>;
+  memMBStart:        number;
+  memMBPeak:         number;
 }
 
 interface RunnerState {
@@ -177,6 +181,7 @@ async function messe<T>(actor: string, action: string, fn: () => Promise<T>): Pr
     state.stats.responseTimes.push(dauer);
     if (state.stats.responseTimes.length > 10_000) state.stats.responseTimes.shift();
     state.stats.aktionen++;
+    state.stats.aktionenPerAkteur[actor] = (state.stats.aktionenPerAkteur[actor] ?? 0) + 1;
     logEvent(actor, action, dauer, true);
     return result;
   } catch (err) {
@@ -184,6 +189,7 @@ async function messe<T>(actor: string, action: string, fn: () => Promise<T>): Pr
     const msg   = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack?.split("\n").slice(0, 6).join("\n") : undefined;
     state.stats.fehler++;
+    state.stats.fehlerPerAkteur[actor] = (state.stats.fehlerPerAkteur[actor] ?? 0) + 1;
     logEvent(actor, action, dauer, false, msg.slice(0, 120));
 
     const errorName = err instanceof Error ? err.constructor.name : "Error";
@@ -475,6 +481,11 @@ function startMetricsEmitter(): NodeJS.Timeout {
     };
 
     emitToAdmins(EVENTS.STRESSTEST_METRICS, update);
+
+    // Memory-Peak tracken
+    if (state && update.memMB > state.stats.memMBPeak) {
+      state.stats.memMBPeak = update.memMB;
+    }
   }, 1_000);
 }
 
@@ -502,6 +513,9 @@ export async function startRunner(config: TestConfig): Promise<string> {
       inBearbeitung: 0, buchungen: 0, chat: 0, lockKonflikte: 0,
       lockGewonnen: 0, fehler: 0, aktionen: 0,
       responseTimes: [], recentEvents: [], errors: [], workerActivity: {},
+      aktionenPerAkteur: {}, fehlerPerAkteur: {},
+      memMBStart: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      memMBPeak:  0,
     },
   };
 
@@ -536,31 +550,65 @@ export async function startRunner(config: TestConfig): Promise<string> {
       clearInterval(metricsTimer);
       if (!state) return;
 
-      const rt   = state.stats.responseTimes;
-      const avg  = rt.length > 0 ? Math.round(rt.reduce((s, n) => s + n, 0) / rt.length) : 0;
-      const peak = rt.length > 0 ? Math.max(...rt) : 0;
-      const p95  = percentile(rt, 95);
+      const rt      = state.stats.responseTimes;
+      const avg     = rt.length > 0 ? Math.round(rt.reduce((s, n) => s + n, 0) / rt.length) : 0;
+      const peak    = rt.length > 0 ? Math.max(...rt) : 0;
+      const p95     = percentile(rt, 95);
       const errRate = state.stats.aktionen > 0 ? (state.stats.fehler / state.stats.aktionen) * 100 : 0;
-      const score = state.stats.aktionen > 0 && avg > 0
+      const score   = state.stats.aktionen > 0 && avg > 0
         ? Math.round((state.stats.aktionen * 100) / (avg + errRate * 1000))
         : 0;
 
+      // Fehler pro Kategorie aggregieren
+      const fehlerPerKategorie: Partial<Record<ErrorKategorie, number>> = {};
+      for (const e of state.stats.errors) {
+        fehlerPerKategorie[e.kategorie] = (fehlerPerKategorie[e.kategorie] ?? 0) + 1;
+      }
+
+      const endTime = Date.now();
       const result: FinalResult = {
         runId,
-        duration:         Date.now() - state.startTime,
-        totalOps:         state.stats.aktionen,
-        anfrageErstellt:  state.stats.anfrageErstellt,
-        anfrageErledigt:  state.stats.anfrageErledigt,
-        anfrageStorniert: state.stats.anfrageStorniert,
-        buchungen:        state.stats.buchungen,
-        chat:             state.stats.chat,
-        lockKonflikte:    state.stats.lockKonflikte,
-        avgResponseTime:  avg,
-        peakResponseTime: peak,
+        duration:           endTime - state.startTime,
+        totalOps:           state.stats.aktionen,
+        anfrageErstellt:    state.stats.anfrageErstellt,
+        anfrageErledigt:    state.stats.anfrageErledigt,
+        anfrageStorniert:   state.stats.anfrageStorniert,
+        buchungen:          state.stats.buchungen,
+        chat:               state.stats.chat,
+        lockKonflikte:      state.stats.lockKonflikte,
+        avgResponseTime:    avg,
+        peakResponseTime:   peak,
         p95,
-        fehler:           state.stats.fehler,
+        fehler:             state.stats.fehler,
         score,
+        // Erweitert
+        modus:              state.config.loadMode,
+        numTechniker:       config.numTechniker,
+        numAdmins:          config.numAdmins,
+        startTime:          state.startTime,
+        memMBStart:         state.stats.memMBStart,
+        memMBPeak:          state.stats.memMBPeak,
+        aktionenPerAkteur:  { ...state.stats.aktionenPerAkteur },
+        fehlerPerAkteur:    { ...state.stats.fehlerPerAkteur },
+        fehlerPerKategorie,
       };
+
+      // In DB speichern (non-blocking, optional)
+      prisma.stressTestRun.create({
+        data: {
+          startedAt:    new Date(state.startTime),
+          endedAt:      new Date(endTime),
+          modus:        state.config.loadMode,
+          technikerAnz: config.numTechniker,
+          adminAnz:     config.numAdmins,
+          score,
+          totalOps:     state.stats.aktionen,
+          fehler:       state.stats.fehler,
+          avgResponseMs: avg,
+          p95Ms:        p95,
+          report:       JSON.parse(JSON.stringify(result)),
+        },
+      }).catch((e: Error) => console.warn("[Stresstest] DB-Save fehlgeschlagen (Migration ausgeführt?):", e.message));
 
       console.log(`[Stresstest] ■ Ende — Score: ${score} | Ops: ${state.stats.aktionen} | Fehler: ${state.stats.fehler}`);
 

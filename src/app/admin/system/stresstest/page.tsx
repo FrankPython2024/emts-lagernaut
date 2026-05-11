@@ -796,128 +796,369 @@ function RunningDashboard({
   );
 }
 
-// ── Score Screen ──────────────────────────────────────────────────────────────
+// ── Cleanup Panel ─────────────────────────────────────────────────────────────
 
-function ScoreScreen({ result, runId, onNew, onCleanup }: {
-  result: FinalResult;
-  runId: string;
-  onNew: () => void;
-  onCleanup: () => void;
-}) {
-  const [shown, setShown] = useState(false);
-  useEffect(() => { setTimeout(() => setShown(true), 100); }, []);
+function CleanupPanel({ currentRunId }: { currentRunId?: string }) {
+  const [confirm, setConfirm] = useState(false);
+  const [input,   setInput]   = useState("");
 
-  const score = result.score;
-  const rating = score > 5000 ? { label: "EXCELLENT", color: C.green }
-               : score > 1000 ? { label: "GOOD",      color: C.cyan  }
-               : score > 200  ? { label: "OK",         color: C.yellow }
-               : { label: "NEEDS WORK", color: C.red };
+  const { data: counts, refetch } = api.stresstest.getTestDataCount.useQuery(undefined, { staleTime: 10_000 });
+  const cleanupMut = api.stresstest.cleanup.useMutation({
+    onSuccess: (r) => {
+      setConfirm(false); setInput("");
+      refetch();
+      alert(`✅ Gelöscht: ${r.anfragen} Anfragen, ${r.buchungen} Buchungen, ${r.anfragen} Chat-Nachrichten`);
+    },
+  });
 
-  function downloadReport() {
-    const txt = [
-      "LAGERNAUT STRESS-TEST REPORT",
-      "=".repeat(40),
-      `Run ID:           ${result.runId}`,
-      `Laufzeit:         ${fmtTime(result.duration)}`,
-      "",
-      "AKTIONEN",
-      `Gesamt:           ${fmtNum(result.totalOps)}`,
-      `Anfragen erstellt: ${fmtNum(result.anfrageErstellt)}`,
-      `Anfragen erledigt: ${fmtNum(result.anfrageErledigt)}`,
-      `Anfragen storniert: ${fmtNum(result.anfrageStorniert)}`,
-      `Buchungen:        ${fmtNum(result.buchungen)}`,
-      `Chat-Nachrichten: ${fmtNum(result.chat)}`,
-      `Lock-Konflikte:   ${fmtNum(result.lockKonflikte)}`,
-      "",
-      "PERFORMANCE",
-      `Ø Response:       ${result.avgResponseTime} ms`,
-      `Peak Response:    ${result.peakResponseTime} ms`,
-      `P95:              ${result.p95} ms`,
-      `Fehler:           ${result.fehler}`,
-      "",
-      `SCORE: ${score} — ${rating.label}`,
-    ].join("\n");
+  const s: React.CSSProperties = { fontFamily: "monospace" };
 
-    const blob = new Blob([txt], { type: "text/plain" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url; a.download = `stresstest-${result.runId}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  const row = (label: string, val: string, color: string = C.dim) => (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "0.35rem 0", borderBottom: `1px solid ${C.border}` }}>
-      <span style={{ color: C.dim, fontSize: "0.85rem" }}>{label}</span>
-      <span style={{ color, fontWeight: 700, fontFamily: "monospace" }}>{val}</span>
+  if (!counts || counts.gesamt === 0) return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "0.8rem 1.2rem" }}>
+      <span style={{ fontSize: "0.72rem", color: C.dim, ...s }}>🧹 Keine Test-Daten in DB</span>
     </div>
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "monospace", color: C.text }}>
-      <div style={{
-        background: C.card, border: `2px solid ${rating.color}44`, borderRadius: 20, padding: "3rem",
-        width: 480, boxShadow: `0 0 80px ${rating.color}22`,
-        transform: shown ? "scale(1) translateY(0)" : "scale(0.9) translateY(30px)",
-        opacity: shown ? 1 : 0, transition: "all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
-      }}>
-        <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-          <div style={{ fontSize: "0.7rem", color: C.dim, letterSpacing: "0.15em", marginBottom: 8 }}>LAGERNAUT SCORE</div>
-          <div style={{
-            fontSize: "5rem", fontWeight: 900, color: rating.color,
-            textShadow: `0 0 40px ${rating.color}`, letterSpacing: "-0.02em",
-            transition: "all 0.3s",
-          }}>
+    <>
+      <div style={{ background: C.card, border: `1px solid ${C.yellow}44`, borderRadius: 10, padding: "1rem 1.2rem" }}>
+        <div style={{ fontSize: "0.65rem", color: C.yellow, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8, ...s }}>
+          🧹 Test-Daten in DB
+        </div>
+        <div style={{ display: "flex", gap: "1.5rem", marginBottom: 10 }}>
+          {[["Anfragen", counts.anfragen], ["Buchungen", counts.buchungen], ["Nachrichten", counts.nachrichten]].map(([l, v]) => (
+            <div key={String(l)}>
+              <div style={{ fontSize: "1.2rem", fontWeight: 900, color: C.yellow, ...s }}>{fmtNum(Number(v))}</div>
+              <div style={{ fontSize: "0.6rem", color: C.dim, ...s }}>{l}</div>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={() => setConfirm(true)}
+          style={{ background: `${C.red}22`, border: `1px solid ${C.red}44`, color: C.red, padding: "0.45rem 1rem", borderRadius: 8, fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", ...s }}
+        >
+          🗑️ Alle Test-Daten löschen
+        </button>
+      </div>
+
+      {confirm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 20000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: C.card, border: `2px solid ${C.red}`, borderRadius: 16, padding: "2rem", width: 380, ...s }}>
+            <div style={{ fontSize: "1.5rem", marginBottom: 8 }}>⚠️</div>
+            <div style={{ fontSize: "1rem", fontWeight: 900, color: C.red, marginBottom: 12 }}>Wirklich löschen?</div>
+            <div style={{ fontSize: "0.78rem", color: C.dim, marginBottom: 16, lineHeight: 1.6 }}>
+              Folgende Daten werden <strong style={{ color: C.text }}>permanent</strong> entfernt:<br />
+              • {fmtNum(counts.anfragen)} Test-Anfragen<br />
+              • {fmtNum(counts.buchungen)} Test-Buchungen<br />
+              • {fmtNum(counts.nachrichten)} Chat-Nachrichten
+            </div>
+            <div style={{ fontSize: "0.72rem", color: C.dim, marginBottom: 6 }}>
+              Zum Bestätigen <strong style={{ color: C.text }}>LÖSCHEN</strong> eingeben:
+            </div>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="LÖSCHEN"
+              style={{ width: "100%", background: "#0a0a0f", border: `1px solid ${C.border}`, color: C.text, padding: "0.5rem 0.75rem", borderRadius: 8, fontSize: "0.85rem", boxSizing: "border-box", outline: "none", ...s }}
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14 }}>
+              <button onClick={() => { setConfirm(false); setInput(""); }}
+                style={{ background: "#ffffff08", border: `1px solid ${C.border}`, color: C.text, padding: "0.6rem", borderRadius: 8, cursor: "pointer", fontSize: "0.8rem", fontWeight: 700, ...s }}>
+                Abbrechen
+              </button>
+              <button
+                disabled={input !== "LÖSCHEN" || cleanupMut.isPending}
+                onClick={() => cleanupMut.mutate({ runId: currentRunId })}
+                style={{ background: input === "LÖSCHEN" ? `${C.red}44` : "#ffffff08", border: `1px solid ${input === "LÖSCHEN" ? C.red : C.border}`, color: input === "LÖSCHEN" ? C.red : C.dim, padding: "0.6rem", borderRadius: 8, cursor: input === "LÖSCHEN" ? "pointer" : "not-allowed", fontSize: "0.8rem", fontWeight: 900, ...s }}
+              >
+                {cleanupMut.isPending ? "…" : "Ja, löschen"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── History Section ────────────────────────────────────────────────────────────
+
+function HistorySection() {
+  const { data: history } = api.stresstest.getHistory.useQuery();
+  if (!history?.length) return null;
+
+  const rating = (score: number) =>
+    score > 5000 ? C.green : score > 1000 ? C.cyan : score > 200 ? C.yellow : C.red;
+
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", fontFamily: "monospace" }}>
+      <div style={{ padding: "0.6rem 1rem", background: "#1c1c24", borderBottom: `1px solid ${C.border}`, fontSize: "0.62rem", color: C.dim, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+        📜 Test-Historie ({history.length})
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.7rem" }}>
+          <thead>
+            <tr style={{ background: "#14141a" }}>
+              {["Datum", "Modus", "Score", "Ops", "Fehler", "Ø ms", "P95"].map((h) => (
+                <th key={h} style={{ padding: "5px 10px", textAlign: "left", color: C.dim, fontWeight: 600, borderBottom: `1px solid ${C.border}` }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {history.map((r) => (
+              <tr key={r.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
+                <td style={{ padding: "5px 10px", color: C.dim }}>
+                  {new Date(r.startedAt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}{" "}
+                  {new Date(r.startedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
+                </td>
+                <td style={{ padding: "5px 10px", color: C.text }}>
+                  {LOAD_MODES[r.modus as LoadMode]?.icon ?? "⚪"} {r.modus}
+                </td>
+                <td style={{ padding: "5px 10px", color: rating(r.score), fontWeight: 900 }}>{fmtNum(r.score)}</td>
+                <td style={{ padding: "5px 10px", color: C.cyan }}>{fmtNum(r.totalOps)}</td>
+                <td style={{ padding: "5px 10px", color: r.fehler > 0 ? C.red : C.green }}>{r.fehler}</td>
+                <td style={{ padding: "5px 10px", color: C.text }}>{r.avgResponseMs}</td>
+                <td style={{ padding: "5px 10px", color: r.p95Ms > 500 ? C.yellow : C.text }}>{r.p95Ms}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Recommendations Engine ────────────────────────────────────────────────────
+
+interface Empfehlung { level: "rot" | "gelb" | "gruen"; text: string }
+
+function genEmpfehlungen(r: FinalResult): Empfehlung[] {
+  const empf: Empfehlung[] = [];
+  const errorRate = r.totalOps > 0 ? r.fehler / r.totalOps : 0;
+  const bugCount  = r.fehlerPerKategorie?.bug ?? 0;
+  const raceCount = r.fehlerPerKategorie?.race ?? 0;
+
+  if (bugCount > 0)        empf.push({ level: "rot",   text: `${bugCount} Echter Bug(s) — Fehler-Sektion + Stack-Traces prüfen` });
+  if (r.p95 > 500)         empf.push({ level: "gelb",  text: `P95 ${r.p95}ms hoch — DB-Indexes auf oft abgefragten Spalten prüfen` });
+  if (r.avgResponseTime > 300) empf.push({ level: "gelb", text: `Ø Response ${r.avgResponseTime}ms — Langsame Queries identifizieren` });
+  if ((r.memMBPeak ?? 0) > 400) empf.push({ level: "gelb", text: `Memory-Peak ${r.memMBPeak}MB — Heap-Wachstum bei Extreme-Mode beobachten` });
+  if (raceCount > 0 && bugCount === 0) empf.push({ level: "gruen", text: `Lock-System: ${raceCount} Race Conditions korrekt abgefangen` });
+  if (errorRate < 0.01 && r.totalOps > 50) empf.push({ level: "gruen", text: `${((1 - errorRate) * 100).toFixed(1)}% Erfolgsrate — System ist stabil` });
+  if (r.lockKonflikte > 0) empf.push({ level: "gruen", text: `${r.lockKonflikte} Lock-Konflikte behandelt — Optimistic Locking funktioniert` });
+  if (empf.length === 0)   empf.push({ level: "gruen", text: "Keine Probleme gefunden — System produktionsreif" });
+
+  return empf;
+}
+
+// ── Detailed Report Screen ────────────────────────────────────────────────────
+
+function DetailedReportScreen({ result, onNew }: { result: FinalResult; onNew: () => void }) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => { setTimeout(() => setShown(true), 80); }, []);
+
+  const score  = result.score;
+  const rating = score > 5000 ? { label: "EXCELLENT",  color: C.green  }
+               : score > 1000 ? { label: "GOOD",       color: C.cyan   }
+               : score > 200  ? { label: "OK",         color: C.yellow }
+               :                 { label: "NEEDS WORK", color: C.red    };
+
+  const empfehlungen = genEmpfehlungen(result);
+  const successRate  = result.totalOps > 0 ? ((1 - result.fehler / result.totalOps) * 100).toFixed(1) : "100.0";
+
+  // Ranking aus aktionenPerAkteur
+  const ranking = Object.entries(result.aktionenPerAkteur ?? {})
+    .sort(([, a], [, b]) => b - a);
+  const admins   = ["FRANK","CHRISTIAN","RONNY","ADMIN"];
+  const tkRank   = ranking.filter(([a]) => !admins.some((x) => a.toUpperCase().includes(x)));
+  const admRank  = ranking.filter(([a]) => admins.some((x) => a.toUpperCase().includes(x)));
+
+  const medals = ["🥇","🥈","🥉"];
+
+  function downloadJson() {
+    const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a"); a.href = url;
+    a.download = `stresstest-${result.runId}.json`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function copyToClipboard() {
+    const lines = [
+      `LAGERNAUT BENCHMARK REPORT — ${new Date(result.startTime ?? Date.now()).toLocaleString("de-DE")}`,
+      `Modus: ${LOAD_MODES[result.modus]?.label ?? result.modus} | Score: ${fmtNum(score)} (${rating.label})`,
+      `Ops: ${fmtNum(result.totalOps)} | Ø ${result.avgResponseTime}ms | P95: ${result.p95}ms | Fehler: ${result.fehler}`,
+    ].join("\n");
+    navigator.clipboard.writeText(lines).catch(() => {});
+  }
+
+  const panel: React.CSSProperties = {
+    background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", fontFamily: "monospace",
+  };
+  const head: React.CSSProperties = {
+    padding: "0.6rem 1rem", background: "#1c1c24", borderBottom: `1px solid ${C.border}`,
+    fontSize: "0.65rem", color: C.dim, textTransform: "uppercase", letterSpacing: "0.1em",
+  };
+  const kv = (label: string, value: string, color: string = C.text) => (
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "0.3rem 0", borderBottom: `1px solid ${C.border}22` }}>
+      <span style={{ color: C.dim, fontSize: "0.78rem" }}>{label}</span>
+      <span style={{ color, fontWeight: 700, fontSize: "0.78rem" }}>{value}</span>
+    </div>
+  );
+
+  return (
+    <div style={{
+      minHeight: "100vh", background: C.bg, fontFamily: "monospace", color: C.text,
+      padding: "1.5rem", overflowY: "auto",
+      opacity: shown ? 1 : 0, transition: "opacity 0.4s",
+    }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", flexDirection: "column", gap: "1rem" }}>
+
+        {/* ── Header ── */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: "0.65rem", color: C.dim, letterSpacing: "0.12em" }}>📊 LAGERNAUT BENCHMARK REPORT</div>
+            <div style={{ fontSize: "0.8rem", color: C.cyan, fontWeight: 700 }}>
+              {result.modus ? `${LOAD_MODES[result.modus]?.icon} ${LOAD_MODES[result.modus]?.label}` : ""}
+              {" · "}{fmtTime(result.duration)}
+              {result.startTime ? ` · ${new Date(result.startTime).toLocaleString("de-DE")}` : ""}
+            </div>
+          </div>
+          <button onClick={onNew} style={{
+            background: `${C.cyan}22`, border: `1px solid ${C.cyan}`, color: C.cyan,
+            padding: "0.5rem 1.2rem", borderRadius: 8, cursor: "pointer", fontSize: "0.8rem", fontWeight: 900,
+          }}>↻ Neuer Test</button>
+        </div>
+
+        {/* ── Score ── */}
+        <div style={{ ...panel, textAlign: "center", padding: "2rem", boxShadow: `0 0 40px ${rating.color}18` }}>
+          <div style={{ fontSize: "0.65rem", color: C.dim, letterSpacing: "0.15em" }}>OVERALL SCORE</div>
+          <div style={{ fontSize: "5rem", fontWeight: 900, color: rating.color, textShadow: `0 0 40px ${rating.color}`, lineHeight: 1.1 }}>
             {fmtNum(score)}
           </div>
-          <div style={{
-            display: "inline-block", padding: "4px 16px", borderRadius: 99,
-            background: `${rating.color}22`, border: `1px solid ${rating.color}`,
-            color: rating.color, fontSize: "0.75rem", fontWeight: 900, letterSpacing: "0.1em",
-          }}>
+          <div style={{ display: "inline-block", padding: "4px 16px", borderRadius: 99, background: `${rating.color}22`, border: `1px solid ${rating.color}`, color: rating.color, fontSize: "0.8rem", fontWeight: 900 }}>
             {rating.label}
+          </div>
+          <div style={{ color: C.dim, fontSize: "0.7rem", marginTop: 8 }}>
+            {result.numTechniker} Techniker · {result.numAdmins} Admins · Erfolgsrate: <span style={{ color: C.green }}>{successRate}%</span>
           </div>
         </div>
 
-        <div style={{ margin: "1.5rem 0" }}>
-          {row("Total Ops",       fmtNum(result.totalOps),       C.cyan)}
-          {row("Anfragen erstellt", fmtNum(result.anfrageErstellt), C.text)}
-          {row("Anfragen erledigt", fmtNum(result.anfrageErledigt), C.green)}
-          {row("Lock-Konflikte",  fmtNum(result.lockKonflikte),  C.yellow)}
-          {row("Ø Response",      `${result.avgResponseTime} ms`, C.text)}
-          {row("P95 Response",    `${result.p95} ms`,            C.text)}
-          {row("Fehler",          `${result.fehler}`,            result.fehler > 0 ? C.red : C.green)}
-          {row("Uptime",          result.fehler === 0 ? "100%" : `${((1 - result.fehler / Math.max(result.totalOps, 1)) * 100).toFixed(1)}%`, C.green)}
+        {/* ── Kennzahlen + Aktionen ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+          <div style={panel}>
+            <div style={head}>📈 Performance</div>
+            <div style={{ padding: "0.8rem 1rem" }}>
+              {kv("Total Ops",       fmtNum(result.totalOps),       C.cyan)}
+              {kv("Ø Response",      `${result.avgResponseTime} ms`, result.avgResponseTime > 300 ? C.yellow : C.green)}
+              {kv("P95 Response",    `${result.p95} ms`,            result.p95 > 500 ? C.yellow : C.text)}
+              {kv("Peak Response",   `${result.peakResponseTime} ms`, C.text)}
+              {kv("Fehlerrate",      `${(result.fehler / Math.max(result.totalOps, 1) * 100).toFixed(2)}%`, result.fehler > 0 ? C.red : C.green)}
+            </div>
+          </div>
+
+          <div style={panel}>
+            <div style={head}>🎯 Aktionen</div>
+            <div style={{ padding: "0.8rem 1rem" }}>
+              {kv("Anfragen erstellt",  fmtNum(result.anfrageErstellt),  C.text)}
+              {kv("Anfragen erledigt",  fmtNum(result.anfrageErledigt),  C.green)}
+              {kv("Anfragen storniert", fmtNum(result.anfrageStorniert), C.dim)}
+              {kv("Chat-Nachrichten",   fmtNum(result.chat),            C.yellow)}
+              {kv("Buchungen",          fmtNum(result.buchungen),       C.text)}
+              {kv("Lock-Konflikte",     fmtNum(result.lockKonflikte),   C.green)}
+            </div>
+          </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginTop: "1.5rem" }}>
-          <button onClick={downloadReport} style={{
-            background: "#ffffff0f", border: `1px solid ${C.border}`, color: C.text,
-            padding: "0.7rem", borderRadius: 10, cursor: "pointer", fontSize: "0.8rem",
-            fontFamily: "monospace", fontWeight: 700, transition: "all 0.2s",
-          }}>
-            ⬇ Report
+        {/* ── Fehler-Breakdown ── */}
+        {result.fehlerPerKategorie && Object.keys(result.fehlerPerKategorie).length > 0 && (() => {
+          const KAT_ICONS: Record<string, string> = { race: "🟢", validation: "🟡", duplicate: "🟡", stale: "🟠", api: "🟣", bug: "🔴" };
+          return (
+            <div style={panel}>
+              <div style={head}>❌ Fehler-Breakdown ({result.fehler})</div>
+              <div style={{ padding: "0.8rem 1rem", display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
+                {Object.entries(result.fehlerPerKategorie).map(([kat, cnt]) => (
+                  <div key={kat} style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: "1.5rem", fontWeight: 900, color: C.text }}>{cnt}</div>
+                    <div style={{ fontSize: "0.65rem", color: C.dim }}>{KAT_ICONS[kat]} {kat}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Ranking ── */}
+        {ranking.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            {tkRank.length > 0 && (
+              <div style={panel}>
+                <div style={head}>👥 Techniker-Ranking</div>
+                <div style={{ padding: "0.6rem 0.8rem" }}>
+                  {tkRank.slice(0, 8).map(([actor, cnt], i) => (
+                    <div key={actor} style={{ display: "flex", justifyContent: "space-between", padding: "4px 4px", fontSize: "0.75rem" }}>
+                      <span>{medals[i] ?? "  "} <span style={{ color: C.cyan }}>{actor}</span></span>
+                      <span style={{ color: C.text, fontWeight: 700 }}>{fmtNum(cnt)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {admRank.length > 0 && (
+              <div style={panel}>
+                <div style={head}>🔑 Admin-Ranking</div>
+                <div style={{ padding: "0.6rem 0.8rem" }}>
+                  {admRank.map(([actor, cnt], i) => (
+                    <div key={actor} style={{ display: "flex", justifyContent: "space-between", padding: "4px 4px", fontSize: "0.75rem" }}>
+                      <span>{medals[i] ?? "  "} <span style={{ color: C.magenta }}>{actor}</span></span>
+                      <span style={{ color: C.text, fontWeight: 700 }}>{fmtNum(cnt)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── System-Ressourcen ── */}
+        {((result.memMBStart ?? 0) > 0 || (result.memMBPeak ?? 0) > 0) && (
+          <div style={panel}>
+            <div style={head}>🔧 System-Ressourcen</div>
+            <div style={{ padding: "0.8rem 1rem" }}>
+              {kv("Memory Start",  `${result.memMBStart ?? "—"} MB`, C.text)}
+              {kv("Memory Peak",   `${result.memMBPeak ?? "—"} MB`, (result.memMBPeak ?? 0) > 400 ? C.yellow : C.text)}
+            </div>
+          </div>
+        )}
+
+        {/* ── Empfehlungen ── */}
+        <div style={panel}>
+          <div style={head}>⚠️ Empfehlungen</div>
+          <div style={{ padding: "0.8rem 1rem", display: "flex", flexDirection: "column", gap: 6 }}>
+            {empfehlungen.map((e, i) => {
+              const col = e.level === "rot" ? C.red : e.level === "gelb" ? C.yellow : C.green;
+              const icon = e.level === "rot" ? "🔴" : e.level === "gelb" ? "🟡" : "🟢";
+              return (
+                <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <span style={{ flexShrink: 0 }}>{icon}</span>
+                  <span style={{ fontSize: "0.78rem", color: col }}>{e.text}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Cleanup + Export ── */}
+        <CleanupPanel currentRunId={result.runId} />
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={downloadJson} style={{ flex: 1, background: "#ffffff08", border: `1px solid ${C.border}`, color: C.text, padding: "0.65rem", borderRadius: 8, cursor: "pointer", fontSize: "0.78rem", fontWeight: 700, fontFamily: "monospace" }}>
+            📊 Als JSON
           </button>
-          <button onClick={onCleanup} style={{
-            background: `${C.yellow}15`, border: `1px solid ${C.yellow}44`, color: C.yellow,
-            padding: "0.7rem", borderRadius: 10, cursor: "pointer", fontSize: "0.8rem",
-            fontFamily: "monospace", fontWeight: 700, transition: "all 0.2s",
-          }}>
-            🗑 Cleanup
+          <button onClick={copyToClipboard} style={{ flex: 1, background: "#ffffff08", border: `1px solid ${C.border}`, color: C.text, padding: "0.65rem", borderRadius: 8, cursor: "pointer", fontSize: "0.78rem", fontWeight: 700, fontFamily: "monospace" }}>
+            📋 Kopieren
           </button>
         </div>
 
-        <button onClick={onNew} style={{
-          marginTop: "0.75rem", width: "100%",
-          background:  `linear-gradient(135deg, ${C.cyan}33, ${C.cyan}66)`,
-          border:      `1px solid ${C.cyan}`, color: C.cyan,
-          padding:     "0.85rem", borderRadius: 10, cursor: "pointer",
-          fontSize:    "0.9rem", fontFamily: "monospace", fontWeight: 900,
-          letterSpacing: "0.1em", textShadow: GLOW_CYAN, boxShadow: `0 0 16px ${C.cyan}22`,
-          transition:  "all 0.2s",
-        }}>
-          ↻ NEUER TEST
-        </button>
       </div>
     </div>
   );
@@ -928,14 +1169,13 @@ function ScoreScreen({ result, runId, onNew, onCleanup }: {
 type Phase = "config" | "running" | "done";
 
 export default function StressTestPage() {
-  const [phase,      setPhase]      = useState<Phase>("config");
-  const [runId,      setRunId]      = useState<string>("");
-  const [config,     setConfig]     = useState<{ duration: number; numTechniker: number; numAdmins: number; loadMode: LoadMode }>({ duration: 300_000, numTechniker: 5, numAdmins: 2, loadMode: "burst" });
+  const [phase,       setPhase]       = useState<Phase>("config");
+  const [runId,       setRunId]       = useState<string>("");
+  const [config,      setConfig]      = useState<{ duration: number; numTechniker: number; numAdmins: number; loadMode: LoadMode }>({ duration: 300_000, numTechniker: 5, numAdmins: 2, loadMode: "burst" });
   const [finalResult, setFinalResult] = useState<FinalResult | null>(null);
 
   const startMutation   = api.stresstest.start.useMutation();
   const stopMutation    = api.stresstest.stop.useMutation();
-  const cleanupMutation = api.stresstest.cleanup.useMutation();
 
   // Re-sync bei Page-Reload (falls Test noch läuft)
   const { data: statusData } = api.stresstest.getStatus.useQuery(undefined, {
@@ -972,17 +1212,15 @@ export default function StressTestPage() {
     setPhase("done");
   }
 
-  async function handleCleanup() {
-    await cleanupMutation.mutateAsync({ runId });
-    alert(`Cleanup abgeschlossen für Run ${runId}`);
-  }
-
   if (phase === "config") {
     return (
-      <>
-        <style>{`body { overflow: hidden; }`}</style>
+      <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "monospace", color: C.text, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", paddingBottom: "2rem" }}>
         <ConfigScreen onStart={handleStart} />
-      </>
+        <div style={{ width: "100%", maxWidth: 480, padding: "0 1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <CleanupPanel />
+          <HistorySection />
+        </div>
+      </div>
     );
   }
 
@@ -1001,14 +1239,9 @@ export default function StressTestPage() {
   }
 
   return (
-    <>
-      <style>{`body { overflow: hidden; }`}</style>
-      <ScoreScreen
-        result={finalResult!}
-        runId={runId}
-        onNew={() => { setPhase("config"); setFinalResult(null); }}
-        onCleanup={handleCleanup}
-      />
-    </>
+    <DetailedReportScreen
+      result={finalResult!}
+      onNew={() => { setPhase("config"); setFinalResult(null); }}
+    />
   );
 }
