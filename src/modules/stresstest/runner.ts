@@ -1,12 +1,15 @@
 /**
- * Stress-Test Runner — läuft als Background-Promise im Next.js Serverprozess.
- * Emittiert Socket.io Events an alle Admins für das Live-Dashboard.
+ * Stress-Test Runner — Background-Promise im Next.js Serverprozess.
+ * Emittiert Socket.io Events an Admins für das Live-Dashboard.
+ *
+ * INTERVALLE: Bewusst kurz (3–15s) für sichtbare Dashboard-Aktivität.
+ * Das Scripts/stressTest.ts nutzt realistische 1–3min für Produktions-Simulation.
  */
 
 import { AnfrageStatus, BuchungsTyp, UserRolle } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { prisma }  from "@/core/db/prisma";
-import { emitToAdmins } from "@/modules/realtime/socket";
+import { prisma }        from "@/core/db/prisma";
+import { emitToAdmins }  from "@/modules/realtime/socket";
 import { EVENTS }        from "@/modules/realtime/events";
 import {
   erstelleAnfrage,
@@ -37,58 +40,58 @@ export interface TestEvent {
 }
 
 export interface MetricUpdate {
-  elapsed:         number;
-  opsPerSecond:    number;
-  totalOps:        number;
-  totalErrors:     number;
-  errorRate:       number;
-  avgResponseTime: number;
+  elapsed:          number;
+  opsPerSecond:     number;
+  totalOps:         number;
+  totalErrors:      number;
+  errorRate:        number;
+  avgResponseTime:  number;
   peakResponseTime: number;
-  workerActivity:  Record<string, number>;  // Ops in last 5s
-  memMB:           number;
-  socketClients:   number;
+  workerActivity:   Record<string, number>;
+  memMB:            number;
+  socketClients:    number;
 }
 
 export interface FinalResult {
-  runId:        string;
-  duration:     number;
-  totalOps:     number;
-  anfrageErstellt: number;
-  anfrageErledigt: number;
+  runId:            string;
+  duration:         number;
+  totalOps:         number;
+  anfrageErstellt:  number;
+  anfrageErledigt:  number;
   anfrageStorniert: number;
-  buchungen:    number;
-  chat:         number;
-  lockKonflikte: number;
-  avgResponseTime: number;
+  buchungen:        number;
+  chat:             number;
+  lockKonflikte:    number;
+  avgResponseTime:  number;
   peakResponseTime: number;
-  p95:          number;
-  fehler:       number;
-  score:        number;
+  p95:              number;
+  fehler:           number;
+  score:            number;
 }
 
 interface RunnerStats {
-  anfrageErstellt:   number;
-  anfrageErledigt:   number;
-  anfrageStorniert:  number;
-  inBearbeitung:     number;
-  buchungen:         number;
-  chat:              number;
-  lockKonflikte:     number;
-  lockGewonnen:      number;
-  fehler:            number;
-  aktionen:          number;
-  responseTimes:     number[];
-  recentEvents:      TestEvent[];
-  workerActivity:    Record<string, number[]>;  // rolling 10s
+  anfrageErstellt:  number;
+  anfrageErledigt:  number;
+  anfrageStorniert: number;
+  inBearbeitung:    number;
+  buchungen:        number;
+  chat:             number;
+  lockKonflikte:    number;
+  lockGewonnen:     number;
+  fehler:           number;
+  aktionen:         number;
+  responseTimes:    number[];
+  recentEvents:     TestEvent[];
+  workerActivity:   Record<string, number[]>;
 }
 
 interface RunnerState {
-  runId:       string;
-  running:     boolean;
-  stopSignal:  boolean;
-  config:      TestConfig;
-  startTime:   number;
-  stats:       RunnerStats;
+  runId:      string;
+  running:    boolean;
+  stopSignal: boolean;
+  config:     TestConfig;
+  startTime:  number;
+  stats:      RunnerStats;
 }
 
 // ── Singleton ─────────────────────────────────────────────────────────────────
@@ -97,42 +100,44 @@ let state: RunnerState | null = null;
 
 export function isRunning(): boolean { return state?.running ?? false; }
 
-export function getState(): Omit<RunnerState, "stats"> & {
-  elapsed: number;
-  totalOps: number;
-  fehler: number;
-  recentEvents: TestEvent[];
-} | null {
+export function getState() {
   if (!state) return null;
   return {
-    runId:       state.runId,
-    running:     state.running,
-    stopSignal:  state.stopSignal,
-    config:      state.config,
-    startTime:   state.startTime,
-    elapsed:     Date.now() - state.startTime,
-    totalOps:    state.stats.aktionen,
-    fehler:      state.stats.fehler,
-    recentEvents: state.stats.recentEvents.slice(-50),
+    runId:        state.runId,
+    running:      state.running,
+    stopSignal:   state.stopSignal,
+    config:       state.config,
+    startTime:    state.startTime,
+    elapsed:      Date.now() - state.startTime,
+    totalOps:     state.stats.aktionen,
+    fehler:       state.stats.fehler,
+    recentEvents: state.stats.recentEvents.slice(-100),
   };
 }
 
 export function stopRunner() {
-  if (state) state.stopSignal = true;
+  if (state) {
+    state.stopSignal = true;
+    console.log("[Stresstest] Stop-Signal gesetzt");
+  }
 }
+
+// ── Konstanten ────────────────────────────────────────────────────────────────
+
+const TEILE    = ["Displaymodul","Tastatur","Touchpad","D Cover","USB Board","Lüfter","Akku","Lautsprecher"];
+const GRADINGS = ["A+","A+","A+","A","A","B"];
+const ADMIN_CHAT = ["Bitte Gerät bereitstellen","Rückfrage","Teil liegt bereit","Bitte melden"];
+const TECH_CHAT  = ["✅ Verstanden","🏃 Hole ab","📅 Morgen","❓ Frage"];
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
 
-const TEILE   = ["Displaymodul","Tastatur","Touchpad","D Cover","USB Board","Lüfter","Akku","Lautsprecher"];
-const GRADINGS = ["A+","A+","A+","A","A","B"];
-const ADMIN_CHAT = ["Bitte Gerät bereitstellen","Rückfrage zum Gerät","Teil liegt bereit","Bitte melden"];
-const TECH_CHAT  = ["✅ Verstanden","🏃 Hole es gleich ab","📅 Kommt morgen","❓ Habe eine Frage"];
-
 function rand<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]!; }
 function p(pct: number): boolean { return Math.random() * 100 < pct; }
+
 function warte(min: number, max: number): Promise<void> {
   return new Promise((r) => setTimeout(r, min + Math.random() * (max - min)));
 }
+
 function percentile(arr: number[], pct: number): number {
   if (!arr.length) return 0;
   const s = [...arr].sort((a, b) => a - b);
@@ -142,11 +147,19 @@ function percentile(arr: number[], pct: number): number {
 function logEvent(actor: string, action: string, dauer: number, success: boolean, error?: string) {
   if (!state) return;
   const ev: TestEvent = { ts: Date.now(), actor, action, dauer, success, error };
-  state.stats.recentEvents = [ev, ...state.stats.recentEvents].slice(0, 100);
+
+  // Im Server-Log sichtbar
+  if (success) {
+    console.log(`[Stresstest] ${actor.padEnd(12)} ${action.padEnd(20)} ${dauer}ms`);
+  } else {
+    console.warn(`[Stresstest] ${actor.padEnd(12)} ${action.padEnd(20)} FEHLER: ${error}`);
+  }
+
+  state.stats.recentEvents = [ev, ...state.stats.recentEvents].slice(0, 200);
 
   if (!state.stats.workerActivity[actor]) state.stats.workerActivity[actor] = [];
   state.stats.workerActivity[actor]!.push(dauer);
-  if (state.stats.workerActivity[actor]!.length > 10) {
+  if (state.stats.workerActivity[actor]!.length > 30) {
     state.stats.workerActivity[actor]!.shift();
   }
 
@@ -154,55 +167,65 @@ function logEvent(actor: string, action: string, dauer: number, success: boolean
 }
 
 async function messe<T>(actor: string, action: string, fn: () => Promise<T>): Promise<T> {
-  if (!state) throw new Error("Nicht gestartet");
+  if (!state) throw new Error("Runner nicht aktiv");
   const start = Date.now();
   try {
-    const r = await fn();
-    const dauer = Date.now() - start;
+    const result = await fn();
+    const dauer  = Date.now() - start;
     state.stats.responseTimes.push(dauer);
-    if (state.stats.responseTimes.length > 5000) state.stats.responseTimes.shift();
+    if (state.stats.responseTimes.length > 10_000) state.stats.responseTimes.shift();
     state.stats.aktionen++;
     logEvent(actor, action, dauer, true);
-    return r;
+    return result;
   } catch (err) {
     const dauer = Date.now() - start;
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg   = err instanceof Error ? err.message : String(err);
     state.stats.fehler++;
     logEvent(actor, action, dauer, false, msg.slice(0, 80));
     throw err;
   }
 }
 
-// ── User Setup ────────────────────────────────────────────────────────────────
+// ── User-Setup ────────────────────────────────────────────────────────────────
 
 async function ensureUser(kuerzel: string, rolle: UserRolle) {
-  const ex = await prisma.user.findUnique({ where: { kuerzel } });
-  if (ex) return;
-  const hash = await bcrypt.hash("stress123", 10);
-  await prisma.user.create({
-    data: {
-      kuerzel,
-      name:     `Stress-${kuerzel}`,
-      email:    `${kuerzel.toLowerCase()}@stress.test`,
-      password: hash,
-      rolle,
-      aktiv:    true,
-    },
-  }).catch(() => {});
+  try {
+    const ex = await prisma.user.findUnique({ where: { kuerzel } });
+    if (ex) return;
+    const hash = await bcrypt.hash("stress123", 10);
+    await prisma.user.create({
+      data: {
+        kuerzel,
+        name:     `Stress-${kuerzel}`,
+        email:    `${kuerzel.toLowerCase()}@stress.test`,
+        password: hash,
+        rolle,
+        aktiv:    true,
+      },
+    });
+    console.log(`[Stresstest] User angelegt: ${kuerzel} (${rolle})`);
+  } catch (err) {
+    console.warn(`[Stresstest] ensureUser ${kuerzel} → ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 // ── Test-Daten ────────────────────────────────────────────────────────────────
 
 async function ladeTestDaten() {
   const [geraete, artikel] = await Promise.all([
-    prisma.geraeteLookup.findMany({ take: 20, select: { logId: true, bezeichnung: true } }),
-    prisma.artikel.findMany({ where: { bestand: { gt: 0 } }, take: 20, select: { id: true } }),
+    prisma.geraeteLookup.findMany({ take: 30, select: { logId: true, bezeichnung: true } }),
+    prisma.artikel.findMany({ where: { bestand: { gt: 0 } }, take: 30, select: { id: true } }),
   ]);
-  const logIds    = geraete.length > 0 ? geraete : [
+
+  const logIds = geraete.length > 0 ? geraete : [
     { logId: "STRESS-A", bezeichnung: "Test-Gerät A" },
     { logId: "STRESS-B", bezeichnung: "Test-Gerät B" },
+    { logId: "STRESS-C", bezeichnung: "Test-Gerät C" },
   ];
+
   const artikelIds = artikel.map((a) => a.id);
+
+  console.log(`[Stresstest] Daten geladen: ${logIds.length} LogIDs, ${artikelIds.length} Artikel`);
   return { logIds, artikelIds };
 }
 
@@ -210,7 +233,7 @@ async function ladeTestDaten() {
 
 async function tkErstellt(kuerzel: string, logIds: { logId: string; bezeichnung: string }[], artikelIds: number[]) {
   const { logId, bezeichnung } = rand(logIds);
-  const n = 2 + Math.floor(Math.random() * 3);
+  const n = 1 + Math.floor(Math.random() * 3); // 1–3 Teile
   let korbId: number | null = null;
 
   for (let i = 0; i < n; i++) {
@@ -218,7 +241,7 @@ async function tkErstellt(kuerzel: string, logIds: { logId: string; bezeichnung:
       techniker:   kuerzel,
       logId,
       geraeteName: bezeichnung,
-      artikelId:   artikelIds.length > 0 && p(70) ? rand(artikelIds) : null,
+      artikelId:   artikelIds.length > 0 && p(65) ? rand(artikelIds) : null,
       teiltyp:     rand(TEILE),
       grading:     rand(GRADINGS),
       zusatzinfo:  i === 0 ? `STRESSTEST_${state!.runId}` : undefined,
@@ -244,7 +267,11 @@ async function tkStorno(kuerzel: string) {
 
 async function tkChat(kuerzel: string) {
   const a = await prisma.anfrage.findFirst({
-    where:   { techniker: kuerzel.toUpperCase(), status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] }, kommentar: { contains: "STRESSTEST" } },
+    where:   {
+      techniker: kuerzel.toUpperCase(),
+      status:    { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] },
+      kommentar: { contains: "STRESSTEST" },
+    },
     orderBy: { datum: "desc" },
     select:  { id: true },
   });
@@ -313,47 +340,72 @@ async function raceTest(adA: string, adB: string) {
   if (state) state.stats.lockKonflikte += konflikte;
 
   const gewinner = rA.status === "fulfilled" ? adA : adB;
-  logEvent("RACE", "lock_race_test", 0, konflikte === 1,
+  logEvent("RACE_TEST", "lock_race", 0, konflikte === 1,
     konflikte !== 1 ? "RACE_CONDITION_FEHLER!" : undefined);
 
   await gruppeZurueckgeben([a.id], gewinner).catch(() => {});
 }
 
 // ── Agenten-Schleifen ─────────────────────────────────────────────────────────
+//
+// WICHTIG: Kurze Intervalle (3–15s) für Dashboard-Sichtbarkeit.
+// Das scripts/stressTest.ts nutzt 1–3min für echte Produktions-Simulation.
 
 async function technikerAgent(kuerzel: string, data: { logIds: { logId: string; bezeichnung: string }[]; artikelIds: number[] }, isDone: () => boolean) {
-  await warte(5_000, 20_000);  // Verzögerter Start
+  console.log(`[Stresstest] Techniker-Agent gestartet: ${kuerzel}`);
+
+  // Kurze gestaffelte Startverzögerung (0–3s)
+  await warte(0, 3_000);
+
   while (!isDone()) {
-    await warte(60_000, 180_000);
-    if (isDone()) break;
+    // ERST handeln, DANN warten — sofortige Aktivität sichtbar
     const r = Math.random() * 100;
     try {
-      if (r < 70)       await messe(kuerzel, "anfrage_erstellt",  () => tkErstellt(kuerzel, data.logIds, data.artikelIds));
-      else if (r < 85)  await messe(kuerzel, "chat_antwort",      () => tkChat(kuerzel));
-      else if (r < 95)  await messe(kuerzel, "storno",            () => tkStorno(kuerzel));
+      if (r < 70)       await messe(kuerzel, "anfrage_erstellt", () => tkErstellt(kuerzel, data.logIds, data.artikelIds));
+      else if (r < 85)  await messe(kuerzel, "chat_antwort",     () => tkChat(kuerzel));
+      else if (r < 95)  await messe(kuerzel, "storno",           () => tkStorno(kuerzel));
+      else {
+        // Kurze Pause (simuliert "Techniker schaut sich das System an")
+        await warte(500, 1_500);
+      }
     } catch { /* Fehler bereits in messe() geloggt */ }
+
+    if (isDone()) break;
+    // Dashboard-Intervall: 3–12 Sekunden (statt 1–3 Minuten)
+    await warte(3_000, 12_000);
   }
+
+  console.log(`[Stresstest] Techniker-Agent beendet: ${kuerzel}`);
 }
 
 async function adminAgent(kuerzel: string, isDone: () => boolean) {
-  await warte(20_000, 40_000);  // Admins starten später
+  console.log(`[Stresstest] Admin-Agent gestartet: ${kuerzel}`);
+
+  // Admins starten etwas später damit Techniker zuerst Anfragen erstellen
+  await warte(5_000, 15_000);
+
   while (!isDone()) {
-    await warte(30_000, 90_000);
-    if (isDone()) break;
     const r = Math.random() * 100;
     try {
-      if (r < 40)       await messe(kuerzel, "in_bearbeitung",    () => adNehmen(kuerzel));
-      else if (r < 70)  await messe(kuerzel, "erledigt",          () => adErledigt(kuerzel));
-      else if (r < 85)  await messe(kuerzel, "chat",              () => adChat(kuerzel));
-      else if (r < 95)  await messe(kuerzel, "buchung",           () => adBuchung(kuerzel));
+      if (r < 40)       await messe(kuerzel, "in_bearbeitung", () => adNehmen(kuerzel));
+      else if (r < 70)  await messe(kuerzel, "erledigt",       () => adErledigt(kuerzel));
+      else if (r < 85)  await messe(kuerzel, "chat",           () => adChat(kuerzel));
+      else if (r < 95)  await messe(kuerzel, "buchung",        () => adBuchung(kuerzel));
     } catch { /* Fehler bereits in messe() geloggt */ }
+
+    if (isDone()) break;
+    // Dashboard-Intervall: 2–8 Sekunden (statt 30–90 Sekunden)
+    await warte(2_000, 8_000);
   }
+
+  console.log(`[Stresstest] Admin-Agent beendet: ${kuerzel}`);
 }
 
 async function raceAgent(admins: string[], isDone: () => boolean) {
-  await warte(90_000, 120_000);
+  await warte(20_000, 30_000); // Erst nach 20–30s starten (braucht erst Anfragen)
+
   while (!isDone()) {
-    await warte(120_000, 300_000);
+    await warte(15_000, 40_000);
     if (isDone()) break;
     if (admins.length >= 2) {
       await raceTest(admins[0]!, admins[1]!).catch(() => {});
@@ -369,29 +421,27 @@ function startMetricsEmitter(): NodeJS.Timeout {
 
   return setInterval(() => {
     if (!state) return;
-    const now     = Date.now();
-    const dtSec   = (now - prevTs) / 1000;
-    const newOps  = state.stats.aktionen - prevOps;
-    const opsPerSec = dtSec > 0 ? Math.round(newOps / dtSec) : 0;
+    const now      = Date.now();
+    const dtSec    = (now - prevTs) / 1000;
+    const newOps   = state.stats.aktionen - prevOps;
+    const opsPerSec = dtSec > 0 ? parseFloat((newOps / dtSec).toFixed(1)) : 0;
     prevOps = state.stats.aktionen;
     prevTs  = now;
 
     const rt      = state.stats.responseTimes;
     const avg     = rt.length > 0 ? Math.round(rt.reduce((s, n) => s + n, 0) / rt.length) : 0;
-    const peak    = rt.length > 0 ? Math.max(...rt.slice(-200)) : 0;
+    const recent  = rt.slice(-500);
+    const peak    = recent.length > 0 ? Math.max(...recent) : 0;
     const errRate = state.stats.aktionen > 0
       ? parseFloat(((state.stats.fehler / state.stats.aktionen) * 100).toFixed(2))
       : 0;
 
     const activity: Record<string, number> = {};
     for (const [actor, times] of Object.entries(state.stats.workerActivity)) {
-      const recent = times.slice(-5);
-      activity[actor] = recent.length;
+      activity[actor] = times.slice(-5).length;
     }
 
-    const mem = process.memoryUsage();
-    const io  = (global as { io?: { sockets?: { sockets?: Map<unknown, unknown> } } }).io;
-    const socketCount = io?.sockets?.sockets?.size ?? 0;
+    const io = (global as { io?: { sockets?: { sockets?: Map<unknown, unknown> } } }).io;
 
     const update: MetricUpdate = {
       elapsed:          now - state.startTime,
@@ -402,22 +452,26 @@ function startMetricsEmitter(): NodeJS.Timeout {
       avgResponseTime:  avg,
       peakResponseTime: peak,
       workerActivity:   activity,
-      memMB:            Math.round(mem.heapUsed / 1024 / 1024),
-      socketClients:    socketCount,
+      memMB:            Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      socketClients:    io?.sockets?.sockets?.size ?? 0,
     };
 
     emitToAdmins(EVENTS.STRESSTEST_METRICS, update);
-  }, 1000);
+  }, 1_000);
 }
 
-// ── Hauptfunktion ─────────────────────────────────────────────────────────────
+// ── Startfunktion ─────────────────────────────────────────────────────────────
 
 export async function startRunner(config: TestConfig): Promise<string> {
-  if (state?.running) throw new Error("Ein Test läuft bereits. Bitte zuerst stoppen.");
+  if (state?.running) throw new Error("Ein Test läuft bereits.");
 
-  const runId = Date.now().toString(36).toUpperCase();
+  const runId     = Date.now().toString(36).toUpperCase();
   const TECHNIKER = ["FS","VS","MG","HG","AB","AB2","MF","JS2","TH1","WH"].slice(0, config.numTechniker);
   const ADMINS    = ["FRANK","CHRISTIAN","RONNY"].slice(0, config.numAdmins);
+
+  console.log(`[Stresstest] ▶ Start — RunID: ${runId}`);
+  console.log(`[Stresstest]   Dauer: ${config.duration / 1000}s | Techniker: ${TECHNIKER.length} | Admins: ${ADMINS.length}`);
+  console.log(`[Stresstest]   io verfügbar: ${!!(global as { io?: unknown }).io}`);
 
   state = {
     runId,
@@ -433,24 +487,32 @@ export async function startRunner(config: TestConfig): Promise<string> {
     },
   };
 
-  // Hintergrund-Promise starten (detached)
+  // Background-Promise (detached — kein await!)
   void (async () => {
     const metricsTimer = startMetricsEmitter();
     try {
-      // User sicherstellen
+      console.log("[Stresstest] Initialisierung: User-Setup + Daten laden...");
+
       await Promise.all([
         ...TECHNIKER.map((k) => ensureUser(k, UserRolle.TECHNIKER)),
         ...ADMINS.map((k)    => ensureUser(k, UserRolle.ADMIN)),
       ]);
 
       const testDaten = await ladeTestDaten();
+
       const isDone = () => !state || state.stopSignal || (Date.now() - state.startTime) >= config.duration;
+
+      console.log(`[Stresstest] Agenten starten (${TECHNIKER.length} Techniker, ${ADMINS.length} Admins)...`);
 
       await Promise.allSettled([
         ...TECHNIKER.map((k) => technikerAgent(k, testDaten, isDone)),
         ...ADMINS.map((k)    => adminAgent(k, isDone)),
         raceAgent(ADMINS, isDone),
       ]);
+
+      console.log(`[Stresstest] Alle Agenten beendet.`);
+    } catch (err) {
+      console.error("[Stresstest] Kritischer Fehler:", err);
     } finally {
       clearInterval(metricsTimer);
       if (!state) return;
@@ -481,6 +543,8 @@ export async function startRunner(config: TestConfig): Promise<string> {
         score,
       };
 
+      console.log(`[Stresstest] ■ Ende — Score: ${score} | Ops: ${state.stats.aktionen} | Fehler: ${state.stats.fehler}`);
+
       state.running = false;
       emitToAdmins(EVENTS.STRESSTEST_DONE, result);
     }
@@ -489,8 +553,11 @@ export async function startRunner(config: TestConfig): Promise<string> {
   return runId;
 }
 
+// ── Cleanup ───────────────────────────────────────────────────────────────────
+
 export async function cleanupTestData(runId?: string) {
   const marker = runId ? `STRESSTEST_${runId}` : "STRESSTEST";
+
   const anfragen = await prisma.anfrage.findMany({
     where:  { kommentar: { contains: marker } },
     select: { id: true },
@@ -498,9 +565,9 @@ export async function cleanupTestData(runId?: string) {
   const ids = anfragen.map((a) => a.id);
 
   if (ids.length > 0) {
-    const chatLogIds = ids.map((id) => `chat:${id}`);
+    const chatLogIds  = ids.map((id) => `chat:${id}`);
     const nachrichten = await prisma.nachricht.findMany({ where: { logId: { in: chatLogIds } }, select: { id: true } });
-    const nIds = nachrichten.map((n) => n.id);
+    const nIds        = nachrichten.map((n) => n.id);
     if (nIds.length > 0) {
       await prisma.nachrichtEmpf.deleteMany({ where: { nachrichtId: { in: nIds } } });
       await prisma.nachrichtAntwort.deleteMany({ where: { nachrichtId: { in: nIds } } });
@@ -510,5 +577,6 @@ export async function cleanupTestData(runId?: string) {
   }
 
   const buchungen = await prisma.buchung.deleteMany({ where: { notiz: { contains: marker } } });
+  console.log(`[Stresstest] Cleanup: ${ids.length} Anfragen, ${buchungen.count} Buchungen gelöscht`);
   return { anfragen: ids.length, buchungen: buchungen.count };
 }

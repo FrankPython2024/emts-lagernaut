@@ -27,9 +27,15 @@ export const stresstestRouter = createTRPCRouter({
       return { ok: true };
     }),
 
+  // Vollständiger Status + letzte 100 Events (Polling-Fallback wenn Socket nicht klappt)
   getStatus: adminProcedure
     .query(() => {
-      return { running: isRunning(), state: getState() };
+      const s = getState();
+      return {
+        running:      isRunning(),
+        state:        s,
+        recentEvents: s?.recentEvents ?? [],
+      };
     }),
 
   cleanup: adminProcedure

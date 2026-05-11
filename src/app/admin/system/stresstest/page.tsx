@@ -231,7 +231,7 @@ function RunningDashboard({
   onStop: () => void;
   onDone: (r: FinalResult) => void;
 }) {
-  const { on, off } = useSocket();
+  const { on, off, connected } = useSocket();
 
   // State
   const [elapsed,     setElapsed]     = useState(0);
@@ -240,9 +240,33 @@ function RunningDashboard({
   const [chartLabels, setChartLabels] = useState<string[]>([]);
   const [chartOps,    setChartOps]    = useState<number[]>([]);
   const [workerHist,  setWorkerHist]  = useState<Record<string, number[]>>({});
-  const logRef = useRef<HTMLDivElement>(null);
-  const atBottomRef = useRef(true);
-  const startRef = useRef(Date.now());
+  const logRef       = useRef<HTMLDivElement>(null);
+  const atBottomRef  = useRef(true);
+  const startRef     = useRef(Date.now());
+  const seenTsRef    = useRef<Set<number>>(new Set());
+
+  // ── Polling-Fallback (1s) — funktioniert auch ohne Socket.io ──────────────
+  const { data: pollData } = api.stresstest.getStatus.useQuery(undefined, {
+    refetchInterval: 1_000,
+  });
+
+  useEffect(() => {
+    if (!pollData?.recentEvents?.length) return;
+    const neu = pollData.recentEvents.filter((ev) => !seenTsRef.current.has(ev.ts));
+    if (!neu.length) return;
+    neu.forEach((ev) => seenTsRef.current.add(ev.ts));
+    setEvents((prev) => [...neu.reverse(), ...prev].slice(0, 150));
+  }, [pollData]);
+
+  // Stoppe wenn Server sagt: nicht mehr running
+  useEffect(() => {
+    if (pollData && !pollData.running && elapsed > 5_000) {
+      // Test auf Server beendet — kein Socket-Event empfangen
+      // Warte kurz, dann Config-Screen
+      setTimeout(() => onStop(), 1_000);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pollData?.running]);
 
   // Timer
   useEffect(() => {
@@ -250,10 +274,12 @@ function RunningDashboard({
     return () => clearInterval(iv);
   }, []);
 
-  // Socket listeners
+  // ── Socket: direkte Events (sofort, kein Polling-Delay) ────────────────────
   useEffect(() => {
     on(EVENTS.STRESSTEST_EVENT, (d: unknown) => {
       const ev = d as TestEvent;
+      if (seenTsRef.current.has(ev.ts)) return;
+      seenTsRef.current.add(ev.ts);
       setEvents((prev) => [ev, ...prev].slice(0, 150));
     });
 
@@ -265,7 +291,6 @@ function RunningDashboard({
       setChartLabels((prev) => [...prev, t].slice(-60));
       setChartOps((prev)    => [...prev, m.opsPerSecond].slice(-60));
 
-      // Worker history
       setWorkerHist((prev) => {
         const next = { ...prev };
         for (const [actor, val] of Object.entries(m.workerActivity)) {
@@ -341,6 +366,15 @@ function RunningDashboard({
           }} />
         </div>
         <div style={{ fontSize: "0.8rem", color: C.cyan }}>{progress.toFixed(1)}%</div>
+        <div style={{ fontSize: "0.65rem", marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <span style={{ color: connected ? C.green : C.yellow }}>
+            {connected ? "⬤ Socket live" : "⬤ Polling-Fallback aktiv"}
+          </span>
+          <span style={{ color: C.dim }}>·</span>
+          <span style={{ color: C.dim }}>Run: {runId}</span>
+          <span style={{ color: C.dim }}>·</span>
+          <span style={{ color: C.dim }}>{events.length} Events</span>
+        </div>
       </div>
 
       {/* ── Ops Chart ── */}
