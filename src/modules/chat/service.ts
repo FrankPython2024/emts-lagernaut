@@ -1,15 +1,31 @@
-import { prisma } from "@/core/db/prisma";
+import { prisma }        from "@/core/db/prisma";
+import { NachrichtTyp } from "@prisma/client";
 
-// empfKuerzel-Konstante für Admin-Gruppe
+// Empfänger-Konstante für die Admin-Gruppe
 export const ADMIN_EMPF = "ADMIN";
+
+// logId-Prefix damit Chat-Nachrichten von Legacy-Nachrichten trennbar bleiben
+const CHAT_PREFIX = "chat:";
+
+function toLogId(anfrageId: number): string {
+  return `${CHAT_PREFIX}${anfrageId}`;
+}
+
+function fromLogId(logId: string | null | undefined): number | null {
+  if (!logId?.startsWith(CHAT_PREFIX)) return null;
+  const n = parseInt(logId.slice(CHAT_PREFIX.length), 10);
+  return isNaN(n) ? null : n;
+}
 
 /**
  * Alle Chat-Nachrichten einer Anfrage (chronologisch).
+ * Nutzt Nachricht.logId = "chat:{anfrageId}" statt separater Tabelle.
  */
 export async function getByAnfrage(anfrageId: number) {
-  return prisma.chatNachricht.findMany({
-    where:   { anfrageId },
+  return prisma.nachricht.findMany({
+    where:   { logId: toLogId(anfrageId) },
     orderBy: { createdAt: "asc" },
+    select:  { id: true, vonKuerzel: true, inhalt: true, createdAt: true },
   });
 }
 
@@ -25,8 +41,8 @@ export async function getTechnikerVonAnfrage(anfrageId: number): Promise<string 
 }
 
 /**
- * Nachricht senden.
- * empfKuerzel wird vom Router bestimmt (Admin → techniker | Techniker → "ADMIN")
+ * Chat-Nachricht senden.
+ * Erstellt Nachricht + NachrichtEmpf für den Empfänger.
  */
 export async function senden(data: {
   anfrageId:   number;
@@ -34,17 +50,36 @@ export async function senden(data: {
   empfKuerzel: string;
   inhalt:      string;
 }) {
-  return prisma.chatNachricht.create({ data });
+  return prisma.nachricht.create({
+    data: {
+      betreff:    data.inhalt.substring(0, 100),
+      inhalt:     data.inhalt,
+      vonKuerzel: data.vonKuerzel,
+      typ:        NachrichtTyp.DIREKT,
+      logId:      toLogId(data.anfrageId),
+      empfaenger: {
+        create: { empfKuerzel: data.empfKuerzel },
+      },
+    },
+  });
 }
 
 /**
- * Alle ungelesenen Nachrichten einer Anfrage als gelesen markieren
- * (nur die, die für den aktuellen User bestimmt waren).
+ * Alle ungelesenen Nachrichten eines Chats als gelesen markieren.
  */
 export async function markGelesen(anfrageId: number, empfKuerzel: string) {
-  return prisma.chatNachricht.updateMany({
-    where: { anfrageId, empfKuerzel, gelesen: false },
-    data:  { gelesen: true, gelesenAt: new Date() },
+  const msgIds = await prisma.nachricht.findMany({
+    where:  { logId: toLogId(anfrageId) },
+    select: { id: true },
+  });
+  if (msgIds.length === 0) return;
+  return prisma.nachrichtEmpf.updateMany({
+    where: {
+      nachrichtId: { in: msgIds.map((m) => m.id) },
+      empfKuerzel,
+      gelesen: false,
+    },
+    data: { gelesen: true, gelesenAt: new Date() },
   });
 }
 
@@ -52,56 +87,73 @@ export async function markGelesen(anfrageId: number, empfKuerzel: string) {
  * Gesamtzahl ungelesener Chat-Nachrichten für den User → Glocken-Badge.
  */
 export async function getUngelesenCount(empfKuerzel: string): Promise<number> {
-  return prisma.chatNachricht.count({
-    where: { empfKuerzel, gelesen: false },
+  return prisma.nachrichtEmpf.count({
+    where: {
+      empfKuerzel,
+      gelesen:   false,
+      nachricht: { logId: { startsWith: CHAT_PREFIX } },
+    },
   });
 }
 
 /**
- * Ungelesene Nachrichten pro Anfrage → für Badges an Anfrage-Karten.
+ * Ungelesene Chat-Nachrichten pro Anfrage → Badges an Anfrage-Karten.
  */
 export async function getUngelesenProAnfrage(
   empfKuerzel: string,
 ): Promise<{ anfrageId: number | null; count: number }[]> {
-  const rows = await prisma.chatNachricht.groupBy({
-    by:     ["anfrageId"],
-    where:  { empfKuerzel, gelesen: false },
-    _count: { id: true },
+  const records = await prisma.nachrichtEmpf.findMany({
+    where: {
+      empfKuerzel,
+      gelesen:   false,
+      nachricht: { logId: { startsWith: CHAT_PREFIX } },
+    },
+    include: { nachricht: { select: { logId: true } } },
   });
-  return rows.map((r) => ({ anfrageId: r.anfrageId, count: r._count.id }));
+
+  const map = new Map<number, number>();
+  for (const r of records) {
+    const id = fromLogId(r.nachricht.logId);
+    if (id !== null) map.set(id, (map.get(id) ?? 0) + 1);
+  }
+  return Array.from(map.entries()).map(([anfrageId, count]) => ({ anfrageId, count }));
 }
 
 /**
  * Alle Stats einer Anfrage auf einmal:
  * ungelesen, letzte Nachricht, Gesamtanzahl.
- * Optimiert für per-Karte Polling im Techniker-Portal.
  */
 export async function getStatsForAnfrage(
   anfrageId: number,
   empfKuerzel: string,
 ): Promise<{
-  ungelesen:      number;
+  ungelesen:       number;
   letzteNachricht: { inhalt: string; vonKuerzel: string; createdAt: Date } | null;
-  gesamtAnzahl:   number;
+  gesamtAnzahl:    number;
 }> {
-  const [ungelesen, letzteNachricht, gesamtAnzahl] = await Promise.all([
-    prisma.chatNachricht.count({
-      where: { anfrageId, empfKuerzel, gelesen: false },
-    }),
-    prisma.chatNachricht.findFirst({
-      where:   { anfrageId },
+  const logId = toLogId(anfrageId);
+  const [nachrichten, ungelesen] = await Promise.all([
+    prisma.nachricht.findMany({
+      where:   { logId },
       orderBy: { createdAt: "desc" },
       select:  { inhalt: true, vonKuerzel: true, createdAt: true },
     }),
-    prisma.chatNachricht.count({
-      where: { anfrageId },
+    prisma.nachrichtEmpf.count({
+      where: { empfKuerzel, gelesen: false, nachricht: { logId } },
     }),
   ]);
-  return { ungelesen, letzteNachricht: letzteNachricht ?? null, gesamtAnzahl };
+
+  return {
+    ungelesen,
+    letzteNachricht: nachrichten[0]
+      ? { inhalt: nachrichten[0].inhalt, vonKuerzel: nachrichten[0].vonKuerzel, createdAt: nachrichten[0].createdAt }
+      : null,
+    gesamtAnzahl: nachrichten.length,
+  };
 }
 
 /**
- * Stats für mehrere Anfragen auf einmal → effizienter Batch-Aufruf für Admin-Liste.
+ * Batch-Stats für mehrere Anfragen → Admin Anfragen-Liste.
  */
 export async function getStatsBatch(
   anfrageIds: number[],
@@ -113,37 +165,44 @@ export async function getStatsBatch(
   gesamtAnzahl:    number;
 }[]> {
   if (anfrageIds.length === 0) return [];
+  const logIds = anfrageIds.map(toLogId);
 
-  const [ungeleseneRows, nachrichten, gesamtRows] = await Promise.all([
-    prisma.chatNachricht.groupBy({
-      by:     ["anfrageId"],
-      where:  { anfrageId: { in: anfrageIds }, empfKuerzel, gelesen: false },
-      _count: { id: true },
-    }),
-    prisma.chatNachricht.findMany({
-      where:   { anfrageId: { in: anfrageIds } },
+  const [nachrichten, empfRecords] = await Promise.all([
+    prisma.nachricht.findMany({
+      where:   { logId: { in: logIds } },
       orderBy: { createdAt: "desc" },
-      select:  { anfrageId: true, inhalt: true, vonKuerzel: true, createdAt: true },
+      select:  { logId: true, inhalt: true, vonKuerzel: true, createdAt: true },
     }),
-    prisma.chatNachricht.groupBy({
-      by:     ["anfrageId"],
-      where:  { anfrageId: { in: anfrageIds } },
-      _count: { id: true },
+    prisma.nachrichtEmpf.findMany({
+      where: {
+        empfKuerzel,
+        gelesen:   false,
+        nachricht: { logId: { in: logIds } },
+      },
+      include: { nachricht: { select: { logId: true } } },
     }),
   ]);
 
-  // Neueste Nachricht pro Anfrage (nachrichten ist DESC sortiert)
+  // Neueste Nachricht + Gesamtanzahl pro Anfrage (nachrichten ist DESC sortiert)
   const latestMap = new Map<number, { inhalt: string; vonKuerzel: string; createdAt: Date }>();
+  const countMap  = new Map<number, number>();
   for (const n of nachrichten) {
-    if (n.anfrageId !== null && !latestMap.has(n.anfrageId)) {
-      latestMap.set(n.anfrageId, { inhalt: n.inhalt, vonKuerzel: n.vonKuerzel, createdAt: n.createdAt });
-    }
+    const id = fromLogId(n.logId);
+    if (id === null) continue;
+    if (!latestMap.has(id)) latestMap.set(id, { inhalt: n.inhalt, vonKuerzel: n.vonKuerzel, createdAt: n.createdAt });
+    countMap.set(id, (countMap.get(id) ?? 0) + 1);
+  }
+
+  const ungeleseneMap = new Map<number, number>();
+  for (const r of empfRecords) {
+    const id = fromLogId(r.nachricht.logId);
+    if (id !== null) ungeleseneMap.set(id, (ungeleseneMap.get(id) ?? 0) + 1);
   }
 
   return anfrageIds.map((id) => ({
     anfrageId:       id,
-    ungelesen:       ungeleseneRows.find((u) => u.anfrageId === id)?._count.id ?? 0,
+    ungelesen:       ungeleseneMap.get(id) ?? 0,
     letzteNachricht: latestMap.get(id) ?? null,
-    gesamtAnzahl:    gesamtRows.find((c) => c.anfrageId === id)?._count.id ?? 0,
+    gesamtAnzahl:    countMap.get(id) ?? 0,
   }));
 }

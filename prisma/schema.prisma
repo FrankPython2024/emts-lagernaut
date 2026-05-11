@@ -81,7 +81,6 @@ model Anfrage {
   korbId      Int?
   status        AnfrageStatus  @default(NEU)
   artikel       Artikel?       @relation(fields: [artikelId], references: [id])
-  chatNachrichten ChatNachricht[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -176,26 +175,8 @@ model LagerplatzConfig {
   createdAt    DateTime @default(now())
 }
 
-// ── Chat (Anfrage-gebunden) ────────────────────────────────────────────────────
-
-model ChatNachricht {
-  id          Int      @id @default(autoincrement())
-  anfrageId   Int?
-  vonKuerzel  String
-  empfKuerzel String   // Empfänger: techniker-kuerzel ODER "ADMIN"
-  inhalt      String   @db.Text
-  gelesen     Boolean  @default(false)
-  gelesenAt   DateTime?
-  createdAt   DateTime @default(now())
-
-  anfrage     Anfrage? @relation(fields: [anfrageId], references: [id], onDelete: SetNull)
-
-  @@index([anfrageId])
-  @@index([empfKuerzel, gelesen])
-  @@index([createdAt])
-}
-
-// ── Nachrichten (Legacy, bleibt aber nicht mehr genutzt) ─────────────────────
+// ── Nachrichten ──────────────────────────────────────────────────────────────
+// Chat-Nachrichten nutzen logId = "chat:{anfrageId}" zur Zuordnung.
 
 model Nachricht {
   id         Int                @id @default(autoincrement())
