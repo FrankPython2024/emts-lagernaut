@@ -79,6 +79,7 @@ model Anfrage {
   kommentar   String?
   gruppenNr   String?
   korbId      Int?
+  korb        Warenkorb?     @relation(fields: [korbId], references: [id], onDelete: SetNull)
   status          AnfrageStatus  @default(NEU)
   bearbeitetVon   String?
   bearbeitetSeit  DateTime?
@@ -142,6 +143,7 @@ model Warenkorb {
   geraeteName String?
   status      KorbStatus      @default(AKTIV)
   items       WarenkorbItem[]
+  anfragen    Anfrage[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 

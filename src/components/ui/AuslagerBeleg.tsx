@@ -33,7 +33,6 @@ async function genQrSvg(content: string): Promise<string> {
 // ── Label-Inhalt (55×30mm, inline-Styles, Thermodruck-optimiert) ─────────────
 
 function AuslagerBelegInner({ data, qr }: { data: AuslagerBelegData; qr: string }) {
-  console.log("AuslagerBeleg props:", data);
   const grading = data.grading ?? "A+";
 
   return (

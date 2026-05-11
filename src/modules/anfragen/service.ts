@@ -165,8 +165,8 @@ export async function gruppeFreigeben(
     freigegeben++;
   }
 
-  // Optional: Grund ins Log (console ist ausreichend ohne Activity-DB-Tabelle)
-  if (grund) console.log(`[Freigeben] ${kuerzel} gibt Anfragen [${anfrageIds}] frei. War: ${vorBearbeiter}. Grund: ${grund}`);
+  // Freigabe-Grund serverseitig festhalten (erscheint im Server-Log)
+  if (grund) process.stdout.write(`[Freigeben] ${kuerzel} gibt Anfragen [${anfrageIds.join(",")}] frei. War: ${vorBearbeiter ?? "—"}. Grund: ${grund}\n`);
 
   return { vorBearbeiter, freigegeben };
 }
@@ -206,12 +206,29 @@ export async function gruppeZurueckgeben(
  * Status einer Anfrage ändern (Admin).
  * Bei ABGESCHLOSSEN/STORNIERT: Lock wird automatisch gelöscht.
  */
+// Gültige Status-Übergänge — verhindert Rückwärts-Transitionen via API
+const GUELTIGE_TRANSITIONEN: Partial<Record<AnfrageStatus, AnfrageStatus[]>> = {
+  [AnfrageStatus.NEU]:            [AnfrageStatus.IN_BEARBEITUNG, AnfrageStatus.BEDARF,  AnfrageStatus.ABGESCHLOSSEN, AnfrageStatus.STORNIERT],
+  [AnfrageStatus.BEDARF]:         [AnfrageStatus.IN_BEARBEITUNG, AnfrageStatus.NEU,     AnfrageStatus.ABGESCHLOSSEN, AnfrageStatus.STORNIERT],
+  [AnfrageStatus.IN_BEARBEITUNG]: [AnfrageStatus.ABGESCHLOSSEN,  AnfrageStatus.BEDARF,  AnfrageStatus.NEU,           AnfrageStatus.STORNIERT],
+  [AnfrageStatus.ABGESCHLOSSEN]:  [], // terminal — keine Änderung mehr möglich
+  [AnfrageStatus.STORNIERT]:      [], // terminal
+};
+
 export async function setzeStatus(id: number, status: AnfrageStatus): Promise<Anfrage> {
   const anfrage = await prisma.anfrage.findUnique({
     where:  { id },
     select: { id: true, artikelId: true, status: true },
   });
   if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
+
+  const erlaubt = GUELTIGE_TRANSITIONEN[anfrage.status];
+  if (erlaubt !== undefined && !erlaubt.includes(status)) {
+    throw new TRPCError({
+      code:    "BAD_REQUEST",
+      message: `Statuswechsel von ${anfrage.status} → ${status} ist nicht erlaubt.`,
+    });
+  }
 
   const istAbschluss = status === AnfrageStatus.ABGESCHLOSSEN || status === AnfrageStatus.STORNIERT;
 
