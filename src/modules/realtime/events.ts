@@ -23,6 +23,11 @@ export const EVENTS = {
   // Activity
   ACTIVITY_NEU:      "activity:neu",
 
+  // Stress-Test Benchmark
+  STRESSTEST_EVENT:   "stresstest:event",
+  STRESSTEST_METRICS: "stresstest:metrics",
+  STRESSTEST_DONE:    "stresstest:done",
+
   // Intern
   PING:              "ping",
   PONG:              "pong",

@@ -18,7 +18,8 @@ const NAV = [
   { href: "/admin/benutzer",  label: "Benutzer",    icon: "👥" },
   { href: "/admin/geraete-lookup", label: "LogID Suche",   icon: "🔍" },
   { href: "/admin/geraete-import", label: "Geräte Import", icon: "📥" },
-  { href: "/admin/system",         label: "System",        icon: "⚙️" },
+  { href: "/admin/system",              label: "System",        icon: "⚙️" },
+  { href: "/admin/system/stresstest",   label: "Benchmark",     icon: "🔬" },
 ];
 
 function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => void }) {
