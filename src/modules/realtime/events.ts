@@ -5,8 +5,10 @@ export const EVENTS = {
   BESTAND_UPDATED:   "bestand:updated",
 
   // Anfragen
-  ANFRAGE_NEU:       "anfrage:neu",
-  ANFRAGE_UPDATED:   "anfrage:updated",
+  ANFRAGE_NEU:          "anfrage:neu",
+  ANFRAGE_UPDATED:      "anfrage:updated",
+  ANFRAGE_UEBERNOMMEN:  "anfrage:uebernommen",
+  ANFRAGE_FREIGEGEBEN:  "anfrage:freigegeben",
 
   // Techniker Präsenz
   TECHNIKER_ONLINE:  "techniker:online",

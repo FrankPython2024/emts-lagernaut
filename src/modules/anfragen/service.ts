@@ -33,9 +33,6 @@ export type ErstelleAnfrageData = {
 
 /**
  * Neue Ersatzteil-Anfrage erstellen.
- * artikelId null  → Status BEDARF (kein Artikel verknüpft)
- * Bestand > 0     → Status NEU
- * Bestand = 0     → Status BEDARF
  */
 export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrage> {
   let status: AnfrageStatus = AnfrageStatus.BEDARF;
@@ -45,14 +42,7 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
       where:  { id: data.artikelId },
       select: { id: true, kategorie: true, bestand: true },
     });
-
-    if (!artikel) {
-      throw new TRPCError({
-        code:    "NOT_FOUND",
-        message: `Artikel ${data.artikelId} nicht gefunden.`,
-      });
-    }
-
+    if (!artikel) throw new TRPCError({ code: "NOT_FOUND", message: `Artikel ${data.artikelId} nicht gefunden.` });
     status = artikel.bestand > 0 ? AnfrageStatus.NEU : AnfrageStatus.BEDARF;
   }
 
@@ -73,26 +63,17 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
     },
   });
 
-  // Statistik-Cache invalidieren
   invalidateTechnikerCache(anfrage.techniker).catch(() => {});
-
-  // Socket.io: neue Anfrage live an Admins pushen
   emitToAdmins(EVENTS.ANFRAGE_NEU, {
-    id:          anfrage.id,
-    techniker:   anfrage.techniker,
-    logId:       anfrage.logId,
-    geraeteName: anfrage.geraeteName,
-    teil:        anfrage.teil,
-    status:      anfrage.status,
+    id: anfrage.id, techniker: anfrage.techniker, logId: anfrage.logId,
+    geraeteName: anfrage.geraeteName, teil: anfrage.teil, status: anfrage.status,
   });
 
   return anfrage;
 }
 
 /**
- * Anfrage stornieren.
- * Matching: techniker + logId + teil (wie storniereAnfrageTechniker in code.gs).
- * Nur NEU oder BEDARF stornierbar.
+ * Anfrage stornieren — Techniker: nur eigene, nur NEU/BEDARF.
  */
 export async function storniereAnfrage(data: {
   techniker: string;
@@ -109,108 +90,190 @@ export async function storniereAnfrage(data: {
     select: { id: true, status: true, artikelId: true },
   });
 
-  if (!anfrage) {
-    throw new TRPCError({
-      code:    "NOT_FOUND",
-      message: "Keine stornierbare Anfrage gefunden (nur NEU oder BEDARF möglich).",
-    });
-  }
+  if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Keine stornierbare Anfrage gefunden (nur NEU oder BEDARF möglich)." });
 
-  await prisma.anfrage.update({
-    where: { id: anfrage.id },
-    data:  { status: AnfrageStatus.STORNIERT },
-  });
-
+  await prisma.anfrage.update({ where: { id: anfrage.id }, data: { status: AnfrageStatus.STORNIERT } });
   if (anfrage.artikelId) await syncBestandAusHistorie(anfrage.artikelId);
 }
 
+// ── Lock-System ───────────────────────────────────────────────────────────────
+
+/**
+ * Gruppe von Anfragen in Bearbeitung nehmen (atomic, Race-Condition-sicher).
+ * Gibt Anzahl gesperrter Anfragen zurück.
+ */
+export async function gruppeInBearbeitungNehmen(
+  anfrageIds: number[],
+  kuerzel:    string,
+): Promise<number> {
+  const result = await prisma.anfrage.updateMany({
+    where: {
+      id:            { in: anfrageIds },
+      status:        { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] },
+      bearbeitetVon: null,
+    },
+    data: {
+      status:         AnfrageStatus.IN_BEARBEITUNG,
+      bearbeitetVon:  kuerzel,
+      bearbeitetSeit: new Date(),
+    },
+  });
+
+  if (result.count === 0) {
+    // Diagnose: prüfen warum
+    const locked = await prisma.anfrage.findFirst({
+      where: { id: { in: anfrageIds }, bearbeitetVon: { not: null } },
+      select: { bearbeitetVon: true },
+    });
+    if (locked?.bearbeitetVon) {
+      throw new TRPCError({
+        code:    "CONFLICT",
+        message: `Wird bereits von ${locked.bearbeitetVon} bearbeitet.`,
+      });
+    }
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Keine Anfrage kann in Bearbeitung genommen werden." });
+  }
+
+  return result.count;
+}
+
+/**
+ * Gruppe freigeben (Fail-Safe — jeder Admin darf).
+ * Stellt den Status vor der Sperre wieder her (anhand aktuellem Bestand).
+ */
+export async function gruppeFreigeben(
+  anfrageIds: number[],
+  kuerzel:    string,
+  grund?:     string,
+): Promise<{ vorBearbeiter: string | null; freigegeben: number }> {
+  const anfragen = await prisma.anfrage.findMany({
+    where:   { id: { in: anfrageIds }, status: AnfrageStatus.IN_BEARBEITUNG },
+    include: { artikel: { select: { bestand: true } } },
+  });
+
+  const vorBearbeiter = anfragen[0]?.bearbeitetVon ?? null;
+
+  let freigegeben = 0;
+  for (const a of anfragen) {
+    const neuerStatus = a.artikelId && (a.artikel?.bestand ?? 0) === 0
+      ? AnfrageStatus.BEDARF
+      : AnfrageStatus.NEU;
+    await prisma.anfrage.update({
+      where: { id: a.id },
+      data:  { status: neuerStatus, bearbeitetVon: null, bearbeitetSeit: null },
+    });
+    freigegeben++;
+  }
+
+  // Optional: Grund ins Log (console ist ausreichend ohne Activity-DB-Tabelle)
+  if (grund) console.log(`[Freigeben] ${kuerzel} gibt Anfragen [${anfrageIds}] frei. War: ${vorBearbeiter}. Grund: ${grund}`);
+
+  return { vorBearbeiter, freigegeben };
+}
+
+/**
+ * Gruppe zurückgeben — nur durch den aktuellen Bearbeiter selbst.
+ */
+export async function gruppeZurueckgeben(
+  anfrageIds: number[],
+  kuerzel:    string,
+): Promise<number> {
+  const anfragen = await prisma.anfrage.findMany({
+    where:   { id: { in: anfrageIds }, status: AnfrageStatus.IN_BEARBEITUNG, bearbeitetVon: kuerzel },
+    include: { artikel: { select: { bestand: true } } },
+  });
+
+  if (anfragen.length === 0) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Du bearbeitest diese Anfragen nicht." });
+  }
+
+  for (const a of anfragen) {
+    const neuerStatus = a.artikelId && (a.artikel?.bestand ?? 0) === 0
+      ? AnfrageStatus.BEDARF
+      : AnfrageStatus.NEU;
+    await prisma.anfrage.update({
+      where: { id: a.id },
+      data:  { status: neuerStatus, bearbeitetVon: null, bearbeitetSeit: null },
+    });
+  }
+
+  return anfragen.length;
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+
 /**
  * Status einer Anfrage ändern (Admin).
- * Bei ABGESCHLOSSEN: Bestand wird synchronisiert.
+ * Bei ABGESCHLOSSEN/STORNIERT: Lock wird automatisch gelöscht.
  */
 export async function setzeStatus(id: number, status: AnfrageStatus): Promise<Anfrage> {
   const anfrage = await prisma.anfrage.findUnique({
     where:  { id },
     select: { id: true, artikelId: true, status: true },
   });
+  if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
 
-  if (!anfrage) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
-  }
+  const istAbschluss = status === AnfrageStatus.ABGESCHLOSSEN || status === AnfrageStatus.STORNIERT;
 
   const aktualisiert = await prisma.anfrage.update({
     where: { id },
-    data:  { status },
+    data: {
+      status,
+      // Lock bei Abschluss/Storno immer löschen
+      ...(istAbschluss ? { bearbeitetVon: null, bearbeitetSeit: null } : {}),
+    },
     include: { artikel: { select: { id: true, bezeichnung: true } } },
   });
 
-  // Statistik-Cache invalidieren (Status-Änderung beeinflusst Erledigungsrate)
   invalidateTechnikerCache(aktualisiert.techniker).catch(() => {});
-
-  // Socket.io: Status-Update live broadcasten
   emitToAll(EVENTS.ANFRAGE_UPDATED, { id, status });
   emitToUser(aktualisiert.techniker, EVENTS.ANFRAGE_UPDATED, { id, status });
 
   if (status === AnfrageStatus.ABGESCHLOSSEN && anfrage.artikelId) {
     await syncBestandAusHistorie(anfrage.artikelId);
-    // System-Nachricht an Techniker: Teil bereit
-    await sendeSystemNachricht({
+    sendeSystemNachricht({
       empfKuerzel: aktualisiert.techniker,
       betreff:     "✅ Teil bereit zur Abholung",
       inhalt:
-        `Dein angefragtes Teil "${aktualisiert.teil}" für Gerät ${aktualisiert.geraeteName ?? aktualisiert.geraet} ` +
+        `Dein angefragtes Teil "${aktualisiert.teil}" für ${aktualisiert.geraeteName ?? aktualisiert.geraet} ` +
         `(LogID: ${aktualisiert.logId}) liegt zur Abholung bereit.` +
         (aktualisiert.grading ? `\nGrading: ${aktualisiert.grading}` : ""),
-    }).catch(() => { /* Nachricht ist nicht kritisch */ });
+    }).catch(() => {});
   }
 
   if (status === AnfrageStatus.BEDARF && anfrage.status !== AnfrageStatus.BEDARF) {
-    // System-Nachricht an Techniker: Teil nicht verfügbar
-    await sendeSystemNachricht({
+    sendeSystemNachricht({
       empfKuerzel: aktualisiert.techniker,
       betreff:     "⚠️ Teil nicht verfügbar",
       inhalt:
         `Das angefragte Teil "${aktualisiert.teil}" für ` +
         `${aktualisiert.geraeteName ?? aktualisiert.geraet} ist leider nicht auf Lager. ` +
         `Wir informieren dich sobald es verfügbar ist.`,
-    }).catch(() => { /* Nachricht ist nicht kritisch */ });
+    }).catch(() => {});
   }
 
   return aktualisiert;
 }
 
 /**
- * Anfrage abschließen: erstellt AUSGANG-Buchung (Bestand -1), setzt Status ABGESCHLOSSEN,
- * sendet System-Nachricht. Gibt Daten für den Auslagerbeleg zurück.
+ * Anfrage abschließen (Legacy-Route).
  */
 export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
   const anfrage = await prisma.anfrage.findUnique({
     where:   { id },
     include: { artikel: { select: { id: true, bezeichnung: true, lagerplatz: true, kategorie: true } } },
   });
+  if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
+  if (anfrage.status === AnfrageStatus.ABGESCHLOSSEN) throw new TRPCError({ code: "BAD_REQUEST", message: "Anfrage bereits abgeschlossen." });
 
-  if (!anfrage) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
-  }
-  if (anfrage.status === AnfrageStatus.ABGESCHLOSSEN) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "Anfrage bereits abgeschlossen." });
-  }
-
-  // AUSGANG Buchung nur wenn Artikel verknüpft
   if (anfrage.artikelId) {
-    await bucheLager({
-      artikelId:   anfrage.artikelId,
-      menge:       anfrage.menge,
-      typ:         BuchungsTyp.AUSGANG,
-      mitarbeiter,
-      notiz:       `Anfrage #${id}`,
-    });
+    await bucheLager({ artikelId: anfrage.artikelId, menge: anfrage.menge, typ: BuchungsTyp.AUSGANG, mitarbeiter, notiz: `Anfrage #${id}` });
   }
+  await prisma.anfrage.update({
+    where: { id },
+    data:  { status: AnfrageStatus.ABGESCHLOSSEN, bearbeitetVon: null, bearbeitetSeit: null },
+  });
 
-  // Status setzen
-  await prisma.anfrage.update({ where: { id }, data: { status: AnfrageStatus.ABGESCHLOSSEN } });
-
-  // System-Nachricht an Techniker (non-blocking)
   sendeSystemNachricht({
     empfKuerzel: anfrage.techniker,
     betreff:     "✅ Teil bereit zur Abholung",
@@ -220,29 +283,20 @@ export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
       (anfrage.grading ? `\nGrading: ${anfrage.grading}` : ""),
   }).catch(() => {});
 
-  // Aktuellen Bestand holen (nur wenn Artikel verknüpft)
   const aktuellerArtikel = anfrage.artikelId
     ? await prisma.artikel.findUnique({ where: { id: anfrage.artikelId }, select: { bestand: true } })
     : null;
 
   return {
-    anfrageId:   id,
-    teilName:    anfrage.teil,
-    techniker:   anfrage.techniker,
-    logId:       anfrage.logId,
-    geraeteName: anfrage.geraeteName,
-    grading:     anfrage.grading,
-    kommentar:   anfrage.kommentar,
-    restBestand: aktuellerArtikel?.bestand ?? 0,
-    artikel:     anfrage.artikel ?? null,
+    anfrageId: id, teilName: anfrage.teil, techniker: anfrage.techniker,
+    logId: anfrage.logId, geraeteName: anfrage.geraeteName,
+    grading: anfrage.grading, kommentar: anfrage.kommentar,
+    restBestand: aktuellerArtikel?.bestand ?? 0, artikel: anfrage.artikel ?? null,
   };
 }
 
-/**
- * Anfragen eines Technikers.
- * showAll=false → nur NEU + BEDARF (offene Anfragen)
- * showAll=true  → alle inkl. Geschichte
- */
+// ── Queries ───────────────────────────────────────────────────────────────────
+
 export async function getAnfragenByTechniker(data: {
   techniker: string;
   showAll:   boolean;
@@ -255,7 +309,7 @@ export async function getAnfragenByTechniker(data: {
   const where = {
     techniker: data.techniker.toUpperCase().trim(),
     ...(!data.showAll && {
-      status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] },
+      status: { notIn: [AnfrageStatus.ABGESCHLOSSEN, AnfrageStatus.STORNIERT] as AnfrageStatus[] },
     }),
   };
 
@@ -265,9 +319,7 @@ export async function getAnfragenByTechniker(data: {
       orderBy: { datum: "desc" },
       take:    limit,
       skip:    offset,
-      include: {
-        artikel: { select: { id: true, bezeichnung: true, kategorie: true } },
-      },
+      include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true } } },
     }),
     prisma.anfrage.count({ where }),
   ]);
@@ -275,10 +327,6 @@ export async function getAnfragenByTechniker(data: {
   return { anfragen, total, hasMore: offset + limit < total };
 }
 
-/**
- * Alle Anfragen gruppiert — für Admin-Ansicht.
- * Gruppen nach korbId oder gruppenNr, mit berechnetem Gruppen-Status.
- */
 export async function getAnfragenGruppiert(input?: {
   status?:    AnfrageStatus;
   techniker?: string;
@@ -289,11 +337,7 @@ export async function getAnfragenGruppiert(input?: {
     ...(input?.status    && { status: input.status }),
     ...(input?.techniker && { techniker: input.techniker.toUpperCase().trim() }),
     ...(input?.von || input?.bis
-      ? { datum: {
-            ...(input?.von && { gte: input.von }),
-            ...(input?.bis && { lte: input.bis }),
-          },
-        }
+      ? { datum: { ...(input?.von && { gte: input.von }), ...(input?.bis && { lte: input.bis }) } }
       : {}),
   };
 
@@ -303,7 +347,6 @@ export async function getAnfragenGruppiert(input?: {
     include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true } } },
   });
 
-  // Gruppieren nach korbId > gruppenNr > einzeln
   const gruppenMap = new Map<string, GruppenAnfrage>();
 
   for (const a of anfragen) {
@@ -329,14 +372,14 @@ export async function getAnfragenGruppiert(input?: {
     const gruppe = gruppenMap.get(key)!;
     gruppe.anfragen.push(a);
 
-    // Gruppen-Status: schlechtester Status gewinnt
+    // Gruppen-Status: niedrigster Rang "gewinnt" (zeigt schlechtesten Stand)
     const rang: Record<AnfrageStatus, number> = {
-      ABGESCHLOSSEN: 4,
-      NEU:           3,
-      BEDARF:        2,
-      STORNIERT:     1,
+      STORNIERT:       1,
+      BEDARF:          2,
+      IN_BEARBEITUNG:  3,
+      NEU:             4,
+      ABGESCHLOSSEN:   5,
     };
-
     if (rang[a.status] < rang[gruppe.gruppenStatus]) {
       gruppe.gruppenStatus = a.status;
     }
@@ -345,9 +388,6 @@ export async function getAnfragenGruppiert(input?: {
   return Array.from(gruppenMap.values());
 }
 
-/**
- * Alle Anfragen für Admin mit Filter und Pagination.
- */
 export async function getAnfragenAdmin(input: {
   status?:    AnfrageStatus;
   techniker?: string;
@@ -360,11 +400,7 @@ export async function getAnfragenAdmin(input: {
     ...(input.status    && { status: input.status }),
     ...(input.techniker && { techniker: input.techniker.toUpperCase().trim() }),
     ...(input.von || input.bis
-      ? { datum: {
-            ...(input.von && { gte: input.von }),
-            ...(input.bis && { lte: input.bis }),
-          },
-        }
+      ? { datum: { ...(input.von && { gte: input.von }), ...(input.bis && { lte: input.bis }) } }
       : {}),
   };
 
@@ -374,11 +410,7 @@ export async function getAnfragenAdmin(input: {
       orderBy: { datum: "desc" },
       take:    input.limit,
       skip:    input.offset,
-      include: {
-        artikel: {
-          select: { id: true, bezeichnung: true, kategorie: true, lagerplatz: true },
-        },
-      },
+      include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true, lagerplatz: true } } },
     }),
     prisma.anfrage.count({ where }),
   ]);

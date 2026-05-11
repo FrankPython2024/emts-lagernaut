@@ -10,9 +10,14 @@ import {
   getAnfragenByTechniker,
   getAnfragenAdmin,
   getAnfragenGruppiert,
+  gruppeInBearbeitungNehmen,
+  gruppeFreigeben,
+  gruppeZurueckgeben,
 } from "@/modules/anfragen/service";
 import { bucheLager } from "@/modules/buchungen/service";
 import { naechsteBelegNr } from "@/core/infra/belegnr";
+import { emitToAdmins, emitToUser } from "@/modules/realtime/socket";
+import { EVENTS } from "@/modules/realtime/events";
 import type { SessionUser } from "@/core/types";
 
 export const anfragenRouter = createTRPCRouter({
@@ -31,9 +36,7 @@ export const anfragenRouter = createTRPCRouter({
       gruppenNr:   z.string().max(50).optional(),
       korbId:      z.number().int().positive().optional(),
     }))
-    .mutation(({ input }) =>
-      erstelleAnfrage(input),
-    ),
+    .mutation(({ input }) => erstelleAnfrage(input)),
 
   // Alle Anfragen — Admin mit Filter
   getAll: adminProcedure
@@ -45,9 +48,7 @@ export const anfragenRouter = createTRPCRouter({
       limit:     z.number().int().min(1).max(100).default(50),
       offset:    z.number().int().min(0).default(0),
     }).optional())
-    .query(({ input }) =>
-      getAnfragenAdmin({ limit: 50, offset: 0, ...input }),
-    ),
+    .query(({ input }) => getAnfragenAdmin({ limit: 50, offset: 0, ...input })),
 
   // Anfragen eines Technikers
   getByTechniker: protectedProcedure
@@ -62,12 +63,7 @@ export const anfragenRouter = createTRPCRouter({
       if (user.rolle !== "ADMIN" && user.kuerzel.toUpperCase() !== input.kuerzel.toUpperCase()) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Nur eigene Anfragen abrufbar." });
       }
-      return getAnfragenByTechniker({
-        techniker: input.kuerzel,
-        showAll:   input.showAll,
-        limit:     input.limit,
-        offset:    input.offset,
-      });
+      return getAnfragenByTechniker({ techniker: input.kuerzel, showAll: input.showAll, limit: input.limit, offset: input.offset });
     }),
 
   // Anfrage stornieren — Techniker: nur eigene, nur NEU/BEDARF
@@ -85,29 +81,17 @@ export const anfragenRouter = createTRPCRouter({
       return storniereAnfrage(input);
     }),
 
-  // Anfrage abschließen (Legacy-Route — weiterhin verfügbar)
+  // Legacy abschließen
   abschliessen: adminProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      const user    = ctx.session.user as SessionUser;
-      const result  = await schliesseAnfrageAb(input.id, user.kuerzel);
+      const user   = ctx.session.user as SessionUser;
+      const result = await schliesseAnfrageAb(input.id, user.kuerzel);
       const belegNr = await naechsteBelegNr("AL");
       return { ...result, belegNr };
     }),
 
   // ── Status setzen — Haupt-Mutation für Admin ──────────────────────────────
-  //
-  // Bei ABGESCHLOSSEN:
-  //   1. AUSGANG-Buchung erstellen (Bestand -1)
-  //      → try/catch: bei Bestand=0 wird Buchung übersprungen
-  //      → WICHTIG: nur wenn Anfrage noch NICHT ABGESCHLOSSEN (kein Doppel-Buchen)
-  //   2. Beleg-Nr generieren (IMMER — unabhängig vom Vorher-Status)
-  //   3. Aktuellen Bestand + Artikel-Daten für Beleg sammeln
-  //   4. setzeStatus() — setzt Status, sendet System-Nachricht, synct Bestand
-  //   5. Gibt zurück: { ...anfrage, belegNr, restBestand, artikel }
-  //
-  // Bei allen anderen Status → direkt setzeStatus(), belegNr/artikel = null
-  //
   setStatus: adminProcedure
     .input(z.object({
       id:     z.number().int().positive(),
@@ -118,25 +102,15 @@ export const anfragenRouter = createTRPCRouter({
 
       let belegNr:     string | null = null;
       let restBestand: number | null = null;
-      let artikelInfo: {
-        bezeichnung: string;
-        lagerplatz:  string | null;
-        kategorie:   string;
-      } | null = null;
+      let artikelInfo: { bezeichnung: string; lagerplatz: string | null; kategorie: string } | null = null;
 
       if (input.status === AnfrageStatus.ABGESCHLOSSEN) {
-        // Anfrage + Artikel laden (für Beleg + AUSGANG-Buchung)
         const anfrage = await ctx.prisma.anfrage.findUnique({
           where:   { id: input.id },
-          include: {
-            artikel: {
-              select: { id: true, bezeichnung: true, lagerplatz: true, kategorie: true },
-            },
-          },
+          include: { artikel: { select: { id: true, bezeichnung: true, lagerplatz: true, kategorie: true } } },
         });
 
         if (anfrage) {
-          // AUSGANG nur wenn Artikel verknüpft + noch nicht abgeschlossen
           if (anfrage.artikelId && anfrage.status !== AnfrageStatus.ABGESCHLOSSEN) {
             try {
               await bucheLager({
@@ -146,60 +120,21 @@ export const anfragenRouter = createTRPCRouter({
                 mitarbeiter: user.kuerzel,
                 notiz:       `Anfrage #${input.id}`,
               });
-            } catch {
-              // Kein Bestand → Buchung überspringen, Status trotzdem setzen
-            }
+            } catch { /* Kein Bestand → überspringen */ }
           }
-
-          // Beleg-Nr IMMER generieren
           belegNr = await naechsteBelegNr("AL");
-
-          // Aktuellen Bestand (nur wenn Artikel verknüpft)
           if (anfrage.artikelId) {
-            const aktuell = await ctx.prisma.artikel.findUnique({
-              where:  { id: anfrage.artikelId },
-              select: { bestand: true },
-            });
+            const aktuell = await ctx.prisma.artikel.findUnique({ where: { id: anfrage.artikelId }, select: { bestand: true } });
             restBestand = aktuell?.bestand ?? 0;
           }
-
-          // artikelInfo nur wenn Artikel vorhanden
           if (anfrage.artikel) {
-            artikelInfo = {
-              bezeichnung: anfrage.artikel.bezeichnung,
-              lagerplatz:  anfrage.artikel.lagerplatz,
-              kategorie:   anfrage.artikel.kategorie,
-            };
+            artikelInfo = { bezeichnung: anfrage.artikel.bezeichnung, lagerplatz: anfrage.artikel.lagerplatz, kategorie: anfrage.artikel.kategorie };
           }
-
-          console.log("[setStatus ABGESCHLOSSEN]", {
-            anfrageId:  input.id,
-            belegNr,
-            restBestand,
-            artikel:    artikelInfo,
-          });
         }
       }
 
-      // Status setzen + System-Nachricht + syncBestandAusHistorie
       const aktualisiert = await setzeStatus(input.id, input.status);
-
-      const result = {
-        ...aktualisiert,
-        belegNr,
-        restBestand,
-        artikel: artikelInfo,
-      };
-
-      console.log("[setStatus return]", {
-        id:          result.id,
-        status:      result.status,
-        belegNr:     result.belegNr,
-        restBestand: result.restBestand,
-        hasArtikel:  !!result.artikel,
-      });
-
-      return result;
+      return { ...aktualisiert, belegNr, restBestand, artikel: artikelInfo };
     }),
 
   // Gruppenansicht — Admin
@@ -210,8 +145,63 @@ export const anfragenRouter = createTRPCRouter({
       von:       z.date().optional(),
       bis:       z.date().optional(),
     }).optional())
-    .query(({ input }) =>
-      getAnfragenGruppiert(input),
-    ),
+    .query(({ input }) => getAnfragenGruppiert(input)),
+
+  // ── Lock-System ────────────────────────────────────────────────────────────
+
+  // Gruppe in Bearbeitung nehmen (atomic)
+  gruppeInBearbeitungNehmen: adminProcedure
+    .input(z.object({ anfrageIds: z.array(z.number().int().positive()).min(1).max(50) }))
+    .mutation(async ({ input, ctx }) => {
+      const user = ctx.session.user as SessionUser;
+      const locked = await gruppeInBearbeitungNehmen(input.anfrageIds, user.kuerzel);
+
+      // Techniker der ersten Anfrage ermitteln für gezielte Benachrichtigung
+      const anfrage = await ctx.prisma.anfrage.findFirst({
+        where:  { id: { in: input.anfrageIds } },
+        select: { techniker: true },
+      });
+
+      const payload = { anfrageIds: input.anfrageIds, bearbeiter: user.kuerzel, seit: new Date() };
+      emitToAdmins(EVENTS.ANFRAGE_UEBERNOMMEN, payload);
+      if (anfrage) emitToUser(anfrage.techniker, EVENTS.ANFRAGE_UEBERNOMMEN, payload);
+
+      return { locked };
+    }),
+
+  // Gruppe freigeben — Fail-Safe, jeder Admin darf
+  gruppeFreigeben: adminProcedure
+    .input(z.object({
+      anfrageIds: z.array(z.number().int().positive()).min(1).max(50),
+      grund:      z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const user = ctx.session.user as SessionUser;
+      const { vorBearbeiter, freigegeben } = await gruppeFreigeben(input.anfrageIds, user.kuerzel, input.grund);
+
+      const anfrage = await ctx.prisma.anfrage.findFirst({
+        where:  { id: { in: input.anfrageIds } },
+        select: { techniker: true },
+      });
+
+      const payload = { anfrageIds: input.anfrageIds, durch: user.kuerzel, vorBearbeiter, grund: input.grund };
+      emitToAdmins(EVENTS.ANFRAGE_FREIGEGEBEN, payload);
+      if (anfrage) emitToUser(anfrage.techniker, EVENTS.ANFRAGE_FREIGEGEBEN, payload);
+
+      return { freigegeben, vorBearbeiter };
+    }),
+
+  // Gruppe zurückgeben — nur durch den Bearbeiter selbst
+  gruppeZurueckgeben: adminProcedure
+    .input(z.object({ anfrageIds: z.array(z.number().int().positive()).min(1).max(50) }))
+    .mutation(async ({ input, ctx }) => {
+      const user = ctx.session.user as SessionUser;
+      const zurueck = await gruppeZurueckgeben(input.anfrageIds, user.kuerzel);
+
+      const payload = { anfrageIds: input.anfrageIds, bearbeiter: user.kuerzel };
+      emitToAdmins(EVENTS.ANFRAGE_FREIGEGEBEN, { ...payload, durch: user.kuerzel, vorBearbeiter: user.kuerzel });
+
+      return { zurueck };
+    }),
 
 });

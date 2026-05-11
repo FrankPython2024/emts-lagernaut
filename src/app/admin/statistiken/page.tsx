@@ -16,10 +16,11 @@ const FILTER_OPTS: { key: FilterRange; label: string }[] = [
 ];
 
 const STATUS_FARBE: Record<AnfrageStatus, string> = {
-  NEU:           "bg-[#0064d2]  text-white",
-  BEDARF:        "bg-[#f7b928]  text-white",
-  ABGESCHLOSSEN: "bg-[#00a400]  text-white",
-  STORNIERT:     "bg-[#888]     text-white",
+  NEU:            "bg-[#0064d2]  text-white",
+  BEDARF:         "bg-[#f7b928]  text-white",
+  IN_BEARBEITUNG: "bg-[#d97706]  text-white",
+  ABGESCHLOSSEN:  "bg-[#00a400]  text-white",
+  STORNIERT:      "bg-[#888]     text-white",
 };
 
 // ── Primitive UI ──────────────────────────────────────────────────────────────

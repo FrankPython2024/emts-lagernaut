@@ -79,9 +79,11 @@ model Anfrage {
   kommentar   String?
   gruppenNr   String?
   korbId      Int?
-  status        AnfrageStatus  @default(NEU)
-  artikel       Artikel?       @relation(fields: [artikelId], references: [id])
-  createdAt     DateTime       @default(now())
+  status          AnfrageStatus  @default(NEU)
+  bearbeitetVon   String?
+  bearbeitetSeit  DateTime?
+  artikel         Artikel?       @relation(fields: [artikelId], references: [id])
+  createdAt       DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   @@index([techniker])
@@ -89,11 +91,13 @@ model Anfrage {
   @@index([logId])
   @@index([artikelId])
   @@index([gruppenNr])
+  @@index([bearbeitetVon, status])
 }
 
 enum AnfrageStatus {
   NEU
   BEDARF
+  IN_BEARBEITUNG
   ABGESCHLOSSEN
   STORNIERT
 }
