@@ -16,6 +16,7 @@ export const stresstestRouter = createTRPCRouter({
       duration:     z.number().int().min(60_000).max(3_600_000).default(300_000),
       numTechniker: z.number().int().min(1).max(10).default(5),
       numAdmins:    z.number().int().min(1).max(3).default(2),
+      loadMode:     z.enum(["normal", "heavy", "burst", "extreme"]).default("burst"),
     }))
     .mutation(async ({ input }) => {
       const runId = await startRunner(input);

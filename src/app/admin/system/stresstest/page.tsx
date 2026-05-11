@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Chart as ChartJS,
   CategoryScale, LinearScale, PointElement,
@@ -9,7 +9,8 @@ import { Line } from "react-chartjs-2";
 import { api }       from "@/trpc/react";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS }    from "@/modules/realtime/events";
-import type { TestEvent, MetricUpdate, FinalResult, ErrorDetail, ErrorKategorie } from "@/modules/stresstest/runner";
+import type { TestEvent, MetricUpdate, FinalResult, ErrorDetail, ErrorKategorie, LoadMode } from "@/modules/stresstest/types";
+import { LOAD_MODES } from "@/modules/stresstest/types";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip);
 
@@ -127,10 +128,16 @@ function actionColor(action: string, success: boolean): string {
 
 // ── Config Screen ─────────────────────────────────────────────────────────────
 
-function ConfigScreen({ onStart }: { onStart: (cfg: { duration: number; numTechniker: number; numAdmins: number }) => void }) {
+const MODE_WARN: Partial<Record<LoadMode, string>> = {
+  burst:   "🔥 Hohe Last — viele Aktionen pro Minute",
+  extreme: "💀 Extreme Last — DB stark beansprucht",
+};
+
+function ConfigScreen({ onStart }: { onStart: (cfg: { duration: number; numTechniker: number; numAdmins: number; loadMode: LoadMode }) => void }) {
   const [duration,     setDuration]     = useState(300_000);
   const [numTechniker, setNumTechniker] = useState(5);
   const [numAdmins,    setNumAdmins]    = useState(2);
+  const [loadMode,     setLoadMode]     = useState<LoadMode>("burst");
 
   const durationOptions = [
     { label: "1 Minute (Smoke)",  value: 60_000 },
@@ -143,33 +150,81 @@ function ConfigScreen({ onStart }: { onStart: (cfg: { duration: number; numTechn
   const sel: React.CSSProperties = {
     background: C.card, border: `1px solid ${C.border}`, color: C.text,
     padding: "0.5rem 1rem", borderRadius: 8, fontSize: "0.9rem",
-    fontFamily: "monospace", outline: "none", cursor: "pointer",
-    width: "100%",
+    fontFamily: "monospace", outline: "none", cursor: "pointer", width: "100%",
   };
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "monospace", color: C.text }}>
-      <div style={{ background: C.card, border: `1px solid ${C.cyan}44`, borderRadius: 20, padding: "3rem", width: 440, boxShadow: `0 0 60px ${C.cyan}18` }}>
-        <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
+      <div style={{ background: C.card, border: `1px solid ${C.cyan}44`, borderRadius: 20, padding: "3rem", width: 460, boxShadow: `0 0 60px ${C.cyan}18` }}>
+
+        {/* Titel */}
+        <div style={{ textAlign: "center", marginBottom: "2rem" }}>
           <div style={{ fontSize: "2.5rem", marginBottom: 8 }}>🔬</div>
           <div style={{ fontSize: "1.5rem", fontWeight: 900, color: C.cyan, textShadow: GLOW_CYAN, letterSpacing: "0.05em" }}>
             LAGERNAUT BENCHMARK
           </div>
-          <div style={{ fontSize: "0.75rem", color: C.dim, marginTop: 6 }}>
-            Stress-Test · Live Dashboard
-          </div>
+          <div style={{ fontSize: "0.75rem", color: C.dim, marginTop: 6 }}>Stress-Test · Live Dashboard</div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "1.2rem" }}>
+
+          {/* ── Modus-Auswahl ── */}
+          <div>
+            <div style={{ fontSize: "0.7rem", color: C.dim, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
+              Test-Modus
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {(Object.entries(LOAD_MODES) as [LoadMode, typeof LOAD_MODES[LoadMode]][]).map(([mode, cfg]) => {
+                const active = loadMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => setLoadMode(mode)}
+                    style={{
+                      display:        "flex",
+                      alignItems:     "center",
+                      gap:            10,
+                      padding:        "0.65rem 1rem",
+                      borderRadius:   10,
+                      border:         `1px solid ${active ? C.cyan : C.border}`,
+                      background:     active ? `${C.cyan}18` : "transparent",
+                      cursor:         "pointer",
+                      textAlign:      "left",
+                      fontFamily:     "monospace",
+                      color:          C.text,
+                      transition:     "all 0.15s",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.1rem", width: 24, textAlign: "center", flexShrink: 0 }}>{cfg.icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "0.85rem", fontWeight: active ? 900 : 400, color: active ? C.cyan : C.text }}>
+                        {cfg.label}
+                      </div>
+                      <div style={{ fontSize: "0.62rem", color: C.dim, marginTop: 1 }}>{cfg.beschreibung}</div>
+                    </div>
+                    <span style={{
+                      width: 14, height: 14, borderRadius: "50%",
+                      border: `2px solid ${active ? C.cyan : C.border}`,
+                      background: active ? C.cyan : "transparent",
+                      flexShrink: 0,
+                    }} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Dauer ── */}
           <div>
             <label style={{ display: "block", fontSize: "0.7rem", color: C.dim, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>
-              Test-Dauer
+              Dauer
             </label>
             <select value={duration} onChange={(e) => setDuration(Number(e.target.value))} style={sel}>
               {durationOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
 
+          {/* ── Akteure ── */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
             <div>
               <label style={{ display: "block", fontSize: "0.7rem", color: C.dim, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>
@@ -177,7 +232,6 @@ function ConfigScreen({ onStart }: { onStart: (cfg: { duration: number; numTechn
               </label>
               <input type="range" min={1} max={10} value={numTechniker} onChange={(e) => setNumTechniker(Number(e.target.value))}
                 style={{ width: "100%", accentColor: C.cyan }} />
-              <div style={{ fontSize: "0.65rem", color: C.dim, marginTop: 2 }}>1 – 10 Techniker</div>
             </div>
             <div>
               <label style={{ display: "block", fontSize: "0.7rem", color: C.dim, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>
@@ -185,32 +239,35 @@ function ConfigScreen({ onStart }: { onStart: (cfg: { duration: number; numTechn
               </label>
               <input type="range" min={1} max={3} value={numAdmins} onChange={(e) => setNumAdmins(Number(e.target.value))}
                 style={{ width: "100%", accentColor: C.cyan }} />
-              <div style={{ fontSize: "0.65rem", color: C.dim, marginTop: 2 }}>1 – 3 Admins</div>
             </div>
           </div>
 
-          <div style={{ background: "#ffd70018", border: "1px solid #ffd70044", borderRadius: 8, padding: "0.8rem 1rem", fontSize: "0.78rem", color: C.yellow }}>
-            ⚠️ Test erzeugt echte Daten in der DB.
-            Markierung: <strong>STRESSTEST_*</strong>
-            <br />Cleanup nach Test-Ende möglich.
+          {/* Warnung */}
+          {MODE_WARN[loadMode] && (
+            <div style={{ background: "#ffd70018", border: "1px solid #ffd70044", borderRadius: 8, padding: "0.7rem 1rem", fontSize: "0.75rem", color: C.yellow }}>
+              {MODE_WARN[loadMode]}
+            </div>
+          )}
+          <div style={{ background: "#ffffff08", border: `1px solid ${C.border}`, borderRadius: 8, padding: "0.6rem 1rem", fontSize: "0.7rem", color: C.dim }}>
+            ⚠️ Test erzeugt echte Daten in der DB. Markierung: <strong style={{ color: C.text }}>STRESSTEST_*</strong>
           </div>
 
           <button
-            onClick={() => onStart({ duration, numTechniker, numAdmins })}
+            onClick={() => onStart({ duration, numTechniker, numAdmins, loadMode })}
             style={{
-              background:  `linear-gradient(135deg, ${C.cyan}33, ${C.cyan}66)`,
-              border:      `1px solid ${C.cyan}`,
-              color:       C.cyan,
-              padding:     "0.9rem",
-              borderRadius: 12,
-              fontSize:    "1rem",
-              fontWeight:  900,
-              fontFamily:  "monospace",
-              cursor:      "pointer",
+              background:    `linear-gradient(135deg, ${C.cyan}33, ${C.cyan}66)`,
+              border:        `1px solid ${C.cyan}`,
+              color:         C.cyan,
+              padding:       "0.9rem",
+              borderRadius:  12,
+              fontSize:      "1rem",
+              fontWeight:    900,
+              fontFamily:    "monospace",
+              cursor:        "pointer",
               letterSpacing: "0.1em",
-              textShadow:  GLOW_CYAN,
-              boxShadow:   `0 0 20px ${C.cyan}33`,
-              transition:  "all 0.2s",
+              textShadow:    GLOW_CYAN,
+              boxShadow:     `0 0 20px ${C.cyan}33`,
+              transition:    "all 0.2s",
             }}
           >
             ▶ TEST STARTEN
@@ -225,63 +282,113 @@ function ConfigScreen({ onStart }: { onStart: (cfg: { duration: number; numTechn
 
 const KAT_CFG: Record<ErrorKategorie, { label: string; color: string; icon: string }> = {
   race:       { label: "Race Condition",      color: C.green,   icon: "🟢" },
-  validation: { label: "Validierungs-Fehler", color: C.yellow,  icon: "🟡" },
+  validation: { label: "Validierung",         color: C.yellow,  icon: "🟡" },
+  duplicate:  { label: "Duplikat",            color: C.yellow,  icon: "🟡" },
+  stale:      { label: "Stale Reference",     color: "#fb923c", icon: "🟠" },
+  api:        { label: "API-Fehler",          color: "#a78bfa", icon: "🟣" },
   bug:        { label: "Echter Bug",          color: C.red,     icon: "🔴" },
 };
 
-function FehlerKarte({ err, idx }: { err: ErrorDetail; idx: number }) {
+// Fehler nach Typ + Nachricht (erste 50 Zeichen) gruppieren
+interface FehlerGruppe {
+  key:       string;
+  kategorie: ErrorKategorie;
+  beispiel:  ErrorDetail;
+  count:     number;
+  akteure:   Record<string, number>;
+  letzteTs:  number;
+  offen:     boolean;
+}
+
+function gruppiereErrors(errors: ErrorDetail[]): FehlerGruppe[] {
+  const map = new Map<string, FehlerGruppe>();
+  for (const err of errors) {
+    const key = `${err.kategorie}:${err.message.slice(0, 50)}`;
+    if (!map.has(key)) {
+      map.set(key, { key, kategorie: err.kategorie, beispiel: err, count: 0, akteure: {}, letzteTs: 0, offen: false });
+    }
+    const g = map.get(key)!;
+    g.count++;
+    g.akteure[err.actor] = (g.akteure[err.actor] ?? 0) + 1;
+    if (err.ts > g.letzteTs) { g.letzteTs = err.ts; g.beispiel = err; }
+  }
+  return Array.from(map.values()).sort((a, b) => b.letzteTs - a.letzteTs);
+}
+
+function FehlerGruppeKarte({ gruppe, idx }: { gruppe: FehlerGruppe; idx: number }) {
   const [offen, setOffen] = useState(false);
-  const kat = KAT_CFG[err.kategorie];
-  const zeit = new Date(err.ts).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const kat  = KAT_CFG[gruppe.kategorie];
+  const zeit = new Date(gruppe.letzteTs).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const top3Akteure = Object.entries(gruppe.akteure).sort(([, a], [, b]) => b - a).slice(0, 3);
 
   return (
-    <div style={{
-      background:   "#1c1c24",
-      border:       `1px solid ${kat.color}44`,
-      borderLeft:   `3px solid ${kat.color}`,
-      borderRadius: 8,
-      overflow:     "hidden",
-    }}>
-      {/* Header — immer sichtbar */}
+    <div style={{ background: "#1c1c24", border: `1px solid ${kat.color}44`, borderLeft: `3px solid ${kat.color}`, borderRadius: 8, overflow: "hidden" }}>
+
+      {/* ── Header ── */}
       <button
         onClick={() => setOffen((v) => !v)}
-        style={{
-          display: "flex", alignItems: "center", gap: 10,
-          width: "100%", padding: "0.65rem 1rem",
-          background: "none", border: "none", cursor: "pointer",
-          color: C.text, fontFamily: "monospace", textAlign: "left",
-        }}
+        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "0.6rem 1rem", background: "none", border: "none", cursor: "pointer", color: C.text, fontFamily: "monospace", textAlign: "left" }}
       >
-        <span style={{ color: C.dim, fontSize: "0.65rem", flexShrink: 0, width: 20 }}>#{idx + 1}</span>
+        <span style={{ color: C.dim, fontSize: "0.62rem", flexShrink: 0, width: 18 }}>#{idx + 1}</span>
         <span style={{ fontSize: "0.85rem" }}>{kat.icon}</span>
-        <span style={{ color: kat.color, fontSize: "0.72rem", fontWeight: 700, flexShrink: 0 }}>
-          {kat.label}
-        </span>
-        <span style={{ color: C.dim, fontSize: "0.65rem", flexShrink: 0 }}>[{zeit}]</span>
-        <span style={{ color: C.cyan, fontSize: "0.72rem", fontWeight: 700, flex: 1 }}>{err.actor}</span>
-        <span style={{ color: C.dim, fontSize: "0.72rem" }}>{err.action}</span>
-        <span style={{ color: offen ? C.cyan : C.dim, marginLeft: "auto", fontSize: "0.7rem" }}>
-          {offen ? "▲" : "▼"}
-        </span>
+        <span style={{ color: kat.color, fontSize: "0.7rem", fontWeight: 700, flexShrink: 0 }}>{kat.label}</span>
+        {gruppe.count > 1 && (
+          <span style={{ background: `${kat.color}33`, color: kat.color, fontSize: "0.62rem", fontWeight: 900, padding: "1px 6px", borderRadius: 99 }}>
+            ×{gruppe.count}
+          </span>
+        )}
+        <span style={{ color: C.dim, fontSize: "0.62rem" }}>[{zeit}]</span>
+        <span style={{ color: C.cyan, fontSize: "0.7rem", fontWeight: 700, flex: 1 }}>{gruppe.beispiel.action}</span>
+        <span style={{ color: offen ? C.cyan : C.dim, fontSize: "0.65rem" }}>{offen ? "▲" : "▼"}</span>
       </button>
 
-      {/* Message — immer sichtbar */}
-      <div style={{ padding: "0 1rem 0.6rem 3.2rem", fontSize: "0.75rem", color: kat.color }}>
-        {err.message.slice(0, 120)}{err.message.length > 120 ? "…" : ""}
+      {/* ── Nachricht immer sichtbar ── */}
+      <div style={{ padding: "0 1rem 0.5rem 2.8rem" }}>
+        <div style={{ fontSize: "0.73rem", color: kat.color, marginBottom: 3 }}>
+          {gruppe.beispiel.message.slice(0, 100)}{gruppe.beispiel.message.length > 100 ? "…" : ""}
+        </div>
+        <div style={{ fontSize: "0.65rem", color: "#00cc99" }}>
+          💡 {gruppe.beispiel.empfehlung}
+        </div>
       </div>
 
-      {/* Stack-Trace — aufklappbar */}
-      {offen && err.stack && (
-        <div style={{ padding: "0.6rem 1rem", borderTop: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: "0.6rem", color: C.dim, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Stack Trace
+      {/* ── Details aufgeklappt ── */}
+      {offen && (
+        <div style={{ padding: "0.6rem 1rem", borderTop: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
+
+          {/* Akteure */}
+          <div>
+            <div style={{ fontSize: "0.6rem", color: C.dim, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              Akteure ({Object.keys(gruppe.akteure).length})
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {top3Akteure.map(([actor, cnt]) => (
+                <span key={actor} style={{ background: "#ffffff0d", padding: "2px 8px", borderRadius: 99, fontSize: "0.65rem", color: C.text }}>
+                  {actor} <span style={{ color: C.dim }}>×{cnt}</span>
+                </span>
+              ))}
+              {Object.keys(gruppe.akteure).length > 3 && (
+                <span style={{ fontSize: "0.65rem", color: C.dim }}>+{Object.keys(gruppe.akteure).length - 3} weitere</span>
+              )}
+            </div>
           </div>
-          <pre style={{
-            margin: 0, fontSize: "0.65rem", color: "#888", lineHeight: 1.5,
-            overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all",
-          }}>
-            {err.stack}
-          </pre>
+
+          {/* ErrorName */}
+          <div style={{ fontSize: "0.65rem", color: C.dim }}>
+            Error-Typ: <span style={{ color: "#fb923c", fontWeight: 700 }}>{gruppe.beispiel.errorName}</span>
+          </div>
+
+          {/* Stack-Trace */}
+          {gruppe.beispiel.stack && (
+            <div>
+              <div style={{ fontSize: "0.6rem", color: C.dim, marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Stack Trace (Beispiel)
+              </div>
+              <pre style={{ margin: 0, fontSize: "0.6rem", color: "#888", lineHeight: 1.5, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 120 }}>
+                {gruppe.beispiel.stack}
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -289,7 +396,7 @@ function FehlerKarte({ err, idx }: { err: ErrorDetail; idx: number }) {
 }
 
 function FehlerSektion({ errors }: { errors: ErrorDetail[] }) {
-  const [filter, setFilter] = useState<ErrorKategorie | "alle">("alle");
+  const [filter,       setFilter]       = useState<ErrorKategorie | "alle">("alle");
   const [filterAkteur, setFilterAkteur] = useState("");
 
   if (errors.length === 0) return null;
@@ -300,8 +407,10 @@ function FehlerSektion({ errors }: { errors: ErrorDetail[] }) {
     return true;
   });
 
-  const counts: Record<ErrorKategorie, number> = { race: 0, validation: 0, bug: 0 };
-  for (const e of errors) counts[e.kategorie]++;
+  const gruppen = gruppiereErrors(gefiltert);
+
+  const counts: Partial<Record<ErrorKategorie, number>> = {};
+  for (const e of errors) counts[e.kategorie] = (counts[e.kategorie] ?? 0) + 1;
 
   function exportJson() {
     const blob = new Blob([JSON.stringify(errors, null, 2)], { type: "application/json" });
@@ -327,24 +436,16 @@ function FehlerSektion({ errors }: { errors: ErrorDetail[] }) {
         </span>
 
         {/* Kategorie-Badges */}
-        <div style={{ display: "flex", gap: 4, flex: 1 }}>
+        <div style={{ display: "flex", gap: 4, flex: 1, flexWrap: "wrap" }}>
           <button onClick={() => setFilter("alle")} style={tabStyle(filter === "alle", C.text)}>
             Alle {errors.length}
           </button>
-          {counts.race > 0 && (
-            <button onClick={() => setFilter("race")} style={tabStyle(filter === "race", C.green)}>
-              🟢 Race {counts.race}
-            </button>
-          )}
-          {counts.validation > 0 && (
-            <button onClick={() => setFilter("validation")} style={tabStyle(filter === "validation", C.yellow)}>
-              🟡 Validierung {counts.validation}
-            </button>
-          )}
-          {counts.bug > 0 && (
-            <button onClick={() => setFilter("bug")} style={tabStyle(filter === "bug", C.red)}>
-              🔴 Bugs {counts.bug}
-            </button>
+          {(Object.entries(KAT_CFG) as [ErrorKategorie, typeof KAT_CFG[ErrorKategorie]][]).map(([kat, cfg]) =>
+            (counts[kat] ?? 0) > 0 ? (
+              <button key={kat} onClick={() => setFilter(kat)} style={tabStyle(filter === kat, cfg.color)}>
+                {cfg.icon} {cfg.label} {counts[kat]}
+              </button>
+            ) : null
           )}
         </div>
 
@@ -374,21 +475,23 @@ function FehlerSektion({ errors }: { errors: ErrorDetail[] }) {
       </div>
 
       {/* Erklärung Kategorien */}
-      <div style={{ padding: "0.5rem 1rem", background: "#14141a", borderBottom: `1px solid ${C.border}`, display: "flex", gap: "1.5rem", fontSize: "0.62rem", color: C.dim }}>
-        <span>🟢 Race Conditions — erwartet, kein Code-Fehler</span>
-        <span>🟡 Validierungs-Fehler — Eingabedaten prüfen</span>
-        <span>🔴 Echte Bugs — Code-Überprüfung nötig</span>
+      <div style={{ padding: "0.45rem 1rem", background: "#14141a", borderBottom: `1px solid ${C.border}`, display: "flex", gap: "1.5rem", flexWrap: "wrap", fontSize: "0.6rem", color: C.dim }}>
+        <span>🟢 Race — erwartet, kein Bug</span>
+        <span>🟡 Validierung / Duplikat — Eingaben prüfen</span>
+        <span>🟠 Stale Ref — Timing-Problem</span>
+        <span>🟣 API — Logik-Fehler</span>
+        <span>🔴 Bug — Code prüfen</span>
       </div>
 
-      {/* Fehler-Liste */}
-      <div style={{ padding: "0.75rem", display: "flex", flexDirection: "column", gap: 6, maxHeight: 400, overflowY: "auto" }}>
-        {gefiltert.length === 0 && (
+      {/* Gruppiete Fehler-Liste */}
+      <div style={{ padding: "0.75rem", display: "flex", flexDirection: "column", gap: 6, maxHeight: 500, overflowY: "auto" }}>
+        {gruppen.length === 0 && (
           <div style={{ textAlign: "center", padding: "1.5rem", color: C.dim, fontSize: "0.75rem" }}>
             Keine Fehler für diesen Filter
           </div>
         )}
-        {gefiltert.map((err, i) => (
-          <FehlerKarte key={`${err.ts}-${i}`} err={err} idx={i} />
+        {gruppen.map((g, i) => (
+          <FehlerGruppeKarte key={g.key} gruppe={g} idx={i} />
         ))}
       </div>
     </div>
@@ -401,7 +504,7 @@ function RunningDashboard({
   runId, config, onStop, onDone,
 }: {
   runId: string;
-  config: { duration: number; numTechniker: number; numAdmins: number };
+  config: { duration: number; numTechniker: number; numAdmins: number; loadMode: LoadMode };
   onStop: () => void;
   onDone: (r: FinalResult) => void;
 }) {
@@ -555,6 +658,8 @@ function RunningDashboard({
           </span>
           <span style={{ color: C.dim }}>·</span>
           <span style={{ color: C.dim }}>Run: {runId}</span>
+          <span style={{ color: C.dim }}>·</span>
+          <span style={{ color: C.yellow }}>{LOAD_MODES[config.loadMode]?.icon} {LOAD_MODES[config.loadMode]?.label}</span>
           <span style={{ color: C.dim }}>·</span>
           <span style={{ color: C.dim }}>{events.length} Events</span>
         </div>
@@ -825,7 +930,7 @@ type Phase = "config" | "running" | "done";
 export default function StressTestPage() {
   const [phase,      setPhase]      = useState<Phase>("config");
   const [runId,      setRunId]      = useState<string>("");
-  const [config,     setConfig]     = useState({ duration: 300_000, numTechniker: 5, numAdmins: 2 });
+  const [config,     setConfig]     = useState<{ duration: number; numTechniker: number; numAdmins: number; loadMode: LoadMode }>({ duration: 300_000, numTechniker: 5, numAdmins: 2, loadMode: "burst" });
   const [finalResult, setFinalResult] = useState<FinalResult | null>(null);
 
   const startMutation   = api.stresstest.start.useMutation();
@@ -846,7 +951,12 @@ export default function StressTestPage() {
 
   async function handleStart(cfg: typeof config) {
     setConfig(cfg);
-    const r = await startMutation.mutateAsync(cfg);
+    const r = await startMutation.mutateAsync({
+      duration:     cfg.duration,
+      numTechniker: cfg.numTechniker,
+      numAdmins:    cfg.numAdmins,
+      loadMode:     cfg.loadMode,
+    });
     setRunId(r.runId);
     setPhase("running");
   }

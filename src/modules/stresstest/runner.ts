@@ -11,6 +11,10 @@ import bcrypt from "bcryptjs";
 import { prisma }        from "@/core/db/prisma";
 import { emitToAdmins }  from "@/modules/realtime/socket";
 import { EVENTS }        from "@/modules/realtime/events";
+export type { LoadMode, ErrorKategorie, TestEvent, MetricUpdate, FinalResult, ErrorDetail, TestConfig } from "./types";
+export { LOAD_MODES } from "./types";
+import type { LoadMode, ErrorKategorie, ErrorDetail, FinalResult, MetricUpdate, TestEvent, TestConfig } from "./types";
+import { LOAD_MODES } from "./types";
 import {
   erstelleAnfrage,
   storniereAnfrage,
@@ -24,61 +28,7 @@ import { senden as chatSenden } from "@/modules/chat/service";
 
 // ── Typen ─────────────────────────────────────────────────────────────────────
 
-export interface TestConfig {
-  duration:     number;   // ms
-  numTechniker: number;   // 1-10
-  numAdmins:    number;   // 1-3
-}
 
-export interface TestEvent {
-  ts:      number;
-  actor:   string;
-  action:  string;
-  dauer:   number;
-  success: boolean;
-  error?:  string;
-}
-
-export interface MetricUpdate {
-  elapsed:          number;
-  opsPerSecond:     number;
-  totalOps:         number;
-  totalErrors:      number;
-  errorRate:        number;
-  avgResponseTime:  number;
-  peakResponseTime: number;
-  workerActivity:   Record<string, number>;
-  memMB:            number;
-  socketClients:    number;
-}
-
-export type ErrorKategorie = "race" | "validation" | "bug";
-
-export interface ErrorDetail {
-  ts:        number;
-  actor:     string;
-  action:    string;
-  message:   string;
-  stack?:    string;
-  kategorie: ErrorKategorie;
-}
-
-export interface FinalResult {
-  runId:            string;
-  duration:         number;
-  totalOps:         number;
-  anfrageErstellt:  number;
-  anfrageErledigt:  number;
-  anfrageStorniert: number;
-  buchungen:        number;
-  chat:             number;
-  lockKonflikte:    number;
-  avgResponseTime:  number;
-  peakResponseTime: number;
-  p95:              number;
-  fehler:           number;
-  score:            number;
-}
 
 interface RunnerStats {
   anfrageErstellt:  number;
@@ -139,17 +89,39 @@ export function stopRunner() {
   }
 }
 
-// ── Fehler-Kategorisierung ────────────────────────────────────────────────────
+// ── Fehler-Kategorisierung + Empfehlungen ────────────────────────────────────
 
-function kategorisiere(message: string): ErrorKategorie {
+function kategorisiere(message: string, errorName: string): ErrorKategorie {
   const m = message.toLowerCase();
-  if (m.includes("bearbeitung") || m.includes("bereits") || m.includes("conflict") || m.includes("lock") || m.includes("gewonnen") || m.includes("übernommen")) {
-    return "race";
-  }
-  if (m.includes("zod") || m.includes("validation") || m.includes("invalid") || m.includes("required") || m.includes("expected") || m.includes("too_small") || m.includes("too_big")) {
-    return "validation";
-  }
+  const n = errorName.toLowerCase();
+
+  // ZodError: Validierungsproblem
+  if (n === "zoderror" || m.includes("zoderror") || m.includes("expected") || m.includes("too_small") || m.includes("too_big")) return "validation";
+
+  // Prisma P2002: Unique Constraint
+  if (m.includes("p2002") || m.includes("unique constraint") || m.includes("duplicate entry")) return "duplicate";
+
+  // Prisma P2025: Record Not Found
+  if (m.includes("p2025") || m.includes("record to update not found") || m.includes("record to delete not found")) return "stale";
+
+  // Lock / Race Conditions
+  if (m.includes("bearbeitung") || m.includes("bereits") || m.includes("conflict") || m.includes("lock") || m.includes("gewonnen") || m.includes("übernommen")) return "race";
+
+  // tRPC API-Fehler
+  if (m.includes("bad_request") || m.includes("not_found") || m.includes("forbidden") || m.includes("not möglich") || m.includes("nicht gefunden")) return "api";
+
   return "bug";
+}
+
+function getEmpfehlung(kategorie: ErrorKategorie, message: string): string {
+  switch (kategorie) {
+    case "race":       return "✅ Erwartet: Lock-System verhindert Doppelarbeit. Kein Code-Fehler.";
+    case "validation": return "Prüfe Zod-Schema im Router. Optional vs. required korrekt?";
+    case "duplicate":  return "Unique-Constraint verletzt. Race Condition bei gleichzeitiger Erstellung?";
+    case "stale":      return "Ressource während Operation gelöscht. Stale-Reference-Problem.";
+    case "api":        return `API-Logik-Fehler: ${message.slice(0, 60)}`;
+    case "bug":        return "Echten Bug untersuchen — Stack-Trace und Kontext prüfen.";
+  }
 }
 
 // ── Konstanten ────────────────────────────────────────────────────────────────
@@ -214,14 +186,19 @@ async function messe<T>(actor: string, action: string, fn: () => Promise<T>): Pr
     state.stats.fehler++;
     logEvent(actor, action, dauer, false, msg.slice(0, 120));
 
+    const errorName = err instanceof Error ? err.constructor.name : "Error";
+    const kat       = kategorisiere(msg, errorName);
+
     // Vollständige Fehlerdetails für Dashboard
     const detail: ErrorDetail = {
-      ts:        Date.now(),
+      ts:         Date.now(),
       actor,
       action,
-      message:   msg,
+      errorName,
+      message:    msg,
       stack,
-      kategorie: kategorisiere(msg),
+      kategorie:  kat,
+      empfehlung: getEmpfehlung(kat, msg),
     };
     state.stats.errors = [detail, ...state.stats.errors].slice(0, 200);
 
@@ -394,38 +371,37 @@ async function raceTest(adA: string, adB: string) {
 // WICHTIG: Kurze Intervalle (3–15s) für Dashboard-Sichtbarkeit.
 // Das scripts/stressTest.ts nutzt 1–3min für echte Produktions-Simulation.
 
-async function technikerAgent(kuerzel: string, data: { logIds: { logId: string; bezeichnung: string }[]; artikelIds: number[] }, isDone: () => boolean) {
+async function technikerAgent(
+  kuerzel: string,
+  data: { logIds: { logId: string; bezeichnung: string }[]; artikelIds: number[] },
+  isDone: () => boolean,
+  iv: { min: number; max: number },
+) {
   console.log(`[Stresstest] Techniker-Agent gestartet: ${kuerzel}`);
-
-  // Kurze gestaffelte Startverzögerung (0–3s)
-  await warte(0, 3_000);
+  await warte(0, Math.min(3_000, iv.min));  // gestaffelt, aber max 3s
 
   while (!isDone()) {
-    // ERST handeln, DANN warten — sofortige Aktivität sichtbar
     const r = Math.random() * 100;
     try {
       if (r < 70)       await messe(kuerzel, "anfrage_erstellt", () => tkErstellt(kuerzel, data.logIds, data.artikelIds));
       else if (r < 85)  await messe(kuerzel, "chat_antwort",     () => tkChat(kuerzel));
       else if (r < 95)  await messe(kuerzel, "storno",           () => tkStorno(kuerzel));
-      else {
-        // Kurze Pause (simuliert "Techniker schaut sich das System an")
-        await warte(500, 1_500);
-      }
     } catch { /* Fehler bereits in messe() geloggt */ }
 
     if (isDone()) break;
-    // Dashboard-Intervall: 3–12 Sekunden (statt 1–3 Minuten)
-    await warte(3_000, 12_000);
+    await warte(iv.min, iv.max);
   }
 
   console.log(`[Stresstest] Techniker-Agent beendet: ${kuerzel}`);
 }
 
-async function adminAgent(kuerzel: string, isDone: () => boolean) {
+async function adminAgent(
+  kuerzel: string,
+  isDone: () => boolean,
+  iv: { min: number; max: number },
+) {
   console.log(`[Stresstest] Admin-Agent gestartet: ${kuerzel}`);
-
-  // Admins starten etwas später damit Techniker zuerst Anfragen erstellen
-  await warte(5_000, 15_000);
+  await warte(Math.min(5_000, iv.max), Math.min(15_000, iv.max * 2));  // Admins starten später
 
   while (!isDone()) {
     const r = Math.random() * 100;
@@ -437,8 +413,7 @@ async function adminAgent(kuerzel: string, isDone: () => boolean) {
     } catch { /* Fehler bereits in messe() geloggt */ }
 
     if (isDone()) break;
-    // Dashboard-Intervall: 2–8 Sekunden (statt 30–90 Sekunden)
-    await warte(2_000, 8_000);
+    await warte(iv.min, iv.max);
   }
 
   console.log(`[Stresstest] Admin-Agent beendet: ${kuerzel}`);
@@ -542,14 +517,15 @@ export async function startRunner(config: TestConfig): Promise<string> {
       ]);
 
       const testDaten = await ladeTestDaten();
+      const modeIvs  = LOAD_MODES[config.loadMode];
 
       const isDone = () => !state || state.stopSignal || (Date.now() - state.startTime) >= config.duration;
 
-      console.log(`[Stresstest] Agenten starten (${TECHNIKER.length} Techniker, ${ADMINS.length} Admins)...`);
+      console.log(`[Stresstest] Agenten starten (${TECHNIKER.length} Techniker, ${ADMINS.length} Admins, Modus: ${modeIvs.label})...`);
 
       await Promise.allSettled([
-        ...TECHNIKER.map((k) => technikerAgent(k, testDaten, isDone)),
-        ...ADMINS.map((k)    => adminAgent(k, isDone)),
+        ...TECHNIKER.map((k) => technikerAgent(k, testDaten, isDone, modeIvs.technikerInterval)),
+        ...ADMINS.map((k)    => adminAgent(k, isDone, modeIvs.adminInterval)),
         raceAgent(ADMINS, isDone),
       ]);
 
