@@ -12,8 +12,11 @@ export const EVENTS = {
   TECHNIKER_ONLINE:  "techniker:online",
   TECHNIKER_OFFLINE: "techniker:offline",
 
-  // Nachrichten
+  // Nachrichten (Legacy)
   NACHRICHT_NEU:     "nachricht:neu",
+
+  // Chat (Anfrage-gebunden)
+  CHAT_NEU:          "chat:neu",
 
   // Activity
   ACTIVITY_NEU:      "activity:neu",

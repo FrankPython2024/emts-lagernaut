@@ -90,9 +90,13 @@ export default function AnfragenGruppe({ gruppe, kuerzel, onStorno }: Props) {
         ))}
       </div>
 
-      {/* ── Nachrichten-Block (wenn vorhanden) ── */}
-      {hasRealLogId && gruppe.logId && (
-        <GruppenNachrichten logId={gruppe.logId} kuerzel={kuerzel} />
+      {/* ── Chat-Bereich (immer anzeigen wenn Anfragen vorhanden) ── */}
+      {gruppe.anfragen.length > 0 && (
+        <GruppenNachrichten
+          anfrageId={gruppe.anfragen[0]!.id}
+          kuerzel={kuerzel}
+          bezugInfo={[gruppe.geraeteName, hasRealLogId ? gruppe.logId : undefined].filter(Boolean).join(" · ") || undefined}
+        />
       )}
 
       {/* ── Footer ── */}

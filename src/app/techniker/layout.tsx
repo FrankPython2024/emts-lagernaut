@@ -46,7 +46,7 @@ function NachrichtToast({ data, onClose }: { data: ToastData; onClose: () => voi
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
         <strong style={{ fontSize: "0.95rem", display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: "1.2rem" }}>📬</span>
-          Neue Nachricht vom Admin
+          Neue Chat-Nachricht
         </strong>
         <button
           onClick={onClose}
@@ -74,7 +74,7 @@ function NachrichtToast({ data, onClose }: { data: ToastData; onClose: () => voi
       {/* Buttons */}
       <div style={{ display: "flex", gap: 8 }}>
         <button
-          onClick={() => { router.push("/techniker/nachrichten"); onClose(); }}
+          onClick={() => { router.push("/techniker"); onClose(); }}
           style={{
             background:   "var(--primary)",
             color:        "white",
@@ -120,11 +120,11 @@ function TechnikerHeader({ bellShake }: { bellShake: boolean }) {
   const user    = session?.user as SessionUser | undefined;
   const kuerzel = user?.kuerzel ?? "";
 
-  const ungelesen = api.nachrichten.getUngelesen.useQuery(
-    { kuerzel },
-    { enabled: !!kuerzel, refetchInterval: 30_000 },
+  const ungelesenQuery = api.chat.getUngelesenCount.useQuery(
+    undefined,
+    { enabled: !!kuerzel, refetchInterval: 15_000 },
   );
-  const badge = ungelesen.data ?? 0;
+  const badge = ungelesenQuery.data ?? 0;
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
@@ -271,15 +271,20 @@ export default function TechnikerLayout({ children }: { children: React.ReactNod
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Socket: neue Nachricht → Toast + Glocke schütteln
+  // Socket: neuer Chat → Toast + Glocke schütteln
   useEffect(() => {
-    on(EVENTS.NACHRICHT_NEU, (data: unknown) => {
+    const handler = (data: unknown) => {
       const d = data as ToastData;
       setNachrichtToast(d);
       setBellShake(true);
       setTimeout(() => setBellShake(false), 600);
-    });
-    return () => off(EVENTS.NACHRICHT_NEU);
+    };
+    on(EVENTS.CHAT_NEU,      handler);
+    on(EVENTS.NACHRICHT_NEU, handler);  // Legacy
+    return () => {
+      off(EVENTS.CHAT_NEU);
+      off(EVENTS.NACHRICHT_NEU);
+    };
   }, [on, off]);
 
   return (

@@ -1,8 +1,10 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { AnfrageStatus, NachrichtTyp, type Anfrage } from "@prisma/client";
+import { AnfrageStatus, type Anfrage } from "@prisma/client";
 import { useSession } from "next-auth/react";
 import { api } from "@/trpc/react";
+import { useSocket } from "@/hooks/useSocket";
+import { EVENTS }    from "@/modules/realtime/events";
 import { ChatModal } from "@/components/ui/ChatModal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useToast } from "@/components/ui/Toast";
@@ -177,7 +179,8 @@ function belegAusResult(r: SetStatusResult, ersteller: string): AuslagerBelegDat
 // ── Haupt-Seite ───────────────────────────────────────────────────────────────
 
 export default function AnfragenPage() {
-  const { show } = useToast();
+  const { show }    = useToast();
+  const { on, off } = useSocket();
   const { data: session } = useSession();
   const user     = session?.user as SessionUser | undefined;
   const ersteller = user?.kuerzel ?? "ADMIN";
@@ -186,18 +189,16 @@ export default function AnfragenPage() {
   const [techFilter,     setTechFilter]     = useState("");
   const [tagesModal,     setTagesModal]     = useState(false);
 
-  // ── Nachricht-Modal State ─────────────────────────────────────────────────
-  const [nachrichtModal, setNachrichtModal] = useState<{
-    kuerzel: string; logId: string; geraeteName: string | null;
-  } | null>(null);
-  const [nachrichtBetreff, setNachrichtBetreff] = useState("");
-  const [nachrichtInhalt,  setNachrichtInhalt]  = useState("");
-
   // ── Chat-Modal State ──────────────────────────────────────────────────────
   const [chatModal, setChatModal] = useState<{
-    nachrichtId: number; logId: string; geraeteName: string | null; technikerKuerzel: string;
+    anfrageId: number; bezugInfo: string; partnerName: string;
   } | null>(null);
-  const utils = api.useUtils();
+
+  // Ungelesene Chat-Nachrichten pro Anfrage (für Badge + Pulse auf Chat-Button)
+  const { data: ungelesenData, refetch: refetchChatBadges } = api.chat.getUngelesenProAnfrage.useQuery(
+    undefined,
+    { refetchInterval: 3_000, staleTime: 2_000 },
+  );
 
   // Beleg-Modals
   const [belegModal,    setBelegModal]    = useState<AuslagerBelegData | null>(null);
@@ -213,17 +214,6 @@ export default function AnfragenPage() {
     ...(techFilter   ? { techniker: techFilter } : {}),
   });
 
-  // ── Nachricht-Mutation ────────────────────────────────────────────────────
-  const sendeNachrichtMutation = api.nachrichten.senden.useMutation({
-    onSuccess: () => {
-      show(`✅ Nachricht an ${nachrichtModal?.kuerzel} gesendet`, "success");
-      setNachrichtModal(null);
-      setNachrichtBetreff("");
-      setNachrichtInhalt("");
-    },
-    onError: (e) => show(e.message, "error"),
-  });
-
   // ── Auto-Refresh alle 5 Sekunden ──────────────────────────────────────────
   useEffect(() => {
     const interval = setInterval(() => { refetch(); }, 5_000);
@@ -231,47 +221,13 @@ export default function AnfragenPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Nachrichten-Vorlage anwenden ──────────────────────────────────────────
-  function applyVorlage(label: string) {
-    const gn  = nachrichtModal?.geraeteName ?? "dein Gerät";
-    const lid = nachrichtModal?.logId ?? "—";
-    switch (label) {
-      case "Gerät bereitstellen":
-        setNachrichtBetreff("Gerät bereitstellen");
-        setNachrichtInhalt(`Bitte stelle das Gerät ${gn} (LogID: ${lid}) bei der nächsten Abholung dem EMTS bereit.`);
-        break;
-      case "Rückfrage zum Gerät":
-        setNachrichtBetreff(`Rückfrage: ${gn}`);
-        setNachrichtInhalt(`Wir haben eine Rückfrage zu deiner Anfrage für ${gn} (LogID: ${lid}).`);
-        break;
-      case "Teil liegt bereit":
-        setNachrichtBetreff("✅ Teil liegt bereit");
-        setNachrichtInhalt(`Dein angefragtes Teil für ${gn} liegt zur Abholung bereit!`);
-        break;
-      case "Bitte melden":
-        setNachrichtBetreff("Bitte melden");
-        setNachrichtInhalt("Bitte melde dich kurz beim EMTS-Lager.");
-        break;
-    }
-  }
-
-  // ── Chat öffnen: holt neueste Nachricht für logId, öffnet Chat-Modal ────────
-  async function openChat(technikerKuerzel: string, logId: string, geraeteName: string | null) {
-    try {
-      const results = await utils.nachrichten.getByLogIdAll.fetch({ kuerzel: technikerKuerzel, logId });
-      if (results.length > 0) {
-        const latest = results.reduce((a, b) =>
-          new Date(a.nachricht.createdAt) > new Date(b.nachricht.createdAt) ? a : b
-        );
-        setChatModal({ nachrichtId: latest.nachrichtId, logId, geraeteName, technikerKuerzel });
-      } else {
-        // Noch keine Nachrichten → Neue Nachricht erstellen
-        setNachrichtModal({ kuerzel: technikerKuerzel, logId, geraeteName });
-      }
-    } catch {
-      setNachrichtModal({ kuerzel: technikerKuerzel, logId, geraeteName });
-    }
-  }
+  // ── Socket: Chat-Badge sofort aktualisieren bei neuer Nachricht ────────────
+  useEffect(() => {
+    const handler = () => { refetchChatBadges(); };
+    on(EVENTS.CHAT_NEU, handler);
+    return () => off(EVENTS.CHAT_NEU);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── setStatus Mutation ────────────────────────────────────────────────────
   // onSuccess ist die EINZIGE Stelle die setBelegModal setzt (vermeidet Timing-Bugs)
@@ -416,20 +372,25 @@ export default function AnfragenPage() {
                 )}
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => setNachrichtModal({ kuerzel: gruppe.techniker, logId: gruppe.logId, geraeteName: gruppe.geraeteName ?? null })}
-                  className="px-3 py-1.5 bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] text-xs font-bold rounded-lg hover:bg-[#0064d2]/20 transition-colors"
-                  title="Neue Nachricht senden"
-                >
-                  💬 Nachricht
-                </button>
-                <button
-                  onClick={() => openChat(gruppe.techniker, gruppe.logId, gruppe.geraeteName ?? null)}
-                  className="px-3 py-1.5 bg-[#8e44ad]/10 text-[#8e44ad] dark:text-[#c39bd3] text-xs font-bold rounded-lg hover:bg-[#8e44ad]/20 transition-colors"
-                  title="Chat-Verlauf öffnen"
-                >
-                  💭 Chat
-                </button>
+                {(() => {
+                  const firstId    = gruppe.anfragen[0]?.id;
+                  const chatCount  = firstId ? ((ungelesenData ?? []).find((x) => x.anfrageId === firstId)?.count ?? 0) : 0;
+                  const bezugInfo  = [gruppe.geraeteName, gruppe.logId !== "unbekannt" ? gruppe.logId : undefined].filter(Boolean).join(" · ");
+                  return (
+                    <button
+                      onClick={() => firstId && setChatModal({ anfrageId: firstId, bezugInfo, partnerName: gruppe.techniker })}
+                      disabled={!firstId}
+                      style={chatCount > 0 ? { animation: "chatPulse 1.5s ease-in-out infinite" } : undefined}
+                      className={`relative px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                        chatCount > 0
+                          ? "bg-[#0064d2] text-white hover:bg-[#0056b3]"
+                          : "bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] hover:bg-[#0064d2]/20"
+                      }`}
+                    >
+                      💬 Chat{chatCount > 0 && ` (${chatCount > 9 ? "9+" : chatCount})`}
+                    </button>
+                  );
+                })()}
                 <button onClick={() => alleErledigen(gruppe.anfragen)} disabled={isBusy}
                   className="px-3 py-1.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors">
                   {isBusy ? "…" : "✅ Alle erledigen"}
@@ -506,99 +467,6 @@ export default function AnfragenPage() {
       {/* Tagesübersicht Modal */}
       {tagesModal && <TagesuebersichtModal onClose={() => setTagesModal(false)} />}
 
-      {/* ── Nachricht-Modal ── */}
-      {nachrichtModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-lg">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#ced4da] dark:border-[#3e4042]">
-              <div>
-                <h3 className="font-black text-lg text-[#1a1a1a] dark:text-[#e4e6eb]">
-                  💬 Nachricht an {nachrichtModal.kuerzel}
-                </h3>
-                <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
-                  Bezug: {nachrichtModal.geraeteName ?? "—"} · LogID: {nachrichtModal.logId}
-                </p>
-              </div>
-              <button
-                onClick={() => { setNachrichtModal(null); setNachrichtBetreff(""); setNachrichtInhalt(""); }}
-                className="text-[#65676b] hover:text-[#fa3e3e] text-xl font-bold"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="px-6 py-5 space-y-4">
-              {/* Vorlagen */}
-              <div>
-                <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-2 uppercase tracking-wider">Vorlagen:</p>
-                <div className="flex flex-wrap gap-2">
-                  {["Gerät bereitstellen", "Rückfrage zum Gerät", "Teil liegt bereit", "Bitte melden"].map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => applyVorlage(v)}
-                      className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] hover:border-[#0064d2] hover:text-[#0064d2] transition-colors"
-                    >
-                      {v}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Betreff */}
-              <div>
-                <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase tracking-wider">Betreff</label>
-                <input
-                  type="text"
-                  value={nachrichtBetreff}
-                  onChange={(e) => setNachrichtBetreff(e.target.value)}
-                  placeholder="Betreff..."
-                  className="w-full px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] text-sm"
-                />
-              </div>
-
-              {/* Inhalt */}
-              <div>
-                <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase tracking-wider">Nachricht</label>
-                <textarea
-                  rows={4}
-                  value={nachrichtInhalt}
-                  onChange={(e) => setNachrichtInhalt(e.target.value)}
-                  placeholder="Nachricht..."
-                  className="w-full px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] text-sm resize-none"
-                />
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex gap-3 px-6 pb-5">
-              <button
-                onClick={() => { setNachrichtModal(null); setNachrichtBetreff(""); setNachrichtInhalt(""); }}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-semibold text-sm hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors"
-              >
-                Abbrechen
-              </button>
-              <button
-                onClick={() => {
-                  if (!nachrichtBetreff.trim() || !nachrichtInhalt.trim()) return;
-                  sendeNachrichtMutation.mutate({
-                    empfaenger: [nachrichtModal.kuerzel],
-                    betreff:    nachrichtBetreff.trim(),
-                    inhalt:     nachrichtInhalt.trim(),
-                    typ:        NachrichtTyp.DIREKT,
-                    logId:      nachrichtModal.logId || undefined,
-                  });
-                }}
-                disabled={!nachrichtBetreff.trim() || !nachrichtInhalt.trim() || sendeNachrichtMutation.isPending}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-[#0064d2] text-white font-bold text-sm hover:bg-[#0055b8] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {sendeNachrichtMutation.isPending ? "Wird gesendet…" : "✉️ Senden"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Einzel-Auslagerbeleg Modal */}
       {belegModal && (
         <BelegModal
@@ -617,14 +485,21 @@ export default function AnfragenPage() {
         />
       )}
 
+      <style>{`
+        @keyframes chatPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(0, 100, 210, 0.5); }
+          50%       { box-shadow: 0 0 0 8px rgba(0, 100, 210, 0); }
+        }
+      `}</style>
+
       {/* ── Chat-Modal ── */}
       {chatModal && (
         <ChatModal
-          nachrichtId={chatModal.nachrichtId}
-          logId={chatModal.logId}
-          geraeteName={chatModal.geraeteName ?? undefined}
+          anfrageId={chatModal.anfrageId}
           currentUser={ersteller}
-          title={`Chat mit ${chatModal.technikerKuerzel}`}
+          isAdmin={true}
+          bezugInfo={chatModal.bezugInfo || undefined}
+          partnerName={chatModal.partnerName}
           onClose={() => { setChatModal(null); refetch(); }}
         />
       )}

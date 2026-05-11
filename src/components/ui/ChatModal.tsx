@@ -2,33 +2,36 @@
 import { useState, useEffect, useRef } from "react";
 import { api }       from "@/trpc/react";
 import { useToast }  from "@/components/ui/Toast";
+import { useSocket } from "@/hooks/useSocket";
+import { EVENTS }    from "@/modules/realtime/events";
 
-// ── Cleanup helper ────────────────────────────────────────────────────────────
+// ── Konstanten ────────────────────────────────────────────────────────────────
 
-function cleanInhalt(text: string): string {
-  return text.replace(/\n\n\[LogID:[^\]]*\]$/, "").trim();
-}
+const ADMIN_QUICK_REPLIES = [
+  "Bitte Gerät bereitstellen",
+  "Rückfrage zum Gerät",
+  "Teil liegt zur Abholung bereit",
+  "Bitte melden",
+];
 
-// ── Bubble ────────────────────────────────────────────────────────────────────
+const TECHNIKER_QUICK_REPLIES = [
+  "✅ Verstanden",
+  "🏃 Hole es gleich ab",
+  "📅 Kommt morgen",
+  "❓ Habe eine Frage",
+];
 
-function Bubble({
-  vonKuerzel, inhalt, createdAt, isOwn,
-}: {
+// ── Chat-Bubble ───────────────────────────────────────────────────────────────
+
+function Bubble({ vonKuerzel, inhalt, createdAt, isOwn }: {
   vonKuerzel: string; inhalt: string; createdAt: Date; isOwn: boolean;
 }) {
   const time = new Date(createdAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
   return (
-    <div style={{
-      display:   "flex",
-      flexDirection: "column",
-      alignItems: isOwn ? "flex-end" : "flex-start",
-      marginBottom: 10,
-    }}>
-      {/* Meta */}
+    <div style={{ display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start", marginBottom: 10 }}>
       <div style={{ fontSize: "0.68rem", color: "var(--text-dim)", marginBottom: 3, paddingInline: 4 }}>
         {isOwn ? `Ich · ${time}` : `${vonKuerzel} · ${time}`}
       </div>
-      {/* Bubble */}
       <div style={{
         maxWidth:     "78%",
         padding:      "8px 12px",
@@ -47,59 +50,71 @@ function Bubble({
   );
 }
 
-// ── ChatModal ─────────────────────────────────────────────────────────────────
-
-const QUICK_REPLIES = ["✅ Verstanden", "🏃 Hole es gleich ab", "📅 Kommt morgen", "❓ Habe eine Frage"];
+// ── Props ─────────────────────────────────────────────────────────────────────
 
 export interface ChatModalProps {
-  nachrichtId:       number;
-  logId?:            string;
-  geraeteName?:      string;
-  currentUser:       string;
-  showQuickReplies?: boolean;
-  title?:            string;
-  onClose:           () => void;
+  anfrageId:   number;
+  currentUser: string;
+  isAdmin:     boolean;
+  bezugInfo?:  string;   // z.B. "T15 · 212.706.341"
+  partnerName?: string;  // z.B. "FS" oder "Admin"
+  onClose:     () => void;
 }
 
+// ── ChatModal ─────────────────────────────────────────────────────────────────
+
 export function ChatModal({
-  nachrichtId,
-  logId,
-  geraeteName,
+  anfrageId,
   currentUser,
-  showQuickReplies = false,
-  title,
+  isAdmin,
+  bezugInfo,
+  partnerName,
   onClose,
 }: ChatModalProps) {
-  const { show } = useToast();
+  const { show }    = useToast();
+  const { on, off } = useSocket();
   const [antwortext, setAntwortext] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Nachricht + Antworten laden — eine einzige Query, refetch nach Antwort
-  const { data: nachricht, isLoading, error, refetch } = api.nachrichten.getById.useQuery(
-    { id: nachrichtId },
-    { enabled: !!nachrichtId && !!currentUser, refetchInterval: 3_000, staleTime: 2_000 },
+  if (!anfrageId || !currentUser) return null;
+
+  // Nachrichten laden + Polling alle 3s
+  const { data: nachrichten = [], isLoading, error, refetch } = api.chat.getByAnfrage.useQuery(
+    { anfrageId },
+    { refetchInterval: 3_000, staleTime: 2_000 },
   );
 
   // Als gelesen markieren beim Öffnen
-  const markGelesenMutation = api.nachrichten.markGelesen.useMutation();
+  const markGelesenMutation = api.chat.markGelesen.useMutation();
   useEffect(() => {
-    markGelesenMutation.mutate({ nachrichtId, kuerzel: currentUser });
+    markGelesenMutation.mutate({ anfrageId });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nachrichtId]);
+  }, [anfrageId]);
 
-  // Auto-Scroll bei neuen Antworten
-  const antwortenLen = nachricht?.antworten.length ?? 0;
+  // Socket: sofortiger Refresh wenn CHAT_NEU für diese Anfrage
+  useEffect(() => {
+    const handler = (d: unknown) => {
+      const data = d as { anfrageId: number };
+      if (data.anfrageId === anfrageId) refetch();
+    };
+    on(EVENTS.CHAT_NEU, handler);
+    return () => off(EVENTS.CHAT_NEU);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anfrageId, on, off]);
+
+  // Auto-Scroll bei neuen Nachrichten
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [antwortenLen]);
+  }, [nachrichten.length]);
 
-  // Antworten senden
-  const antwortenMutation = api.nachrichten.antworten.useMutation({
+  // Senden
+  const sendenMutation = api.chat.senden.useMutation({
     onSuccess: () => {
       setAntwortext("");
       refetch();
+      markGelesenMutation.mutate({ anfrageId });
       setTimeout(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }, 150);
@@ -110,35 +125,12 @@ export function ChatModal({
   function handleSenden() {
     const t = antwortext.trim();
     if (!t) return;
-    antwortenMutation.mutate({ nachrichtId, inhalt: t });
+    sendenMutation.mutate({ anfrageId, inhalt: t });
   }
 
-  // Nachricht + Antworten als chronologische Liste
-  const messages = nachricht ? [
-    {
-      key:        `n-${nachricht.id}`,
-      vonKuerzel: nachricht.vonKuerzel,
-      inhalt:     cleanInhalt(nachricht.inhalt),
-      createdAt:  nachricht.createdAt,
-    },
-    ...(nachricht.antworten ?? []).map((a) => ({
-      key:        `a-${a.id}`,
-      vonKuerzel: a.vonKuerzel,
-      inhalt:     a.inhalt,
-      createdAt:  a.createdAt,
-    })),
-  ].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) : [];
+  const quickReplies = isAdmin ? ADMIN_QUICK_REPLIES : TECHNIKER_QUICK_REPLIES;
+  const headerTitle  = `💬 Chat${partnerName ? ` mit ${partnerName}` : ""}`;
 
-  const headerTitle = title
-    ?? (logId && logId !== "unbekannt" ? `Chat · LogID ${logId}` : "Chat");
-
-  const sub = [geraeteName, logId && logId !== "unbekannt" ? logId : undefined]
-    .filter(Boolean).join(" · ");
-
-  // Frühe Returns — immer NACH allen Hooks!
-  if (!nachrichtId || !currentUser) return null;
-
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
       style={{
@@ -156,50 +148,32 @@ export function ChatModal({
     >
       <div
         style={{
-          background:   "var(--card-bg)",
-          borderRadius: 16,
-          boxShadow:    "0 24px 60px rgba(0,0,0,0.3)",
-          width:        "100%",
-          maxWidth:     600,
-          maxHeight:    "85vh",
-          display:      "flex",
+          background:    "var(--card-bg)",
+          borderRadius:  16,
+          boxShadow:     "0 24px 60px rgba(0,0,0,0.3)",
+          width:         "100%",
+          maxWidth:      620,
+          maxHeight:     "88vh",
+          display:       "flex",
           flexDirection: "column",
-          overflow:     "hidden",
-          color:        "var(--text)",
+          overflow:      "hidden",
+          color:         "var(--text)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ── */}
-        <div style={{
-          padding:     "14px 18px",
-          borderBottom: "1px solid var(--border)",
-          display:     "flex",
-          alignItems:  "center",
-          gap:         10,
-          flexShrink:  0,
-        }}>
-          <span style={{ fontSize: "1.4rem" }}>💬</span>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: "0.95rem" }}>{headerTitle}</div>
-            {sub && <div style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>{sub}</div>}
+            {bezugInfo && (
+              <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", marginTop: 1 }}>{bezugInfo}</div>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "1.4rem", lineHeight: 1, padding: "2px 6px" }}
-          >
-            ×
-          </button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "1.4rem", lineHeight: 1, padding: "2px 6px" }}>×</button>
         </div>
 
-        {/* ── Messages ── */}
-        <div
-          ref={scrollRef}
-          style={{
-            flex:      1,
-            overflowY: "auto",
-            padding:   "16px 18px",
-          }}
-        >
+        {/* ── Nachrichten ── */}
+        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px 18px" }}>
           {isLoading && (
             <div style={{ textAlign: "center", color: "var(--text-dim)", padding: "2rem" }}>Laden...</div>
           )}
@@ -208,66 +182,54 @@ export function ChatModal({
               Fehler: {error.message}
             </div>
           )}
-          {!isLoading && !error && messages.length === 0 && (
-            <div style={{ textAlign: "center", color: "var(--text-dim)", padding: "2rem" }}>Keine Nachrichten</div>
+          {!isLoading && !error && nachrichten.length === 0 && (
+            <div style={{ textAlign: "center", color: "var(--text-dim)", padding: "2rem" }}>
+              <div style={{ fontSize: "2rem", marginBottom: 8 }}>💬</div>
+              Noch keine Nachrichten — schreibe die erste!
+            </div>
           )}
-          {messages.map((m) => (
+          {nachrichten.map((n) => (
             <Bubble
-              key={m.key}
-              vonKuerzel={m.vonKuerzel}
-              inhalt={m.inhalt}
-              createdAt={m.createdAt}
-              isOwn={m.vonKuerzel === currentUser}
+              key={n.id}
+              vonKuerzel={n.vonKuerzel}
+              inhalt={n.inhalt}
+              createdAt={n.createdAt}
+              isOwn={n.vonKuerzel === currentUser}
             />
           ))}
         </div>
 
         {/* ── Quick Replies ── */}
-        {showQuickReplies && (
-          <div style={{
-            padding:     "10px 18px 0",
-            display:     "flex",
-            flexWrap:    "wrap",
-            gap:         6,
-            borderTop:   "1px solid var(--border)",
-            flexShrink:  0,
-          }}>
-            {QUICK_REPLIES.map((r) => (
-              <button
-                key={r}
-                onClick={() => setAntwortext(r)}
-                style={{
-                  padding:      "3px 10px",
-                  borderRadius: 20,
-                  border:       `1px solid ${antwortext === r ? "var(--primary)" : "var(--border)"}`,
-                  background:   antwortext === r ? "var(--primary)" : "var(--bg)",
-                  color:        antwortext === r ? "white" : "var(--text)",
-                  cursor:       "pointer",
-                  fontSize:     "0.78rem",
-                  fontFamily:   "'Ubuntu', sans-serif",
-                  fontWeight:   antwortext === r ? 700 : 500,
-                  transition:   "all 0.15s",
-                }}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
-        )}
+        <div style={{ padding: "10px 18px 0", display: "flex", flexWrap: "wrap", gap: 6, borderTop: "1px solid var(--border)", flexShrink: 0 }}>
+          {quickReplies.map((r) => (
+            <button
+              key={r}
+              onClick={() => setAntwortext(r)}
+              style={{
+                padding:      "3px 10px",
+                borderRadius: 20,
+                border:       `1px solid ${antwortext === r ? "var(--primary)" : "var(--border)"}`,
+                background:   antwortext === r ? "var(--primary)" : "var(--bg)",
+                color:        antwortext === r ? "white" : "var(--text)",
+                cursor:       "pointer",
+                fontSize:     "0.78rem",
+                fontFamily:   "'Ubuntu', sans-serif",
+                fontWeight:   antwortext === r ? 700 : 500,
+                transition:   "all 0.15s",
+              }}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
 
-        {/* ── Input ── */}
-        <div style={{
-          padding:     "12px 18px",
-          borderTop:   "1px solid var(--border)",
-          display:     "flex",
-          gap:         10,
-          flexShrink:  0,
-        }}>
+        {/* ── Eingabe ── */}
+        <div style={{ padding: "12px 18px", borderTop: "1px solid var(--border)", display: "flex", gap: 10, flexShrink: 0 }}>
           <textarea
             value={antwortext}
             onChange={(e) => setAntwortext(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && e.ctrlKey) handleSenden(); }}
-            placeholder="Antwort schreiben… (Strg+Enter)"
+            placeholder="Nachricht schreiben… (Strg+Enter)"
             rows={2}
             style={{
               flex:         1,
@@ -282,12 +244,12 @@ export function ChatModal({
               resize:       "none",
               transition:   "border-color 0.2s",
             }}
-            onFocus={(e)  => (e.currentTarget.style.borderColor = "var(--primary)")}
-            onBlur={(e)   => (e.currentTarget.style.borderColor = "var(--border)")}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "var(--primary)")}
+            onBlur={(e)  => (e.currentTarget.style.borderColor = "var(--border)")}
           />
           <button
             onClick={handleSenden}
-            disabled={!antwortext.trim() || antwortenMutation.isPending}
+            disabled={!antwortext.trim() || sendenMutation.isPending}
             style={{
               alignSelf:    "flex-end",
               padding:      "10px 18px",
@@ -303,7 +265,7 @@ export function ChatModal({
               transition:   "all 0.15s",
             }}
           >
-            {antwortenMutation.isPending ? "⏳" : "Senden"}
+            {sendenMutation.isPending ? "⏳" : "Senden"}
           </button>
         </div>
       </div>
