@@ -1,6 +1,7 @@
 import { BuchungsTyp } from "@prisma/client";
-import { prisma }     from "@/core/db/prisma";
-import { bucheLager } from "@/modules/buchungen/service";
+import { prisma }         from "@/core/db/prisma";
+import { bucheLager }     from "@/modules/buchungen/service";
+import { naechsteBelegNr } from "@/core/infra/belegnr";
 import { STANDARD_TEILE } from "./constants";
 
 // ── Gerät suchen ──────────────────────────────────────────────────────────────
@@ -138,13 +139,18 @@ export type ExecuteInput = {
 };
 
 export type ExecuteResult = {
-  teiltyp:     string;
-  artikelId:   number;
-  artikelName: string;
-  lagerplatz:  string | null;
-  menge:       number;
-  buchungId:   number;
-  istNeu:      boolean;
+  teiltyp:      string;
+  artikelId:    number;
+  artikelName:  string;
+  kategorie:    string;
+  lagerplatz:   string | null;
+  menge:        number;
+  buchungId:    number;
+  belegNr:      string;
+  neuerBestand: number;
+  grading:      string;
+  notizText:    string | undefined;
+  istNeu:       boolean;
 };
 
 export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
@@ -200,6 +206,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     }
 
     // 4. EINGANG-Buchung erstellen
+    const neuerBestand = artikel.bestand + item.menge;
     const notiz = [
       `Grading: ${item.grading}`,
       `Gerät: ${input.geraetName}`,
@@ -214,7 +221,10 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
       notiz,
     });
 
-    // 5. Kompatibilitaet anlegen/aktualisieren — für Techniker-Portal-Suchbarkeit!
+    // 5. Beleg-Nummer generieren
+    const belegNr = await naechsteBelegNr("EL");
+
+    // 6. Kompatibilitaet anlegen/aktualisieren — für Techniker-Portal-Suchbarkeit!
     //    @@unique([geraet, teiltyp]) → upsert ist sicher
     await prisma.kompatibilitaet.upsert({
       where:  { geraet_teiltyp: { geraet: input.geraetName, teiltyp: item.teiltyp } },
@@ -223,12 +233,17 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     });
 
     results.push({
-      teiltyp:     item.teiltyp,
-      artikelId:   artikel.id,
-      artikelName: artikel.bezeichnung,
-      lagerplatz:  artikel.lagerplatz,
-      menge:       item.menge,
-      buchungId:   buchung.id,
+      teiltyp:      item.teiltyp,
+      artikelId:    artikel.id,
+      artikelName:  artikel.bezeichnung,
+      kategorie:    artikel.kategorie,
+      lagerplatz:   artikel.lagerplatz,
+      menge:        item.menge,
+      buchungId:    buchung.id,
+      belegNr,
+      neuerBestand,
+      grading:      item.grading,
+      notizText:    item.notiz,
       istNeu,
     });
   }

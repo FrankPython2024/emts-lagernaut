@@ -5,6 +5,12 @@ import { useSession }   from "next-auth/react";
 import { api }          from "@/trpc/react";
 import { useToast }     from "@/components/ui/Toast";
 import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
+import {
+  printAlleEinlagerBelege,
+  printEinlagerBeleg,
+  EinlagerBelegPreview,
+  type EinlagerBelegData,
+} from "@/components/ui/EinlagerBeleg";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,14 +33,19 @@ type AusgewaehltItem = {
 };
 
 type ErgebnisItem = {
-  teiltyp:     string;
-  icon:        string;
-  label:       string;
-  artikelName: string;
-  lagerplatz:  string | null;
-  menge:       number;
-  buchungId:   number;
-  eingelagert: boolean;
+  teiltyp:      string;
+  icon:         string;
+  label:        string;
+  artikelName:  string;
+  kategorie:    string;
+  lagerplatz:   string | null;
+  menge:        number;
+  buchungId:    number;
+  belegNr:      string;
+  neuerBestand: number;
+  grading:      string;
+  notizText:    string | undefined;
+  eingelagert:  boolean;
 };
 
 // ── Shared Styles ─────────────────────────────────────────────────────────────
@@ -624,6 +635,15 @@ function StepTeile({
   const [konfig,    setKonfig]    = useState<typeof STANDARD_TEILE[number] | null>(null);
   const [editItem,  setEditItem]  = useState<AusgewaehltItem | null>(null);
 
+  // Aktuellen Bestand je Teiltyp für dieses Gerät laden (Bug 3)
+  const bestandQuery = api.kompatibilitaet.getByGeraetMitStandard.useQuery(
+    { geraet: geraet.name },
+    { staleTime: 60_000 },
+  );
+  const bestandMap = new Map(
+    (bestandQuery.data?.teile ?? []).map((t) => [t.teiltyp, t]),
+  );
+
   function handleSave(item: AusgewaehltItem) {
     const existing = items.findIndex((i) => i.teiltyp === item.teiltyp);
     if (existing >= 0) {
@@ -681,7 +701,10 @@ function StepTeile({
           {/* Teile-Grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 10, marginBottom: "2rem" }}>
             {STANDARD_TEILE.map((teil) => {
-              const sel = selected.has(teil.id);
+              const sel     = selected.has(teil.id);
+              const bInfo   = bestandMap.get(teil.id);
+              const bestand = bInfo?.bestand ?? 0;
+              const linked  = !!bInfo?.artikelId;
               return (
                 <button
                   key={teil.id}
@@ -718,6 +741,21 @@ function StepTeile({
                   <span style={{ fontSize: "0.8rem", fontWeight: 700, textAlign: "center", lineHeight: 1.3, color: "var(--text)" }}>
                     {teil.label}
                   </span>
+                  {/* Bestand-Badge */}
+                  {linked && !sel && (
+                    <span style={{
+                      fontSize: "0.68rem", padding: "0.15rem 0.5rem", borderRadius: 5, fontWeight: 700,
+                      background: bestand > 0 ? "rgba(4,180,117,0.12)" : "rgba(250,62,62,0.1)",
+                      color:      bestand > 0 ? "#038F5C"              : "#c0392b",
+                    }}>
+                      {bestand > 0 ? `${bestand}× im Lager` : "0 auf Lager"}
+                    </span>
+                  )}
+                  {!linked && !sel && (
+                    <span style={{ fontSize: "0.65rem", color: "var(--text-dim)", fontStyle: "italic" }}>
+                      noch nicht erfasst
+                    </span>
+                  )}
                   <span style={{
                     fontSize:    "0.72rem",
                     padding:     "0.2rem 0.6rem",
@@ -973,15 +1011,44 @@ function StepBestaetigung({
 
 function StepFertig({
   ergebnisse,
+  kuerzel,
+  geraetName,
   onNochEins,
   onFertig,
 }: {
   ergebnisse: ErgebnisItem[];
+  kuerzel:    string;
+  geraetName: string;
   onNochEins: () => void;
   onFertig:   () => void;
 }) {
-  const [eingelagert, setEingelagert] = useState<Record<number, boolean>>({});
+  const [eingelagert,  setEingelagert]  = useState<Record<number, boolean>>({});
+  const [drucktEinzel, setDrucktEinzel] = useState<Record<number, boolean>>({});
   const alleEingelagert = ergebnisse.every((_, i) => eingelagert[i]);
+
+  function toBelegData(item: ErgebnisItem): EinlagerBelegData {
+    return {
+      belegNr:            item.belegNr,
+      artikelBezeichnung: item.artikelName,
+      lagerplatz:         item.lagerplatz,
+      kategorie:          item.kategorie,
+      menge:              item.menge,
+      neuerBestand:       item.neuerBestand,
+      notiz:              item.notizText ?? item.grading,
+      ersteller:          kuerzel,
+      datum:              new Date(),
+    };
+  }
+
+  async function handleAlleDrucken() {
+    await printAlleEinlagerBelege(ergebnisse.map(toBelegData));
+  }
+
+  async function handleEinzelDrucken(idx: number) {
+    setDrucktEinzel((prev) => ({ ...prev, [idx]: true }));
+    await printEinlagerBeleg(toBelegData(ergebnisse[idx]));
+    setDrucktEinzel((prev) => ({ ...prev, [idx]: false }));
+  }
 
   return (
     <div style={{ maxWidth: 620, margin: "0 auto" }}>
@@ -996,13 +1063,47 @@ function StepFertig({
 
         <div style={{ width: 48, height: 3, margin: "0 auto 1.5rem", borderRadius: 2, background: "linear-gradient(90deg, #008BD2, #04B475)" }} />
 
+        {/* Etiketten drucken */}
+        <div style={{ textAlign: "left", marginBottom: "1.5rem" }}>
+          <div style={{ fontWeight: 800, fontSize: "1.05rem", marginBottom: 10 }}>
+            1️⃣ Drucke die Etiketten
+          </div>
+          <button
+            onClick={handleAlleDrucken}
+            style={{ ...S.bigBtn("#202F61"), marginBottom: 12 }}
+          >
+            🖨️ Alle {ergebnisse.length} Etiketten drucken
+          </button>
+
+          {/* Beleg-Vorschauen */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {ergebnisse.map((item, idx) => (
+              <div key={item.buchungId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "0.7rem 1rem", background: "var(--bg)", borderRadius: 10, border: "1px solid var(--border)" }}>
+                <div style={{ flexShrink: 0, transform: "scale(0.55)", transformOrigin: "left center", width: 130, height: 52, overflow: "hidden" }}>
+                  <EinlagerBelegPreview data={toBelegData(item)} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {item.label}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>{item.belegNr}</div>
+                </div>
+                <button
+                  onClick={() => handleEinzelDrucken(idx)}
+                  disabled={drucktEinzel[idx]}
+                  style={{ flexShrink: 0, padding: "0.4rem 0.8rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card-bg)", color: "var(--text-dim)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.8rem", fontWeight: 600, whiteSpace: "nowrap" }}
+                >
+                  {drucktEinzel[idx] ? "⏳" : "🖨️ Einzeln"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Einlager-Anweisungen */}
         <div style={{ textAlign: "left", marginBottom: "2rem" }}>
           <div style={{ fontWeight: 800, fontSize: "1.05rem", marginBottom: 12 }}>
-            Was du jetzt machst:
-          </div>
-          <div style={{ fontSize: "0.9rem", color: "var(--text-dim)", marginBottom: 14, padding: "0.8rem", background: "var(--bg)", borderRadius: 8 }}>
-            Lege die Teile an diese Plätze:
+            2️⃣ Lege die Teile an diese Plätze:
           </div>
 
           {ergebnisse.map((item, idx) => (
@@ -1106,19 +1207,26 @@ export default function EinlagernPage() {
   const [items,      setItems]      = useState<AusgewaehltItem[]>([]);
   const [ergebnisse, setErgebnisse] = useState<ErgebnisItem[]>([]);
 
+  const kuerzel = (session?.user as { kuerzel?: string } | undefined)?.kuerzel ?? "";
+
   const executeMutation = api.einlagern.execute.useMutation({
     onSuccess: (data) => {
       const results: ErgebnisItem[] = data.map((r) => {
         const teilInfo = STANDARD_TEILE.find((t) => t.id === r.teiltyp);
         return {
-          teiltyp:     r.teiltyp,
-          icon:        teilInfo?.icon    ?? "🔧",
-          label:       teilInfo?.label   ?? r.teiltyp,
-          artikelName: r.artikelName,
-          lagerplatz:  r.lagerplatz,
-          menge:       r.menge,
-          buchungId:   r.buchungId,
-          eingelagert: false,
+          teiltyp:      r.teiltyp,
+          icon:         teilInfo?.icon  ?? "🔧",
+          label:        teilInfo?.label ?? r.teiltyp,
+          artikelName:  r.artikelName,
+          kategorie:    r.kategorie,
+          lagerplatz:   r.lagerplatz,
+          menge:        r.menge,
+          buchungId:    r.buchungId,
+          belegNr:      r.belegNr,
+          neuerBestand: r.neuerBestand,
+          grading:      r.grading,
+          notizText:    r.notizText,
+          eingelagert:  false,
         };
       });
       setErgebnisse(results);
@@ -1199,6 +1307,8 @@ export default function EinlagernPage() {
       {step === 4 && (
         <StepFertig
           ergebnisse={ergebnisse}
+          kuerzel={kuerzel}
+          geraetName={geraet?.name ?? ""}
           onNochEins={resetWizard}
           onFertig={() => router.push("/admin")}
         />

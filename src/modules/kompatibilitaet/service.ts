@@ -343,47 +343,60 @@ export type GeraetMitStandardResult = {
 };
 
 /**
- * Kompatible Teile für ein Gerät — mit Fallback auf Standard-Teile.
- * Wird in LogID-Suche und Techniker-Portal verwendet.
+ * IMMER alle 13 Standard-Teile zurückgeben — mit Bestand für verknüpfte Teile.
  *
- * Gefunden → echte Kompatibilitäts-Einträge mit Bestand
- * Nicht gefunden → alle 13 Standard-Teile mit Bestand 0
+ * Kernlogik:
+ *   - Bestehende Kompatibilitäts-Einträge werden in eine Map geladen
+ *   - Jedes der 13 Standard-Teile bekommt den verknüpften Artikel (falls vorhanden)
+ *   - Nicht verknüpfte Teile: artikelId=null, bestand=0, verfuegbar=false (Zustand C)
+ *
+ * Wird in LogID-Suche und Techniker-Portal verwendet.
+ * kompatibilitaetVorhanden=true → Badge "Keine Kompatibilität" wird ausgeblendet
  */
 export async function getByGeraetMitStandard(geraet: string): Promise<GeraetMitStandardResult> {
   const geraetLow       = geraet.trim().toLowerCase();
   const matchingGeraete = await findMatchingGeraete(geraetLow);
 
-  if (matchingGeraete.length > 0) {
-    const treffer = await prisma.kompatibilitaet.findMany({
-      where:   { geraet: { in: matchingGeraete } },
-      include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true } } },
-    });
+  const treffer = matchingGeraete.length > 0
+    ? await prisma.kompatibilitaet.findMany({
+        where:   { geraet: { in: matchingGeraete } },
+        include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true } } },
+      })
+    : [];
 
-    if (treffer.length > 0) {
-      return {
-        kompatibilitaetVorhanden: true,
-        teile: treffer.map((k) => ({
-          teiltyp:     k.teiltyp,
-          artikelId:   k.artikel.id,
-          bezeichnung: k.artikel.bezeichnung,
-          kategorie:   k.artikel.kategorie,
-          bestand:     k.artikel.bestand,
-          verfuegbar:  k.artikel.bestand > 0,
-        })),
-      };
+  // Map: teiltyp → artikel (nur der erste Treffer pro Teiltyp)
+  const verknuepftMap = new Map<string, { id: number; bezeichnung: string; kategorie: string; bestand: number }>();
+  for (const k of treffer) {
+    if (!verknuepftMap.has(k.teiltyp)) {
+      verknuepftMap.set(k.teiltyp, k.artikel);
     }
   }
 
-  // Keine Kompatibilität → Standard-Teile mit Bestand 0
+  const kompatibilitaetVorhanden = treffer.length > 0;
+
+  // Immer alle 13 Standard-Teile — verknüpfte mit Bestandsdaten, andere als "nicht erfasst"
   return {
-    kompatibilitaetVorhanden: false,
-    teile: STANDARD_TEILE_LOOKUP.map((teil) => ({
-      teiltyp:     teil,
-      artikelId:   null,
-      bezeichnung: null,
-      kategorie:   teil,
-      bestand:     0,
-      verfuegbar:  false,
-    })),
+    kompatibilitaetVorhanden,
+    teile: STANDARD_TEILE_LOOKUP.map((teiltyp) => {
+      const artikel = verknuepftMap.get(teiltyp);
+      if (artikel) {
+        return {
+          teiltyp,
+          artikelId:   artikel.id,
+          bezeichnung: artikel.bezeichnung,
+          kategorie:   artikel.kategorie,
+          bestand:     artikel.bestand,
+          verfuegbar:  artikel.bestand > 0,
+        };
+      }
+      return {
+        teiltyp,
+        artikelId:   null,
+        bezeichnung: null,
+        kategorie:   teiltyp,
+        bestand:     0,
+        verfuegbar:  false,
+      };
+    }),
   };
 }

@@ -207,6 +207,69 @@ export async function printEinlagerBeleg(data: EinlagerBelegData): Promise<void>
   w.document.close();
 }
 
+// ── Multi-Beleg-Druck (alle in einem Fenster, mit Seitenumbrüchen) ────────────
+
+export async function printAlleEinlagerBelege(belege: EinlagerBelegData[]): Promise<void> {
+  if (belege.length === 0) return;
+  // Popup-Blocker: window.open MUSS VOR jedem await stehen!
+  const w = window.open("", "_blank", "width=400,height=300");
+  if (!w) { console.warn("[printAlleEinlagerBelege] Popup blockiert"); return; }
+
+  const qrCodes = await Promise.all(belege.map((b) => genQrSvg(`EL:${b.belegNr}`)));
+
+  const labels = belege.map((b, i) => {
+    const bez  = b.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const lp   = (b.lagerplatz ?? "—").replace(/&/g, "&amp;");
+    const sm   = b.artikelBezeichnung.length > 22 ? "7.5pt" : "9pt";
+    const last = i === belege.length - 1;
+    return `<div class="wrap${last ? "" : " pb"}">
+      <div class="el">
+        <div class="left">
+          <div class="typ">EINLAGERUNG</div>
+          <div class="bez" style="font-size:${sm}">${bez}</div>
+          <div class="row3"><span class="lp">${lp}</span><span class="mng">+${b.menge} Stk</span></div>
+          <div class="bnr">${b.belegNr}</div>
+        </div>
+        <div class="right"><div class="emts">EMTS</div><img class="qr" src="${qrCodes[i]}" alt="" /></div>
+      </div>
+    </div>`;
+  }).join("\n");
+
+  const scaledGap = Math.round(192 * 0.64 + 16);
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: Arial, Helvetica, sans-serif; }
+    @media screen {
+      body { margin: 0; padding: 16px; background: #f0f0f0; display: flex; flex-direction: column; align-items: flex-start; gap: ${scaledGap}px; }
+      .wrap { transform: scale(1.64); transform-origin: top left; display: inline-block; flex-shrink: 0; }
+    }
+    @media print {
+      @page { size: 55mm 30mm; margin: 0; }
+      body { margin: 0; padding: 0; }
+      .wrap { display: block; }
+      .pb { page-break-after: always; }
+    }
+    .el   { width: 55mm; height: 30mm; padding: 1.5mm; display: flex; gap: 1.5mm; overflow: hidden; background: #fff; color: #000; }
+    .left { flex: 1; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
+    .typ  { font-size: 7pt; font-weight: bold; letter-spacing: .5px; }
+    .bez  { font-weight: bold; line-height: 1.2; word-break: break-word; overflow: hidden;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .row3 { display: flex; justify-content: space-between; align-items: center; font-size: 7pt; gap: 1mm; }
+    .lp   { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mng  { font-weight: bold; color: #006600; white-space: nowrap; flex-shrink: 0; }
+    .bnr  { font-size: 6pt; color: #666; }
+    .right { width: 16mm; display: flex; flex-direction: column; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .emts { font-size: 6pt; font-weight: bold; letter-spacing: 2px; }
+    .qr   { width: 14mm; height: 14mm; image-rendering: pixelated; }
+  </style></head><body>
+    ${labels}
+    <script>(function(){function p(){window.focus();window.print();}document.readyState==='complete'?p():window.addEventListener('load',p);})();</script>
+  </body></html>`;
+
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
+
 // ── Vorschau (Bildschirm, skaliert) ──────────────────────────────────────────
 
 export function EinlagerBelegPreview({ data, scale = 1 }: { data: EinlagerBelegData; scale?: number }) {
