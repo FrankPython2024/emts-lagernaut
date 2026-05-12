@@ -55,11 +55,24 @@ function LoginForm() {
   if (status === "loading") return null;
 
   return (
-    <div className="min-h-screen bg-[#f0f2f5] dark:bg-[#18191a] flex items-center justify-center">
+    <div
+      className="min-h-screen flex items-center justify-center relative overflow-hidden"
+      style={{ background: dark ? "#15181E" : "linear-gradient(135deg, #f5f6f8 0%, #e8edf5 100%)" }}
+    >
+      {/* AfB Brand Background Elements */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full opacity-10"
+          style={{ background: "radial-gradient(circle, #008BD2 0%, transparent 70%)" }} />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 rounded-full opacity-10"
+          style={{ background: "radial-gradient(circle, #04B475 0%, transparent 70%)" }} />
+      </div>
+
+      {/* Theme Toggle */}
       <div className="absolute top-4 right-4">
         <button
           onClick={toggleTheme}
-          className="px-3 py-1.5 rounded-lg bg-white dark:bg-[#242526] border border-[#ced4da] dark:border-[#3e4042] text-sm text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors"
+          className="px-3 py-1.5 rounded-lg text-sm transition-colors"
+          style={{ background: dark ? "#1F2329" : "white", border: "1px solid", borderColor: dark ? "#3A3F47" : "#d0d5e0", color: dark ? "#b0b3b8" : "#65676b" }}
         >
           {dark ? "☀️ Hell" : "🌙 Dunkel"}
         </button>
@@ -68,26 +81,38 @@ function LoginForm() {
       <form
         id="loginForm"
         onSubmit={handleSubmit}
-        className="w-full max-w-sm bg-white dark:bg-[#242526] rounded-2xl shadow-2xl border border-[#ced4da] dark:border-[#3e4042] p-8 text-center"
-        style={{ animation: "none" }}
+        className="w-full max-w-sm rounded-2xl p-8 text-center relative z-10"
+        style={{
+          background:   dark ? "#1F2329" : "white",
+          border:       `1px solid ${dark ? "#3A3F47" : "#d0d5e0"}`,
+          boxShadow:    dark ? "0 20px 60px rgba(0,0,0,0.4)" : "0 8px 40px rgba(32,47,97,0.15)",
+          animation:    "none",
+        }}
       >
-        <div className="mb-2">
+        {/* Logo */}
+        <div className="mb-3">
           <img
             src="https://www.afbshop.de/media/ca/1f/fe/1760428029/logo.svg"
             alt="AfB Logo"
-            className="h-12 mx-auto dark:bg-white/90 dark:p-1 dark:rounded-md"
+            className="h-14 mx-auto"
+            style={{ filter: dark ? "none" : "none" }}
           />
         </div>
 
-        <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb] mt-4">
+        {/* Title */}
+        <h1 className="text-2xl font-black mt-3" style={{ color: dark ? "#e4e6eb" : "#202F61" }}>
           EMTS Lagernaut
         </h1>
-        <p className="text-xs font-bold tracking-widest text-[#0064d2] dark:text-[#45bdff] uppercase mt-1 mb-8">
-          Ersatzteil Management
+        <p className="text-xs font-bold tracking-widest uppercase mt-1 mb-7" style={{ color: "#008BD2" }}>
+          Ersatzteil Management · AfB Sömmerda
         </p>
 
+        {/* Trennlinie mit Logo-Gradient */}
+        <div className="w-16 h-0.5 mx-auto mb-7 rounded-full"
+          style={{ background: "linear-gradient(90deg, #008BD2, #04B475)" }} />
+
         {error && (
-          <div className="mb-4 px-4 py-2.5 bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 text-[#fa3e3e] rounded-lg text-sm font-medium">
+          <div className="mb-4 px-4 py-2.5 rounded-lg text-sm font-medium" style={{ background: "rgba(250,62,62,0.1)", border: "1px solid rgba(250,62,62,0.3)", color: "#fa3e3e" }}>
             {error}
           </div>
         )}
@@ -97,10 +122,17 @@ function LoginForm() {
           placeholder="KÜRZEL"
           value={kuerzel}
           onChange={(e) => setKuerzel(e.target.value.toUpperCase())}
-          className="w-full px-4 py-3 mb-3 rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] font-bold text-center tracking-widest outline-none focus:border-[#0064d2] dark:focus:border-[#45bdff] transition-colors"
+          className="w-full px-4 py-3 mb-3 rounded-xl font-bold text-center tracking-widest outline-none transition-all"
+          style={{
+            border:      `2px solid ${dark ? "#3A3F47" : "#d0d5e0"}`,
+            background:  dark ? "#15181E" : "#f5f6f8",
+            color:       dark ? "#e4e6eb" : "#1a1a1a",
+          }}
           autoComplete="username"
           autoFocus
           onKeyDown={(e) => e.key === "Enter" && document.getElementById("pw")?.focus()}
+          onFocus={(e) => (e.currentTarget.style.borderColor = "#202F61")}
+          onBlur={(e)  => (e.currentTarget.style.borderColor = dark ? "#3A3F47" : "#d0d5e0")}
         />
 
         <input
@@ -109,24 +141,32 @@ function LoginForm() {
           placeholder="Passwort"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-4 py-3 mb-5 rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] dark:focus:border-[#45bdff] transition-colors"
+          className="w-full px-4 py-3 mb-5 rounded-xl outline-none transition-all"
+          style={{
+            border:     `2px solid ${dark ? "#3A3F47" : "#d0d5e0"}`,
+            background: dark ? "#15181E" : "#f5f6f8",
+            color:      dark ? "#e4e6eb" : "#1a1a1a",
+          }}
           autoComplete="current-password"
+          onFocus={(e) => (e.currentTarget.style.borderColor = "#202F61")}
+          onBlur={(e)  => (e.currentTarget.style.borderColor = dark ? "#3A3F47" : "#d0d5e0")}
         />
 
         <button
           type="submit"
           disabled={loading || !kuerzel || !password}
-          className="w-full py-3 bg-[#0064d2] hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
+          className="w-full py-3 text-white font-bold rounded-xl transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
+          style={{ background: "linear-gradient(135deg, #202F61 0%, #2D3D7A 100%)", boxShadow: "0 4px 12px rgba(32,47,97,0.3)" }}
         >
           {loading ? (
             <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
-            "Portal betreten"
+            "Portal betreten →"
           )}
         </button>
 
-        <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-6">
-          AfB Sömmerda · EMTS Lagernaut v2
+        <p className="text-xs mt-5" style={{ color: dark ? "#b0b3b8" : "#65676b" }}>
+          Social &amp; Green IT · AfB Sömmerda
         </p>
       </form>
 
@@ -142,7 +182,6 @@ function LoginForm() {
   );
 }
 
-// Suspense Wrapper — Next.js 15 Pflicht für useSearchParams()
 export default function LoginPage() {
   return (
     <Suspense fallback={null}>

@@ -12,29 +12,47 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: {
-          DEFAULT: "#0064d2",
-          dark: "#45bdff",
+        // AfB Brand Colors
+        "afb-navy": {
+          DEFAULT: "#202F61",
+          dark:    "#1A2550",
+          light:   "#2D3D7A",
+          dim:     "#3D5285",
         },
-        success: "#00a400",
-        danger: "#fa3e3e",
+        "afb-blue": {
+          DEFAULT: "#008BD2",
+          dark:    "#0072AC",
+          light:   "#1FA5E8",
+        },
+        "afb-green": {
+          DEFAULT: "#04B475",
+          dark:    "#038F5C",
+          light:   "#1AC98D",
+        },
+        // Legacy-Tokens (gemapped auf AfB)
+        primary: {
+          DEFAULT: "#202F61",
+          dark:    "#1FA5E8",  // dark-mode primary
+        },
+        success: "#04B475",
+        danger:  "#fa3e3e",
         warning: "#f7b928",
-        purple: "#8e44ad",
+        purple:  "#7c3aed",
         card: {
           light: "#ffffff",
-          dark: "#242526",
+          dark:  "#1F2329",
         },
         bg: {
-          light: "#f0f2f5",
-          dark: "#18191a",
+          light: "#f5f6f8",
+          dark:  "#15181E",
         },
         border: {
-          light: "#ced4da",
-          dark: "#3e4042",
+          light: "#d0d5e0",
+          dark:  "#3A3F47",
         },
         "text-dim": {
           light: "#65676b",
-          dark: "#b0b3b8",
+          dark:  "#b0b3b8",
         },
       },
       fontFamily: {
@@ -44,8 +62,9 @@ const config: Config = {
         card: "12px",
       },
       boxShadow: {
-        card: "0 4px 12px rgba(0,0,0,0.08)",
-        modal: "0 20px 40px rgba(0,0,0,0.3)",
+        card:  "0 4px 12px rgba(32,47,97,0.08)",
+        modal: "0 20px 40px rgba(32,47,97,0.25)",
+        "afb": "0 4px 16px rgba(32,47,97,0.12)",
       },
     },
   },

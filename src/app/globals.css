@@ -4,28 +4,62 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── AfB Corporate Colors ──────────────────────────────────────────────────── */
+
 :root {
-  --bg: #f0f2f5;
-  --card-bg: #ffffff;
-  --text: #1a1a1a;
+  /* AfB Brand Colors */
+  --afb-navy:         #202F61;   /* Schriftzug "afb" + Text */
+  --afb-navy-dark:    #1A2550;
+  --afb-navy-light:   #2D3D7A;
+  --afb-blue:         #008BD2;   /* Linker Halbkreis im Logo */
+  --afb-blue-dark:    #0072AC;
+  --afb-blue-light:   #1FA5E8;
+  --afb-green:        #04B475;   /* Rechter Halbkreis im Logo */
+  --afb-green-dark:   #038F5C;
+  --afb-green-light:  #1AC98D;
+
+  /* System-Farben — mapped auf AfB Brand */
+  --primary:    var(--afb-navy);
+  --success:    var(--afb-green);
+  --info:       var(--afb-blue);
+
+  /* UI */
+  --bg:       #f5f6f8;
+  --card-bg:  #ffffff;
+  --text:     #1a1a1a;
   --text-dim: #65676b;
-  --primary: #0064d2;
-  --border: #ced4da;
-  --success: #00a400;
-  --danger: #fa3e3e;
-  --warning: #f7b928;
-  --purple: #8e44ad;
+  --border:   #d0d5e0;
+  --danger:   #fa3e3e;
+  --warning:  #f7b928;
+  --purple:   #7c3aed;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(32,47,97,0.08);
+  --shadow-md: 0 4px 16px rgba(32,47,97,0.12);
+  --shadow-lg: 0 8px 32px rgba(32,47,97,0.15);
+
   --base-font: 18px;
 }
 
 .dark {
-  --bg: #18191a;
-  --card-bg: #242526;
-  --text: #e4e6eb;
+  --afb-navy:       #3D5285;
+  --afb-navy-dark:  #2D3D7A;
+  --afb-navy-light: #5A6FA8;
+  --afb-blue:       #1FA5E8;
+  --afb-green:      #1AC98D;
+
+  --primary: var(--afb-blue);   /* Cyan ist besser lesbar auf dunklem Grund */
+  --success: var(--afb-green);
+  --info:    var(--afb-blue);
+
+  --bg:       #15181E;
+  --card-bg:  #1F2329;
+  --text:     #e4e6eb;
   --text-dim: #b0b3b8;
-  --primary: #45bdff;
-  --border: #3e4042;
+  --border:   #3A3F47;
 }
+
+/* ── Basis-Styles ────────────────────────────────────────────────────────────── */
 
 body {
   font-family: 'Ubuntu', sans-serif;
@@ -39,6 +73,8 @@ body {
 body.font-small  { --base-font: 14px; }
 body.font-medium { --base-font: 18px; }
 body.font-large  { --base-font: 22px; }
+
+/* ── Animationen ─────────────────────────────────────────────────────────────── */
 
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -70,4 +106,9 @@ body.font-large  { --base-font: 22px; }
   50%  { transform: translateX(8px); }
   75%  { transform: translateX(-8px); }
   100% { transform: translateX(0); }
+}
+
+@keyframes chatPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 139, 210, 0.5); }
+  50%       { box-shadow: 0 0 0 8px rgba(0, 139, 210, 0); }
 }

@@ -42,20 +42,20 @@ function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => v
   const user = session?.user as { name?: string; kuerzel?: string; rolle?: string } | undefined;
 
   return (
-    <aside className={`flex flex-col h-full bg-white dark:bg-[#242526] border-r border-[#ced4da] dark:border-[#3e4042]`}>
+    <aside className="flex flex-col h-full" style={{ background: "linear-gradient(180deg, #202F61 0%, #1A2550 100%)" }}>
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-[#ced4da] dark:border-[#3e4042]">
+      <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
         <img
           src="https://www.afbshop.de/media/ca/1f/fe/1760428029/logo.svg"
           alt="AfB"
-          className="h-7 dark:bg-white/90 dark:rounded dark:p-0.5"
+          className="h-7 bg-white/90 rounded p-0.5"
         />
         <div>
-          <div className="font-black text-sm text-[#1a1a1a] dark:text-[#e4e6eb] leading-none">Lagernaut</div>
-          <div className="text-[10px] text-[#0064d2] dark:text-[#45bdff] font-bold uppercase tracking-wider">Admin</div>
+          <div className="font-black text-sm text-white leading-none">Lagernaut</div>
+          <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#008BD2" }}>Admin</div>
         </div>
         {onClose && (
-          <button onClick={onClose} className="ml-auto text-[#65676b] text-xl">×</button>
+          <button onClick={onClose} className="ml-auto text-white/60 hover:text-white text-xl transition-colors">×</button>
         )}
       </div>
 
@@ -70,9 +70,10 @@ function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => v
               onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl mb-0.5 text-sm font-semibold transition-all ${
                 active
-                  ? "bg-[#0064d2] text-white shadow-sm"
-                  : "text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] hover:text-[#1a1a1a] dark:hover:text-[#e4e6eb]"
+                  ? "text-white shadow-sm"
+                  : "text-white/65 hover:text-white hover:bg-white/10"
               }`}
+              style={active ? { background: "rgba(0,139,210,0.35)", borderLeft: "3px solid #008BD2" } : undefined}
             >
               <span className="text-base w-5 text-center">{icon}</span>
               {label}
@@ -82,10 +83,10 @@ function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => v
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-4 border-t border-[#ced4da] dark:border-[#3e4042] space-y-1">
+      <div className="px-3 py-4 border-t border-white/10 space-y-1">
         <button
           onClick={toggleTheme}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors"
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm text-white/65 hover:text-white hover:bg-white/10 transition-colors"
         >
           <span>{dark ? "☀️" : "🌙"}</span>
           <span>{dark ? "Hell" : "Dunkel"}</span>
@@ -93,15 +94,15 @@ function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => v
 
         {user && (
           <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-8 h-8 rounded-full bg-[#0064d2] text-white text-xs font-black flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-full text-white text-xs font-black flex items-center justify-center flex-shrink-0" style={{ background: "#008BD2" }}>
               {user.kuerzel?.slice(0, 2) ?? "??"}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{user.name}</div>
-              <div className="text-[10px] text-[#65676b] dark:text-[#b0b3b8]">{user.rolle}</div>
+              <div className="text-xs font-bold text-white truncate">{user.name}</div>
+              <div className="text-[10px] text-white/50">{user.rolle}</div>
             </div>
             <LogoutButton
-              className="text-[#65676b] hover:text-[#fa3e3e] text-sm transition-colors"
+              className="text-white/50 hover:text-[#fa3e3e] text-sm transition-colors"
               title="Abmelden"
             >
               🚪
@@ -168,14 +169,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Main */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Mobile Topbar */}
-          <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-[#242526] border-b border-[#ced4da] dark:border-[#3e4042] shadow-sm">
+          <div className="lg:hidden flex items-center gap-3 px-4 py-3 shadow-sm" style={{ background: "#202F61" }}>
             <button
               onClick={() => setMobileOpen(true)}
               className="p-2 rounded-lg hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] text-[#65676b]"
             >
               ☰
             </button>
-            <span className="font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Lagernaut Admin</span>
+            <span className="font-black text-white">Lagernaut Admin</span>
           </div>
 
           {/* Page Content */}

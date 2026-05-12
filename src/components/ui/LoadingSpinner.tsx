@@ -3,7 +3,7 @@ export function LoadingSpinner({ size = "md", text }: { size?: "sm" | "md" | "lg
   return (
     <div className="flex flex-col items-center justify-center gap-3">
       <div
-        className={`${sizes[size]} border-[#0064d2]/20 border-t-[#0064d2] dark:border-[#45bdff]/20 dark:border-t-[#45bdff] rounded-full animate-spin`}
+        className={`${sizes[size]} border-[#202F61]/20 border-t-[#202F61] dark:border-[#008BD2]/20 dark:border-t-[#008BD2] rounded-full animate-spin`}
       />
       {text && <span className="text-sm text-[#65676b] dark:text-[#b0b3b8]">{text}</span>}
     </div>
