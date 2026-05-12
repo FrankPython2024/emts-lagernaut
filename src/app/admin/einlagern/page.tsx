@@ -893,11 +893,21 @@ function StepBestaetigung({
 
       <div style={S.card}>
         <h2 style={{ fontSize: "1.5rem", fontWeight: 900, margin: "0 0 0.5rem", color: "var(--text)" }}>
-          Letzte Überprüfung
+          ✅ Überprüfen
         </h2>
-        <p style={{ margin: "0 0 1.5rem", color: "var(--text-dim)", fontSize: "0.95rem" }}>
-          Du buchst Teile ein für: <strong>{geraet.name}</strong>
-        </p>
+
+        {/* Gerät-Bestätigung */}
+        <div style={{ padding: "0.9rem 1rem", borderRadius: 10, border: "1px solid rgba(32,47,97,0.2)", background: "rgba(32,47,97,0.04)", marginBottom: "1.2rem" }}>
+          <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", fontWeight: 600, marginBottom: 2 }}>Gerät:</div>
+          <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#202F61" }}>{geraet.name}</div>
+          {geraet.logId && (
+            <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", marginTop: 2 }}>LogID: {geraet.logId}</div>
+          )}
+        </div>
+
+        <div style={{ fontSize: "0.9rem", fontWeight: 700, marginBottom: 10, color: "var(--text)" }}>
+          Diese Artikel werden eingebucht:
+        </div>
 
         {/* Preview-Liste */}
         {isLoading ? (
@@ -919,16 +929,16 @@ function StepBestaetigung({
                     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0.9rem 1rem", background: p.istNeu ? "rgba(0,139,210,0.05)" : "var(--bg)" }}>
                       <span style={{ fontSize: "1.4rem" }}>{teilInfo?.icon ?? "🔧"}</span>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>
-                          {p.menge}× {teilInfo?.label ?? p.teiltyp}
+                        <div style={{ fontWeight: 700, fontSize: "0.9rem", lineHeight: 1.3 }}>
+                          {p.menge}× <span style={{ color: "#202F61" }}>{p.artikelName}</span>
                           {p.istNeu && (
                             <span style={{ marginLeft: 8, fontSize: "0.72rem", padding: "0.1rem 0.5rem", borderRadius: 5, background: "rgba(0,139,210,0.15)", color: "#008BD2", fontWeight: 700 }}>
                               ✨ Neu
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
-                          {grOpt?.icon} {grOpt?.label} · Bestand: {p.aktuellerBestand} → <strong>{p.neuerBestand}</strong>
+                        <div style={{ fontSize: "0.78rem", color: "var(--text-dim)", marginTop: 2 }}>
+                          {teilInfo?.icon} {grOpt?.icon} {grOpt?.label} · Bestand: {p.aktuellerBestand} → <strong>{p.neuerBestand}</strong>
                         </div>
                       </div>
                       {p.lagerplatz && (

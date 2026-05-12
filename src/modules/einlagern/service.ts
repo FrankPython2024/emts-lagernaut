@@ -67,7 +67,10 @@ export type PreviewResult = {
 export async function preview(items: PreviewItem[], geraetName: string): Promise<PreviewResult[]> {
   return Promise.all(
     items.map(async (item): Promise<PreviewResult> => {
-      // Exakter Kompatibilitaets-Treffer für dieses Gerät + Teiltyp
+      // Artikel-Bezeichnung: EXAKT "<Gerät> <Teiltyp>"
+      const artikelBezeichnung = `${geraetName} ${item.teiltyp}`;
+
+      // 1. Exakter Kompatibilitaets-Treffer für dieses Gerät + Teiltyp
       const komp = await prisma.kompatibilitaet.findFirst({
         where:   { geraet: geraetName, teiltyp: item.teiltyp },
         include: { artikel: true },
@@ -86,10 +89,10 @@ export async function preview(items: PreviewItem[], geraetName: string): Promise
         };
       }
 
-      // Vorhandener Artikel gleicher Kategorie (aus früheren Einlagerungen)
-      const artikel = await prisma.artikel.findFirst({
-        where:   { kategorie: item.teiltyp },
-        orderBy: { bestand: "desc" },
+      // 2. Exakter Artikel-Bezeichnungs-Lookup — KEIN Kategorie-Fallback!
+      //    Verhindert Cross-Device-Zuordnung (z.B. T14-Tastatur zu HP 840 zuweisen)
+      const artikel = await prisma.artikel.findUnique({
+        where: { bezeichnung_kategorie: { bezeichnung: artikelBezeichnung, kategorie: item.teiltyp } },
       });
       if (artikel) {
         return {
@@ -105,14 +108,14 @@ export async function preview(items: PreviewItem[], geraetName: string): Promise
         };
       }
 
-      // Komplett neu
+      // 3. Komplett neu — geplante Bezeichnung zeigen damit Admin sieht was angelegt wird
       return {
         teiltyp:          item.teiltyp,
         menge:            item.menge,
         grading:          item.grading,
         istNeu:           true,
         artikelId:        null,
-        artikelName:      item.teiltyp,
+        artikelName:      artikelBezeichnung,
         lagerplatz:       null,
         aktuellerBestand: 0,
         neuerBestand:     item.menge,
@@ -156,48 +159,53 @@ export type ExecuteResult = {
 export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
   const results: ExecuteResult[] = [];
 
+  console.log(`[Einlagern] Gerät: "${input.geraetName}"${input.logId ? ` (LogID: ${input.logId})` : ""}`);
+
+  // Hersteller = erstes Wort des Gerätenamens (für GeraeteModell-Upsert)
+  const hersteller = input.geraetName.split(" ")[0] ?? "";
+
+  // GeraeteModell sicherstellen damit Modell-Verwaltung/Statistik stimmt
+  if (hersteller) {
+    await prisma.geraeteModell.upsert({
+      where:  { hersteller_modell: { hersteller, modell: input.geraetName } },
+      update: {},
+      create: { hersteller, modell: input.geraetName, aktiv: true },
+    }).catch((e: Error) => console.warn(`[Einlagern] GeraeteModell upsert: ${e.message}`));
+  }
+
   for (const item of input.items) {
     let istNeu = false;
 
-    // 1. Artikel über Kompatibilitaet für exakt dieses Gerät finden
+    // Artikel-Bezeichnung: IMMER "<Gerät> <Teiltyp>"
+    // z.B. "HP EliteBook 840 G6 Tastatur" — NIEMALS nur "Tastatur"!
+    const artikelBezeichnung = `${input.geraetName} ${item.teiltyp}`;
+    console.log(`[Einlagern] Artikel: "${artikelBezeichnung}"`);
+
+    // 1. Exakter Artikel via Kompatibilitaet (Gerät + Teiltyp)
     let artikel = await prisma.artikel.findFirst({
       where: { kompatibel: { some: { geraet: input.geraetName, teiltyp: item.teiltyp } } },
     });
 
-    // 2. Vorhandenen Artikel gleicher Kategorie wiederverwenden
+    // 2. Exakter Artikel-Bezeichnungs-Lookup — KEIN Kategorie-Fallback!
+    //    Verhindert Cross-Device-Zuordnung (Lenovo-Tastatur zu HP zuweisen)
     if (!artikel) {
-      artikel = await prisma.artikel.findFirst({
-        where:   { kategorie: item.teiltyp },
-        orderBy: { bestand: "desc" },
+      artikel = await prisma.artikel.findUnique({
+        where: { bezeichnung_kategorie: { bezeichnung: artikelBezeichnung, kategorie: item.teiltyp } },
       });
     }
 
-    // 3. Neuen Artikel anlegen (Bezeichnung = Teiltyp, Kategorie = Teiltyp)
-    //    Kategorie = Teiltyp ist entscheidend für autoVerknuepfung() im Kompatibilitaet-Service!
+    // 3. Neuen geräte-spezifischen Artikel anlegen
     if (!artikel) {
       istNeu  = true;
-      // upsert statt create um Race-Conditions zu vermeiden
-      const existing = await prisma.artikel.findUnique({
-        where: { bezeichnung_kategorie: { bezeichnung: item.teiltyp, kategorie: item.teiltyp } },
+      artikel = await prisma.artikel.create({
+        data: {
+          bezeichnung: artikelBezeichnung,
+          kategorie:   item.teiltyp,          // Kategorie = Teiltyp für getByGeraetMitStandard
+          bestand:     0,
+          lagerplatz:  item.lagerplatz ?? null,
+        },
       });
-      if (existing) {
-        artikel = existing;
-        if (item.lagerplatz && !existing.lagerplatz) {
-          artikel = await prisma.artikel.update({
-            where: { id: existing.id },
-            data:  { lagerplatz: item.lagerplatz },
-          });
-        }
-      } else {
-        artikel = await prisma.artikel.create({
-          data: {
-            bezeichnung: item.teiltyp,
-            kategorie:   item.teiltyp,
-            bestand:     0,
-            lagerplatz:  item.lagerplatz ?? null,
-          },
-        });
-      }
+      console.log(`[Einlagern] Neuer Artikel: "${artikelBezeichnung}" (ID: ${artikel.id})`);
     } else if (item.lagerplatz && !artikel.lagerplatz) {
       artikel = await prisma.artikel.update({
         where: { id: artikel.id },
@@ -205,7 +213,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
       });
     }
 
-    // 4. EINGANG-Buchung erstellen
+    // 4. EINGANG-Buchung
     const neuerBestand = artikel.bestand + item.menge;
     const notiz = [
       `Grading: ${item.grading}`,
@@ -221,16 +229,16 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
       notiz,
     });
 
-    // 5. Beleg-Nummer generieren
+    // 5. Beleg-Nummer
     const belegNr = await naechsteBelegNr("EL");
 
-    // 6. Kompatibilitaet anlegen/aktualisieren — für Techniker-Portal-Suchbarkeit!
-    //    @@unique([geraet, teiltyp]) → upsert ist sicher
+    // 6. Kompatibilitaet: EXAKTER Gerätename, artikelId korrigieren falls falsch verknüpft
     await prisma.kompatibilitaet.upsert({
       where:  { geraet_teiltyp: { geraet: input.geraetName, teiltyp: item.teiltyp } },
       create: { geraet: input.geraetName, teiltyp: item.teiltyp, artikelId: artikel.id },
-      update: {}, // bestehende Verknüpfung nicht überschreiben
+      update: { artikelId: artikel.id }, // Fehlverknüpfungen korrigieren
     });
+    console.log(`[Einlagern] Verknüpft: "${input.geraetName}" + "${item.teiltyp}" → Artikel #${artikel.id}`);
 
     results.push({
       teiltyp:      item.teiltyp,
