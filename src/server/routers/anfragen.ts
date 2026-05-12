@@ -14,9 +14,9 @@ import {
   gruppeFreigeben,
   gruppeZurueckgeben,
 } from "@/modules/anfragen/service";
-import { bucheLager } from "@/modules/buchungen/service";
+import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { naechsteBelegNr } from "@/core/infra/belegnr";
-import { emitToAdmins, emitToUser } from "@/modules/realtime/socket";
+import { emitToAdmins, emitToUser, emitToAll } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
 import type { SessionUser } from "@/core/types";
 
@@ -111,6 +111,7 @@ export const anfragenRouter = createTRPCRouter({
         });
 
         if (anfrage) {
+          // AUSGANG-Buchung erstellen — nur wenn Artikel verknüpft und noch nicht ABGESCHLOSSEN
           if (anfrage.artikelId && anfrage.status !== AnfrageStatus.ABGESCHLOSSEN) {
             try {
               await bucheLager({
@@ -120,13 +121,26 @@ export const anfragenRouter = createTRPCRouter({
                 mitarbeiter: user.kuerzel,
                 notiz:       `Anfrage #${input.id}`,
               });
-            } catch { /* Kein Bestand → überspringen */ }
+            } catch (e) {
+              // "Kein Bestand" / "Nicht genug Bestand" sind erwartete Fälle (BEDARF-Anfragen)
+              const msg = e instanceof Error ? e.message : String(e);
+              if (!msg.includes("Kein Bestand") && !msg.includes("Nicht genug Bestand")) {
+                console.error(`[setStatus] AUSGANG für Anfrage #${input.id} fehlgeschlagen: ${msg}`);
+              }
+            }
           }
+
           belegNr = await naechsteBelegNr("AL");
+
+          // Bestand IMMER neu berechnen — robust auch wenn bucheLager übersprungen wurde.
+          // syncBestandAusHistorie summiert EINGANG - AUSGANG aus der kompletten Historie,
+          // ignoriert DIREKT-Buchungen und schreibt das Ergebnis in Artikel.bestand.
           if (anfrage.artikelId) {
-            const aktuell = await ctx.prisma.artikel.findUnique({ where: { id: anfrage.artikelId }, select: { bestand: true } });
-            restBestand = aktuell?.bestand ?? 0;
+            restBestand = await syncBestandAusHistorie(anfrage.artikelId);
+            // Explizites Socket-Event damit Frontend den Bestand sofort aktualisiert
+            emitToAll(EVENTS.BESTAND_UPDATED, { artikelId: anfrage.artikelId, bestand: restBestand });
           }
+
           if (anfrage.artikel) {
             artikelInfo = { bezeichnung: anfrage.artikel.bezeichnung, lagerplatz: anfrage.artikel.lagerplatz, kategorie: anfrage.artikel.kategorie };
           }
