@@ -1,8 +1,9 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link        from "next/link";
 import { useSession } from "next-auth/react";
 import { api }        from "@/trpc/react";
+import { useToast }   from "@/components/ui/Toast";
 import { AnfrageStatus } from "@prisma/client";
 
 type SessionUser = { name?: string; kuerzel?: string; rolle?: string };
@@ -33,6 +34,26 @@ export default function TechnikerProfilPage() {
   const { data: session } = useSession();
   const user    = session?.user as SessionUser | undefined;
   const kuerzel = user?.kuerzel ?? "";
+  const { show } = useToast();
+
+  // ── Passwort-Ändern State ─────────────────────────────────────────────────
+  const [pwAkt,   setPwAkt]   = useState("");
+  const [pwNeu,   setPwNeu]   = useState("");
+  const [pwNeu2,  setPwNeu2]  = useState("");
+
+  const changePasswordMutation = api.benutzer.changePassword.useMutation({
+    onSuccess: () => {
+      show("✅ Passwort erfolgreich geändert", "success");
+      setPwAkt(""); setPwNeu(""); setPwNeu2("");
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
+  function handlePasswordChange() {
+    if (pwNeu.length < 8) { show("Passwort zu kurz (min. 8 Zeichen)", "error"); return; }
+    if (pwNeu !== pwNeu2)  { show("Passwörter stimmen nicht überein", "error"); return; }
+    changePasswordMutation.mutate({ aktuellesPasswort: pwAkt, neuesPasswort: pwNeu });
+  }
 
   const anfragenQuery = api.anfragen.getByTechniker.useQuery(
     { kuerzel, showAll: true, limit: 200 },
@@ -268,6 +289,57 @@ export default function TechnikerProfilPage() {
                     );
                   })
               )}
+            </div>
+          </div>
+
+          {/* ── Passwort ändern ── */}
+          <div style={cardStyle}>
+            <h3 style={{ marginTop: 0, borderBottom: "1px solid var(--border)", paddingBottom: "0.8rem", display: "flex", alignItems: "center", gap: 8 }}>
+              🔐 Passwort ändern
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem", maxWidth: 400 }}>
+              {[
+                { label: "Aktuelles Passwort",          val: pwAkt,  set: setPwAkt  },
+                { label: "Neues Passwort",               val: pwNeu,  set: setPwNeu  },
+                { label: "Neues Passwort bestätigen",    val: pwNeu2, set: setPwNeu2 },
+              ].map(({ label, val, set }) => (
+                <div key={label}>
+                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 700, marginBottom: 4 }}>{label}</label>
+                  <input
+                    type="password"
+                    value={val}
+                    onChange={(e) => set(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handlePasswordChange(); }}
+                    style={{
+                      width: "100%", padding: "0.5rem 0.75rem", borderRadius: 8,
+                      border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)",
+                      fontFamily: "'Ubuntu', sans-serif", fontSize: "0.9rem", outline: "none", boxSizing: "border-box",
+                    }}
+                    onFocus={(e) => (e.currentTarget.style.borderColor = "var(--primary)")}
+                    onBlur={(e)  => (e.currentTarget.style.borderColor = "var(--border)")}
+                  />
+                </div>
+              ))}
+              {pwNeu.length > 0 && pwNeu.length < 8 && (
+                <div style={{ fontSize: "0.75rem", color: "var(--danger)" }}>⓪ Mindestens 8 Zeichen</div>
+              )}
+              {pwNeu2.length > 0 && pwNeu !== pwNeu2 && (
+                <div style={{ fontSize: "0.75rem", color: "var(--danger)" }}>✗ Passwörter stimmen nicht überein</div>
+              )}
+              <button
+                onClick={handlePasswordChange}
+                disabled={changePasswordMutation.isPending || !pwAkt || !pwNeu || !pwNeu2}
+                style={{
+                  padding: "0.6rem 1.2rem", borderRadius: 8, border: "none",
+                  background: "var(--primary)", color: "white",
+                  fontFamily: "'Ubuntu', sans-serif", fontWeight: 700, fontSize: "0.9rem",
+                  cursor: changePasswordMutation.isPending || !pwAkt || !pwNeu || !pwNeu2 ? "not-allowed" : "pointer",
+                  opacity: changePasswordMutation.isPending || !pwAkt || !pwNeu || !pwNeu2 ? 0.6 : 1,
+                  alignSelf: "flex-start",
+                }}
+              >
+                {changePasswordMutation.isPending ? "⏳ Speichere…" : "💾 Passwort ändern"}
+              </button>
             </div>
           </div>
 

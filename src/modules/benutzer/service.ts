@@ -124,7 +124,7 @@ export async function deactivateUser(id: number): Promise<void> {
 }
 
 /**
- * Passwort zurücksetzen (Admin).
+ * Passwort zurücksetzen (Admin) — setzt auf übergebenes Passwort.
  */
 export async function resetPassword(id: number, newPassword: string): Promise<void> {
   const user = await prisma.user.findUnique({ where: { id } });
@@ -133,4 +133,41 @@ export async function resetPassword(id: number, newPassword: string): Promise<vo
   }
   const hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
   await prisma.user.update({ where: { id }, data: { password: hash } });
+}
+
+const DEFAULT_PW = "techniker123";
+
+/**
+ * Passwort auf Standard zurücksetzen (Admin-Aktion).
+ * Gibt kuerzel des betroffenen Users zurück.
+ */
+export async function resetPasswordToDefault(id: number): Promise<{ kuerzel: string; rolle: string }> {
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, rolle: true, kuerzel: true } });
+  if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Benutzer nicht gefunden." });
+  const hash = await bcrypt.hash(DEFAULT_PW, BCRYPT_ROUNDS);
+  await prisma.user.update({ where: { id }, data: { password: hash } });
+  return { kuerzel: user.kuerzel, rolle: user.rolle };
+}
+
+/**
+ * Eigenes Passwort ändern (Self-Service).
+ * Prüft zuerst das aktuelle Passwort via bcrypt.compare.
+ */
+export async function changePassword(
+  userId:            number,
+  aktuellesPasswort: string,
+  neuesPasswort:     string,
+): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Benutzer nicht gefunden." });
+
+  const valid = await bcrypt.compare(aktuellesPasswort, user.password);
+  if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Aktuelles Passwort ist falsch." });
+
+  if (neuesPasswort === DEFAULT_PW) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Bitte ein anderes Passwort wählen." });
+  }
+
+  const hash = await bcrypt.hash(neuesPasswort, BCRYPT_ROUNDS);
+  await prisma.user.update({ where: { id: userId }, data: { password: hash } });
 }

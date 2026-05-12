@@ -1,15 +1,18 @@
 import { z } from "zod";
 import { UserRolle } from "@prisma/client";
-import { createTRPCRouter, adminProcedure } from "@/server/trpc";
+import { createTRPCRouter, adminProcedure, protectedProcedure } from "@/server/trpc";
 import {
   createUser,
   getAllUsers,
   updateUser,
   deactivateUser,
   resetPassword,
+  resetPasswordToDefault,
+  changePassword,
 } from "@/modules/benutzer/service";
 import { prisma } from "@/core/db/prisma";
 import { TRPCError } from "@trpc/server";
+import type { SessionUser } from "@/core/types";
 
 export const benutzerRouter = createTRPCRouter({
 
@@ -67,7 +70,7 @@ export const benutzerRouter = createTRPCRouter({
       deactivateUser(input.id),
     ),
 
-  // Passwort zurücksetzen — Admin
+  // Passwort zurücksetzen — Admin (freies Passwort)
   resetPassword: adminProcedure
     .input(z.object({
       id:          z.number().int().positive(),
@@ -76,5 +79,29 @@ export const benutzerRouter = createTRPCRouter({
     .mutation(({ input }) =>
       resetPassword(input.id, input.newPassword),
     ),
+
+  // Passwort auf Standard zurücksetzen ("techniker123") — nur für Techniker/Betrachter
+  resetPasswordDefault: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const result = await resetPasswordToDefault(input.id);
+      if (result.rolle === "ADMIN") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admin-Passwörter können nicht zurückgesetzt werden." });
+      }
+      return { erfolg: true, kuerzel: result.kuerzel };
+    }),
+
+  // Eigenes Passwort ändern — jeder eingeloggte User
+  changePassword: protectedProcedure
+    .input(z.object({
+      aktuellesPasswort: z.string().min(1),
+      neuesPasswort:     z.string().min(8).max(100),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const user = ctx.session.user as SessionUser;
+      if (!user.id) throw new TRPCError({ code: "UNAUTHORIZED" });
+      await changePassword(user.id, input.aktuellesPasswort, input.neuesPasswort);
+      return { erfolg: true };
+    }),
 
 });
