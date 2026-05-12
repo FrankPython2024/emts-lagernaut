@@ -20,7 +20,8 @@ export const queues = {
   belege:           new Queue("belege",            { connection }),
   meilisearch:      new Queue("meilisearch",       { connection }),
   notify:           new Queue("notify",            { connection }),
-  artikelGenerator: new Queue("artikel-generator", { connection }),
+  artikelGenerator: new Queue("artikel-generator",  { connection }),
+  reprocessGeraete: new Queue("reprocess-geraete",  { connection }),
 } as const;
 
 // ── Job-Handler ───────────────────────────────────────────────────────────────
@@ -162,6 +163,71 @@ async function handleArtikelGeneratorJob(job: any) {
   return { success: true, totalModels: total, artikelCreated, artikelSkipped };
 }
 
+// ── Reprocess-Geräte ──────────────────────────────────────────────────────────
+// Normalisiert Hersteller + Bezeichnungen für alle bestehenden GeraeteLookup-Einträge.
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleReprocessJob(job: any) {
+  const { prisma }              = await import("@/core/db/prisma");
+  const { normalisiereHersteller } = await import("@/lib/geraete/herstellerFilter");
+  const { bereinigeBezeichnung }   = await import("@/lib/geraete/bezeichnungBereinigen");
+
+  const alle = await prisma.geraeteLookup.findMany({
+    select:  { id: true, bereinigt: true, bezeichnung: true },
+    orderBy: { id: "asc" },
+  });
+
+  const total = alle.length;
+  let updates = 0;
+  let deletes = 0;
+  const deleteIds: number[] = [];
+
+  for (let i = 0; i < alle.length; i++) {
+    const g            = alle[i]!;
+    const rawHersteller = g.bereinigt.split(" ")[0] ?? "";
+    const normHersteller = normalisiereHersteller(rawHersteller);
+
+    if (!normHersteller) {
+      deleteIds.push(g.id);
+      continue;
+    }
+
+    const cleanModel      = bereinigeBezeichnung(normHersteller, g.bezeichnung);
+    const neuesBereinigt  = `${normHersteller} ${cleanModel}`;
+
+    if (normHersteller !== rawHersteller || neuesBereinigt !== g.bereinigt) {
+      await prisma.geraeteLookup.update({
+        where: { id: g.id },
+        data:  { bereinigt: neuesBereinigt },
+      });
+      updates++;
+    }
+
+    if ((i + 1) % 500 === 0 || i === alle.length - 1) {
+      await job.updateProgress({
+        progress:   Math.round(((i + 1) / total) * 100),
+        processed:  i + 1,
+        total,
+        updates,
+        toDelete:   deleteIds.length,
+      });
+    }
+  }
+
+  // Löschen in Batches
+  if (deleteIds.length > 0) {
+    const batchSize = 1_000;
+    for (let i = 0; i < deleteIds.length; i += batchSize) {
+      await prisma.geraeteLookup.deleteMany({ where: { id: { in: deleteIds.slice(i, i + batchSize) } } });
+      deletes += Math.min(batchSize, deleteIds.length - i);
+    }
+  }
+
+  const finalCount = await prisma.geraeteLookup.count();
+  console.log(`[Reprocess] Fertig: ${updates} aktualisiert, ${deletes} gelöscht, ${finalCount} verbleibend`);
+  return { updates, deletes, finalCount };
+}
+
 // ── startWorkers() — NUR in server.ts aufrufen, NIE in Next.js Pages/Routes ──
 
 export function startWorkers(): void {
@@ -203,9 +269,23 @@ export function startWorkers(): void {
     console.error(`[BullMQ:artikel-generator] Job #${job?.id} Fehler:`, err.message),
   );
 
+  const reprocessWorker = new Worker(
+    "reprocess-geraete",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (job: any) => handleReprocessJob(job),
+    { connection, concurrency: 1 },
+  );
+  reprocessWorker.on("completed", (job) =>
+    console.log(`[BullMQ:reprocess-geraete] Job #${job.id} abgeschlossen`),
+  );
+  reprocessWorker.on("failed", (job, err) =>
+    console.error(`[BullMQ:reprocess-geraete] Job #${job?.id} Fehler:`, err.message),
+  );
+
   console.log("[BullMQ] Workers gestartet:");
   console.log("  • belege            (concurrency: 2)");
   console.log("  • meilisearch       (concurrency: 1)");
   console.log("  • notify            (concurrency: 5)");
   console.log("  • artikel-generator (concurrency: 1)");
+  console.log("  • reprocess-geraete (concurrency: 1)");
 }

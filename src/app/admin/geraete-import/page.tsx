@@ -4,7 +4,8 @@ import { useRouter }  from "next/navigation";
 import Papa           from "papaparse";
 import { api }        from "@/trpc/react";
 import { useToast }   from "@/components/ui/Toast";
-import { STANDARD_TEILTYPEN } from "@/lib/constants/teiltypen";
+import { STANDARD_TEILTYPEN }          from "@/lib/constants/teiltypen";
+import { ERLAUBTE_HERSTELLER_LISTE }   from "@/lib/geraete/herstellerFilter";
 
 const CHUNK_SIZE = 500;
 
@@ -50,8 +51,15 @@ export default function GeraeteImportPage() {
   const [genJobId,   setGenJobId]   = useState<string | null>(null);
   const [genResult,  setGenResult]  = useState<{ totalModels: number; artikelCreated: number; artikelSkipped: number } | null>(null);
 
+  // ── Reprocess-State ──────────────────────────────────────────────────────
+  const [rpPhase,    setRpPhase]    = useState<"idle" | "confirm" | "running" | "done">("idle");
+  const [rpJobId,    setRpJobId]    = useState<string | null>(null);
+  const [rpResult,   setRpResult]   = useState<{ updates: number; deletes: number; finalCount: number } | null>(null);
+
   const stats_q        = api.geraeteLookup.getStats.useQuery();
   const genPreviewQ    = api.geraeteLookup.getArtikelGeneratorPreview.useQuery(undefined, { staleTime: 15_000 });
+  const rpAnalyseQ     = api.geraeteLookup.analysiereBestehendeGeraete.useQuery(undefined, { staleTime: 30_000 });
+  const herstellerQ    = api.geraeteLookup.getHerstellerStatistik.useQuery(undefined, { staleTime: 30_000 });
 
   const genStatusQ = api.geraeteLookup.getArtikelGeneratorStatus.useQuery(
     { jobId: genJobId ?? "" },
@@ -72,6 +80,36 @@ export default function GeraeteImportPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [genStatusQ.data?.state]);
+
+  const rpStatusQ = api.geraeteLookup.getReprocessStatus.useQuery(
+    { jobId: rpJobId ?? "" },
+    { enabled: !!rpJobId && rpPhase === "running", refetchInterval: 2_000, staleTime: 0 },
+  );
+
+  useEffect(() => {
+    if (!rpStatusQ.data) return;
+    if (rpStatusQ.data.state === "completed" && rpStatusQ.data.result) {
+      setRpResult(rpStatusQ.data.result);
+      setRpPhase("done");
+      rpAnalyseQ.refetch();
+      herstellerQ.refetch();
+      stats_q.refetch();
+      show("✅ Daten-Bereinigung abgeschlossen!", "success");
+    } else if (rpStatusQ.data.state === "failed") {
+      show(`Reprocess-Fehler: ${rpStatusQ.data.failedReason ?? "unbekannt"}`, "error");
+      setRpPhase("idle");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rpStatusQ.data?.state]);
+
+  const startReprocessMutation = api.geraeteLookup.startReprocessGeraete.useMutation({
+    onSuccess: (data) => {
+      setRpJobId(data.jobId);
+      setRpPhase("running");
+      show("🔄 Bereinigung gestartet…", "info");
+    },
+    onError: (e) => show(`Fehler: ${e.message}`, "error"),
+  });
 
   const startGeneratorMutation = api.geraeteLookup.generiereArtikelFuerAlleModelle.useMutation({
     onSuccess: (data) => {
@@ -172,6 +210,31 @@ export default function GeraeteImportPage() {
         </div>
       </div>
 
+      {/* ── Import-Info: erlaubte Hersteller ────────────────────────────── */}
+      <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-4 flex items-start gap-3">
+        <span className="text-lg flex-shrink-0 mt-0.5">ℹ️</span>
+        <div>
+          <p className="font-bold text-sm text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">
+            Erlaubte Hersteller:
+          </p>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {ERLAUBTE_HERSTELLER_LISTE.map((h) => (
+              <span key={h} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-[#242526] rounded-lg text-xs font-bold border border-[#ced4da] dark:border-[#3e4042]">
+                ✓ {h}
+              </span>
+            ))}
+          </div>
+          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+            Andere Hersteller (Apple, ASUS, etc.) und Nicht-Notebooks werden ignoriert.
+            {herstellerQ.data && herstellerQ.data.verboteneGesamt > 0 && (
+              <span className="text-[#f7b928] font-semibold ml-1">
+                ⚠️ {herstellerQ.data.verboteneGesamt.toLocaleString("de-DE")} Einträge mit anderen Herstellern in DB (→ Bereinigung unten)
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
+
       {/* Drag & Drop Zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -253,6 +316,126 @@ export default function GeraeteImportPage() {
           → Interne Codes (z.B. "20W1S06V00") werden automatisch entfernt<br />
           → LogId wird normalisiert: "212.826.176" → "212826176"
         </p>
+      </div>
+
+      {/* ── Schritt 1b (optional): Bestehende Daten bereinigen ───────────── */}
+      <div className="border border-[#ced4da] dark:border-[#3e4042] rounded-xl overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-3 bg-[#f0f2f5] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042]">
+          <span className="text-lg">🔄</span>
+          <div>
+            <span className="font-bold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+              Bestehende Daten bereinigen
+            </span>
+            <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+              Hersteller-Filter + verbesserte Bezeichnung-Bereinigung auf alle vorhandenen Einträge anwenden
+            </p>
+          </div>
+        </div>
+        <div className="p-5">
+          {rpPhase === "idle" && (
+            <>
+              {rpAnalyseQ.data && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                  {[
+                    { label: "In DB",           value: rpAnalyseQ.data.total.toLocaleString("de-DE"),        color: "text-[#0064d2] dark:text-[#45bdff]" },
+                    { label: "Unverändert",     value: rpAnalyseQ.data.unveraendert.toLocaleString("de-DE"),  color: "text-[#00a400]" },
+                    { label: "Zu korrigieren",  value: rpAnalyseQ.data.zuUpdaten.toLocaleString("de-DE"),     color: "text-[#f7b928]" },
+                    { label: "Zu löschen",      value: rpAnalyseQ.data.zuLoeschen.toLocaleString("de-DE"),    color: "text-[#fa3e3e]" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
+                      <div className={`text-xl font-black ${color}`}>{value}</div>
+                      <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {rpAnalyseQ.data?.zuLoeschen === 0 && rpAnalyseQ.data?.zuUpdaten === 0 ? (
+                <p className="text-sm text-[#00a400] font-semibold">✅ Alle Daten sind bereits sauber.</p>
+              ) : (
+                <button
+                  onClick={() => setRpPhase("confirm")}
+                  disabled={!rpAnalyseQ.data || (rpAnalyseQ.data.zuLoeschen === 0 && rpAnalyseQ.data.zuUpdaten === 0)}
+                  className="flex items-center gap-2 px-5 py-3 bg-[#f7b928] text-[#1a1a1a] font-bold rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity text-sm"
+                >
+                  🔄 Bereinigung starten
+                </button>
+              )}
+            </>
+          )}
+
+          {rpPhase === "confirm" && rpAnalyseQ.data && (
+            <div>
+              <h3 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-3">❓ Bereinigung durchführen?</h3>
+              <div className="text-sm space-y-1 mb-4 text-[#65676b] dark:text-[#b0b3b8]">
+                <p>• <strong>{rpAnalyseQ.data.zuUpdaten.toLocaleString("de-DE")}</strong> Einträge werden korrigiert (Hersteller-Normalisierung + neue Bezeichnung)</p>
+                <p>• <strong>{rpAnalyseQ.data.zuLoeschen.toLocaleString("de-DE")}</strong> Einträge mit nicht-erlaubten Herstellern werden gelöscht</p>
+                {Object.entries(rpAnalyseQ.data.zuLoeschenPerHersteller).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([h, n]) => (
+                  <p key={h} className="ml-4 text-xs">– {h}: {(n as number).toLocaleString("de-DE")}</p>
+                ))}
+                <p className="text-xs mt-2 text-[#f7b928] font-semibold">
+                  ⚠️ Nach der Bereinigung müssen ggf. Artikel und Kompatibilitäten neu generiert werden.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setRpPhase("idle")} className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-[#ced4da] dark:border-[#3e4042] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors">
+                  Abbrechen
+                </button>
+                <button
+                  onClick={() => startReprocessMutation.mutate()}
+                  disabled={startReprocessMutation.isPending}
+                  className="flex-1 py-2.5 bg-[#f7b928] text-[#1a1a1a] text-sm font-bold rounded-xl hover:opacity-90 disabled:opacity-60 transition-opacity"
+                >
+                  {startReprocessMutation.isPending ? "⏳ Starte…" : "✅ Jetzt bereinigen"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {rpPhase === "running" && (
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="font-bold text-sm">🔄 Bereinigung läuft…</span>
+                <span className="text-[#0064d2] dark:text-[#45bdff] font-bold text-sm">
+                  {typeof rpStatusQ.data?.progress === "object" && rpStatusQ.data.progress !== null
+                    ? `${(rpStatusQ.data.progress as { progress?: number }).progress ?? 0}%`
+                    : "…"}
+                </span>
+              </div>
+              <div className="w-full bg-[#f0f2f5] dark:bg-[#18191a] rounded-full h-3 overflow-hidden mb-3">
+                <div
+                  className="h-full bg-[#f7b928] rounded-full transition-all duration-500"
+                  style={{ width: `${typeof rpStatusQ.data?.progress === "object" && rpStatusQ.data.progress !== null ? (rpStatusQ.data.progress as { progress?: number }).progress ?? 0 : 0}%` }}
+                />
+              </div>
+              <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                Läuft im Hintergrund — du kannst die Seite verlassen.
+              </p>
+            </div>
+          )}
+
+          {rpPhase === "done" && rpResult && (
+            <div>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {[
+                  { label: "Korrigiert",  value: rpResult.updates.toLocaleString("de-DE"),    color: "text-[#f7b928]" },
+                  { label: "Gelöscht",    value: rpResult.deletes.toLocaleString("de-DE"),    color: "text-[#fa3e3e]" },
+                  { label: "Verbleibend", value: rpResult.finalCount.toLocaleString("de-DE"), color: "text-[#00a400]" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
+                    <div className={`text-xl font-black ${color}`}>{value}</div>
+                    <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">{label}</div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => { setRpPhase("idle"); setRpResult(null); setRpJobId(null); rpAnalyseQ.refetch(); }}
+                className="w-full py-2.5 bg-[#00a400] text-white text-sm font-bold rounded-xl hover:opacity-90 transition-opacity"
+              >
+                ✅ Fertig
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Artikel-Generator ─────────────────────────────────────────────── */}

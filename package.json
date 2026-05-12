@@ -21,7 +21,9 @@
     "repare:bestand:dry":   "tsx scripts/repareBestand.ts --dry-run",
     "find:false":           "tsx scripts/findFalseAssignments.ts",
     "cleanup:false":        "tsx scripts/cleanupFalseAssignments.ts",
-    "reset:lagernaut":      "tsx scripts/resetLagernaut.ts"
+    "reset:lagernaut":      "tsx scripts/resetLagernaut.ts",
+    "reprocess:geraete":    "tsx scripts/reprocessGeraete.ts",
+    "test:bezeichnung":     "tsx tests/bezeichnungBereinigen.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

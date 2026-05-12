@@ -1,70 +1,11 @@
 import { PrismaClient } from '@prisma/client'
 import { parse } from 'csv-parse/sync'
 import fs from 'fs'
+import { normalisiereHersteller } from '@/lib/geraete/herstellerFilter'
+import { bereinigeBezeichnung }   from '@/lib/geraete/bezeichnungBereinigen'
 
 const prisma = new PrismaClient()
 
-const STANDARD_TEILE = [
-  'Displaymodul', 'Tastatur', 'Touchpad', 'Füße vorne', 'Füße hinten',
-  'D Cover', 'USB Board', 'Power Button', 'Lautsprecher', 'Lüfter',
-  'Thermalmodul', 'BIOS Batterie', 'Akku',
-]
-
-// Deduplizierungs-Schlüssel: erster Word (Hersteller) + erste 2 Modell-Wörter
-// "Lenovo ThinkPad T14 Gen 2i" → "lenovo thinkpad t14"
-function dedupKey(bereinigt: string): string {
-  return bereinigt.split(' ').slice(0, 3).join(' ').toLowerCase()
-}
-
-function bereinige(bezeichnung: string, hersteller: string = ''): string {
-  let result = bezeichnung.trim()
-
-  // 1. Alles ab " - " abschneiden (lange Beschreibungen)
-  //    "Latitude 7490 (F) - 14"..." → "Latitude 7490 (F)"
-  const dashIndex = result.indexOf(' - ')
-  if (dashIndex > 10) {
-    result = result.substring(0, dashIndex).trim()
-  }
-
-  // 2. Hersteller-Namen am Anfang entfernen wenn doppelt
-  //    "Dell Latitude 7490" → "Latitude 7490"
-  if (hersteller) {
-    const herstellerPattern = new RegExp(`^${hersteller}\\s+`, 'i')
-    result = result.replace(herstellerPattern, '').trim()
-  }
-
-  // 3. Business-Präfixe entfernen
-  result = result.replace(/^Business-NB\s+/i,          '').trim()
-  result = result.replace(/^Business-Convertible\s+/i, '').trim()
-  result = result.replace(/^Business-Laptop\s+/i,      '').trim()
-  result = result.replace(/^NB\s+/i,                   '').trim()
-
-  // 4. Interne Codes am Ende entfernen (Lenovo)
-  //    "ThinkPad T14 Gen 2i 20W1S06V00" → "ThinkPad T14 Gen 2i"
-  //    Pattern: Leerzeichen + 6+ Zeichen nur Großbuchstaben/Ziffern
-  let prev = ''
-  while (prev !== result) {
-    prev = result
-    result = result.replace(/\s+[A-Z0-9]{6,}[-A-Z0-9]*$/, '').trim()
-  }
-
-  // 5. Klammern am Ende entfernen: "Latitude 7490 (F)" → "Latitude 7490"
-  result = result.replace(/\s*\([^)]*\)\s*$/, '').trim()
-
-  // 6. Wenn Ergebnis nur Zahlen → original behalten (z.B. "5490")
-  if (/^\d+$/.test(result)) {
-    return bezeichnung.trim()
-  }
-
-  return result
-}
-
-function getAnzeigename(hersteller: string, bereinigt: string): string {
-  if (bereinigt.toLowerCase().startsWith(hersteller.toLowerCase())) {
-    return bereinigt
-  }
-  return hersteller ? `${hersteller} ${bereinigt}` : bereinigt
-}
 
 async function main() {
   const csvPath = process.argv[2] || '/tmp/geraete.csv'
@@ -78,47 +19,57 @@ async function main() {
   const content = fs.readFileSync(csvPath, 'utf-8')
 
   const records = parse(content, {
-    columns:        true,
+    columns:          true,
     skip_empty_lines: true,
-    trim:           true,
-    delimiter:      ';',
-    quote:          '"',
-    relax_quotes:   true,
+    trim:             true,
+    delimiter:        ';',
+    quote:            '"',
+    relax_quotes:     true,
   }) as Record<string, string>[]
 
-  // Nur Notebooks filtern
-  const notebooks = records.filter((r) =>
-    String(r['Geräteart'] || '').trim() === 'Notebook'
-  )
+  console.log(`📦 ${records.length} Datensätze gesamt`)
 
-  console.log(`📦 ${records.length} Geräte gesamt`)
-  console.log(`💻 ${notebooks.length} Notebooks gefunden — Import startet...\n`)
+  let imported   = 0
+  let updated    = 0
+  let errors     = 0
+  const skipReasons = new Map<string, number>()
+  const importedByHersteller = new Map<string, number>()
 
-  let imported = 0
-  let updated  = 0
-  let skipped  = 0
-  let errors   = 0
-
-  for (const row of notebooks) {
+  for (const row of records) {
     try {
+      // 1. Nur Notebooks
+      const geraeteart = String(row['Geräteart'] || '').trim()
+      if (geraeteart !== 'Notebook') {
+        const reason = `Kein Notebook (${geraeteart || 'leer'})`
+        skipReasons.set(reason, (skipReasons.get(reason) ?? 0) + 1)
+        continue
+      }
+
       const logId          = String(row['LogId']       || '').trim()
-      const hersteller     = String(row['Hersteller']  || '').trim()
+      const herstellerRaw  = String(row['Hersteller']  || '').trim()
       const bezeichnungRaw = String(row['Bezeichnung'] || '').trim()
 
-      if (!logId || !bezeichnungRaw) { skipped++; continue }
+      if (!logId || !bezeichnungRaw) {
+        skipReasons.set('Fehlende LogId/Bezeichnung', (skipReasons.get('Fehlende LogId/Bezeichnung') ?? 0) + 1)
+        continue
+      }
 
-      // LogId bereinigen: "212.826.176" → "212826176"
-      const logIdClean = logId.replace(/\./g, '')
+      // 2. Hersteller-Filter (nur HP, Lenovo, Dell, Fujitsu)
+      const normHersteller = normalisiereHersteller(herstellerRaw)
+      if (!normHersteller) {
+        const reason = `Hersteller: "${herstellerRaw}"`
+        skipReasons.set(reason, (skipReasons.get(reason) ?? 0) + 1)
+        continue
+      }
 
-      // Bezeichnung auf 500 Zeichen kürzen (DB-Limit)
+      // 3. Bereinigung mit neuer Logik (behebt u.a. "Dell Precision 7530" → "Precision")
+      const logIdClean      = logId.replace(/\./g, '')
       const bezeichnungSafe = bezeichnungRaw.substring(0, 500)
+      const cleanModel      = bereinigeBezeichnung(normHersteller, bezeichnungSafe)
+      const bereinigt       = `${normHersteller} ${cleanModel}`
 
-      // Bezeichnung bereinigen + Anzeigename zusammensetzen
-      const bezeichnungBereinigt = bereinige(bezeichnungSafe, hersteller)
-      const bereinigt = getAnzeigename(hersteller, bezeichnungBereinigt)
-
+      // 4. Upsert
       const existing = await prisma.geraeteLookup.findUnique({ where: { logId } })
-
       if (existing) {
         await prisma.geraeteLookup.update({
           where: { logId },
@@ -132,6 +83,8 @@ async function main() {
         imported++
       }
 
+      importedByHersteller.set(normHersteller, (importedByHersteller.get(normHersteller) ?? 0) + 1)
+
       const total = imported + updated
       if (total % 2000 === 0) console.log(`⏳ ${total} verarbeitet...`)
 
@@ -141,34 +94,29 @@ async function main() {
     }
   }
 
+  // Statistik
   console.log(`
-╔══════════════════════════════════╗
-║   Geräte Import abgeschlossen!  ║
-╠══════════════════════════════════╣
-║ Neu importiert:  ${String(imported).padStart(8)}    ║
-║ Aktualisiert:    ${String(updated).padStart(8)}    ║
-║ Übersprungen:    ${String(skipped).padStart(8)}    ║
-║ Fehler:          ${String(errors).padStart(8)}    ║
-╚══════════════════════════════════╝
-  `)
+╔══════════════════════════════════════╗
+║    Geräte Import abgeschlossen!      ║
+╠══════════════════════════════════════╣
+║ Neu importiert:  ${String(imported).padStart(8)}        ║
+║ Aktualisiert:    ${String(updated).padStart(8)}        ║
+║ Fehler:          ${String(errors).padStart(8)}        ║
+╚══════════════════════════════════════╝
+`)
+  if (importedByHersteller.size > 0) {
+    console.log('Importierte Hersteller:')
+    for (const [h, c] of [...importedByHersteller].sort((a, b) => b[1] - a[1]))
+      console.log(`  ${h.padEnd(10)} ${c.toLocaleString('de-DE').padStart(8)}`)
+    console.log('')
+  }
+  if (skipReasons.size > 0) {
+    console.log('Übersprungen (Top 10):')
+    const sorted = [...skipReasons].sort((a, b) => b[1] - a[1]).slice(0, 10)
+    for (const [reason, count] of sorted)
+      console.log(`  ${count.toLocaleString('de-DE').padStart(8)}× ${reason}`)
+  }
 
-  // ─── Phase 2: Auto-Kompatibilität ─────────────────────────────────────────
-  // DEAKTIVIERT: Kompatibilitäten werden manuell im Admin angelegt (/admin/modelle).
-  // Der Import legt nur GeraeteLookup + GeraeteModell an — KEINE Kompatibilitäten.
-  //
-  // Grund: Automatisch angelegte Kompatibilitäten waren unzuverlässig und führten
-  // zu falschen Verknüpfungen. Manuelle Pflege über die Admin-Oberfläche
-  // mit Suchfeld pro Teiltyp ist deutlich präziser.
-  //
-  // console.log('🤖 Phase 2: Auto-Kompatibilität anlegen...\n')
-  // ... [Block auskommentiert] ...
-
-  console.log(`
-  ─────────────────────────────────────────
-  Phase 2 (Auto-Kompatibilität) übersprungen.
-  Kompatibilitäten manuell in /admin/modelle anlegen.
-  ─────────────────────────────────────────
-  `)
 }
 
 main()
