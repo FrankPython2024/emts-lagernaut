@@ -423,7 +423,8 @@ export default function AnfragenPage() {
       <div className="space-y-4">
         {data?.map((gruppe, gi) => {
           // ── Lock-State ──────────────────────────────────────────────────
-          const anfragenTyped = gruppe.anfragen as (Anfrage & { bearbeitetVon?: string | null; bearbeitetSeit?: Date | null })[];
+          type AnfrageExt = Anfrage & { bearbeitetVon?: string | null; bearbeitetSeit?: Date | null; istSonderAnfrage?: boolean; beschreibung?: string | null; sonderKategorie?: string | null };
+          const anfragenTyped = gruppe.anfragen as AnfrageExt[];
           const gruppeAnfrageIds  = anfragenTyped.map((a) => a.id);
           const lockedAnfrage     = anfragenTyped.find((a) => a.bearbeitetVon);
           const bearbeitetVon     = lockedAnfrage?.bearbeitetVon ?? null;
@@ -532,18 +533,34 @@ export default function AnfragenPage() {
                   const rowLockedByOther = !!a.bearbeitetVon && a.bearbeitetVon.toUpperCase() !== ersteller.toUpperCase();
                   const rowCls = rowLockedByOther ? "opacity-60" : "";
                   return (
-                    <div key={a.id} className={`flex items-center gap-4 px-5 py-3 flex-wrap gap-y-1 ${rowCls}`}>
+                    <div key={a.id} className={`flex items-center gap-4 px-5 py-3 flex-wrap gap-y-1 ${rowCls}`}
+                      style={a.istSonderAnfrage ? { borderLeft: "3px solid #f97316", paddingLeft: "0.9rem" } : undefined}>
                       <div className="flex-1 min-w-0">
-                        <span className="font-semibold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">{a.teil}</span>
-                        {a.grading ? (
-                      <span className="ml-1 text-xs font-bold px-1.5 py-0.5 rounded bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]">
-                        {a.grading} erwünscht
-                      </span>
-                    ) : (
-                      <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff]">
-                        Bestmöglich
-                      </span>
-                    )}
+                        {a.istSonderAnfrage && (
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <span className="text-xs font-black px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                              📦 SONDERANFRAGE
+                            </span>
+                            {a.sonderKategorie && a.sonderKategorie !== "Sonstiges" && (
+                              <span className="text-xs text-orange-600 dark:text-orange-400">{a.sonderKategorie}</span>
+                            )}
+                          </div>
+                        )}
+                        <span className="font-semibold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                          {a.beschreibung ?? a.teil}
+                        </span>
+                        {!a.istSonderAnfrage && (a.grading ? (
+                          <span className="ml-1 text-xs font-bold px-1.5 py-0.5 rounded bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]">
+                            {a.grading} erwünscht
+                          </span>
+                        ) : (
+                          <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff]">
+                            Bestmöglich
+                          </span>
+                        ))}
+                        {a.istSonderAnfrage && (
+                          <div className="text-xs text-orange-600/70 dark:text-orange-400/70 mt-0.5">⚠️ Kein Standard-Artikel · Bitte manuell prüfen</div>
+                        )}
                         {a.kommentar && <span className="ml-2 text-xs text-[#0064d2] dark:text-[#45bdff]">⌨️ {a.kommentar}</span>}
                         {/* Bearbeiter-Hinweis per Anfrage */}
                         {a.bearbeitetVon && a.status === AnfrageStatus.IN_BEARBEITUNG && (

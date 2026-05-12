@@ -87,6 +87,48 @@ export async function addItem(data: {
 }
 
 /**
+ * Sonderanfrage-Item hinzufügen (kein Lagerartikel verknüpft).
+ * Immer mit istSonderAnfrage = true und artikelId = null.
+ */
+export async function addSonderItem(data: {
+  techniker:       string;
+  logId:           string;
+  geraeteName?:    string;
+  beschreibung:    string;
+  sonderKategorie: string;
+  grading?:        string | null;
+}) {
+  const techniker = data.techniker.toUpperCase().trim();
+  const logId     = data.logId.trim();
+
+  const korbId = await prisma.$transaction(async (tx) => {
+    let korb = await tx.warenkorb.findFirst({
+      where: { techniker, logId, status: KorbStatus.AKTIV },
+    });
+    if (!korb) {
+      korb = await tx.warenkorb.create({
+        data: { techniker, logId, geraeteName: data.geraeteName, status: KorbStatus.AKTIV },
+      });
+    }
+    await tx.warenkorbItem.create({
+      data: {
+        korbId:          korb.id,
+        artikelId:       null,
+        teiltyp:         data.sonderKategorie,
+        grading:         data.grading ?? null,
+        zusatzinfo:      null,
+        istSonderAnfrage: true,
+        beschreibung:    data.beschreibung,
+        sonderKategorie: data.sonderKategorie,
+      },
+    });
+    return korb.id;
+  });
+
+  return prisma.warenkorb.findUnique({ where: { id: korbId }, include: ITEMS_INCLUDE });
+}
+
+/**
  * Item entfernen.
  */
 export async function removeItem(itemId: number): Promise<void> {
@@ -144,16 +186,22 @@ export async function submit(data: {
   await Promise.all(
     korb.items.map((item) =>
       erstelleAnfrage({
-        techniker:   korb.techniker,
-        logId:       korb.logId,
-        geraeteName: korb.geraeteName ?? undefined,
-        geraet:      korb.geraeteName ?? (korb.logId !== "unbekannt" ? korb.logId : "Unbekannt"),
-        artikelId:   item.artikelId,
-        teil:        item.teiltyp ?? item.artikel?.kategorie ?? "Unbekannt",
-        grading:     item.grading ?? undefined,
-        kommentar:   item.zusatzinfo ?? data.zusatzinfo,
+        techniker:        korb.techniker,
+        logId:            korb.logId,
+        geraeteName:      korb.geraeteName ?? undefined,
+        geraet:           korb.geraeteName ?? (korb.logId !== "unbekannt" ? korb.logId : "Unbekannt"),
+        artikelId:        item.artikelId,
+        // Sonderanfragen: Teil = erste 50 Zeichen der Beschreibung
+        teil:             item.istSonderAnfrage && item.beschreibung
+          ? item.beschreibung.slice(0, 50)
+          : (item.teiltyp ?? item.artikel?.kategorie ?? "Unbekannt"),
+        grading:          item.grading ?? undefined,
+        kommentar:        item.zusatzinfo ?? data.zusatzinfo,
         gruppenNr,
-        korbId:      korb.id,
+        korbId:           korb.id,
+        istSonderAnfrage: item.istSonderAnfrage ?? false,
+        beschreibung:     item.beschreibung ?? undefined,
+        sonderKategorie:  item.sonderKategorie ?? undefined,
       }),
     ),
   );

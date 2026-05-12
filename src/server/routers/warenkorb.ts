@@ -4,6 +4,7 @@ import { createTRPCRouter, protectedProcedure } from "@/server/trpc";
 import {
   getAktiv,
   addItem,
+  addSonderItem,
   removeItem,
   submit,
   submitAlle,
@@ -43,6 +44,28 @@ export const warenkorbRouter = createTRPCRouter({
     .mutation(({ input, ctx }) => {
       assertOwner(ctx.session.user, input.techniker);
       return addItem(input);
+    }),
+
+  // Sonderanfrage hinzufügen (eigene Beschreibung, kein Lagerartikel)
+  addSonderAnfrage: protectedProcedure
+    .input(z.object({
+      techniker:       z.string().min(1).max(50),
+      logId:           z.string().min(1).max(100),
+      geraeteName:     z.string().max(255).optional(),
+      beschreibung:    z.string().min(5).max(500).trim(),
+      sonderKategorie: z.string().max(50).optional(),
+      grading:         z.enum(["A+", "A", "B", "C"]).nullable().optional(),
+    }))
+    .mutation(({ input, ctx }) => {
+      assertOwner(ctx.session.user, input.techniker);
+      return addSonderItem({
+        techniker:       input.techniker,
+        logId:           input.logId,
+        geraeteName:     input.geraeteName,
+        beschreibung:    input.beschreibung,
+        sonderKategorie: input.sonderKategorie ?? "Sonstiges",
+        grading:         input.grading,
+      });
     }),
 
   // Item entfernen (leerer Korb wird automatisch gelöscht)

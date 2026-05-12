@@ -13,6 +13,7 @@ export default function AnfragenItem({ anfrage, idx, onStorno }: Props) {
   const isAbgeschlossen = anfrage.status === "ABGESCHLOSSEN";
   const isStorniert     = anfrage.status === "STORNIERT";
   const isInBearbeitung = anfrage.status === "IN_BEARBEITUNG";
+  const isSonder        = !!anfrage.istSonderAnfrage;
   const odd             = idx % 2 === 1;
 
   const bearbeitetSeitStr = anfrage.bearbeitetSeit
@@ -24,18 +25,31 @@ export default function AnfragenItem({ anfrage, idx, onStorno }: Props) {
       padding:    "10px 16px",
       background: isInBearbeitung
         ? "rgba(251,191,36,0.07)"
+        : isSonder
+        ? "rgba(249,115,22,0.04)"
         : odd ? "var(--card-bg)" : "var(--bg)",
       borderTop:  idx > 0 ? "1px solid var(--border)" : "none",
+      borderLeft: isSonder ? "3px solid #f97316" : "none",
     }}>
       {/* Row 1: Icon + Name + Grade + Status + Action */}
       <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, minWidth: 0 }}>
         <span style={{ fontSize: "1.1rem", flexShrink: 0 }}>
-          {TEIL_ICONS[anfrage.teil] ?? "🔧"}
+          {isSonder ? "📦" : (TEIL_ICONS[anfrage.teil] ?? "🔧")}
         </span>
 
-        <strong style={{ fontSize: "0.9rem", flex: "1 1 80px", minWidth: 0 }}>
-          {anfrage.teil}
-        </strong>
+        <div style={{ flex: "1 1 80px", minWidth: 0 }}>
+          {isSonder && (
+            <div style={{ fontSize: "0.65rem", fontWeight: 800, color: "#f97316", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 1 }}>
+              Sonderanfrage
+            </div>
+          )}
+          <strong style={{ fontSize: "0.9rem" }}>
+            {anfrage.beschreibung ?? anfrage.teil}
+          </strong>
+          {isSonder && anfrage.sonderKategorie && (
+            <div style={{ fontSize: "0.68rem", color: "var(--text-dim)" }}>Kategorie: {anfrage.sonderKategorie}</div>
+          )}
+        </div>
 
         {anfrage.grading ? (
           <span style={{ padding: "2px 7px", borderRadius: 5, background: "var(--border)", color: "var(--text-dim)", fontSize: "0.72rem", fontWeight: 700, flexShrink: 0 }}>
@@ -96,6 +110,11 @@ export default function AnfragenItem({ anfrage, idx, onStorno }: Props) {
       {isStorniert && (
         <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", fontStyle: "italic", marginTop: 4, paddingLeft: 28 }}>
           Storniert
+        </div>
+      )}
+      {isSonder && !isAbgeschlossen && !isStorniert && (
+        <div style={{ fontSize: "0.72rem", color: "#f97316", marginTop: 4, paddingLeft: 28, fontWeight: 600 }}>
+          ⚠️ Wird vom Admin geprüft
         </div>
       )}
       {anfrage.kommentar && !isAbgeschlossen && !isInBearbeitung && (

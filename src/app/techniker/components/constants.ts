@@ -23,18 +23,21 @@ export const STATUS_CFG: Record<string, { bg: string; color: string; label: stri
 };
 
 export type AnfrageRow = {
-  id:             number;
-  techniker:      string;
-  logId:          string;
-  geraet:         string;
-  geraeteName:    string | null;
-  teil:           string;
-  status:         string;
-  datum:          Date;
-  grading?:       string | null;
-  kommentar?:     string | null;
-  bearbeitetVon?:  string | null;
-  bearbeitetSeit?: Date | null;
+  id:               number;
+  techniker:        string;
+  logId:            string;
+  geraet:           string;
+  geraeteName:      string | null;
+  teil:             string;
+  status:           string;
+  datum:            Date;
+  grading?:         string | null;
+  kommentar?:       string | null;
+  bearbeitetVon?:   string | null;
+  bearbeitetSeit?:  Date | null;
+  istSonderAnfrage?: boolean;
+  beschreibung?:    string | null;
+  sonderKategorie?: string | null;
 };
 
 export type GruppeData = {

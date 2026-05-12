@@ -80,6 +80,9 @@ model Anfrage {
   gruppenNr   String?
   korbId      Int?
   korb        Warenkorb?     @relation(fields: [korbId], references: [id], onDelete: SetNull)
+  istSonderAnfrage Boolean   @default(false)
+  beschreibung     String?   @db.Text
+  sonderKategorie  String?
   status          AnfrageStatus  @default(NEU)
   bearbeitetVon   String?
   bearbeitetSeit  DateTime?
@@ -156,12 +159,15 @@ enum KorbStatus {
 }
 
 model WarenkorbItem {
-  id         Int       @id @default(autoincrement())
-  korbId     Int
-  artikelId  Int?
-  teiltyp    String?
-  grading    String?
-  zusatzinfo String?
+  id               Int      @id @default(autoincrement())
+  korbId           Int
+  artikelId        Int?
+  teiltyp          String?
+  grading          String?
+  zusatzinfo       String?
+  istSonderAnfrage Boolean  @default(false)
+  beschreibung     String?  @db.Text
+  sonderKategorie  String?
   korb       Warenkorb @relation(fields: [korbId], references: [id])
   artikel    Artikel?  @relation(fields: [artikelId], references: [id])
 }

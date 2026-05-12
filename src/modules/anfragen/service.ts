@@ -19,16 +19,20 @@ export type GruppenAnfrage = {
 };
 
 export type ErstelleAnfrageData = {
-  techniker:   string;
-  logId:       string;
-  geraeteName?: string;
-  geraet:      string;
-  artikelId:   number | null;
-  teil:        string;
-  grading?:    string;
-  kommentar?:  string;
-  gruppenNr?:  string;
-  korbId?:     number;
+  techniker:        string;
+  logId:            string;
+  geraeteName?:     string;
+  geraet:           string;
+  artikelId:        number | null;
+  teil:             string;
+  grading?:         string;
+  kommentar?:       string;
+  gruppenNr?:       string;
+  korbId?:          number;
+  // Sonderanfragen
+  istSonderAnfrage?: boolean;
+  beschreibung?:     string;
+  sonderKategorie?:  string;
 };
 
 /**
@@ -46,20 +50,26 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
     status = artikel.bestand > 0 ? AnfrageStatus.NEU : AnfrageStatus.BEDARF;
   }
 
+  // Sonderanfragen sind immer BEDARF (kein Lagerartikel verknüpft)
+  if (data.istSonderAnfrage) status = AnfrageStatus.BEDARF;
+
   const anfrage = await prisma.anfrage.create({
     data: {
-      techniker:   data.techniker.toUpperCase().trim(),
-      logId:       data.logId.trim(),
-      geraeteName: data.geraeteName,
-      geraet:      data.geraet.toUpperCase().trim(),
-      artikelId:   data.artikelId,
-      teil:        data.teil,
-      menge:       1,
-      grading:     data.grading,
-      kommentar:   data.kommentar,
-      gruppenNr:   data.gruppenNr,
-      korbId:      data.korbId,
+      techniker:        data.techniker.toUpperCase().trim(),
+      logId:            data.logId.trim(),
+      geraeteName:      data.geraeteName,
+      geraet:           data.geraet.toUpperCase().trim(),
+      artikelId:        data.artikelId,
+      teil:             data.teil,
+      menge:            1,
+      grading:          data.grading,
+      kommentar:        data.kommentar,
+      gruppenNr:        data.gruppenNr,
+      korbId:           data.korbId,
       status,
+      istSonderAnfrage: data.istSonderAnfrage ?? false,
+      beschreibung:     data.beschreibung,
+      sonderKategorie:  data.sonderKategorie,
     },
   });
 

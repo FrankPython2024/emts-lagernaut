@@ -112,7 +112,11 @@ export default function TechnikerPage() {
 
   // ── Tastatur / Cart pending ────────────────────────────────────────────────
   const [showTastatur,    setShowTastatur]    = useState(false);
-  const [pendingCartItem, setPendingCartItem] = useState<{ teil: TeilInfo; grading: string | null } | null>(null);
+  const [pendingCartItem,   setPendingCartItem]   = useState<{ teil: TeilInfo; grading: string | null } | null>(null);
+  const [showSonderModal,   setShowSonderModal]   = useState(false);
+  const [sonderBeschr,      setSonderBeschr]      = useState("");
+  const [sonderKat,         setSonderKat]         = useState("Sonstiges");
+  const [sonderGrading,     setSonderGrading]     = useState<string | null>(null);
 
   // ── Cart state ─────────────────────────────────────────────────────────────
   const [cartOpen,          setCartOpen]          = useState(false);
@@ -184,6 +188,16 @@ export default function TechnikerPage() {
       setGlobalZusatzinfo("");
     },
     onError: (e) => show(`Fehler: ${e.message}`, "error"),
+  });
+
+  const addSonderMutation = api.warenkorb.addSonderAnfrage.useMutation({
+    onSuccess: () => {
+      show("📦 Sonderanfrage hinzugefügt", "success");
+      setShowSonderModal(false);
+      setSonderBeschr(""); setSonderKat("Sonstiges"); setSonderGrading(null);
+      korbQuery.refetch();
+    },
+    onError: (e) => show(e.message, "error"),
   });
 
   // ── Socket: nur Teile-Refresh (Anfragen-Refresh ist in AnfragenBox) ───────
@@ -285,6 +299,114 @@ export default function TechnikerPage() {
         onConfirm={handleTastaturConfirm}
         onClose={() => { setShowTastatur(false); setPendingCartItem(null); }}
       />
+
+      {/* ── Sonderanfrage Modal ── */}
+      {showSonderModal && selectedGeraet && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={() => setShowSonderModal(false)}
+        >
+          <div
+            style={{ background: "var(--card-bg)", borderRadius: 16, boxShadow: "0 24px 60px rgba(0,0,0,0.35)", width: "100%", maxWidth: 480, color: "var(--text)", overflow: "hidden" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: "1rem" }}>📦 Sonstiges Teil anfragen</div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", marginTop: 2 }}>
+                  {selectedGeraet.bereinigt}
+                  {selectedGeraet.logId !== "---" && ` · ${selectedGeraet.logId}`}
+                </div>
+              </div>
+              <button onClick={() => setShowSonderModal(false)} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "1.4rem", lineHeight: 1, padding: "2px 6px" }}>×</button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: "1.2rem 1.4rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {/* Beschreibung */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, marginBottom: 5 }}>
+                  Beschreibung <span style={{ color: "var(--danger)" }}>*</span>
+                </label>
+                <textarea
+                  value={sonderBeschr}
+                  onChange={(e) => setSonderBeschr(e.target.value)}
+                  placeholder='z.B. "Schraube unten rechts am D-Cover" oder "Spezial-Kabel Touchpad"'
+                  rows={3}
+                  style={{ width: "100%", padding: "0.6rem 0.8rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.85rem", outline: "none", resize: "vertical", boxSizing: "border-box" }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "var(--primary)")}
+                  onBlur={(e)  => (e.currentTarget.style.borderColor = "var(--border)")}
+                />
+                {sonderBeschr.length > 0 && sonderBeschr.trim().length < 5 && (
+                  <div style={{ fontSize: "0.72rem", color: "var(--danger)", marginTop: 3 }}>
+                    Bitte das Teil genauer beschreiben (mind. 5 Zeichen)
+                  </div>
+                )}
+              </div>
+
+              {/* Kategorie */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, marginBottom: 5 }}>Kategorie (optional)</label>
+                <select
+                  value={sonderKat}
+                  onChange={(e) => setSonderKat(e.target.value)}
+                  style={{ width: "100%", padding: "0.5rem 0.8rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.85rem", outline: "none" }}
+                >
+                  {["Sonstiges", "Schraube", "Kabel", "Stecker", "Aufkleber", "Sonstiges Kleinteil"].map((k) => (
+                    <option key={k} value={k}>{k}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Grading */}
+              <div>
+                <div style={{ fontSize: "0.78rem", fontWeight: 700, marginBottom: 5 }}>
+                  Grading <span style={{ fontWeight: 400, fontStyle: "italic", color: "var(--text-dim)" }}>(optional)</span>
+                </div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {(["A+", "A", "B", "C"] as const).map((g) => (
+                    <button key={g} onClick={() => setSonderGrading(sonderGrading === g ? null : g)}
+                      style={{ padding: "0.2rem 0.55rem", borderRadius: 5, border: `1px solid ${sonderGrading === g ? "var(--primary)" : "var(--border)"}`, background: sonderGrading === g ? "var(--primary)" : "var(--bg)", color: sonderGrading === g ? "white" : "var(--text)", cursor: "pointer", fontSize: "0.78rem", fontWeight: 700, fontFamily: "'Ubuntu', sans-serif", transition: "all 0.15s" }}>
+                      {g}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize: "0.62rem", color: "var(--text-dim)", marginTop: 3, fontStyle: "italic" }}>
+                  ⓘ Ohne Auswahl: bestmögliches verfügbar
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: "0.8rem 1.4rem", borderTop: "1px solid var(--border)", display: "flex", gap: 10 }}>
+              <button
+                onClick={() => setShowSonderModal(false)}
+                style={{ flex: 1, padding: "0.65rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text-dim)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontWeight: 600, fontSize: "0.85rem" }}
+              >
+                Abbrechen
+              </button>
+              <button
+                disabled={sonderBeschr.trim().length < 5 || addSonderMutation.isPending}
+                onClick={() => {
+                  if (!kuerzel || !selectedGeraet || sonderBeschr.trim().length < 5) return;
+                  addSonderMutation.mutate({
+                    techniker:       kuerzel,
+                    logId:           selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId,
+                    geraeteName:     selectedGeraet.bereinigt,
+                    beschreibung:    sonderBeschr.trim(),
+                    sonderKategorie: sonderKat,
+                    grading:         sonderGrading as "A+" | "A" | "B" | "C" | null,
+                  });
+                }}
+                style={{ flex: 2, padding: "0.65rem", borderRadius: 8, border: "none", background: sonderBeschr.trim().length >= 5 ? "#f97316" : "var(--border)", color: sonderBeschr.trim().length >= 5 ? "white" : "var(--text-dim)", cursor: sonderBeschr.trim().length >= 5 ? "pointer" : "not-allowed", fontFamily: "'Ubuntu', sans-serif", fontWeight: 700, fontSize: "0.85rem", transition: "all 0.15s" }}
+              >
+                {addSonderMutation.isPending ? "⏳" : "🛒 In Warenkorb"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Storno-Modal ist jetzt in AnfragenBox */}
 
@@ -457,6 +579,29 @@ export default function TechnikerPage() {
                   ))}
                 </div>
               )}
+
+              {/* ── Sonderanfrage-Button ── */}
+              {selectedGeraet && teileQuery.data && (
+                <div style={{ marginTop: "0.5rem" }}>
+                  <button
+                    onClick={() => setShowSonderModal(true)}
+                    style={{
+                      width: "100%", padding: "0.75rem 1rem", borderRadius: 12,
+                      border: "1.5px dashed #f97316", background: "rgba(249,115,22,0.04)",
+                      color: "#f97316", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif",
+                      fontWeight: 700, fontSize: "0.9rem",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      transition: "background 0.15s",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.1rem" }}>➕</span>
+                    Teil nicht dabei? Sonstiges anfragen
+                  </button>
+                  <div style={{ fontSize: "0.67rem", color: "var(--text-dim)", textAlign: "center", marginTop: 4 }}>
+                    Eigene Beschreibung eingeben — z.B. "Schraube D-Cover" oder "Spezial-Kabel"
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </div>
@@ -544,9 +689,12 @@ export default function TechnikerPage() {
 
                         {/* Items (Zebra-Muster) */}
                         {korb.items.map((item, idx) => {
-                          const teilName  = item.artikel?.kategorie ?? item.teiltyp ?? "Unbekannt";
-                          const artName   = item.artikel?.bezeichnung ?? "—";
-                          const isNeu     = (item.artikel?.bestand ?? 0) > 0;
+                          const isSonder  = !!(item as { istSonderAnfrage?: boolean }).istSonderAnfrage;
+                          const sonderD   = (item as { beschreibung?: string | null }).beschreibung;
+                          const sonderK   = (item as { sonderKategorie?: string | null }).sonderKategorie;
+                          const teilName  = isSonder ? "Sonderanfrage" : (item.artikel?.kategorie ?? item.teiltyp ?? "Unbekannt");
+                          const artName   = isSonder ? (sonderD ?? "—") : (item.artikel?.bezeichnung ?? "—");
+                          const isNeu     = isSonder ? false : (item.artikel?.bestand ?? 0) > 0;
                           const odd       = idx % 2 === 1;
                           return (
                             <div
@@ -560,13 +708,15 @@ export default function TechnikerPage() {
                               }}
                             >
                               <span style={{ fontSize: "1.1rem", flexShrink: 0 }}>
-                                {TEIL_ICONS[teilName] ?? "🔧"}
+                                {isSonder ? "📦" : (TEIL_ICONS[teilName] ?? "🔧")}
                               </span>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontWeight: 600, fontSize: "0.85rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {teilName}
-                                </div>
-                                <div style={{ fontSize: "0.72rem", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {isSonder && (
+                                  <div style={{ fontSize: "0.62rem", fontWeight: 800, color: "#f97316", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                                    Sonderanfrage{sonderK && sonderK !== "Sonstiges" ? ` · ${sonderK}` : ""}
+                                  </div>
+                                )}
+                                <div style={{ fontWeight: 600, fontSize: "0.82rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                   {artName}
                                 </div>
                               </div>
