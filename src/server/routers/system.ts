@@ -97,6 +97,40 @@ async function getSocketIOStats() {
 
 // ── Router ───────────────────────────────────────────────────────────────────
 
+// ── Reset ────────────────────────────────────────────────────────────────────
+
+async function resetAllData() {
+  const result = await prisma.$transaction(async (tx) => {
+    const nachrichtAntworten = await tx.nachrichtAntwort.deleteMany();
+    const nachrichtEmpf      = await tx.nachrichtEmpf.deleteMany();
+    const nachrichten        = await tx.nachricht.deleteMany();
+    const anfragen           = await tx.anfrage.deleteMany();     // vor Artikel!
+    const korbItems          = await tx.warenkorbItem.deleteMany();
+    const koerbe             = await tx.warenkorb.deleteMany();
+    const buchungen          = await tx.buchung.deleteMany();     // vor Artikel!
+    const komps              = await tx.kompatibilitaet.deleteMany(); // vor Artikel!
+    const artikel            = await tx.artikel.deleteMany();
+    const sessions           = await tx.technikerSession.deleteMany();
+    const stresstests        = await tx.stressTestRun.deleteMany();
+    return { artikel: artikel.count, buchungen: buchungen.count, anfragen: anfragen.count,
+             nachrichten: nachrichten.count, komps: komps.count, koerbe: koerbe.count,
+             korbItems: korbItems.count, sessions: sessions.count,
+             nachrichtAntworten: nachrichtAntworten.count, nachrichtEmpf: nachrichtEmpf.count,
+             stresstests: stresstests.count };
+  }, { timeout: 60_000 });
+
+  // Redis Beleg-Counter zurücksetzen (non-critical)
+  let redisKeys = 0;
+  try {
+    const keys = await redis.keys("beleg:*");
+    if (keys.length > 0) { await redis.del(...keys); redisKeys = keys.length; }
+  } catch {}
+
+  return { ...result, redisKeys };
+}
+
+// ── Router ───────────────────────────────────────────────────────────────────
+
 export const systemRouter = createTRPCRouter({
 
   getMetrics: adminProcedure
@@ -163,6 +197,30 @@ export const systemRouter = createTRPCRouter({
         bullmq:     bullmqStats,
         socketio:   socketStats,
       };
+    }),
+
+  // Vorschau: aktuelle DB-Zähler für Danger Zone
+  getResetPreview: adminProcedure
+    .query(async () => {
+      const [artikel, buchungen, anfragen, komps, koerbe, nachrichten] = await Promise.all([
+        prisma.artikel.count(),
+        prisma.buchung.count(),
+        prisma.anfrage.count(),
+        prisma.kompatibilitaet.count(),
+        prisma.warenkorb.count(),
+        prisma.nachricht.count(),
+      ]);
+      return { artikel, buchungen, anfragen, komps, koerbe, nachrichten };
+    }),
+
+  // ⚠️  RESET — löscht alle Lager-Daten, behält User + GeraeteLookup
+  resetLagernaut: adminProcedure
+    .mutation(async ({ ctx }) => {
+      const user = ctx.session!.user as { kuerzel?: string };
+      console.log(`[System] RESET gestartet durch ${user.kuerzel ?? "unbekannt"}`);
+      const result = await resetAllData();
+      console.log(`[System] RESET abgeschlossen: ${JSON.stringify(result)}`);
+      return result;
     }),
 
 });

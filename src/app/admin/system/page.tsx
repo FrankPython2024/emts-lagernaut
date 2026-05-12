@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { api } from "@/trpc/react";
+import { api }         from "@/trpc/react";
+import { useToast }    from "@/components/ui/Toast";
 
 // ── Formatier-Hilfen ─────────────────────────────────────────────────────────
 
@@ -456,6 +457,11 @@ export default function SystemPage() {
           )}
         </div>
       </Section>
+
+      {/* ── DANGER ZONE ─────────────────────────────────────────────────── */}
+      <Section title="Danger Zone" icon="⚠️">
+        <DangerZone />
+      </Section>
     </div>
   );
 }
@@ -465,4 +471,192 @@ function formatUptimeSec(s: number): string {
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);
   return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+// ── DANGER ZONE ───────────────────────────────────────────────────────────────
+
+type ResetPhase = "idle" | "confirm" | "eingabe" | "executing" | "done";
+
+function DangerZone() {
+  const { show } = useToast();
+  const [phase,    setPhase]    = useState<ResetPhase>("idle");
+  const [eingabe,  setEingabe]  = useState("");
+  const [ergebnis, setErgebnis] = useState<Record<string, number> | null>(null);
+
+  const previewQuery = api.system.getResetPreview.useQuery(undefined, { staleTime: 5_000 });
+  const p = previewQuery.data;
+
+  const resetMutation = api.system.resetLagernaut.useMutation({
+    onSuccess: (data) => {
+      setErgebnis(data);
+      setPhase("done");
+      show("✅ Reset abgeschlossen", "success");
+    },
+    onError: (e) => {
+      show(`Fehler: ${e.message}`, "error");
+      setPhase("idle");
+    },
+  });
+
+  function handleReset() {
+    setPhase("executing");
+    resetMutation.mutate();
+  }
+
+  const BEFEHL = "RESET LAGERNAUT";
+  const eingabeKorrekt = eingabe === BEFEHL;
+
+  return (
+    <div style={{ border: "2px solid #fa3e3e", borderRadius: 14, overflow: "hidden", marginTop: 8 }}>
+      {/* Header */}
+      <div style={{ background: "#fa3e3e", padding: "10px 20px", display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: "1.1rem" }}>⚠️</span>
+        <span style={{ color: "white", fontWeight: 900, fontSize: "0.95rem", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+          DANGER ZONE
+        </span>
+      </div>
+
+      <div style={{ padding: "1.2rem 1.4rem", background: "rgba(250,62,62,0.04)" }}>
+
+        {/* ── Phase: idle ── */}
+        {phase === "idle" && (
+          <>
+            <div style={{ fontWeight: 700, fontSize: "0.95rem", marginBottom: 8 }}>
+              🗑️ Kompletter Lagernaut-Reset
+            </div>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginBottom: 14, lineHeight: 1.5 }}>
+              Löscht alle Anfragen, Buchungen, Artikel und Kompatibilitäten.
+              <strong style={{ color: "var(--text)" }}> User und GeraeteLookup bleiben erhalten.</strong>
+            </p>
+
+            {p && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+                {[
+                  { label: "Artikel",          val: p.artikel },
+                  { label: "Buchungen",         val: p.buchungen },
+                  { label: "Anfragen",          val: p.anfragen },
+                  { label: "Kompatibilitäten",  val: p.komps },
+                  { label: "Warenkörbe",        val: p.koerbe },
+                  { label: "Nachrichten",       val: p.nachrichten },
+                ].map(({ label, val }) => (
+                  <div key={label} style={{ background: "var(--bg)", borderRadius: 8, padding: "0.5rem 0.7rem", textAlign: "center" }}>
+                    <div style={{ fontSize: "1.2rem", fontWeight: 900, color: val > 0 ? "#fa3e3e" : "var(--text-dim)" }}>{val.toLocaleString("de-DE")}</div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", fontWeight: 600 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setPhase("confirm")}
+              style={{ padding: "0.7rem 1.4rem", background: "#fa3e3e", color: "white", border: "none", borderRadius: 10, fontWeight: 800, cursor: "pointer", fontSize: "0.9rem", fontFamily: "'Ubuntu', sans-serif" }}
+            >
+              🗑️ RESET LAGERNAUT
+            </button>
+          </>
+        )}
+
+        {/* ── Phase: confirm ── */}
+        {phase === "confirm" && (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "3rem", marginBottom: 8 }}>⚠️</div>
+            <div style={{ fontSize: "1.1rem", fontWeight: 900, marginBottom: 6 }}>Wirklich ALLE Daten löschen?</div>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginBottom: 20, lineHeight: 1.5 }}>
+              Diese Aktion kann <strong style={{ color: "#fa3e3e" }}>nicht rückgängig</strong> gemacht werden.
+              {p && p.artikel + p.buchungen + p.anfragen > 0 && (
+                <> Es werden {(p.artikel + p.buchungen + p.anfragen).toLocaleString("de-DE")} Datensätze gelöscht.</>
+              )}
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button
+                onClick={() => setPhase("idle")}
+                style={{ padding: "0.7rem 1.4rem", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.9rem" }}
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => setPhase("eingabe")}
+                style={{ padding: "0.7rem 1.4rem", background: "#fa3e3e", color: "white", border: "none", borderRadius: 10, fontWeight: 800, cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.9rem" }}
+              >
+                Ja, weiter →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Phase: eingabe ── */}
+        {phase === "eingabe" && (
+          <>
+            <div style={{ fontWeight: 700, marginBottom: 10, fontSize: "0.9rem" }}>
+              Bitte genau eingeben um zu bestätigen:
+            </div>
+            <div style={{ marginBottom: 10, padding: "0.5rem 0.8rem", background: "var(--bg)", borderRadius: 8, fontFamily: "monospace", fontSize: "1rem", fontWeight: 800, color: "#fa3e3e", letterSpacing: 1 }}>
+              {BEFEHL}
+            </div>
+            <input
+              type="text"
+              value={eingabe}
+              onChange={(e) => setEingabe(e.target.value)}
+              placeholder={BEFEHL}
+              autoFocus
+              style={{
+                width: "100%", padding: "0.7rem 1rem", borderRadius: 10, fontFamily: "'Ubuntu', sans-serif",
+                border: `2px solid ${eingabeKorrekt ? "#04B475" : "#fa3e3e"}`,
+                background: "var(--bg)", color: "var(--text)", fontSize: "1rem",
+                outline: "none", boxSizing: "border-box", marginBottom: 14,
+              }}
+            />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => { setPhase("idle"); setEingabe(""); }}
+                style={{ flex: 1, padding: "0.7rem", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Ubuntu', sans-serif" }}
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={!eingabeKorrekt}
+                style={{ flex: 2, padding: "0.7rem", background: eingabeKorrekt ? "#fa3e3e" : "var(--border)", color: eingabeKorrekt ? "white" : "var(--text-dim)", border: "none", borderRadius: 10, fontWeight: 800, cursor: eingabeKorrekt ? "pointer" : "not-allowed", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.9rem" }}
+              >
+                🗑️ Jetzt unwiderruflich löschen
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Phase: executing ── */}
+        {phase === "executing" && (
+          <div style={{ textAlign: "center", padding: "1.5rem 0" }}>
+            <div style={{ width: 40, height: 40, border: "3px solid rgba(250,62,62,0.2)", borderTopColor: "#fa3e3e", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 1rem" }} />
+            <div style={{ fontWeight: 700 }}>Lösche Daten…</div>
+            <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", marginTop: 4 }}>Bitte warten</div>
+          </div>
+        )}
+
+        {/* ── Phase: done ── */}
+        {phase === "done" && ergebnis && (
+          <div>
+            <div style={{ textAlign: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: "2.5rem", marginBottom: 6 }}>✅</div>
+              <div style={{ fontSize: "1.1rem", fontWeight: 900 }}>Reset abgeschlossen!</div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 16 }}>
+              {Object.entries(ergebnis).filter(([, v]) => v > 0).map(([k, v]) => (
+                <div key={k} style={{ background: "var(--bg)", borderRadius: 8, padding: "0.4rem 0.8rem", display: "flex", justifyContent: "space-between", fontSize: "0.82rem" }}>
+                  <span style={{ color: "var(--text-dim)" }}>{k}</span>
+                  <span style={{ fontWeight: 800 }}>{(v as number).toLocaleString("de-DE")}</span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => { setPhase("idle"); setEingabe(""); setErgebnis(null); previewQuery.refetch(); }}
+              style={{ width: "100%", padding: "0.7rem", background: "#04B475", color: "white", border: "none", borderRadius: 10, fontWeight: 800, cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.9rem" }}
+            >
+              Fertig →
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
