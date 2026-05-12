@@ -1,9 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
+import { LogoutButton } from "@/components/ui/LogoutButton";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS } from "@/modules/realtime/events";
 
@@ -24,7 +25,6 @@ const NAV = [
 
 function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => void }) {
   const pathname = usePathname();
-  const router   = useRouter();
   const { data: session } = useSession();
   const [dark, setDark] = useState(false);
 
@@ -100,13 +100,12 @@ function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => v
               <div className="text-xs font-bold text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{user.name}</div>
               <div className="text-[10px] text-[#65676b] dark:text-[#b0b3b8]">{user.rolle}</div>
             </div>
-            <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
+            <LogoutButton
               className="text-[#65676b] hover:text-[#fa3e3e] text-sm transition-colors"
               title="Abmelden"
             >
               🚪
-            </button>
+            </LogoutButton>
           </div>
         )}
       </div>

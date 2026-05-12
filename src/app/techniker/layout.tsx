@@ -2,8 +2,9 @@
 import { useState, useEffect, createContext, useContext } from "react";
 import Link        from "next/link";
 import { useRouter } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { ToastProvider }  from "@/components/ui/Toast";
+import { LogoutButton }   from "@/components/ui/LogoutButton";
 import { api }            from "@/trpc/react";
 import { useSocket }      from "@/hooks/useSocket";
 import { EVENTS }         from "@/modules/realtime/events";
@@ -234,13 +235,9 @@ function TechnikerHeader({ bellShake }: { bellShake: boolean }) {
         </Link>
 
         {/* Logout */}
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          style={{ ...btnIcon, marginLeft: "0.2rem" }}
-          title="Abmelden"
-        >
+        <LogoutButton style={{ ...btnIcon, marginLeft: "0.2rem" }} title="Abmelden">
           🚪
-        </button>
+        </LogoutButton>
       </div>
     </header>
   );
