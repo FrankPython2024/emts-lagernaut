@@ -9,8 +9,9 @@ import { useSocket } from "@/hooks/useSocket";
 import { EVENTS } from "@/modules/realtime/events";
 
 const NAV = [
-  { href: "/admin",           label: "Dashboard",   icon: "📊" },
-  { href: "/admin/artikel",   label: "Artikel",     icon: "📦" },
+  { href: "/admin",            label: "Dashboard",      icon: "📊" },
+  { href: "/admin/einlagern",  label: "Teile einlagern", icon: "📦" },
+  { href: "/admin/artikel",    label: "Artikel",         icon: "🗃️" },
   { href: "/admin/modelle",      label: "Modelle",      icon: "💻" },
   { href: "/admin/lagerplaetze", label: "Lagerplätze",  icon: "🗄️" },
   { href: "/admin/buchungen",    label: "Buchungen",    icon: "📋" },
