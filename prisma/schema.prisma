@@ -160,7 +160,7 @@ model WarenkorbItem {
   korbId     Int
   artikelId  Int?
   teiltyp    String?
-  grading    String    @default("A+")
+  grading    String?
   zusatzinfo String?
   korb       Warenkorb @relation(fields: [korbId], references: [id])
   artikel    Artikel?  @relation(fields: [artikelId], references: [id])

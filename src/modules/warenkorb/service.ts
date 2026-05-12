@@ -71,7 +71,7 @@ export async function addItem(data: {
         korbId:     korb.id,
         artikelId:  data.artikelId,
         teiltyp:    data.teiltyp,
-        grading:    data.grading ?? "A+",
+        grading:    data.grading ?? null,
         zusatzinfo: data.zusatzinfo,
       },
     });
@@ -150,7 +150,7 @@ export async function submit(data: {
         geraet:      korb.geraeteName ?? (korb.logId !== "unbekannt" ? korb.logId : "Unbekannt"),
         artikelId:   item.artikelId,
         teil:        item.teiltyp ?? item.artikel?.kategorie ?? "Unbekannt",
-        grading:     item.grading,
+        grading:     item.grading ?? undefined,
         kommentar:   item.zusatzinfo ?? data.zusatzinfo,
         gruppenNr,
         korbId:      korb.id,

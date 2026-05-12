@@ -535,7 +535,15 @@ export default function AnfragenPage() {
                     <div key={a.id} className={`flex items-center gap-4 px-5 py-3 flex-wrap gap-y-1 ${rowCls}`}>
                       <div className="flex-1 min-w-0">
                         <span className="font-semibold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">{a.teil}</span>
-                        {a.grading && <span className="ml-2 text-xs text-[#65676b] dark:text-[#b0b3b8]">{a.grading}</span>}
+                        {a.grading ? (
+                      <span className="ml-1 text-xs font-bold px-1.5 py-0.5 rounded bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]">
+                        {a.grading} erwünscht
+                      </span>
+                    ) : (
+                      <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff]">
+                        Bestmöglich
+                      </span>
+                    )}
                         {a.kommentar && <span className="ml-2 text-xs text-[#0064d2] dark:text-[#45bdff]">⌨️ {a.kommentar}</span>}
                         {/* Bearbeiter-Hinweis per Anfrage */}
                         {a.bearbeitetVon && a.status === AnfrageStatus.IN_BEARBEITUNG && (

@@ -37,9 +37,13 @@ export default function AnfragenItem({ anfrage, idx, onStorno }: Props) {
           {anfrage.teil}
         </strong>
 
-        {anfrage.grading && (
+        {anfrage.grading ? (
           <span style={{ padding: "2px 7px", borderRadius: 5, background: "var(--border)", color: "var(--text-dim)", fontSize: "0.72rem", fontWeight: 700, flexShrink: 0 }}>
             {anfrage.grading}
+          </span>
+        ) : (
+          <span style={{ padding: "2px 7px", borderRadius: 5, background: "rgba(0,100,210,0.1)", color: "var(--primary)", fontSize: "0.68rem", fontWeight: 600, flexShrink: 0 }}>
+            Bestmöglich
           </span>
         )}
 

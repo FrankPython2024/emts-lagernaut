@@ -112,7 +112,7 @@ export default function TechnikerPage() {
 
   // ── Tastatur / Cart pending ────────────────────────────────────────────────
   const [showTastatur,    setShowTastatur]    = useState(false);
-  const [pendingCartItem, setPendingCartItem] = useState<{ teil: TeilInfo; grading: string } | null>(null);
+  const [pendingCartItem, setPendingCartItem] = useState<{ teil: TeilInfo; grading: string | null } | null>(null);
 
   // ── Cart state ─────────────────────────────────────────────────────────────
   const [cartOpen,          setCartOpen]          = useState(false);
@@ -227,7 +227,7 @@ export default function TechnikerPage() {
 
   // Haupt-Handler: Teil in Warenkorb legen (alle 4 Zustände)
   // artikelId kann null sein — KEIN Fallback auf anderen Artikel!
-  function handleAddToCart(teil: TeilInfo, grading: string, zusatzinfo: string) {
+  function handleAddToCart(teil: TeilInfo, grading: string | null, zusatzinfo: string) {
     if (!selectedGeraet || !kuerzel) {
       show("Bitte zuerst ein Gerät auswählen", "warning");
       return;
@@ -244,9 +244,9 @@ export default function TechnikerPage() {
       techniker:   kuerzel,
       logId:       selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId,
       geraeteName: selectedGeraet.bereinigt,
-      artikelId:   teil.artikelId,   // null erlaubt (ZUSTAND C)
+      artikelId:   teil.artikelId,
       teiltyp:     teil.teiltyp,
-      grading:     grading || "A+",
+      grading:     grading ?? undefined,   // null → kein Grading → bestmögliches
       zusatzinfo:  zusatzinfo || undefined,
     });
   }
@@ -263,9 +263,9 @@ export default function TechnikerPage() {
       techniker:   kuerzel,
       logId:       selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId,
       geraeteName: selectedGeraet.bereinigt,
-      artikelId:   teil.artikelId,   // null wenn ZUSTAND C
+      artikelId:   teil.artikelId,
       teiltyp:     teil.teiltyp,
-      grading:     grading || "A+",
+      grading:     grading ?? undefined,
       zusatzinfo:  kommentar,
     });
   }
@@ -571,17 +571,15 @@ export default function TechnikerPage() {
                                 </div>
                               </div>
                               {/* Grading badge */}
-                              <span style={{
-                                padding:     "0.1rem 0.45rem",
-                                borderRadius: 5,
-                                background:  "var(--border)",
-                                color:       "var(--text-dim)",
-                                fontSize:    "0.72rem",
-                                fontWeight:  700,
-                                flexShrink:  0,
-                              }}>
-                                {item.grading}
-                              </span>
+                              {item.grading ? (
+                                <span style={{ padding: "0.1rem 0.45rem", borderRadius: 5, background: "var(--border)", color: "var(--text-dim)", fontSize: "0.72rem", fontWeight: 700, flexShrink: 0 }}>
+                                  {item.grading}
+                                </span>
+                              ) : (
+                                <span style={{ padding: "0.1rem 0.45rem", borderRadius: 5, background: "rgba(0,100,210,0.1)", color: "var(--primary)", fontSize: "0.68rem", fontWeight: 600, flexShrink: 0 }}>
+                                  Bestmöglich
+                                </span>
+                              )}
                               {/* Status prediction */}
                               <span style={{
                                 padding:     "0.1rem 0.45rem",
@@ -707,10 +705,10 @@ function TeilKarte({
   inCart,
 }: {
   teil:   TeilInfo;
-  onCart: (t: TeilInfo, grading: string, zusatzinfo: string) => void;
+  onCart: (t: TeilInfo, grading: string | null, zusatzinfo: string) => void;
   inCart: boolean;
 }) {
-  const [grading,    setGrading]    = useState("A+");
+  const [grading,    setGrading]    = useState<string | null>(null);
   const [zusatzinfo, setZusatzinfo] = useState("");
 
   const hasArtikel  = !!teil.artikelId;
@@ -805,17 +803,17 @@ function TeilKarte({
         </div>
       )}
 
-      {/* Grading-Auswahl */}
+      {/* Grading-Auswahl (optional) */}
       {zustand !== "D" && (
         <div>
           <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", marginBottom: 3, fontWeight: 600 }}>
-            Grading:
+            Grading <span style={{ fontWeight: 400, fontStyle: "italic" }}>(optional)</span>:
           </div>
           <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
             {(["A+", "A", "B", "C"] as const).map((g) => (
               <button
                 key={g}
-                onClick={() => setGrading(g)}
+                onClick={() => setGrading(grading === g ? null : g)}
                 style={{
                   padding:      "0.15rem 0.45rem",
                   borderRadius: 5,
@@ -832,6 +830,9 @@ function TeilKarte({
                 {g}
               </button>
             ))}
+          </div>
+          <div style={{ fontSize: "0.62rem", color: "var(--text-dim)", marginTop: 3, fontStyle: "italic" }}>
+            ⓘ Ohne Auswahl: bestmögliches verfügbar
           </div>
         </div>
       )}
