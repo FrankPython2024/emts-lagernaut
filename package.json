@@ -16,7 +16,11 @@
     "import:geraete": "tsx scripts/importGeraete.ts",
     "seed:techniker":       "tsx scripts/seedTechniker.ts",
     "stresstest":           "tsx scripts/stressTest.ts",
-    "stresstest:cleanup":   "tsx scripts/stressTestCleanup.ts"
+    "stresstest:cleanup":   "tsx scripts/stressTestCleanup.ts",
+    "repare:bestand":       "tsx scripts/repareBestand.ts",
+    "repare:bestand:dry":   "tsx scripts/repareBestand.ts --dry-run",
+    "find:false":           "tsx scripts/findFalseAssignments.ts",
+    "cleanup:false":        "tsx scripts/cleanupFalseAssignments.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
