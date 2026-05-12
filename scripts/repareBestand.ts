@@ -9,7 +9,23 @@
  * Nur anzeigen (kein Schreiben): npx ts-node scripts/repareBestand.ts --dry-run
  */
 
+import { readFileSync } from "fs";
 import { PrismaClient, BuchungsTyp } from "@prisma/client";
+
+// .env.local laden — PrismaClient liest DATABASE_URL beim new PrismaClient(),
+// deshalb muss das VOR dem Konstruktor passieren, nicht vor dem Import.
+try {
+  readFileSync(".env.local", "utf-8")
+    .split("\n")
+    .filter((l) => l.trim() && !l.startsWith("#"))
+    .forEach((l) => {
+      const eq = l.indexOf("=");
+      if (eq < 1) return;
+      const k = l.slice(0, eq).trim();
+      const v = l.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+      if (!process.env[k]) process.env[k] = v;
+    });
+} catch {}
 
 const prisma  = new PrismaClient();
 const DRY_RUN = process.argv.includes("--dry-run");

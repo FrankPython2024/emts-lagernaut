@@ -6,8 +6,14 @@
  * Output:    false_assignments.csv
  */
 
+import { readFileSync, writeFileSync } from "fs";
 import { PrismaClient } from "@prisma/client";
-import { writeFileSync } from "fs";
+
+try {
+  readFileSync(".env.local", "utf-8")
+    .split("\n").filter((l) => l.trim() && !l.startsWith("#"))
+    .forEach((l) => { const eq = l.indexOf("="); if (eq < 1) return; const k = l.slice(0, eq).trim(); const v = l.slice(eq + 1).trim().replace(/^["']|["']$/g, ""); if (!process.env[k]) process.env[k] = v; });
+} catch {}
 
 const prisma = new PrismaClient();
 
