@@ -1,6 +1,10 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
-import { prisma } from "@/core/db/prisma";
+import { prisma }                from "@/core/db/prisma";
+import { queues }                from "@/modules/jobs/worker";
+import { STANDARD_TEILTYPEN }   from "@/lib/constants/teiltypen";
+import type { SessionUser }      from "@/core/types";
 
 // Gleiche Bereinigungslogik wie Import-Script
 function bereinige(bezeichnung: string): string {
@@ -110,6 +114,77 @@ export const geraeteLookupRouter = createTRPCRouter({
         }),
       ]);
       return { total, letzterImport: letzter?.updatedAt ?? null };
+    }),
+
+  // ── Artikel-Generator ──────────────────────────────────────────────────────
+
+  // Vorschau: Modell-Anzahl + bereits existierende Artikel
+  getArtikelGeneratorPreview: adminProcedure
+    .query(async () => {
+      const [lookups, existingArtikel] = await Promise.all([
+        prisma.geraeteLookup.findMany({
+          where:    { bereinigt: { not: "" } },
+          select:   { bereinigt: true },
+          distinct: ["bereinigt"],
+        }),
+        prisma.artikel.count(),
+      ]);
+      return {
+        modelle:        lookups.length,
+        existingArtikel,
+        teile:          STANDARD_TEILTYPEN.length,
+        erwartet:       lookups.length * STANDARD_TEILTYPEN.length,
+      };
+    }),
+
+  // Generator starten — BullMQ Job einreihen
+  generiereArtikelFuerAlleModelle: adminProcedure
+    .mutation(async ({ ctx }) => {
+      const user = ctx.session!.user as SessionUser;
+
+      // Bereits laufenden Job prüfen
+      const aktive = await queues.artikelGenerator.getJobs(["active", "waiting"]);
+      if (aktive.length > 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "Artikel-Generator läuft bereits." });
+      }
+
+      const lookups = await prisma.geraeteLookup.findMany({
+        where:    { bereinigt: { not: "" } },
+        select:   { bereinigt: true },
+        distinct: ["bereinigt"],
+      });
+      const modelle  = lookups.length;
+      const teile    = STANDARD_TEILTYPEN.length;
+      const erwartet = modelle * teile;
+
+      const job = await queues.artikelGenerator.add(
+        "generate-alle",
+        { initiatedBy: user.kuerzel },
+        { removeOnComplete: false, removeOnFail: false, attempts: 1 },
+      );
+
+      console.log(`[ArtikelGen] Job #${job.id} gestartet von ${user.kuerzel} — ${modelle} Modelle × ${teile} Teile`);
+      return { jobId: job.id!, modelle, teile, erwartet };
+    }),
+
+  // Job-Status (für UI-Polling alle 2 Sekunden)
+  getArtikelGeneratorStatus: adminProcedure
+    .input(z.object({ jobId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const job = await queues.artikelGenerator.getJob(input.jobId);
+      if (!job) return null;
+
+      const state    = await job.getState();
+      const progress = job.progress as Record<string, unknown> | number | null;
+
+      return {
+        state,
+        progress,
+        result:       (job.returnvalue ?? null) as {
+          totalModels: number; artikelCreated: number; artikelSkipped: number
+        } | null,
+        failedReason: job.failedReason ?? null,
+      };
     }),
 
 });
