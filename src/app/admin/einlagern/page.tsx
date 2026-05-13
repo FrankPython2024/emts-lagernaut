@@ -412,7 +412,54 @@ function StepGeraet({
   const [modus,   setModus]   = useState<"suche" | "gefunden" | "nichtGefunden" | "manuell">(
     initial ? "gefunden" : "suche",
   );
-  const [gefunden, setGefunden] = useState<GeraetState | null>(initial);
+  const [gefunden,    setGefunden]    = useState<GeraetState | null>(initial);
+  const [prüfModal,   setPrüfModal]   = useState<{
+    geraet:    GeraetState;
+    sauber:    string;
+    aehnliche: Array<{ id: number; modell: string; hersteller: string; inaktiv: boolean; deaktiviertGrund?: string | null }>;
+    lädt:      boolean;
+  } | null>(null);
+
+  const modellLookup = api.modell.lookup.useMutation();
+
+  async function weiterMitPrüfung(geraet: GeraetState) {
+    const herstellerRoh = geraet.name.split(" ")[0] ?? "";
+    const BEKANNTE: readonly string[] = ["HP", "Lenovo", "Dell", "Fujitsu"];
+    // Nur prüfen wenn Hersteller sicher erkennbar
+    const hersteller = BEKANNTE.find((h) =>
+      geraet.name.toLowerCase().startsWith(h.toLowerCase()) ||
+      herstellerRoh.toLowerCase() === h.toLowerCase(),
+    );
+
+    if (!hersteller) {
+      onWeiter(geraet);
+      return;
+    }
+
+    try {
+      const result = await modellLookup.mutateAsync({
+        bezeichnung:     geraet.name,
+        hersteller:      hersteller as "HP" | "Lenovo" | "Dell" | "Fujitsu",
+        adminBestaetigt: false,
+      });
+
+      if (result.fehler) {
+        // Nicht-Portfolio-Hersteller (Apple, ASUS etc.) — klare Meldung
+        show(`⚠️ ${result.fehler}`, "error");
+        return;
+      }
+
+      if (result.istUnsicher && result.aehnliche.length > 0) {
+        const sauber = result.modell?.modell ?? geraet.name;
+        setPrüfModal({ geraet, sauber, aehnliche: result.aehnliche, lädt: false });
+      } else {
+        onWeiter(geraet);
+      }
+    } catch {
+      // Netzwerk-/Server-Fehler: kein Blocker, Wizard weiterführen
+      onWeiter(geraet);
+    }
+  }
 
   const sucheQuery = api.einlagern.geraetSuchen.useQuery(
     { query: suchQ ?? "" },
@@ -525,12 +572,12 @@ function StepGeraet({
                   <button
                     onClick={() => {
                       if (!manName.trim()) { show("Bitte einen Namen eingeben.", "error"); return; }
-                      onWeiter({ name: manName.trim(), logId: null, typ: "manuell" });
+                      void weiterMitPrüfung({ name: manName.trim(), logId: null, typ: "manuell" });
                     }}
-                    disabled={!manName.trim()}
-                    style={{ ...S.bigBtn("#008BD2", !manName.trim()), flex: 2 }}
+                    disabled={!manName.trim() || modellLookup.isPending}
+                    style={{ ...S.bigBtn("#008BD2", !manName.trim() || modellLookup.isPending), flex: 2 }}
                   >
-                    Mit diesem Namen weiter →
+                    {modellLookup.isPending ? "Prüfe…" : "Mit diesem Namen weiter →"}
                   </button>
                 </div>
               </div>
@@ -604,15 +651,85 @@ function StepGeraet({
                 ❌ Nein, neu eingeben
               </button>
               <button
-                onClick={() => onWeiter(gefunden)}
-                style={{ ...S.bigBtn("#04B475"), flex: 2 }}
+                onClick={() => void weiterMitPrüfung(gefunden)}
+                disabled={modellLookup.isPending}
+                style={{ ...S.bigBtn("#04B475", modellLookup.isPending), flex: 2 }}
               >
-                ✅ Ja, weiter →
+                {modellLookup.isPending ? "Prüfe…" : "✅ Ja, weiter →"}
               </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* Duplikat-Schutz: Ähnliche Modelle gefunden */}
+      {prüfModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={() => setPrüfModal(null)}
+        >
+          <div
+            style={{ background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 24px 60px rgba(0,0,0,0.35)", width: "100%", maxWidth: 480, color: "var(--text)", overflow: "hidden" }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Ähnliche Modelle gefunden"
+          >
+            <div style={{ padding: "1.2rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ fontSize: "1.1rem", fontWeight: 800, marginBottom: 4 }}>
+                ⚠️ Ähnliche Modelle gefunden
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "var(--text-dim)" }}>
+                Meinst du eins dieser Modelle?
+              </div>
+            </div>
+
+            <div style={{ padding: "1rem 1.5rem" }}>
+              <div style={{ marginBottom: "1rem" }}>
+                {prüfModal.aehnliche.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => { setPrüfModal(null); onWeiter({ ...prüfModal.geraet, name: `${a.hersteller} ${a.modell}` }); }}
+                    style={{ display: "block", width: "100%", textAlign: "left", padding: "0.8rem 1rem", marginBottom: 6, borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.95rem", fontWeight: 600, transition: "background 0.15s" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(32,47,97,0.08)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg)")}
+                  >
+                    ✓ {a.hersteller} {a.modell}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ background: "rgba(247,185,40,0.1)", border: "1px solid rgba(247,185,40,0.4)", borderRadius: 10, padding: "0.8rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "var(--text-dim)" }}>
+                Eingabe: <strong style={{ color: "var(--text)" }}>{prüfModal.geraet.name}</strong><br />
+                Bereinigt: <strong style={{ color: "var(--text)" }}>{prüfModal.sauber}</strong>
+              </div>
+
+              <button
+                onClick={() => {
+                  const herst = prüfModal.aehnliche[0]?.hersteller ?? "";
+                  const h = herst as "HP" | "Lenovo" | "Dell" | "Fujitsu";
+                  setPrüfModal((prev) => prev ? { ...prev, lädt: true } : null);
+                  modellLookup.mutate(
+                    { bezeichnung: prüfModal.geraet.name, hersteller: h, adminBestaetigt: true },
+                    { onSettled: () => { setPrüfModal(null); onWeiter(prüfModal.geraet); } },
+                  );
+                }}
+                disabled={prüfModal.lädt || modellLookup.isPending}
+                style={{ ...S.bigBtn("#fa3e3e", prüfModal.lädt || modellLookup.isPending), fontSize: "0.95rem" }}
+              >
+                {prüfModal.lädt ? "Wird angelegt…" : "⚠️ Trotzdem neues Modell anlegen"}
+              </button>
+
+              <button
+                onClick={() => setPrüfModal(null)}
+                style={{ width: "100%", marginTop: 8, background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.9rem", padding: "0.5rem" }}
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

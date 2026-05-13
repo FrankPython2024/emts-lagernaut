@@ -118,14 +118,17 @@ model Kompatibilitaet {
 }
 
 model GeraeteModell {
-  id         Int         @id @default(autoincrement())
-  hersteller String
-  modell     String
-  aktiv      Boolean     @default(true)
-  createdAt  DateTime    @default(now())
-  lagerplatz Lagerplatz?
+  id                Int         @id @default(autoincrement())
+  hersteller        String
+  modell            String
+  aktiv             Boolean     @default(true)
+  deaktiviertGrund  String?     @db.VarChar(191)
+  deaktiviertAm     DateTime?
+  createdAt         DateTime    @default(now())
+  lagerplatz        Lagerplatz?
 
   @@unique([hersteller, modell])
+  @@index([aktiv])
 }
 
 model Lagerplatz {
