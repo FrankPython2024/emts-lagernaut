@@ -33,20 +33,33 @@ type AusgewaehltItem = {
 };
 
 type ErgebnisItem = {
-  teiltyp:      string;
-  icon:         string;
-  label:        string;
-  artikelName:  string;
-  kategorie:    string;
-  lagerplatz:   string | null;
-  menge:        number;
-  buchungId:    number;
-  belegNr:      string;
-  neuerBestand: number;
-  grading:      string;
-  notizText:    string | undefined;
-  eingelagert:  boolean;
+  teiltyp:       string;
+  icon:          string;
+  label:         string;
+  artikelName:   string;
+  kategorie:     string;
+  lagerplatz:    string | null;
+  etlLagerplatz?: string;
+  menge:         number;
+  buchungId:     number;
+  belegNr:       string;
+  neuerBestand:  number;
+  grading:       string;
+  notizText:     string | undefined;
+  eingelagert:   boolean;
 };
+
+// ── Hilfsfunktionen ───────────────────────────────────────────────────────────
+
+function gradingFarbe(g?: string): string {
+  switch (g) {
+    case "A+": return "#04B475";
+    case "A":  return "#04B475";
+    case "B":  return "#008BD2";
+    case "C":  return "#F59E0B";
+    default:   return "#94A3B8";
+  }
+}
 
 // ── Shared Styles ─────────────────────────────────────────────────────────────
 
@@ -1491,11 +1504,12 @@ function StepFertig({
     return {
       belegNr:            item.belegNr,
       artikelBezeichnung: item.artikelName,
-      lagerplatz:         item.lagerplatz,
+      lagerplatz:         item.etlLagerplatz ?? item.lagerplatz,
       kategorie:          item.kategorie,
       menge:              item.menge,
       neuerBestand:       item.neuerBestand,
-      notiz:              item.notizText ?? item.grading,
+      notiz:              item.notizText,
+      grading:            item.grading,
       ersteller:          kuerzel,
       datum:              new Date(),
     };
@@ -1592,8 +1606,8 @@ function StepFertig({
                     </span>
                   )}
                 </div>
-                {item.lagerplatz ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                {(item.etlLagerplatz ?? item.lagerplatz) ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                     <span style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>Lege hier hin:</span>
                     <span style={{
                       display:      "inline-block",
@@ -1605,8 +1619,21 @@ function StepFertig({
                       fontSize:     "1rem",
                       letterSpacing: 1,
                     }}>
-                      {item.lagerplatz}
+                      {item.etlLagerplatz ?? item.lagerplatz}
                     </span>
+                    {item.grading && (
+                      <span style={{
+                        display:      "inline-block",
+                        padding:      "0.25rem 0.6rem",
+                        borderRadius: 8,
+                        background:   gradingFarbe(item.grading),
+                        color:        "white",
+                        fontWeight:   800,
+                        fontSize:     "0.9rem",
+                      }}>
+                        {item.grading}
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <div style={{ fontSize: "0.8rem", color: "#f7b928", marginBottom: 6 }}>
@@ -1671,36 +1698,30 @@ export default function EinlagernPage() {
 
   const kuerzel = (session?.user as { kuerzel?: string } | undefined)?.kuerzel ?? "";
 
-  const zuweisenNachNameMutation = api.lagerplatz.zuweisenNachName.useMutation({
-    onError: (e) => show(`⚠️ Lagerplatz-Zuweisung: ${e.message}`, "error"),
-  });
-
   const executeMutation = api.einlagern.execute.useMutation({
     onSuccess: (data) => {
       const results: ErgebnisItem[] = data.map((r) => {
         const teilInfo = STANDARD_TEILE.find((t) => t.id === r.teiltyp);
         return {
-          teiltyp:      r.teiltyp,
-          icon:         teilInfo?.icon  ?? "🔧",
-          label:        teilInfo?.label ?? r.teiltyp,
-          artikelName:  r.artikelName,
-          kategorie:    r.kategorie,
-          lagerplatz:   r.lagerplatz,
-          menge:        r.menge,
-          buchungId:    r.buchungId,
-          belegNr:      r.belegNr,
-          neuerBestand: r.neuerBestand,
-          grading:      r.grading,
-          notizText:    r.notizText,
-          eingelagert:  false,
+          teiltyp:       r.teiltyp,
+          icon:          teilInfo?.icon  ?? "🔧",
+          label:         teilInfo?.label ?? r.teiltyp,
+          artikelName:   r.artikelName,
+          kategorie:     r.kategorie,
+          lagerplatz:    r.lagerplatz,
+          etlLagerplatz: r.etlLagerplatz,
+          menge:         r.menge,
+          buchungId:     r.buchungId,
+          belegNr:       r.belegNr,
+          neuerBestand:  r.neuerBestand,
+          grading:       r.grading,
+          notizText:     r.notizText,
+          eingelagert:   false,
         };
       });
       setErgebnisse(results);
       setStep(5);
       show(`✅ ${data.length} ${data.length === 1 ? "Teil" : "Teile"} eingebucht!`, "success");
-      if (selectedLagerplatzId && geraet) {
-        zuweisenNachNameMutation.mutate({ geraetName: geraet.name, lagerplatzId: selectedLagerplatzId });
-      }
     },
     onError: (e) => {
       show(`Fehler beim Einbuchen: ${e.message}`, "error");
@@ -1710,9 +1731,10 @@ export default function EinlagernPage() {
   function handleEinbuchen(finalItems: AusgewaehltItem[]) {
     if (!geraet || finalItems.length === 0) return;
     executeMutation.mutate({
-      geraetName: geraet.name,
-      logId:      geraet.logId ?? undefined,
-      items:      finalItems.map((i) => ({
+      geraetName:             geraet.name,
+      logId:                  geraet.logId ?? undefined,
+      gewaehlterLagerplatzId: selectedLagerplatzId ?? undefined,
+      items:                  finalItems.map((i) => ({
         teiltyp:    i.teiltyp,
         menge:      i.menge,
         grading:    i.grading,

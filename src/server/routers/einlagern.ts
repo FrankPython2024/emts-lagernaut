@@ -37,12 +37,13 @@ export const einlagernRouter = createTRPCRouter({
     }))
     .query(({ input }) => preview(input.items, input.geraetName)),
 
-  // Einbuchen: Artikel anlegen/finden, EINGANG-Buchung, Kompatibilitaet setzen
+  // Einbuchen: Artikel anlegen/finden, EINGANG-Buchung, Kompatibilitaet setzen, Lagerplatz zuweisen
   execute: adminProcedure
     .input(z.object({
-      geraetName: z.string().min(1).max(255),
-      logId:      z.string().optional(),
-      items:      z.array(EinlagerItemSchema).min(1).max(13),
+      geraetName:             z.string().min(1).max(255),
+      logId:                  z.string().optional(),
+      items:                  z.array(EinlagerItemSchema).min(1).max(13),
+      gewaehlterLagerplatzId: z.number().int().positive().optional(),
     }))
     .mutation(({ input, ctx }) => {
       const user = ctx.session!.user as SessionUser;

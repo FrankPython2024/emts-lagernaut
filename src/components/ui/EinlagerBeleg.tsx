@@ -11,9 +11,20 @@ export type EinlagerBelegData = {
   menge:              number;
   neuerBestand:       number;
   notiz?:             string;
+  grading?:           string;
   ersteller:          string;
   datum:              Date | string;
 };
+
+function gradingFarbe(g?: string): string {
+  switch (g) {
+    case "A+": return "#04B475";
+    case "A":  return "#04B475";
+    case "B":  return "#008BD2";
+    case "C":  return "#F59E0B";
+    default:   return "#94A3B8";
+  }
+}
 
 // ── QR-Code als SVG Data-URL ─────────────────────────────────────────────────
 
@@ -55,11 +66,18 @@ function EinlagerBelegInner({ data, qr }: { data: EinlagerBelegData; qr: string 
           {data.artikelBezeichnung}
         </div>
 
-        {/* Z3: Lagerplatz + Menge */}
+        {/* Z3: Grading + Lagerplatz + Menge */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "7pt", gap: "1mm" }}>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {data.lagerplatz ?? "—"}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "1mm", overflow: "hidden" }}>
+            {data.grading && (
+              <span style={{ background: gradingFarbe(data.grading), color: "#fff", fontWeight: "bold", fontSize: "6pt", padding: "0.3mm 1mm", borderRadius: "0.5mm", flexShrink: 0 }}>
+                {data.grading}
+              </span>
+            )}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: "bold" }}>
+              {data.lagerplatz ?? "—"}
+            </span>
+          </div>
           <span style={{ fontWeight: "bold", color: "#006600", whiteSpace: "nowrap", flexShrink: 0 }}>
             +{data.menge} Stk
           </span>
@@ -149,6 +167,12 @@ export function EinlagerBelegManager({ data, onReady }: ManagerProps) {
 // @media screen: label skaliert auf 342×192px für iframe-Vorschau
 // @media print:  label exakt 55×30mm für Thermodrucker
 
+function gradingBadgeHtml(grading?: string): string {
+  if (!grading) return "";
+  const farbe = gradingFarbe(grading);
+  return `<span class="gr" style="background:${farbe}">${grading}</span>`;
+}
+
 export async function buildEinlagerBelegHtml(data: EinlagerBelegData): Promise<string> {
   const qr  = await genQrSvg(`EL:${data.belegNr}`);
   const bez = data.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -174,7 +198,9 @@ export async function buildEinlagerBelegHtml(data: EinlagerBelegData): Promise<s
     .bez  { font-size: ${sm}; font-weight: bold; line-height: 1.2; word-break: break-word; overflow: hidden;
             display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .row3 { display: flex; justify-content: space-between; align-items: center; font-size: 7pt; gap: 1mm; }
-    .lp   { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lpi  { display: flex; align-items: center; gap: 1mm; overflow: hidden; }
+    .gr   { color: #fff; font-weight: bold; font-size: 6pt; padding: 0.3mm 1mm; border-radius: 0.5mm; flex-shrink: 0; }
+    .lp   { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: bold; }
     .mng  { font-weight: bold; color: #006600; white-space: nowrap; flex-shrink: 0; }
     .bnr  { font-size: 6pt; color: #666; }
     .right { width: 16mm; display: flex; flex-direction: column; align-items: center; justify-content: space-between; flex-shrink: 0; }
@@ -185,7 +211,10 @@ export async function buildEinlagerBelegHtml(data: EinlagerBelegData): Promise<s
       <div class="left">
         <div class="typ">EINLAGERUNG</div>
         <div class="bez">${bez}</div>
-        <div class="row3"><span class="lp">${lp}</span><span class="mng">+${data.menge} Stk</span></div>
+        <div class="row3">
+          <div class="lpi">${gradingBadgeHtml(data.grading)}<span class="lp">${lp}</span></div>
+          <span class="mng">+${data.menge} Stk</span>
+        </div>
         <div class="bnr">${data.belegNr}</div>
       </div>
       <div class="right"><div class="emts">EMTS</div><img class="qr" src="${qr}" alt="" /></div>
@@ -227,7 +256,10 @@ export async function printAlleEinlagerBelege(belege: EinlagerBelegData[]): Prom
         <div class="left">
           <div class="typ">EINLAGERUNG</div>
           <div class="bez" style="font-size:${sm}">${bez}</div>
-          <div class="row3"><span class="lp">${lp}</span><span class="mng">+${b.menge} Stk</span></div>
+          <div class="row3">
+            <div class="lpi">${gradingBadgeHtml(b.grading)}<span class="lp">${lp}</span></div>
+            <span class="mng">+${b.menge} Stk</span>
+          </div>
           <div class="bnr">${b.belegNr}</div>
         </div>
         <div class="right"><div class="emts">EMTS</div><img class="qr" src="${qrCodes[i]}" alt="" /></div>
@@ -254,7 +286,9 @@ export async function printAlleEinlagerBelege(belege: EinlagerBelegData[]): Prom
     .bez  { font-weight: bold; line-height: 1.2; word-break: break-word; overflow: hidden;
             display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .row3 { display: flex; justify-content: space-between; align-items: center; font-size: 7pt; gap: 1mm; }
-    .lp   { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lpi  { display: flex; align-items: center; gap: 1mm; overflow: hidden; }
+    .gr   { color: #fff; font-weight: bold; font-size: 6pt; padding: 0.3mm 1mm; border-radius: 0.5mm; flex-shrink: 0; }
+    .lp   { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: bold; }
     .mng  { font-weight: bold; color: #006600; white-space: nowrap; flex-shrink: 0; }
     .bnr  { font-size: 6pt; color: #666; }
     .right { width: 16mm; display: flex; flex-direction: column; align-items: center; justify-content: space-between; flex-shrink: 0; }

@@ -1,4 +1,5 @@
 import { BuchungsTyp } from "@prisma/client";
+import { TRPCError }           from "@trpc/server";
 import { prisma }              from "@/core/db/prisma";
 import { bucheLager }          from "@/modules/buchungen/service";
 import { naechsteBelegNr }     from "@/core/infra/belegnr";
@@ -137,25 +138,27 @@ export type ExecuteItem = {
 };
 
 export type ExecuteInput = {
-  geraetName:  string;
-  logId?:      string;
-  mitarbeiter: string;
-  items:       ExecuteItem[];
+  geraetName:              string;
+  logId?:                  string;
+  mitarbeiter:             string;
+  items:                   ExecuteItem[];
+  gewaehlterLagerplatzId?: number;
 };
 
 export type ExecuteResult = {
-  teiltyp:      string;
-  artikelId:    number;
-  artikelName:  string;
-  kategorie:    string;
-  lagerplatz:   string | null;
-  menge:        number;
-  buchungId:    number;
-  belegNr:      string;
-  neuerBestand: number;
-  grading:      string;
-  notizText:    string | undefined;
-  istNeu:       boolean;
+  teiltyp:       string;
+  artikelId:     number;
+  artikelName:   string;
+  kategorie:     string;
+  lagerplatz:    string | null;
+  etlLagerplatz?: string;
+  menge:         number;
+  buchungId:     number;
+  belegNr:       string;
+  neuerBestand:  number;
+  grading:       string;
+  notizText:     string | undefined;
+  istNeu:        boolean;
 };
 
 export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
@@ -168,8 +171,8 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
   const hersteller    = normalisiereHersteller(herstellerRoh) ?? herstellerRoh;
 
   // GeraeteModell sicher suchen/anlegen + kanonischen Namen ermitteln
-  // Der kanonische Name ist ohne Hersteller-Prefix (z.B. "EliteBook 840 G5" statt "HP EliteBook 840 G5")
   let sauberModellName = input.geraetName;
+  let modellId: number | null = null;
   if (hersteller) {
     const modellResult = await getOrCreateModell(input.geraetName, hersteller, {
       allowCreate:     true,
@@ -179,6 +182,39 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
       console.warn(`[Einlagern] GeraeteModell abgelehnt: ${modellResult.fehler}`);
     } else if (modellResult.modell) {
       sauberModellName = modellResult.modell.modell;
+      modellId = modellResult.modell.id;
+    }
+  }
+
+  // Lagerplatz zuweisen (1 Modell = 1 Lagerplatz)
+  let etlLagerplatzCode: string | undefined;
+  if (modellId) {
+    if (input.gewaehlterLagerplatzId) {
+      const bestehender = await prisma.lagerplatz.findUnique({ where: { modellId } });
+
+      if (bestehender) {
+        if (bestehender.id === input.gewaehlterLagerplatzId) {
+          etlLagerplatzCode = bestehender.code;
+        } else {
+          // Anderer Platz bereits zugewiesen → behalte ihn (kein Überschreiben ohne Umzug-Flow)
+          etlLagerplatzCode = bestehender.code;
+          console.log(`[Einlagern] Modell hat bereits Lagerplatz ${bestehender.code}`);
+        }
+      } else {
+        const platz = await prisma.lagerplatz.findUnique({ where: { id: input.gewaehlterLagerplatzId } });
+        if (platz?.modellId && platz.modellId !== modellId) {
+          throw new TRPCError({ code: "CONFLICT", message: `Lagerplatz ${platz.code} ist bereits von einem anderen Modell belegt` });
+        }
+        if (platz) {
+          await prisma.lagerplatz.update({ where: { id: platz.id }, data: { modellId } });
+          etlLagerplatzCode = platz.code;
+          console.log(`[Einlagern] Lagerplatz ${platz.code} → Modell #${modellId} zugewiesen`);
+        }
+      }
+    } else {
+      // Kein Platz gewählt — evtl. bereits zugewiesen aus früherer Einlagerung
+      const bestehender = await prisma.lagerplatz.findUnique({ where: { modellId } });
+      if (bestehender) etlLagerplatzCode = bestehender.code;
     }
   }
 
@@ -264,17 +300,18 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     console.log(`[Einlagern] Verknüpft: "${sauberModellName}" + "${item.teiltyp}" → Artikel #${artikel.id}`);
 
     results.push({
-      teiltyp:      item.teiltyp,
-      artikelId:    artikel.id,
-      artikelName:  artikel.bezeichnung,
-      kategorie:    artikel.kategorie,
-      lagerplatz:   artikel.lagerplatz,
-      menge:        item.menge,
-      buchungId:    buchung.id,
+      teiltyp:       item.teiltyp,
+      artikelId:     artikel.id,
+      artikelName:   artikel.bezeichnung,
+      kategorie:     artikel.kategorie,
+      lagerplatz:    artikel.lagerplatz,
+      etlLagerplatz: etlLagerplatzCode,
+      menge:         item.menge,
+      buchungId:     buchung.id,
       belegNr,
       neuerBestand,
-      grading:      item.grading,
-      notizText:    item.notiz,
+      grading:       item.grading,
+      notizText:     item.notiz,
       istNeu,
     });
   }
