@@ -1,8 +1,10 @@
 import { BuchungsTyp } from "@prisma/client";
-import { prisma }         from "@/core/db/prisma";
-import { bucheLager }     from "@/modules/buchungen/service";
-import { naechsteBelegNr } from "@/core/infra/belegnr";
-import { STANDARD_TEILE } from "./constants";
+import { prisma }              from "@/core/db/prisma";
+import { bucheLager }          from "@/modules/buchungen/service";
+import { naechsteBelegNr }     from "@/core/infra/belegnr";
+import { STANDARD_TEILE }      from "./constants";
+import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
+import { getOrCreateModell }   from "@/lib/geraete/getOrCreateModell";
 
 // ── Gerät suchen ──────────────────────────────────────────────────────────────
 
@@ -161,36 +163,57 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
 
   console.log(`[Einlagern] Gerät: "${input.geraetName}"${input.logId ? ` (LogID: ${input.logId})` : ""}`);
 
-  // Hersteller = erstes Wort des Gerätenamens (für GeraeteModell-Upsert)
-  const hersteller = input.geraetName.split(" ")[0] ?? "";
+  // Hersteller normalisieren (verhindert "EliteBook" als Hersteller bei "EliteBook 840 G5")
+  const herstellerRoh = input.geraetName.split(" ")[0] ?? "";
+  const hersteller    = normalisiereHersteller(herstellerRoh) ?? herstellerRoh;
 
-  // GeraeteModell sicherstellen damit Modell-Verwaltung/Statistik stimmt
+  // GeraeteModell sicher suchen/anlegen + kanonischen Namen ermitteln
+  // Der kanonische Name ist ohne Hersteller-Prefix (z.B. "EliteBook 840 G5" statt "HP EliteBook 840 G5")
+  let sauberModellName = input.geraetName;
   if (hersteller) {
-    await prisma.geraeteModell.upsert({
-      where:  { hersteller_modell: { hersteller, modell: input.geraetName } },
-      update: {},
-      create: { hersteller, modell: input.geraetName, aktiv: true },
-    }).catch((e: Error) => console.warn(`[Einlagern] GeraeteModell upsert: ${e.message}`));
+    const modellResult = await getOrCreateModell(input.geraetName, hersteller, {
+      allowCreate:     true,
+      adminBestaetigt: true,
+    });
+    if (modellResult.fehler) {
+      console.warn(`[Einlagern] GeraeteModell abgelehnt: ${modellResult.fehler}`);
+    } else if (modellResult.modell) {
+      sauberModellName = modellResult.modell.modell;
+    }
   }
+
+  // Für Backward-Compat: Artikel/Kompatibilitaet in BEIDEN Namen suchen
+  // (bestehende Einträge können noch "HP EliteBook 840 G5" enthalten)
+  const geraetNamen = sauberModellName !== input.geraetName
+    ? [sauberModellName, input.geraetName]
+    : [sauberModellName];
 
   for (const item of input.items) {
     let istNeu = false;
 
-    // Artikel-Bezeichnung: IMMER "<Gerät> <Teiltyp>"
-    // z.B. "HP EliteBook 840 G6 Tastatur" — NIEMALS nur "Tastatur"!
-    const artikelBezeichnung = `${input.geraetName} ${item.teiltyp}`;
+    // Artikel-Bezeichnung: kanonischer Modellname + Teiltyp (ohne Hersteller-Prefix)
+    const artikelBezeichnung    = `${sauberModellName} ${item.teiltyp}`;
+    const artikelBezeichnungAlt = sauberModellName !== input.geraetName
+      ? `${input.geraetName} ${item.teiltyp}`
+      : null;
     console.log(`[Einlagern] Artikel: "${artikelBezeichnung}"`);
 
-    // 1. Exakter Artikel via Kompatibilitaet (Gerät + Teiltyp)
+    // 1. Exakter Artikel via Kompatibilitaet (canonical + alt für Backward-Compat)
     let artikel = await prisma.artikel.findFirst({
-      where: { kompatibel: { some: { geraet: input.geraetName, teiltyp: item.teiltyp } } },
+      where: { kompatibel: { some: { geraet: { in: geraetNamen }, teiltyp: item.teiltyp } } },
     });
 
-    // 2. Exakter Artikel-Bezeichnungs-Lookup — KEIN Kategorie-Fallback!
-    //    Verhindert Cross-Device-Zuordnung (Lenovo-Tastatur zu HP zuweisen)
+    // 2. Artikel per kanonischer Bezeichnung — KEIN Kategorie-Fallback!
     if (!artikel) {
       artikel = await prisma.artikel.findUnique({
         where: { bezeichnung_kategorie: { bezeichnung: artikelBezeichnung, kategorie: item.teiltyp } },
+      });
+    }
+
+    // 2b. Backward-Compat: alte Bezeichnung mit Hersteller-Prefix
+    if (!artikel && artikelBezeichnungAlt) {
+      artikel = await prisma.artikel.findUnique({
+        where: { bezeichnung_kategorie: { bezeichnung: artikelBezeichnungAlt, kategorie: item.teiltyp } },
       });
     }
 
@@ -232,13 +255,13 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     // 5. Beleg-Nummer
     const belegNr = await naechsteBelegNr("EL");
 
-    // 6. Kompatibilitaet: EXAKTER Gerätename, artikelId korrigieren falls falsch verknüpft
+    // 6. Kompatibilitaet: kanonischer Name, artikelId korrigieren falls falsch verknüpft
     await prisma.kompatibilitaet.upsert({
-      where:  { geraet_teiltyp: { geraet: input.geraetName, teiltyp: item.teiltyp } },
-      create: { geraet: input.geraetName, teiltyp: item.teiltyp, artikelId: artikel.id },
-      update: { artikelId: artikel.id }, // Fehlverknüpfungen korrigieren
+      where:  { geraet_teiltyp: { geraet: sauberModellName, teiltyp: item.teiltyp } },
+      create: { geraet: sauberModellName, teiltyp: item.teiltyp, artikelId: artikel.id },
+      update: { artikelId: artikel.id },
     });
-    console.log(`[Einlagern] Verknüpft: "${input.geraetName}" + "${item.teiltyp}" → Artikel #${artikel.id}`);
+    console.log(`[Einlagern] Verknüpft: "${sauberModellName}" + "${item.teiltyp}" → Artikel #${artikel.id}`);
 
     results.push({
       teiltyp:      item.teiltyp,

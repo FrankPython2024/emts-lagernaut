@@ -55,6 +55,7 @@ async function handleMeilisearchJob(job: { id?: string | undefined; name: string
     }
     case "reindex-geraete": {
       const geraete = await prisma.geraeteModell.findMany({
+        where:  { aktiv: true },
         select: { id: true, hersteller: true, modell: true },
       });
       await meilisearch.index("geraete").addDocuments(geraete, { primaryKey: "id" });
@@ -106,17 +107,18 @@ async function handleArtikelGeneratorJob(job: any) {
   for (let i = 0; i < modelle.length; i++) {
     const bereinigt = modelle[i]!;
 
-    // GeraeteModell sicherstellen — hersteller = erstes Wort
+    // GeraeteModell sicherstellen — Hersteller validieren, kein Duplikat
+    const { checkHersteller }    = await import("@/lib/geraete/herstellerFilter");
+    const { getOrCreateModell }  = await import("@/lib/geraete/getOrCreateModell");
     const parts      = bereinigt.split(" ");
-    const hersteller = parts[0] ?? "";
-    const modellName = parts.length > 1 ? parts.slice(1).join(" ") : bereinigt;
+    const herstellerRoh = parts[0] ?? "";
+    const herstellerCheck = checkHersteller(herstellerRoh, bereinigt);
 
-    if (hersteller) {
-      await prisma.geraeteModell.upsert({
-        where:  { hersteller_modell: { hersteller, modell: modellName } },
-        update: {},
-        create: { hersteller, modell: modellName, aktiv: true },
-      }).catch(() => {}); // ignoriere Race-Condition-Duplikate
+    if (herstellerCheck.erlaubt && herstellerCheck.kanonisch) {
+      await getOrCreateModell(bereinigt, herstellerCheck.kanonisch, {
+        allowCreate:     true,
+        adminBestaetigt: true,
+      }).catch((e: Error) => console.warn(`[ArtikelGen] GeraeteModell skip: ${e.message}`));
     }
 
     // Artikel-Batch für dieses Gerät

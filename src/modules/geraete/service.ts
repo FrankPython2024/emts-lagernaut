@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
+import { getOrCreateModell } from "@/lib/geraete/getOrCreateModell";
 
 // Standard-Teile die bei jedem neuen Modell angelegt werden (aus code.gs: neuesModellAnlegen)
 const STANDARD_TEILE = [
@@ -38,22 +39,29 @@ export async function legeModellAn(
 ): Promise<ModellAnlegenResult> {
   const herstellerClean = hersteller.trim();
   const modellClean     = modell.trim();
-  const geraetVoll      = `${herstellerClean} ${modellClean}`;
 
-  const result = await prisma.$transaction(async (tx) => {
-    // Gerätemodell anlegen oder finden
-    const neuesModell = await tx.geraeteModell.upsert({
-      where:  { hersteller_modell: { hersteller: herstellerClean, modell: modellClean } },
-      create: { hersteller: herstellerClean, modell: modellClean },
-      update: {},
-    });
+  // Sicher suchen/anlegen: kein Duplikat, bereinigter Name ohne Prefix
+  const lookup = await getOrCreateModell(modellClean, herstellerClean, {
+    allowCreate:     true,
+    adminBestaetigt: true,
+  });
 
-    const angelegtTeile: ModellAnlegenResult["angelegtTeile"] = [];
+  if (lookup.fehler) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: lookup.fehler });
+  }
+  if (!lookup.modell) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Modell konnte nicht angelegt werden" });
+  }
+
+  const kanonischerName = lookup.modell.modell; // z.B. "EliteBook 840 G5" (ohne Prefix)
+  const neuesModell     = lookup.modell;
+
+  const angelegtTeile = await prisma.$transaction(async (tx) => {
+    const teile: ModellAnlegenResult["angelegtTeile"] = [];
 
     for (const teil of STANDARD_TEILE) {
-      const bezeichnung = `${modellClean} ${teil}`;
+      const bezeichnung = `${kanonischerName} ${teil}`;
 
-      // Artikel per upsert — kein Fehler wenn bereits vorhanden
       const vorher = await tx.artikel.findUnique({
         where: { bezeichnung_kategorie: { bezeichnung, kategorie: teil } },
         select: { id: true },
@@ -63,20 +71,20 @@ export async function legeModellAn(
         data: { bezeichnung, kategorie: teil, lagerplatz: null, bestand: 0 },
       });
 
-      // Kompatibilitätseintrag upsert
+      // Kompatibilität mit kanonischem Namen (nicht "HP EliteBook 840 G5")
       await tx.kompatibilitaet.upsert({
-        where:  { geraet_teiltyp: { geraet: geraetVoll, teiltyp: teil } },
-        create: { geraet: geraetVoll, teiltyp: teil, artikelId: artikel.id },
+        where:  { geraet_teiltyp: { geraet: kanonischerName, teiltyp: teil } },
+        create: { geraet: kanonischerName, teiltyp: teil, artikelId: artikel.id },
         update: {},
       });
 
-      angelegtTeile.push({ artikelId: artikel.id, bezeichnung, teiltyp: teil, neu: !vorher });
+      teile.push({ artikelId: artikel.id, bezeichnung, teiltyp: teil, neu: !vorher });
     }
 
-    return { modell: neuesModell, angelegtTeile };
+    return teile;
   });
 
-  return result;
+  return { modell: neuesModell, angelegtTeile };
 }
 
 /**
