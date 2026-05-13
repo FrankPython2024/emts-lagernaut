@@ -6,7 +6,16 @@ import { prisma as _prisma } from "@/core/db/prisma";
 
 type PrismaInstance = typeof _prisma;
 
-// ── Lokaler Typ ────────────────────────────────────────────────────────────────
+// ── Lokale Typen ──────────────────────────────────────────────────────────────
+
+type ArtikelMitGrading = {
+  id:             number;
+  bezeichnung:    string;
+  kategorie:      string;
+  bestand:        number;
+  grading:        string | null;
+  letzteBuchung:  Date | null;
+};
 
 type ScoredPlatz = {
   id:         number;
@@ -43,6 +52,7 @@ async function ladeGeschwister(
     where: {
       modellId: { not: null },
       modell: {
+        aktiv: true,
         hersteller,
         modell: { contains: familie },
       },
@@ -123,6 +133,53 @@ export const lagerplatzRouter = createTRPCRouter({
       orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
     })
   ),
+
+  // Leichtgewichtige Übersicht für Grid-Anzeige (kein Artikel-Load)
+  uebersicht: adminProcedure.query(({ ctx }) =>
+    ctx.prisma.lagerplatz.findMany({
+      include: { modell: { select: { id: true, modell: true, hersteller: true } } },
+      orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
+    })
+  ),
+
+  // Detail für Modal — lädt Artikel + Grading nur bei Klick
+  platzDetail: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const platz = await ctx.prisma.lagerplatz.findUnique({
+        where:   { id: input.id },
+        include: { modell: true },
+      });
+      if (!platz?.modell) return { platz, artikel: [] as ArtikelMitGrading[] };
+
+      const sauber    = platz.modell.modell;
+      const mitPrefix = `${platz.modell.hersteller} ${sauber}`;
+
+      const artikel = await ctx.prisma.artikel.findMany({
+        where: {
+          OR: [
+            { bezeichnung: { startsWith: sauber } },
+            { bezeichnung: { startsWith: mitPrefix } },
+          ],
+        },
+        select:  { id: true, bezeichnung: true, kategorie: true, bestand: true },
+        orderBy: { kategorie: "asc" },
+      });
+
+      const artikelMitGrading: ArtikelMitGrading[] = await Promise.all(
+        artikel.map(async (a) => {
+          const letzteBuchung = await ctx.prisma.buchung.findFirst({
+            where:   { artikelId: a.id, typ: "EINGANG" },
+            orderBy: { datum: "desc" },
+            select:  { notiz: true, datum: true },
+          });
+          const m = letzteBuchung?.notiz?.match(/Grading:\s*(A\+|A|B|C)/i);
+          return { ...a, grading: m?.[1] ?? null, letzteBuchung: letzteBuchung?.datum ?? null };
+        }),
+      );
+
+      return { platz, artikel: artikelMitGrading };
+    }),
 
   listByReihe: adminProcedure.query(async ({ ctx }) => {
     const alle = await ctx.prisma.lagerplatz.findMany({
@@ -224,7 +281,7 @@ export const lagerplatzRouter = createTRPCRouter({
 
       const modell = hersteller
         ? await ctx.prisma.geraeteModell.findFirst({
-            where:   { modell: input.geraetName },
+            where:   { modell: input.geraetName, aktiv: true },
             include: { lagerplatz: true },
           })
         : null;
@@ -312,12 +369,12 @@ export const lagerplatzRouter = createTRPCRouter({
     }))
     .mutation(async ({ ctx, input }) => {
       const modell = await ctx.prisma.geraeteModell.findFirst({
-        where: { modell: input.geraetName },
+        where: { modell: input.geraetName, aktiv: true },
       });
       if (!modell) {
         throw new TRPCError({
           code:    "NOT_FOUND",
-          message: `Modell "${input.geraetName}" noch nicht im System. Zuerst einbuchen.`,
+          message: `Modell "${input.geraetName}" nicht gefunden (oder inaktiv). Zuerst einbuchen.`,
         });
       }
 
