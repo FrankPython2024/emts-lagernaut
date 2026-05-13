@@ -14,7 +14,7 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type WizardStep = 0 | 1 | 2 | 3 | 4;
+type WizardStep = 0 | 1 | 2 | 3 | 4 | 5;
 
 type GeraetState = {
   name:  string;
@@ -457,7 +457,7 @@ function StepGeraet({
         </button>
       </div>
 
-      <WizardProgress current={1} />
+      <WizardProgress current={1} total={4} />
 
       <div style={S.card}>
         <h2 style={{ fontSize: "1.6rem", fontWeight: 900, margin: "0 0 0.5rem", color: "var(--text)" }}>
@@ -617,7 +617,341 @@ function StepGeraet({
   );
 }
 
-// ── Step 2: Teile auswählen ───────────────────────────────────────────────────
+// ── Step 2 (NEU): Lagerplatz ──────────────────────────────────────────────────
+
+function PlatzKarte({
+  code, reihe, ebene, fach, hersteller, grund, istEmpfehlung, empfehlungLabel,
+}: {
+  code:              string;
+  reihe:             number;
+  ebene:             number;
+  fach:              number;
+  hersteller:        string | null;
+  grund?:            string;
+  istEmpfehlung?:    boolean;
+  empfehlungLabel?:  string;
+}) {
+  return (
+    <div style={{
+      border:       `2px solid ${istEmpfehlung ? "#04B475" : "var(--border)"}`,
+      borderRadius: 14,
+      padding:      "1.2rem 1.4rem",
+      background:   istEmpfehlung ? "rgba(4,180,117,0.06)" : "var(--bg)",
+      textAlign:    "center",
+    }}>
+      {istEmpfehlung && (
+        <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#04B475", letterSpacing: 1, marginBottom: 8 }}>
+          ⭐ {empfehlungLabel ?? "EMPFEHLUNG"}
+        </div>
+      )}
+      <div style={{ fontSize: "1.8rem", fontWeight: 900, color: "#202F61", letterSpacing: 1, marginBottom: 6 }}>
+        {code}
+      </div>
+      <div style={{ fontSize: "0.9rem", color: "var(--text-dim)" }}>
+        Reihe {reihe} · Ebene {ebene} · Fach {fach}
+        {hersteller && (
+          <> · <span style={{ color: "#008BD2", fontWeight: 700 }}>{hersteller}-Bereich</span></>
+        )}
+      </div>
+      {grund && (
+        <div style={{ fontSize: "0.78rem", color: "#04B475", marginTop: 6, fontWeight: 600 }}>
+          {grund}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LagerplatzBrowser({
+  onWaehlen,
+  onSchliessen,
+}: {
+  onWaehlen:    (id: number, code: string) => void;
+  onSchliessen: () => void;
+}) {
+  const [suche,   setSuche]   = useState("");
+  const [klapp,   setKlapp]   = useState<Record<number, boolean>>({});
+
+  const freieQ = api.lagerplatz.free.useQuery({}, { staleTime: 30_000 });
+
+  const gefiltert = (freieQ.data ?? []).filter((p) =>
+    !suche || p.code.toUpperCase().includes(suche.toUpperCase()),
+  );
+
+  const byReihe: Record<number, typeof gefiltert[number][]> = {};
+  for (const p of gefiltert) {
+    if (!byReihe[p.reihe]) byReihe[p.reihe] = [];
+    byReihe[p.reihe].push(p);
+  }
+  const reihen = Object.keys(byReihe).map(Number).sort((a, b) => a - b);
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      onClick={onSchliessen}
+    >
+      <div
+        style={{ background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 24px 60px rgba(0,0,0,0.35)", width: "100%", maxWidth: 560, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden", color: "var(--text)" }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Freie Lagerplätze durchsuchen"
+      >
+        <div style={{ padding: "1.2rem 1.5rem", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: "1.4rem" }}>📦</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "1.1rem", fontWeight: 800 }}>Anderen Platz wählen</div>
+            <div style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
+              {freieQ.data ? `${freieQ.data.length} freie Plätze` : "Lädt…"}
+            </div>
+          </div>
+          <button
+            onClick={onSchliessen}
+            style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "1.5rem", lineHeight: 1, padding: "2px 8px" }}
+            aria-label="Schließen"
+          >×</button>
+        </div>
+
+        <div style={{ padding: "0.8rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
+          <input
+            type="text"
+            value={suche}
+            onChange={(e) => setSuche(e.target.value)}
+            placeholder="z.B. ETL-1 oder ETL-9-3-4"
+            style={{ ...S.input, minHeight: 44, fontSize: "1rem" }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "#202F61")}
+            onBlur={(e)  => (e.currentTarget.style.borderColor = "var(--border)")}
+            aria-label="Lagerplatz suchen"
+            autoFocus
+          />
+        </div>
+
+        <div style={{ overflowY: "auto", flex: 1, padding: "0.5rem 1rem 1rem" }}>
+          {freieQ.isLoading ? (
+            <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>Lädt…</div>
+          ) : reihen.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>Keine freien Plätze gefunden.</div>
+          ) : reihen.map((reihe) => {
+            const plaetze    = byReihe[reihe] ?? [];
+            const herst      = plaetze[0]?.hersteller ?? "—";
+            const aufgeklappt = klapp[reihe] !== false;
+            return (
+              <div key={reihe} style={{ marginBottom: "0.4rem" }}>
+                <button
+                  onClick={() => setKlapp((prev) => ({ ...prev, [reihe]: !aufgeklappt }))}
+                  style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.6rem 0.5rem", background: "none", border: "none", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", borderRadius: 8 }}
+                  aria-expanded={aufgeklappt}
+                >
+                  <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--text-dim)" }}>
+                    Reihe {reihe} · {herst} · {plaetze.length} frei
+                  </span>
+                  <span style={{ color: "var(--text-dim)", fontSize: "0.75rem" }}>{aufgeklappt ? "▲" : "▼"}</span>
+                </button>
+                {aufgeklappt && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, padding: "0.3rem 0.5rem" }}>
+                    {plaetze.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => onWaehlen(p.id, p.code)}
+                        style={{ padding: "0.7rem 0.5rem", borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.85rem", fontWeight: 700, textAlign: "center", minHeight: 62, transition: "background 0.15s" }}
+                        aria-label={`Lagerplatz ${p.code.replace(/-/g, " ")}, Reihe ${p.reihe}, Ebene ${p.ebene}, Fach ${p.fach}${p.hersteller ? `, ${p.hersteller}-Bereich` : ""}`}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(32,47,97,0.08)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg)")}
+                      >
+                        {p.code}
+                        <div style={{ fontSize: "0.72rem", fontWeight: 400, color: "var(--text-dim)", marginTop: 2 }}>E{p.ebene}·F{p.fach}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepLagerplatz({
+  geraet,
+  onWeiter,
+  onBack,
+}: {
+  geraet:   GeraetState;
+  onWeiter: (lagerplatzId: number | null) => void;
+  onBack:   () => void;
+}) {
+  const [browserAuf, setBrowserAuf] = useState(false);
+
+  const vorschlagQ = api.lagerplatz.vorschlagByName.useQuery(
+    { geraetName: geraet.name },
+    { staleTime: 0, retry: 1 },
+  );
+
+  const d = vorschlagQ.data;
+
+  const kurzName = geraet.name.length > 40
+    ? geraet.name.slice(0, 38) + "…"
+    : geraet.name;
+
+  return (
+    <div style={{ maxWidth: 560, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1.5rem" }}>
+        <button onClick={onBack} style={S.backBtn} aria-label="Zurück zur Gerät-Auswahl">← Zurück</button>
+      </div>
+
+      <WizardProgress current={2} total={4} />
+
+      <div style={S.card}>
+        <h2 style={{ fontSize: "1.5rem", fontWeight: 900, margin: "0 0 0.5rem", color: "var(--text)" }}>
+          📍 Wo kommt dieses Gerät hin?
+        </h2>
+
+        {vorschlagQ.isLoading && (
+          <div style={{ textAlign: "center", padding: "3rem 0" }}>
+            <div style={{ width: 40, height: 40, border: "3px solid var(--border)", borderTopColor: "#202F61", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 1rem" }} />
+            <div style={{ color: "var(--text-dim)", fontSize: "0.95rem" }}>Platz wird gesucht…</div>
+          </div>
+        )}
+
+        {vorschlagQ.error && (
+          <div style={{ textAlign: "center", padding: "2rem 0", color: "var(--text-dim)" }}>
+            <div style={{ fontSize: "1.5rem", marginBottom: 12 }}>⚠️</div>
+            <div style={{ marginBottom: 20 }}>Fehler beim Laden. Du kannst ohne Lagerplatz weitermachen.</div>
+            <button
+              onClick={() => onWeiter(null)}
+              style={{ ...S.bigBtn("#202F61"), maxWidth: 280, margin: "0 auto" }}
+            >
+              Weiter ohne Lagerplatz →
+            </button>
+          </div>
+        )}
+
+        {d && d.voll && (
+          <div style={{ textAlign: "center", padding: "1rem 0" }}>
+            <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>⚠️</div>
+            <div style={{ fontSize: "1.1rem", fontWeight: 800, marginBottom: 8 }}>Lager ist voll</div>
+            <div style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: 24 }}>
+              Es ist kein freier Lagerplatz mehr da.<br />Bitte erst andere Geräte auslagern.
+            </div>
+            <button onClick={() => onWeiter(null)} style={{ ...S.bigBtn("#008BD2") }}>
+              Ohne Lagerplatz weiter →
+            </button>
+          </div>
+        )}
+
+        {d && !d.voll && d.bereitsZugewiesen && (
+          <div>
+            <p style={{ color: "var(--text-dim)", fontSize: "0.95rem", margin: "0 0 1rem" }}>
+              Dieses Modell hat schon einen Platz:
+            </p>
+            <PlatzKarte
+              code={d.platz.code}
+              reihe={d.platz.reihe}
+              ebene={d.platz.ebene}
+              fach={d.platz.fach}
+              hersteller={d.platz.hersteller}
+              istEmpfehlung
+              empfehlungLabel="ZUGEWIESENER PLATZ"
+            />
+            <button
+              onClick={() => onWeiter(d.platz.id)}
+              style={{ ...S.bigBtn("#04B475"), marginTop: "1rem" }}
+              aria-label={`Hier einlagern, Lagerplatz ${d.platz.code}, Reihe ${d.platz.reihe}, Ebene ${d.platz.ebene}, Fach ${d.platz.fach}`}
+            >
+              ✓ Hier einlagern
+            </button>
+            <button
+              onClick={() => setBrowserAuf(true)}
+              style={{ width: "100%", marginTop: 10, background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.95rem", fontWeight: 600, padding: "0.5rem", textDecoration: "underline" }}
+            >
+              Anderen Platz wählen
+            </button>
+          </div>
+        )}
+
+        {d && !d.voll && !d.bereitsZugewiesen && (
+          <div>
+            <p style={{ color: "var(--text-dim)", fontSize: "0.95rem", margin: "0 0 1rem" }}>
+              Vorschlag für <strong style={{ color: "var(--text)" }} title={geraet.name}>{kurzName}</strong>:
+            </p>
+
+            {d.vorschlaege[0] && (
+              <>
+                <PlatzKarte
+                  code={d.vorschlaege[0].code}
+                  reihe={d.vorschlaege[0].reihe}
+                  ebene={d.vorschlaege[0].ebene}
+                  fach={d.vorschlaege[0].fach}
+                  hersteller={d.vorschlaege[0].hersteller}
+                  grund={d.vorschlaege[0].grund}
+                  istEmpfehlung
+                />
+                <button
+                  onClick={() => onWeiter(d.vorschlaege[0]!.id)}
+                  style={{ ...S.bigBtn("#04B475"), marginTop: "0.8rem" }}
+                  aria-label={`Diesen Platz nehmen: ${d.vorschlaege[0].code}, Reihe ${d.vorschlaege[0].reihe}, Ebene ${d.vorschlaege[0].ebene}, Fach ${d.vorschlaege[0].fach}${d.vorschlaege[0].hersteller ? `, ${d.vorschlaege[0].hersteller}-Bereich` : ""}, Empfehlung`}
+                >
+                  ✓ Diesen Platz nehmen
+                </button>
+              </>
+            )}
+
+            {d.vorschlaege.length > 1 && (
+              <div style={{ marginTop: "1.2rem" }}>
+                <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-dim)", marginBottom: 8 }}>
+                  Andere freie Plätze:
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {d.vorschlaege.slice(1).map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => onWeiter(p.id)}
+                      style={{ padding: "0.7rem 1rem", borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.9rem", fontWeight: 700, minHeight: 62, minWidth: 90, textAlign: "center", transition: "border-color 0.15s" }}
+                      aria-label={`Lagerplatz ${p.code.replace(/-/g, " ")}, Reihe ${p.reihe}, Ebene ${p.ebene}, Fach ${p.fach}${p.hersteller ? `, ${p.hersteller}-Bereich` : ""}`}
+                      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#202F61")}
+                      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+                    >
+                      {p.code}
+                      <div style={{ fontSize: "0.72rem", fontWeight: 400, color: "var(--text-dim)", marginTop: 2 }}>
+                        R{p.reihe}·E{p.ebene}·F{p.fach}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, marginTop: "1.2rem" }}>
+              <button
+                onClick={() => setBrowserAuf(true)}
+                style={{ flex: 1, minHeight: 62, borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text-dim)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontWeight: 600, fontSize: "0.9rem" }}
+              >
+                🔍 Anderen Platz suchen
+              </button>
+              <button
+                onClick={() => onWeiter(null)}
+                style={{ flex: 1, minHeight: 62, borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text-dim)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontWeight: 600, fontSize: "0.9rem" }}
+              >
+                Später zuweisen →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {browserAuf && (
+        <LagerplatzBrowser
+          onWaehlen={(id) => { onWeiter(id); setBrowserAuf(false); }}
+          onSchliessen={() => setBrowserAuf(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Step 3: Teile auswählen ───────────────────────────────────────────────────
 
 function StepTeile({
   geraet,
@@ -679,7 +1013,7 @@ function StepTeile({
           <button onClick={onBack} style={S.backBtn}>← Zurück</button>
         </div>
 
-        <WizardProgress current={2} />
+        <WizardProgress current={3} total={4} />
 
         {/* Gerät-Badge */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1.5rem", padding: "0.9rem 1.2rem", background: "#202F61", borderRadius: 12, color: "white" }}>
@@ -889,7 +1223,7 @@ function StepBestaetigung({
         <button onClick={onBack} style={S.backBtn}>← Zurück</button>
       </div>
 
-      <WizardProgress current={3} />
+      <WizardProgress current={4} total={4} />
 
       <div style={S.card}>
         <h2 style={{ fontSize: "1.5rem", fontWeight: 900, margin: "0 0 0.5rem", color: "var(--text)" }}>
@@ -1212,12 +1546,17 @@ export default function EinlagernPage() {
   const { show } = useToast();
   const { data: session } = useSession();
 
-  const [step,       setStep]       = useState<WizardStep>(0);
-  const [geraet,     setGeraet]     = useState<GeraetState | null>(null);
-  const [items,      setItems]      = useState<AusgewaehltItem[]>([]);
-  const [ergebnisse, setErgebnisse] = useState<ErgebnisItem[]>([]);
+  const [step,              setStep]              = useState<WizardStep>(0);
+  const [geraet,            setGeraet]            = useState<GeraetState | null>(null);
+  const [items,             setItems]             = useState<AusgewaehltItem[]>([]);
+  const [ergebnisse,        setErgebnisse]        = useState<ErgebnisItem[]>([]);
+  const [selectedLagerplatzId, setSelectedLagerplatzId] = useState<number | null>(null);
 
   const kuerzel = (session?.user as { kuerzel?: string } | undefined)?.kuerzel ?? "";
+
+  const zuweisenNachNameMutation = api.lagerplatz.zuweisenNachName.useMutation({
+    onError: (e) => show(`⚠️ Lagerplatz-Zuweisung: ${e.message}`, "error"),
+  });
 
   const executeMutation = api.einlagern.execute.useMutation({
     onSuccess: (data) => {
@@ -1240,8 +1579,11 @@ export default function EinlagernPage() {
         };
       });
       setErgebnisse(results);
-      setStep(4);
+      setStep(5);
       show(`✅ ${data.length} ${data.length === 1 ? "Teil" : "Teile"} eingebucht!`, "success");
+      if (selectedLagerplatzId && geraet) {
+        zuweisenNachNameMutation.mutate({ geraetName: geraet.name, lagerplatzId: selectedLagerplatzId });
+      }
     },
     onError: (e) => {
       show(`Fehler beim Einbuchen: ${e.message}`, "error");
@@ -1267,6 +1609,7 @@ export default function EinlagernPage() {
     setGeraet(null);
     setItems([]);
     setErgebnisse([]);
+    setSelectedLagerplatzId(null);
     setStep(1);
   }
 
@@ -1296,25 +1639,33 @@ export default function EinlagernPage() {
       )}
 
       {step === 2 && geraet && (
+        <StepLagerplatz
+          geraet={geraet}
+          onBack={() => setStep(1)}
+          onWeiter={(id) => { setSelectedLagerplatzId(id); setStep(3); }}
+        />
+      )}
+
+      {step === 3 && geraet && (
         <StepTeile
           geraet={geraet}
           items={items}
-          onBack={() => setStep(1)}
-          onWeiter={() => setStep(3)}
+          onBack={() => setStep(2)}
+          onWeiter={() => setStep(4)}
           onItemsChange={setItems}
         />
       )}
 
-      {step === 3 && geraet && items.length > 0 && (
+      {step === 4 && geraet && items.length > 0 && (
         <StepBestaetigung
           geraet={geraet}
           items={items}
-          onBack={() => setStep(2)}
+          onBack={() => setStep(3)}
           onEinbuchen={handleEinbuchen}
         />
       )}
 
-      {step === 4 && (
+      {step === 5 && (
         <StepFertig
           ergebnisse={ergebnisse}
           kuerzel={kuerzel}
