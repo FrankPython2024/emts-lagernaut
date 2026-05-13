@@ -1,0 +1,10 @@
+{
+  "regale": [
+    { "regal": 7,  "reihe": 5,  "hersteller": "Dell",   "ebenen": [2,3,4,5],   "faecher": [1,2,3,4,5] },
+    { "regal": 8,  "reihe": 6,  "hersteller": "Dell",   "ebenen": [2,3,4,5],   "faecher": [1,2,3,4,5] },
+    { "regal": 9,  "reihe": 7,  "hersteller": "HP",     "ebenen": [2,3,4,5],   "faecher": [1,2,3,4,5] },
+    { "regal": 10, "reihe": 8,  "hersteller": "HP",     "ebenen": [2,3,4,5],   "faecher": [1,2,3,4,5] },
+    { "regal": 11, "reihe": 9,  "hersteller": "Lenovo", "ebenen": [2,3,4,5],   "faecher": [1,2,3,4,5] },
+    { "regal": 1,  "reihe": 10, "hersteller": "Lenovo", "ebenen": [2,3,4,5,6], "faecher": [1,2,3,4,5] }
+  ]
+}

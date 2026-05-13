@@ -14,6 +14,7 @@ import { nachrichtenRouter }     from "./nachrichten";
 import { chatRouter }           from "./chat";
 import { stresstestRouter }     from "./stresstest";
 import { einlagernRouter }      from "./einlagern";
+import { lagerplatzRouter }     from "./lagerplatz";
 
 export const appRouter = createTRPCRouter({
   lager:           lagerRouter,
@@ -31,6 +32,7 @@ export const appRouter = createTRPCRouter({
   chat:            chatRouter,
   stresstest:      stresstestRouter,
   einlagern:       einlagernRouter,
+  lagerplatz:      lagerplatzRouter,
 });
 
 export type AppRouter = typeof appRouter;

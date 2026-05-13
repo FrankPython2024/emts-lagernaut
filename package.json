@@ -23,7 +23,8 @@
     "cleanup:false":        "tsx scripts/cleanupFalseAssignments.ts",
     "reset:lagernaut":      "tsx scripts/resetLagernaut.ts",
     "reprocess:geraete":    "tsx scripts/reprocessGeraete.ts",
-    "test:bezeichnung":     "tsx tests/bezeichnungBereinigen.test.ts"
+    "test:bezeichnung":     "tsx tests/bezeichnungBereinigen.test.ts",
+    "seed:lagerplaetze":    "tsx prisma/seed-lagerplaetze.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

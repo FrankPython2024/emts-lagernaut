@@ -118,13 +118,32 @@ model Kompatibilitaet {
 }
 
 model GeraeteModell {
-  id         Int      @id @default(autoincrement())
+  id         Int         @id @default(autoincrement())
   hersteller String
   modell     String
-  aktiv      Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  aktiv      Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  lagerplatz Lagerplatz?
 
   @@unique([hersteller, modell])
+}
+
+model Lagerplatz {
+  id         Int            @id @default(autoincrement())
+  code       String         @unique           // "ETL-1-6-5"
+  regal      Int                              // logische Regal-Nr
+  reihe      Int                              // physische Reihen-Nr (für Anzeige)
+  ebene      Int
+  fach       Int
+  hersteller String?                          // "HP" | "Lenovo" | "Dell" | null
+  modellId   Int?           @unique
+  modell     GeraeteModell? @relation(fields: [modellId], references: [id], onDelete: SetNull)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([hersteller])
+  @@index([reihe, ebene, fach])
+  @@map("lagerplatz")
 }
 
 model GeraeteLookup {
