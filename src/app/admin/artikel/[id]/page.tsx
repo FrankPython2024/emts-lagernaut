@@ -87,8 +87,17 @@ export default function ArtikelDetailPage() {
 
         <div>
           <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">Lagerplatz</label>
-          <input value={form.lagerplatz} onChange={(e) => setForm((f) => ({ ...f, lagerplatz: e.target.value }))}
-            placeholder="z.B. HP-1-1-1" className={INPUT_CLS} />
+          <input
+            value={form.lagerplatz}
+            readOnly
+            placeholder="—"
+            className={`${INPUT_CLS} cursor-not-allowed opacity-70`}
+            title="Wird automatisch aus Modell-Lagerplatz übernommen"
+          />
+          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+            Automatisch aus Modell-Lagerplatz · Änderung über{" "}
+            <a href="/admin/lagerplaetze" className="underline hover:text-[#0064d2]">Lagerplätze</a>
+          </p>
         </div>
 
         <div className="flex gap-3 pt-2 flex-wrap">

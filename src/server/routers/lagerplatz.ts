@@ -352,11 +352,21 @@ export const lagerplatzRouter = createTRPCRouter({
           });
         }
 
-        return tx.lagerplatz.update({
+        const ergebnis = await tx.lagerplatz.update({
           where:   { id: input.lagerplatzId },
           data:    { modellId: input.modellId },
           include: { modell: { select: { id: true, modell: true, hersteller: true } } },
         });
+
+        // Artikel.lagerplatz synchronisieren
+        if (ergebnis.modell) {
+          const n = ergebnis.modell.modell;
+          await tx.artikel.updateMany({
+            where: { OR: [{ bezeichnung: n }, { bezeichnung: { startsWith: `${n} ` } }] },
+            data:  { lagerplatz: ergebnis.code },
+          });
+        }
+        return ergebnis;
       });
     }),
 
@@ -393,11 +403,19 @@ export const lagerplatzRouter = createTRPCRouter({
           await tx.lagerplatz.update({ where: { id: alterPlatz.id }, data: { modellId: null } });
         }
 
-        return tx.lagerplatz.update({
+        const ergebnis = await tx.lagerplatz.update({
           where:   { id: input.lagerplatzId },
           data:    { modellId: modell.id },
           include: { modell: { select: { id: true, modell: true, hersteller: true } } },
         });
+
+        // Artikel.lagerplatz synchronisieren
+        const n = modell.modell;
+        await tx.artikel.updateMany({
+          where: { OR: [{ bezeichnung: n }, { bezeichnung: { startsWith: `${n} ` } }] },
+          data:  { lagerplatz: ergebnis.code },
+        });
+        return ergebnis;
       });
     }),
 
@@ -429,7 +447,8 @@ export const lagerplatzRouter = createTRPCRouter({
           throw new TRPCError({ code: "CONFLICT", message: `${neuerPlatz.code} ist bereits belegt` });
         }
 
-        const alterCode = modell.lagerplatz.code;
+        const alterCode  = modell.lagerplatz.code;
+        const modellName = modell.modell;
 
         await tx.lagerplatz.update({
           where: { id: modell.lagerplatz.id },
@@ -441,6 +460,12 @@ export const lagerplatzRouter = createTRPCRouter({
           include: { modell: true },
         });
 
+        // Artikel.lagerplatz auf neuen Code aktualisieren
+        await tx.artikel.updateMany({
+          where: { OR: [{ bezeichnung: modellName }, { bezeichnung: { startsWith: `${modellName} ` } }] },
+          data:  { lagerplatz: neuerPlatz.code },
+        });
+
         return { result, von: alterCode, nach: neuerPlatz.code };
       });
     }),
@@ -450,15 +475,30 @@ export const lagerplatzRouter = createTRPCRouter({
   loesen: adminProcedure
     .input(z.object({ lagerplatzId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const platz = await ctx.prisma.lagerplatz.findUnique({ where: { id: input.lagerplatzId } });
+      const platz = await ctx.prisma.lagerplatz.findUnique({
+        where:   { id: input.lagerplatzId },
+        include: { modell: { select: { modell: true } } },
+      });
       if (!platz) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Lagerplatz nicht gefunden" });
       }
-      if (!platz.modellId) return platz;
+      if (!platz.modellId) return platz; // bereits frei — idempotent
 
-      return ctx.prisma.lagerplatz.update({
-        where: { id: input.lagerplatzId },
-        data:  { modellId: null },
+      return ctx.prisma.$transaction(async (tx) => {
+        const ergebnis = await tx.lagerplatz.update({
+          where: { id: input.lagerplatzId },
+          data:  { modellId: null },
+        });
+
+        // Artikel.lagerplatz leeren
+        if (platz.modell) {
+          const n = platz.modell.modell;
+          await tx.artikel.updateMany({
+            where: { OR: [{ bezeichnung: n }, { bezeichnung: { startsWith: `${n} ` } }] },
+            data:  { lagerplatz: null },
+          });
+        }
+        return ergebnis;
       });
     }),
 });

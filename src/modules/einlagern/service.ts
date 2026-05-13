@@ -254,21 +254,24 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     }
 
     // 3. Neuen geräte-spezifischen Artikel anlegen
+    // ETL-Code hat Vorrang vor legacy item.lagerplatz
+    const lagerplatzFuerArtikel = etlLagerplatzCode ?? item.lagerplatz ?? null;
     if (!artikel) {
       istNeu  = true;
       artikel = await prisma.artikel.create({
         data: {
           bezeichnung: artikelBezeichnung,
-          kategorie:   item.teiltyp,          // Kategorie = Teiltyp für getByGeraetMitStandard
+          kategorie:   item.teiltyp,
           bestand:     0,
-          lagerplatz:  item.lagerplatz ?? null,
+          lagerplatz:  lagerplatzFuerArtikel,
         },
       });
       console.log(`[Einlagern] Neuer Artikel: "${artikelBezeichnung}" (ID: ${artikel.id})`);
-    } else if (item.lagerplatz && !artikel.lagerplatz) {
+    } else if (lagerplatzFuerArtikel && artikel.lagerplatz !== lagerplatzFuerArtikel) {
+      // ETL-Code aktuell halten (auch wenn Artikel schon existiert)
       artikel = await prisma.artikel.update({
         where: { id: artikel.id },
-        data:  { lagerplatz: item.lagerplatz },
+        data:  { lagerplatz: lagerplatzFuerArtikel },
       });
     }
 
