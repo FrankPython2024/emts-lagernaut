@@ -44,8 +44,9 @@ export default function BenutzerNeuPage() {
           { key: "password", label: "Passwort", placeholder: "Mindestens 8 Zeichen", type: "password" },
         ].map(({ key, label, placeholder, type }) => (
           <div key={key}>
-            <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">{label} *</label>
+            <label htmlFor={`field-${key}`} className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">{label} *</label>
             <input
+              id={`field-${key}`}
               required type={type} placeholder={placeholder}
               value={form[key as keyof typeof form] as string}
               onChange={(e) => setForm((f) => ({ ...f, [key]: key === "kuerzel" ? e.target.value.toUpperCase() : e.target.value }))}

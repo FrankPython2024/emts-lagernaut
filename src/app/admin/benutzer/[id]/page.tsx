@@ -56,20 +56,20 @@ export default function BenutzerDetailPage() {
           { key: "email", label: "E-Mail", type: "email" },
         ].map(({ key, label, type }) => (
           <div key={key}>
-            <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">{label}</label>
-            <input type={type} value={(form as any)[key]}
+            <label htmlFor={`field-${key}`} className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">{label}</label>
+            <input id={`field-${key}`} type={type} value={(form as any)[key]}
               onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
               className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]" />
           </div>
         ))}
         <div>
-          <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">Kürzel (unveränderlich)</label>
-          <input disabled value={user.kuerzel}
+          <label htmlFor="kuerzel-field" className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">Kürzel (unveränderlich)</label>
+          <input id="kuerzel-field" disabled value={user.kuerzel}
             className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5]/50 dark:bg-[#18191a]/50 text-[#65676b] dark:text-[#b0b3b8] font-mono" />
         </div>
         <div>
-          <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">Rolle</label>
-          <select value={form.rolle} onChange={(e) => setForm((f) => ({ ...f, rolle: e.target.value as UserRolle }))}
+          <label htmlFor="rolle-field" className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">Rolle</label>
+          <select id="rolle-field" value={form.rolle} onChange={(e) => setForm((f) => ({ ...f, rolle: e.target.value as UserRolle }))}
             className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]">
             {Object.values(UserRolle).map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
@@ -83,7 +83,8 @@ export default function BenutzerDetailPage() {
       {/* Passwort */}
       <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-6 shadow-sm space-y-4">
         <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] border-b border-[#ced4da] dark:border-[#3e4042] pb-3">Passwort zurücksetzen</h2>
-        <input type="password" placeholder="Neues Passwort (min. 8 Zeichen)" value={newPw}
+        <label htmlFor="new-password" className="sr-only">Neues Passwort</label>
+        <input id="new-password" type="password" placeholder="Neues Passwort (min. 8 Zeichen)" value={newPw}
           onChange={(e) => setNewPw(e.target.value)}
           className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]" />
         <button onClick={() => resetPw.mutate({ id: userId, newPassword: newPw })}

@@ -117,7 +117,9 @@ function LoginForm() {
           </div>
         )}
 
+        <label htmlFor="kuerzel" className="sr-only">Kürzel</label>
         <input
+          id="kuerzel"
           type="text"
           placeholder="KÜRZEL"
           value={kuerzel}
@@ -135,6 +137,7 @@ function LoginForm() {
           onBlur={(e)  => (e.currentTarget.style.borderColor = dark ? "#3A3F47" : "#d0d5e0")}
         />
 
+        <label htmlFor="pw" className="sr-only">Passwort</label>
         <input
           id="pw"
           type="password"
