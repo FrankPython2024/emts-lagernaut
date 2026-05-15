@@ -109,6 +109,51 @@ export const auslagernRouter = createTRPCRouter({
   }),
 
   /**
+   * Bestand-Details für eine konkrete Gruppe von Anfragen (für AuslagerModal).
+   * Gibt dieselben Felder wie listAnfragen.teile, aber nur für die übergebenen IDs.
+   */
+  gruppeDetails: adminProcedure
+    .input(z.object({ anfrageIds: z.array(z.number().int().positive()).min(1).max(50) }))
+    .query(async ({ ctx, input }) => {
+      const anfragen = await ctx.prisma.anfrage.findMany({
+        where: {
+          id:        { in: input.anfrageIds },
+          status:    { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] },
+          artikelId: { not: null },
+        },
+        include: {
+          artikel: {
+            select: { id: true, bezeichnung: true, kategorie: true, bestand: true, lagerplatz: true },
+          },
+        },
+      });
+
+      const teile = await Promise.all(
+        anfragen.map(async (a) => {
+          if (!a.artikel || !a.artikelId) return null;
+          const letzteBuchung = await ctx.prisma.buchung.findFirst({
+            where:   { artikelId: a.artikelId, typ: BuchungsTyp.EINGANG },
+            orderBy: { datum: "desc" },
+            select:  { notiz: true },
+          });
+          return {
+            teilId:         a.id,
+            teiltyp:        a.artikel.kategorie,
+            artikelName:    a.artikel.bezeichnung,
+            menge:          a.menge,
+            verfuegbar:     a.artikel.bestand >= a.menge,
+            bestand:        a.artikel.bestand,
+            lagerplatzCode: a.artikel.lagerplatz ?? null,
+            grading:        extractGrading(letzteBuchung?.notiz),
+            status:         a.status as string,
+          };
+        })
+      );
+
+      return teile.filter((t): t is NonNullable<typeof teile[0]> => t !== null);
+    }),
+
+  /**
    * Teile auslagern — transaktional.
    * Erstellt AUSGANG-Buchung pro Anfrage-ID, reduziert Bestand, setzt Status.
    *

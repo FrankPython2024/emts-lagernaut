@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { BelegModal, MehrBelegModal } from "@/components/ui/BelegModal";
+import { AuslagerModal } from "@/components/auslagern/AuslagerModal";
 import {
   buildAuslagerBelegHtml,
   printAuslagerBeleg,
@@ -238,6 +239,9 @@ export default function AnfragenPage() {
     anfrageId: number; bezugInfo: string; partnerName: string;
   } | null>(null);
 
+  // Auslager-Modal
+  const [auslagerModal, setAuslagerModal] = useState<{ anfrageIds: number[]; gruppenLabel: string } | null>(null);
+
   // Freigeben-Dialog
   const [freigebenDialog, setFreigebenDialog] = useState<{
     anfrageIds: number[]; bearbeitetVon: string; seit: Date | null;
@@ -254,6 +258,16 @@ export default function AnfragenPage() {
   const [gruppenBelege, setGruppenBelege] = useState<AuslagerBelegData[] | null>(null);
   const gruppenModus = useRef(false);
   const [erledigend, setErledigend] = useState<number | null>(null);
+
+  const { data: auslagerData } = api.auslagern.listAnfragen.useQuery(undefined, {
+    staleTime: 20_000, refetchOnWindowFocus: false,
+  });
+
+  const auslagerMap = useMemo(() => {
+    const m = new Map<string, { anzahlVerfuegbar: number; anzahlTotal: number }>();
+    for (const g of (auslagerData ?? [])) m.set(g.gruppenKey, { anzahlVerfuegbar: g.anzahlVerfuegbar, anzahlTotal: g.anzahlTotal });
+    return m;
+  }, [auslagerData]);
 
   const { data: rawData, isLoading, error, refetch } = api.anfragen.getGruppiert.useQuery({
     ...(statusFilter ? { status: statusFilter as AnfrageStatus } : {}),
@@ -440,6 +454,14 @@ export default function AnfragenPage() {
           const alleDone          = anfragenTyped.every((a) => a.status === AnfrageStatus.ABGESCHLOSSEN || a.status === AnfrageStatus.STORNIERT);
           const anyTakeable       = anfragenTyped.some((a) => (a.status === AnfrageStatus.NEU || a.status === AnfrageStatus.BEDARF) && !a.bearbeitetVon);
 
+          // ── Auslagern-Info ───────────────────────────────────────────────
+          const gruppenKey       = gruppe.gruppenNr ?? `${gruppe.techniker}__${gruppe.logId}`;
+          const auslagerInfo     = auslagerMap.get(gruppenKey);
+          const hatVerfuegbare   = !alleDone && (auslagerInfo?.anzahlVerfuegbar ?? 0) > 0;
+          const auslagerIds      = anfragenTyped
+            .filter((a) => a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT && !a.istSonderAnfrage)
+            .map((a) => a.id);
+
           // ── Chat-Button ─────────────────────────────────────────────────
           const firstId   = anfragenTyped[0]?.id;
           const chatCount = firstId ? ((ungelesenData ?? []).find((x) => x.anfrageId === firstId)?.count ?? 0) : 0;
@@ -466,6 +488,11 @@ export default function AnfragenPage() {
                     </div>
                   </div>
                   <StatusBadge status={gruppe.gruppenStatus} />
+                  {hatVerfuegbare && auslagerInfo && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008bd2]/15 text-[#008bd2] dark:text-[#45bdff] whitespace-nowrap">
+                      📦 {auslagerInfo.anzahlVerfuegbar}/{auslagerInfo.anzahlTotal}
+                    </span>
+                  )}
                   {gruppe.gruppenNr && <span className="text-xs font-mono text-[#65676b] dark:text-[#b0b3b8]">{gruppe.gruppenNr}</span>}
 
                   {/* Lock-Status-Pill */}
@@ -508,6 +535,20 @@ export default function AnfragenPage() {
                       className="px-3 py-2.5 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 text-amber-700 dark:text-amber-400 text-xs font-bold rounded-lg border border-amber-300 dark:border-amber-700 transition-colors min-h-[44px]"
                     >
                       🔓 Freigeben
+                    </button>
+                  )}
+
+                  {/* Auslagern-Button */}
+                  {hatVerfuegbare && auslagerIds.length > 0 && (
+                    <button
+                      onClick={() => setAuslagerModal({
+                        anfrageIds:   auslagerIds,
+                        gruppenLabel: [gruppe.geraeteName, gruppe.techniker].filter(Boolean).join(" · ") || gruppe.logId,
+                      })}
+                      title="Auslagerung starten"
+                      className="px-3 py-2.5 bg-[#008bd2] text-white text-xs font-bold rounded-lg hover:bg-[#0077b5] transition-colors min-h-[44px]"
+                    >
+                      📤 Auslagern
                     </button>
                   )}
 
@@ -655,6 +696,15 @@ export default function AnfragenPage() {
           anzahl={gruppenBelege.length}
           onDrucken={() => printMehrereAuslagerBelege(gruppenBelege)}
           onSchliessen={() => setGruppenBelege(null)}
+        />
+      )}
+
+      {auslagerModal && (
+        <AuslagerModal
+          anfrageIds={auslagerModal.anfrageIds}
+          gruppenLabel={auslagerModal.gruppenLabel}
+          onClose={() => setAuslagerModal(null)}
+          onSuccess={() => { refetch(); }}
         />
       )}
 
