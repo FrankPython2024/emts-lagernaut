@@ -114,6 +114,39 @@ html.font-large  { font-size: 22px; --base-font: 22px; }
   50%       { box-shadow: 0 0 0 8px rgba(0, 139, 210, 0); }
 }
 
+/* ── Anfragen-Status-Highlights ─────────────────────────────────────────────── */
+
+/* NEU: cyan Akzent, leicht atmend */
+.anfrage-neu {
+  border-left-width:  3px !important;
+  border-left-color:  var(--afb-blue) !important;
+  animation: anfrage-neu-pulse 3s ease-in-out infinite;
+}
+@keyframes anfrage-neu-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(0,139,210,0.10), 0 4px 12px -2px rgba(0,139,210,0.10); }
+  50%       { box-shadow: 0 0 0 1px rgba(0,139,210,0.20), 0 6px 16px -2px rgba(0,139,210,0.16); }
+}
+.dark .anfrage-neu { animation-name: anfrage-neu-pulse-dark; }
+@keyframes anfrage-neu-pulse-dark {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(31,165,232,0.18), 0 4px 12px -2px rgba(31,165,232,0.14); }
+  50%       { box-shadow: 0 0 0 1px rgba(31,165,232,0.30), 0 6px 16px -2px rgba(31,165,232,0.22); }
+}
+
+/* IN BEARBEITUNG: navy Akzent, statisch */
+.anfrage-bearbeitung {
+  border-left-width:  3px !important;
+  border-left-color:  var(--afb-navy) !important;
+  box-shadow: 0 0 0 1px rgba(32,47,97,0.08), 0 2px 8px -2px rgba(32,47,97,0.08);
+}
+.dark .anfrage-bearbeitung {
+  box-shadow: 0 0 0 1px rgba(61,82,133,0.20), 0 2px 8px -2px rgba(61,82,133,0.16);
+}
+
+/* Reduzierte Bewegung (WCAG prefers-reduced-motion) */
+@media (prefers-reduced-motion: reduce) {
+  .anfrage-neu { animation: none; }
+}
+
 /* ── WCAG AA: Sichtbarer Fokus-Ring für Tastatur-Navigation ──────────────────── */
 
 *:focus-visible {

@@ -222,6 +222,12 @@ export default function AnfragenPage() {
   const user     = session?.user as SessionUser | undefined;
   const ersteller = user?.kuerzel ?? "ADMIN";
 
+  function statusHighlightClass(status: string): string {
+    if (status === "NEU" || status === "BEDARF") return "anfrage-neu";
+    if (status === "IN_BEARBEITUNG") return "anfrage-bearbeitung";
+    return "";
+  }
+
   const [statusFilter, setStatusFilter] = useState<AnfrageStatus | "">("");
   const [techFilter,   setTechFilter]   = useState("");
   const [meinFilter,   setMeinFilter]   = useState(false);
@@ -447,7 +453,7 @@ export default function AnfragenPage() {
             : "bg-[#f0f2f5] dark:bg-[#18191a] border-[#ced4da] dark:border-[#3e4042]";
 
           return (
-            <div key={gi} className={`bg-white dark:bg-[#242526] rounded-xl border shadow-sm overflow-hidden ${isLockedByOther ? "border-amber-200 dark:border-amber-800" : "border-[#ced4da] dark:border-[#3e4042]"}`}>
+            <div key={gi} className={`bg-white dark:bg-[#242526] rounded-xl border shadow-sm overflow-hidden ${isLockedByOther ? "border-amber-200 dark:border-amber-800" : "border-[#ced4da] dark:border-[#3e4042]"} ${statusHighlightClass(gruppe.gruppenStatus)}`}>
               {/* ── Gruppen-Header ── */}
               <div className={`flex items-start justify-between gap-3 px-5 py-4 border-b flex-wrap gap-y-2 ${headerCls}`}>
                 <div className="flex items-start gap-4 flex-wrap min-w-0">
