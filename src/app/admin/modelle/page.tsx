@@ -6,14 +6,11 @@ import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
+import { STANDARD_TEILNAMEN } from "@/lib/constants/teiltypen";
 
 // ── Konstanten ────────────────────────────────────────────────────────────────
 
-const STANDARD_TEILE = [
-  "Displaymodul", "Tastatur", "Touchpad", "Füße vorne", "Füße hinten",
-  "D Cover", "USB Board", "Power Button", "Lautsprecher", "Lüfter",
-  "Thermalmodul", "BIOS Batterie", "Akku",
-] as const;
+const STANDARD_TEILE = STANDARD_TEILNAMEN;
 
 const INPUT_CLS = "px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] text-sm";
 

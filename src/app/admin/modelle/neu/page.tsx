@@ -3,12 +3,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
+import { STANDARD_TEILNAMEN } from "@/lib/constants/teiltypen";
 
-const STANDARD_TEILE = [
-  "Displaymodul","Tastatur","Touchpad","Füße vorne","Füße hinten",
-  "D Cover","USB Board","Power Button","Lautsprecher","Lüfter",
-  "Thermalmodul","BIOS Batterie","Akku",
-];
+const STANDARD_TEILE = STANDARD_TEILNAMEN;
 
 export default function ModellNeuPage() {
   const router = useRouter();

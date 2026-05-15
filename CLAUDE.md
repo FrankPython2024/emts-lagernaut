@@ -54,7 +54,13 @@ Das Techniker-Portal wird 1:1 nach `techniker.html` (v1) nachgebaut:
 - Toast-System bottom-right
 - Alle Modals identisch (Login, Kompatibilität, LogID, Tastatur, Storno)
 
-### 6. Modul-Trennung
+### 6. Lagerplatz-Reservierung
+Lagerplätze dürfen nur **aktiven** Modellen zugewiesen werden.
+Bei Soft-Delete eines Modells (`aktiv=false`) wird der Lagerplatz automatisch freigegeben
+(`lagerplatz.modellId = null`). Die Mutations `zuweisen` und `umziehen` prüfen
+den Aktiv-Status und werfen BAD_REQUEST für inaktive Modelle.
+
+### 7. Modul-Trennung
 - Jede Funktion = eigenes Modul unter `src/modules/`
 - Keine Geschäftslogik in Pages oder Portals
 - Pages/Portals = nur UI und tRPC-Aufrufe

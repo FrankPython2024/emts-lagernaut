@@ -345,6 +345,9 @@ export const lagerplatzRouter = createTRPCRouter({
         if (!modell) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden" });
         }
+        if (!modell.aktiv) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Inaktives Modell kann keinen Lagerplatz erhalten" });
+        }
         if (modell.lagerplatz) {
           throw new TRPCError({
             code:    "CONFLICT",
@@ -432,7 +435,13 @@ export const lagerplatzRouter = createTRPCRouter({
           where:   { id: input.modellId },
           include: { lagerplatz: true },
         });
-        if (!modell?.lagerplatz) {
+        if (!modell) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden" });
+        }
+        if (!modell.aktiv) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Inaktives Modell kann nicht umgezogen werden" });
+        }
+        if (!modell.lagerplatz) {
           throw new TRPCError({
             code:    "BAD_REQUEST",
             message: 'Modell hat noch keinen Lagerplatz. Nutze "zuweisen".',

@@ -143,7 +143,7 @@ export const systemRouter = createTRPCRouter({
       const [artikelC, geraeteC, buchungC, anfrageC, userC, kompC, lookupC] =
         await Promise.all([
           prisma.artikel.count(),
-          prisma.geraeteModell.count(),
+          prisma.geraeteModell.count({ where: { aktiv: true } }),
           prisma.buchung.count(),
           prisma.anfrage.count(),
           prisma.user.count(),

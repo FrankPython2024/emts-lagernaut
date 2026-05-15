@@ -239,9 +239,9 @@ Erstellt als: `prisma/scripts/konsistenz-check.sql`
 
 | # | Schwere | Befund | Datei:Zeile |
 |---|---------|--------|-------------|
-| E-1 | 🔴 BUG | Standard-Teile-Listen inkonsistent (13 vs 17) | `einlagern/constants.ts` vs `lib/constants/teiltypen.ts` |
-| H-3 | 🟡 WICHTIG | Soft-Delete belässt Lagerplatz gesperrt | `server/routers/modell.ts` — kein `loesen()` beim Deaktivieren |
-| H-4 | 🟡 WICHTIG | zuweisen/umziehen ohne aktiv-Check | `server/routers/lagerplatz.ts:326, 424` |
+| E-1 | ✅ ERLEDIGT | Standard-Teile-Listen vereinheitlicht (17 — eine Quelle) | Fix: `lib/constants/teiltypen.ts` + Repair-SQL |
+| H-3 | ✅ ERLEDIGT | Soft-Delete gibt Lagerplatz frei (Transaktion) | Fix: `modules/geraete/service.ts::setzeModellAktiv` |
+| H-4 | ✅ ERLEDIGT | zuweisen/umziehen prüfen aktiv-Status | Fix: `server/routers/lagerplatz.ts` BAD_REQUEST für inaktive |
 | F-3 | 🟢 KOSMETISCH | gruppeFreigeben sequenziell statt updateMany | `modules/anfragen/service.ts` |
 | A-4 | 🟢 KOSMETISCH | verschiebeArtikel EINGANG+AUSGANG statt DIREKT | `modules/lagerplaetze/service.ts:138` |
 | G-2 | 🟢 KOSMETISCH | Text-Suche als CONTAINS-Fallback (bewusst) | `modules/einlagern/service.ts:34` |

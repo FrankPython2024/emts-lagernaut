@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
+import { STANDARD_TEILNAMEN } from "@/lib/constants/teiltypen";
 
 /**
  * Effiziente Fuzzy-Suche: findet passende Geräte-Strings per DB-Filter,
@@ -316,17 +317,8 @@ function extractKeywords(modell: string): string[] {
   return [...new Set(result)];
 }
 
-const STANDARD_TEILE_ENUM = [
-  "Displaymodul", "Tastatur", "Touchpad", "Füße vorne", "Füße hinten",
-  "D Cover", "USB Board", "Power Button", "Lautsprecher", "Lüfter",
-  "Thermalmodul", "BIOS Batterie", "Akku",
-] as const;
-
-const STANDARD_TEILE_LOOKUP = [
-  "Displaymodul", "Tastatur", "Touchpad", "Füße vorne", "Füße hinten",
-  "D Cover", "USB Board", "Power Button", "Lautsprecher", "Lüfter",
-  "Thermalmodul", "BIOS Batterie", "Akku",
-] as const;
+const STANDARD_TEILE_ENUM   = STANDARD_TEILNAMEN;
+const STANDARD_TEILE_LOOKUP = STANDARD_TEILNAMEN;
 
 export type TeilMitBestand = {
   teiltyp:   string;

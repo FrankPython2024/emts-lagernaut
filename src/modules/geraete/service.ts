@@ -1,23 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { getOrCreateModell } from "@/lib/geraete/getOrCreateModell";
-
-// Standard-Teile die bei jedem neuen Modell angelegt werden (aus code.gs: neuesModellAnlegen)
-const STANDARD_TEILE = [
-  "Displaymodul",
-  "Tastatur",
-  "Touchpad",
-  "Füße vorne",
-  "Füße hinten",
-  "D Cover",
-  "USB Board",
-  "Power Button",
-  "Lautsprecher",
-  "Lüfter",
-  "Thermalmodul",
-  "BIOS Batterie",
-  "Akku",
-] as const;
+import { STANDARD_TEILNAMEN } from "@/lib/constants/teiltypen";
 
 export type ModellAnlegenResult = {
   modell:        { id: number; hersteller: string; modell: string };
@@ -59,7 +43,7 @@ export async function legeModellAn(
   const angelegtTeile = await prisma.$transaction(async (tx) => {
     const teile: ModellAnlegenResult["angelegtTeile"] = [];
 
-    for (const teil of STANDARD_TEILE) {
+    for (const teil of STANDARD_TEILNAMEN) {
       const bezeichnung = `${kanonischerName} ${teil}`;
 
       const vorher = await tx.artikel.findUnique({
@@ -207,5 +191,25 @@ export async function setzeModellAktiv(id: number, aktiv: boolean) {
   if (!modell) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Gerätemodell nicht gefunden." });
   }
-  return prisma.geraeteModell.update({ where: { id }, data: { aktiv } });
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.geraeteModell.update({
+      where: { id },
+      data:  {
+        aktiv,
+        deaktiviertAm:    aktiv ? null : new Date(),
+        deaktiviertGrund: aktiv ? null : (modell.deaktiviertGrund ?? "Manuell deaktiviert"),
+      },
+    });
+
+    // Bei Deaktivierung: Lagerplatz-Belegung aufheben (Phantom-Belegung verhindern)
+    if (!aktiv) {
+      await tx.lagerplatz.updateMany({
+        where: { modellId: id },
+        data:  { modellId: null },
+      });
+    }
+
+    return updated;
+  });
 }
