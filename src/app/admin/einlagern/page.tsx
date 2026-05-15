@@ -53,9 +53,9 @@ type ErgebnisItem = {
 
 function gradingFarbe(g?: string): string {
   switch (g) {
-    case "A+": return "#04B475";
-    case "A":  return "#04B475";
-    case "B":  return "#008BD2";
+    case "A+": return "var(--afb-green)";
+    case "A":  return "var(--afb-green)";
+    case "B":  return "var(--afb-blue)";
     case "C":  return "#F59E0B";
     default:   return "#94A3B8";
   }
@@ -142,12 +142,12 @@ function WizardProgress({ current, total = 3 }: { current: number; total?: numbe
                 width:          done || active ? 32 : 10,
                 height:         10,
                 borderRadius:   5,
-                background:     done ? "#04B475" : active ? "#202F61" : "var(--border)",
+                background:     done ? "var(--afb-green)" : active ? "var(--afb-navy)" : "var(--border)",
                 transition:     "all 0.3s",
                 flexShrink:     0,
               }} />
               {done && (
-                <span style={{ fontSize: "0.8rem", color: "#04B475", fontWeight: 800 }}>✓</span>
+                <span style={{ fontSize: "0.8rem", color: "var(--afb-green)", fontWeight: 800 }}>✓</span>
               )}
             </div>
           );
@@ -246,7 +246,7 @@ function TeilKonfigurator({
                       gap:           12,
                       padding:       "0.9rem 1rem",
                       borderRadius:  10,
-                      border:        `2px solid ${sel ? "#202F61" : "var(--border)"}`,
+                      border:        `2px solid ${sel ? "var(--afb-navy)" : "var(--border)"}`,
                       background:    sel ? "rgba(32,47,97,0.08)" : "var(--bg)",
                       cursor:        "pointer",
                       fontFamily:    "'Ubuntu', sans-serif",
@@ -263,7 +263,7 @@ function TeilKonfigurator({
                         {g.beschreibung}
                       </div>
                     </div>
-                    {sel && <span style={{ color: "#202F61", fontWeight: 800, fontSize: "1.1rem" }}>✓</span>}
+                    {sel && <span style={{ color: "var(--afb-navy)", fontWeight: 800, fontSize: "1.1rem" }}>✓</span>}
                   </button>
                 );
               })}
@@ -318,7 +318,7 @@ function TeilKonfigurator({
               onChange={(e) => setNotiz(e.target.value)}
               placeholder='z.B. "Taste fehlt" oder "leicht vergilbt"'
               style={{ ...S.input, minHeight: 48 }}
-              onFocus={(e)  => (e.currentTarget.style.borderColor = "#202F61")}
+              onFocus={(e)  => (e.currentTarget.style.borderColor = "var(--afb-navy)")}
               onBlur={(e)   => (e.currentTarget.style.borderColor = "var(--border)")}
             />
           </div>
@@ -338,7 +338,7 @@ function TeilKonfigurator({
             <button
               onClick={handleSave}
               disabled={!grading}
-              style={{ ...S.bigBtn("#04B475", !grading), flex: 2 }}
+              style={{ ...S.bigBtn("var(--afb-green)", !grading), flex: 2 }}
             >
               ✅ {teil.label} hinzufügen
             </button>
@@ -359,7 +359,7 @@ function StepWillkommen({ onStart }: { onStart: () => void }) {
         <h1 style={{ fontSize: "2rem", fontWeight: 900, margin: "0 0 0.4rem", color: "var(--text)" }}>
           Teile einlagern
         </h1>
-        <p style={{ fontSize: "0.95rem", color: "#008BD2", fontWeight: 700, margin: "0 0 1.5rem", textTransform: "uppercase", letterSpacing: 1 }}>
+        <p style={{ fontSize: "0.95rem", color: "var(--afb-blue)", fontWeight: 700, margin: "0 0 1.5rem", textTransform: "uppercase", letterSpacing: 1 }}>
           Einlager-Assistent · AfB Sömmerda
         </p>
 
@@ -395,7 +395,7 @@ function StepWillkommen({ onStart }: { onStart: () => void }) {
 
         <button
           onClick={onStart}
-          style={{ ...S.bigBtn("#04B475"), fontSize: "1.2rem" }}
+          style={{ ...S.bigBtn("var(--afb-green)"), fontSize: "1.2rem" }}
           onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
           onMouseLeave={(e) => (e.currentTarget.style.transform = "")}
         >
@@ -541,13 +541,13 @@ function StepGeraet({
                 onBlur={(e)  => { e.currentTarget.value = formatLogId(e.currentTarget.value); }}
                 placeholder="z.B. 212.706.341"
                 style={{ ...S.input, flex: 1, fontSize: "1.3rem", fontWeight: 700, letterSpacing: 2, textAlign: "center" }}
-                onFocus={(e)  => (e.currentTarget.style.borderColor = "#202F61")}
+                onFocus={(e)  => (e.currentTarget.style.borderColor = "var(--afb-navy)")}
                 aria-label="Geräte-Nummer oder LogID eingeben"
               />
               <button
                 onClick={handleSuchen}
                 disabled={!query.trim() || sucheQuery.isFetching}
-                style={{ ...S.bigBtn("#202F61", !query.trim() || sucheQuery.isFetching), width: "auto", padding: "0 1.5rem" }}
+                style={{ ...S.bigBtn("var(--afb-navy)", !query.trim() || sucheQuery.isFetching), width: "auto", padding: "0 1.5rem" }}
                 aria-label="Gerät suchen"
               >
                 {sucheQuery.isFetching
@@ -570,7 +570,7 @@ function StepGeraet({
                   onChange={(e) => setManName(e.target.value)}
                   placeholder="z.B. HP EliteBook 840 G5"
                   style={{ ...S.input, marginBottom: 10 }}
-                  onFocus={(e)  => (e.currentTarget.style.borderColor = "#202F61")}
+                  onFocus={(e)  => (e.currentTarget.style.borderColor = "var(--afb-navy)")}
                   onBlur={(e)   => (e.currentTarget.style.borderColor = "var(--border)")}
                   aria-label="Gerätenamen manuell eingeben"
                   autoFocus
@@ -588,7 +588,7 @@ function StepGeraet({
                       void weiterMitPrüfung({ name: manName.trim(), logId: null, typ: "manuell" });
                     }}
                     disabled={!manName.trim() || modellLookup.isPending}
-                    style={{ ...S.bigBtn("#008BD2", !manName.trim() || modellLookup.isPending), flex: 2 }}
+                    style={{ ...S.bigBtn("var(--afb-blue)", !manName.trim() || modellLookup.isPending), flex: 2 }}
                   >
                     {modellLookup.isPending ? "Prüfe…" : "Mit diesem Namen weiter →"}
                   </button>
@@ -615,7 +615,7 @@ function StepGeraet({
               onKeyDown={(e) => { if (e.key === "Enter") handleSuchen(); }}
               placeholder="z.B. Lenovo ThinkPad T15"
               style={{ ...S.input, marginBottom: 10 }}
-              onFocus={(e)  => (e.currentTarget.style.borderColor = "#202F61")}
+              onFocus={(e)  => (e.currentTarget.style.borderColor = "var(--afb-navy)")}
               onBlur={(e)   => (e.currentTarget.style.borderColor = "var(--border)")}
               aria-label="Modellname eingeben"
               autoFocus
@@ -630,7 +630,7 @@ function StepGeraet({
               <button
                 onClick={handleSuchen}
                 disabled={!query.trim() || sucheQuery.isFetching}
-                style={{ ...S.bigBtn("#202F61", !query.trim() || sucheQuery.isFetching), flex: 2 }}
+                style={{ ...S.bigBtn("var(--afb-navy)", !query.trim() || sucheQuery.isFetching), flex: 2 }}
               >
                 {sucheQuery.isFetching ? "Suche läuft…" : "Suchen →"}
               </button>
@@ -644,7 +644,7 @@ function StepGeraet({
             <div style={{ background: "rgba(4,180,117,0.1)", border: "1px solid rgba(4,180,117,0.4)", borderRadius: 14, padding: "1.5rem", marginBottom: "1.5rem", textAlign: "center" }}>
               <div style={{ fontSize: "2.5rem", marginBottom: 8 }}>✅</div>
               <div style={{ fontWeight: 800, fontSize: "1rem", marginBottom: 4 }}>Das ist dein Gerät:</div>
-              <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#202F61", marginBottom: gefunden.logId ? 4 : 0 }}>
+              <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "var(--afb-navy)", marginBottom: gefunden.logId ? 4 : 0 }}>
                 {gefunden.name}
               </div>
               {gefunden.logId && (
@@ -666,7 +666,7 @@ function StepGeraet({
               <button
                 onClick={() => void weiterMitPrüfung(gefunden)}
                 disabled={modellLookup.isPending}
-                style={{ ...S.bigBtn("#04B475", modellLookup.isPending), flex: 2 }}
+                style={{ ...S.bigBtn("var(--afb-green)", modellLookup.isPending), flex: 2 }}
               >
                 {modellLookup.isPending ? "Prüfe…" : "✅ Ja, weiter →"}
               </button>
@@ -763,28 +763,28 @@ function PlatzKarte({
 }) {
   return (
     <div style={{
-      border:       `2px solid ${istEmpfehlung ? "#04B475" : "var(--border)"}`,
+      border:       `2px solid ${istEmpfehlung ? "var(--afb-green)" : "var(--border)"}`,
       borderRadius: 14,
       padding:      "1.2rem 1.4rem",
       background:   istEmpfehlung ? "rgba(4,180,117,0.06)" : "var(--bg)",
       textAlign:    "center",
     }}>
       {istEmpfehlung && (
-        <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#04B475", letterSpacing: 1, marginBottom: 8 }}>
+        <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--afb-green)", letterSpacing: 1, marginBottom: 8 }}>
           ⭐ {empfehlungLabel ?? "EMPFEHLUNG"}
         </div>
       )}
-      <div style={{ fontSize: "1.8rem", fontWeight: 900, color: "#202F61", letterSpacing: 1, marginBottom: 6 }}>
+      <div style={{ fontSize: "1.8rem", fontWeight: 900, color: "var(--afb-navy)", letterSpacing: 1, marginBottom: 6 }}>
         {code}
       </div>
       <div style={{ fontSize: "0.9rem", color: "var(--text-dim)" }}>
         Reihe {reihe} · Ebene {ebene} · Fach {fach}
         {hersteller && (
-          <> · <span style={{ color: "#008BD2", fontWeight: 700 }}>{hersteller}-Bereich</span></>
+          <> · <span style={{ color: "var(--afb-blue)", fontWeight: 700 }}>{hersteller}-Bereich</span></>
         )}
       </div>
       {grund && (
-        <div style={{ fontSize: "0.78rem", color: "#04B475", marginTop: 6, fontWeight: 600 }}>
+        <div style={{ fontSize: "0.78rem", color: "var(--afb-green)", marginTop: 6, fontWeight: 600 }}>
           {grund}
         </div>
       )}
@@ -849,7 +849,7 @@ function LagerplatzBrowser({
             onChange={(e) => setSuche(e.target.value)}
             placeholder="z.B. ETL-1 oder ETL-9-3-4"
             style={{ ...S.input, minHeight: 44, fontSize: "1rem" }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = "#202F61")}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "var(--afb-navy)")}
             onBlur={(e)  => (e.currentTarget.style.borderColor = "var(--border)")}
             aria-label="Lagerplatz suchen"
             autoFocus
@@ -940,7 +940,7 @@ function StepLagerplatz({
 
         {vorschlagQ.isLoading && (
           <div style={{ textAlign: "center", padding: "3rem 0" }}>
-            <div style={{ width: 40, height: 40, border: "3px solid var(--border)", borderTopColor: "#202F61", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 1rem" }} />
+            <div style={{ width: 40, height: 40, border: "3px solid var(--border)", borderTopColor: "var(--afb-navy)", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 1rem" }} />
             <div style={{ color: "var(--text-dim)", fontSize: "0.95rem" }}>Platz wird gesucht…</div>
           </div>
         )}
@@ -951,7 +951,7 @@ function StepLagerplatz({
             <div style={{ marginBottom: 20 }}>Fehler beim Laden. Du kannst ohne Lagerplatz weitermachen.</div>
             <button
               onClick={() => onWeiter(null)}
-              style={{ ...S.bigBtn("#202F61"), maxWidth: 280, margin: "0 auto" }}
+              style={{ ...S.bigBtn("var(--afb-navy)"), maxWidth: 280, margin: "0 auto" }}
             >
               Weiter ohne Lagerplatz →
             </button>
@@ -965,7 +965,7 @@ function StepLagerplatz({
             <div style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: 24 }}>
               Es ist kein freier Lagerplatz mehr da.<br />Bitte erst andere Geräte auslagern.
             </div>
-            <button onClick={() => onWeiter(null)} style={{ ...S.bigBtn("#008BD2") }}>
+            <button onClick={() => onWeiter(null)} style={{ ...S.bigBtn("var(--afb-blue)") }}>
               Ohne Lagerplatz weiter →
             </button>
           </div>
@@ -987,7 +987,7 @@ function StepLagerplatz({
             />
             <button
               onClick={() => onWeiter(d.platz.id)}
-              style={{ ...S.bigBtn("#04B475"), marginTop: "1rem" }}
+              style={{ ...S.bigBtn("var(--afb-green)"), marginTop: "1rem" }}
               aria-label={`Hier einlagern, Lagerplatz ${d.platz.code}, Reihe ${d.platz.reihe}, Ebene ${d.platz.ebene}, Fach ${d.platz.fach}`}
             >
               ✓ Hier einlagern
@@ -1020,7 +1020,7 @@ function StepLagerplatz({
                 />
                 <button
                   onClick={() => onWeiter(d.vorschlaege[0]!.id)}
-                  style={{ ...S.bigBtn("#04B475"), marginTop: "0.8rem" }}
+                  style={{ ...S.bigBtn("var(--afb-green)"), marginTop: "0.8rem" }}
                   aria-label={`Diesen Platz nehmen: ${d.vorschlaege[0].code}, Reihe ${d.vorschlaege[0].reihe}, Ebene ${d.vorschlaege[0].ebene}, Fach ${d.vorschlaege[0].fach}${d.vorschlaege[0].hersteller ? `, ${d.vorschlaege[0].hersteller}-Bereich` : ""}, Empfehlung`}
                 >
                   ✓ Diesen Platz nehmen
@@ -1040,7 +1040,7 @@ function StepLagerplatz({
                       onClick={() => onWeiter(p.id)}
                       style={{ padding: "0.7rem 1rem", borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.9rem", fontWeight: 700, minHeight: 62, minWidth: 90, textAlign: "center", transition: "border-color 0.15s" }}
                       aria-label={`Lagerplatz ${p.code.replace(/-/g, " ")}, Reihe ${p.reihe}, Ebene ${p.ebene}, Fach ${p.fach}${p.hersteller ? `, ${p.hersteller}-Bereich` : ""}`}
-                      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#202F61")}
+                      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--afb-navy)")}
                       onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
                     >
                       {p.code}
@@ -1146,7 +1146,7 @@ function StepTeile({
         <WizardProgress current={3} total={4} />
 
         {/* Gerät-Badge */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1.5rem", padding: "0.9rem 1.2rem", background: "#202F61", borderRadius: 12, color: "white" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1.5rem", padding: "0.9rem 1.2rem", background: "var(--afb-navy)", borderRadius: 12, color: "white" }}>
           <span style={{ fontSize: "1.4rem" }}>💻</span>
           <div>
             <div style={{ fontWeight: 800, fontSize: "1rem" }}>{geraet.name}</div>
@@ -1190,7 +1190,7 @@ function StepTeile({
                     gap:            6,
                     padding:        "1rem 0.5rem",
                     borderRadius:   14,
-                    border:         `2px solid ${sel ? "#04B475" : "var(--border)"}`,
+                    border:         `2px solid ${sel ? "var(--afb-green)" : "var(--border)"}`,
                     background:     sel ? "rgba(4,180,117,0.08)" : "var(--card-bg)",
                     cursor:         "pointer",
                     fontFamily:     "'Ubuntu', sans-serif",
@@ -1199,7 +1199,7 @@ function StepTeile({
                   }}
                 >
                   {sel && (
-                    <span style={{ position: "absolute", top: 6, right: 8, fontSize: "0.75rem", color: "#04B475", fontWeight: 800 }}>✓</span>
+                    <span style={{ position: "absolute", top: 6, right: 8, fontSize: "0.75rem", color: "var(--afb-green)", fontWeight: 800 }}>✓</span>
                   )}
                   <span style={{ fontSize: "2rem", lineHeight: 1 }}>{teil.icon}</span>
                   <span style={{ fontSize: "0.8rem", fontWeight: 700, textAlign: "center", lineHeight: 1.3, color: "var(--text)" }}>
@@ -1224,7 +1224,7 @@ function StepTeile({
                     fontSize:    "0.72rem",
                     padding:     "0.2rem 0.6rem",
                     borderRadius: 6,
-                    background:  sel ? "#04B475" : "var(--border)",
+                    background:  sel ? "var(--afb-green)" : "var(--border)",
                     color:       sel ? "white" : "var(--text-dim)",
                     fontWeight:  600,
                   }}>
@@ -1288,7 +1288,7 @@ function StepTeile({
           <button
             onClick={onWeiter}
             disabled={items.length === 0}
-            style={{ ...S.bigBtn("#202F61", items.length === 0), fontSize: "1.1rem" }}
+            style={{ ...S.bigBtn("var(--afb-navy)", items.length === 0), fontSize: "1.1rem" }}
           >
             Weiter zu Schritt 3 →
           </button>
@@ -1363,7 +1363,7 @@ function StepBestaetigung({
         {/* Gerät-Bestätigung */}
         <div style={{ padding: "0.9rem 1rem", borderRadius: 10, border: "1px solid rgba(32,47,97,0.2)", background: "rgba(32,47,97,0.04)", marginBottom: "1.2rem" }}>
           <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", fontWeight: 600, marginBottom: 2 }}>Gerät:</div>
-          <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#202F61" }}>{geraet.name}</div>
+          <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--afb-navy)" }}>{geraet.name}</div>
           {geraet.logId && (
             <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", marginTop: 2 }}>LogID: {geraet.logId}</div>
           )}
@@ -1376,7 +1376,7 @@ function StepBestaetigung({
         {/* Preview-Liste */}
         {isLoading ? (
           <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>
-            <div style={{ width: 36, height: 36, border: "3px solid var(--border)", borderTopColor: "#202F61", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 1rem" }} />
+            <div style={{ width: 36, height: 36, border: "3px solid var(--border)", borderTopColor: "var(--afb-navy)", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 1rem" }} />
             Wird vorbereitet…
           </div>
         ) : (
@@ -1394,9 +1394,9 @@ function StepBestaetigung({
                       <span style={{ fontSize: "1.4rem" }}>{teilInfo?.icon ?? "🔧"}</span>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, fontSize: "0.9rem", lineHeight: 1.3 }}>
-                          {p.menge}× <span style={{ color: "#202F61" }}>{p.artikelName}</span>
+                          {p.menge}× <span style={{ color: "var(--afb-navy)" }}>{p.artikelName}</span>
                           {p.istNeu && (
-                            <span style={{ marginLeft: 8, fontSize: "0.72rem", padding: "0.1rem 0.5rem", borderRadius: 5, background: "rgba(0,139,210,0.15)", color: "#008BD2", fontWeight: 700 }}>
+                            <span style={{ marginLeft: 8, fontSize: "0.72rem", padding: "0.1rem 0.5rem", borderRadius: 5, background: "rgba(0,139,210,0.15)", color: "var(--afb-blue)", fontWeight: 700 }}>
                               ✨ Neu
                             </span>
                           )}
@@ -1434,7 +1434,7 @@ function StepBestaetigung({
                               onChange={(e) => setLagerplatz(p.teiltyp, e.target.value)}
                               placeholder="z.B. L-1-3-2"
                               style={{ ...S.input, minHeight: 44, fontSize: "1rem" }}
-                              onFocus={(e)  => (e.currentTarget.style.borderColor = "#202F61")}
+                              onFocus={(e)  => (e.currentTarget.style.borderColor = "var(--afb-navy)")}
                               onBlur={(e)   => (e.currentTarget.style.borderColor = "var(--border)")}
                               aria-label={`Lagerplatz für ${teilInfo?.label ?? p.teiltyp}`}
                             />
@@ -1464,7 +1464,7 @@ function StepBestaetigung({
             <button
               onClick={() => onEinbuchen(localItems)}
               disabled={!canSubmit}
-              style={{ ...S.bigBtn("#04B475", !canSubmit), fontSize: "1.15rem", marginBottom: 10 }}
+              style={{ ...S.bigBtn("var(--afb-green)", !canSubmit), fontSize: "1.15rem", marginBottom: 10 }}
             >
               ✅ Jetzt einbuchen!
             </button>
@@ -1545,7 +1545,7 @@ function StepFertig({
           </div>
           <button
             onClick={handleAlleDrucken}
-            style={{ ...S.bigBtn("#202F61"), marginBottom: 12 }}
+            style={{ ...S.bigBtn("var(--afb-navy)"), marginBottom: 12 }}
           >
             🖨️ Alle {ergebnisse.length} Etiketten drucken
           </button>
@@ -1613,7 +1613,7 @@ function StepFertig({
                       display:      "inline-block",
                       padding:      "0.25rem 0.8rem",
                       borderRadius: 8,
-                      background:   "#202F61",
+                      background:   "var(--afb-navy)",
                       color:        "white",
                       fontWeight:   900,
                       fontSize:     "1rem",
@@ -1649,7 +1649,7 @@ function StepFertig({
                   style={{ width: 20, height: 20, cursor: "pointer" }}
                   aria-label={`${item.label} als eingelagert markieren`}
                 />
-                <span style={{ fontSize: "0.85rem", color: eingelagert[idx] ? "#04B475" : "var(--text-dim)", fontWeight: 600 }}>
+                <span style={{ fontSize: "0.85rem", color: eingelagert[idx] ? "var(--afb-green)" : "var(--text-dim)", fontWeight: 600 }}>
                   {eingelagert[idx] ? "✓ Eingelagert" : "Eingelagert?"}
                 </span>
               </label>
@@ -1658,7 +1658,7 @@ function StepFertig({
 
           {alleEingelagert && ergebnisse.length > 0 && (
             <div style={{ textAlign: "center", padding: "0.8rem", background: "rgba(4,180,117,0.1)", borderRadius: 10, border: "1px solid rgba(4,180,117,0.3)", marginTop: 4 }}>
-              <span style={{ color: "#04B475", fontWeight: 800 }}>✅ Alles eingelagert — super gemacht!</span>
+              <span style={{ color: "var(--afb-green)", fontWeight: 800 }}>✅ Alles eingelagert — super gemacht!</span>
             </div>
           )}
         </div>
@@ -1673,7 +1673,7 @@ function StepFertig({
           </button>
           <button
             onClick={onFertig}
-            style={{ ...S.bigBtn("#04B475"), flex: 2 }}
+            style={{ ...S.bigBtn("var(--afb-green)"), flex: 2 }}
           >
             ✅ Alles fertig!
           </button>
@@ -1756,7 +1756,7 @@ export default function EinlagernPage() {
   if (executeMutation.isPending) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16 }}>
-        <div style={{ width: 56, height: 56, border: "4px solid var(--border)", borderTopColor: "#04B475", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+        <div style={{ width: 56, height: 56, border: "4px solid var(--border)", borderTopColor: "var(--afb-green)", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
         <div style={{ fontSize: "1.2rem", fontWeight: 800 }}>Wird eingebucht…</div>
         <div style={{ color: "var(--text-dim)", fontSize: "0.9rem" }}>Bitte warte kurz.</div>
       </div>

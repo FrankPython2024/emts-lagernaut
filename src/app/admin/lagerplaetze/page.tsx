@@ -12,19 +12,19 @@ import { PageLoader } from "@/components/ui/LoadingSpinner";
 
 function herstellerFarbe(h: string | null): { bg: string; border: string; textColor: string } {
   switch (h) {
-    case "Dell":   return { bg: "rgba(0,139,210,0.12)",  border: "#008BD2", textColor: "#008BD2" };
-    case "HP":     return { bg: "rgba(32,47,97,0.12)",   border: "#202F61", textColor: "#202F61" };
-    case "Lenovo": return { bg: "rgba(4,180,117,0.12)",  border: "#04B475", textColor: "#04B475" };
-    case "Fujitsu":return { bg: "rgba(124,58,237,0.12)", border: "#7c3aed", textColor: "#7c3aed" };
-    default:       return { bg: "rgba(0,0,0,0.03)",      border: "var(--border)", textColor: "var(--text-dim)" };
+    case "Dell":   return { bg: "rgba(0,139,210,0.12)",  border: "var(--afb-blue)",  textColor: "var(--afb-blue)" };
+    case "HP":     return { bg: "rgba(32,47,97,0.12)",   border: "var(--afb-navy)",  textColor: "var(--afb-navy)" };
+    case "Lenovo": return { bg: "rgba(4,180,117,0.12)",  border: "var(--afb-green)", textColor: "var(--afb-green)" };
+    case "Fujitsu":return { bg: "rgba(124,58,237,0.12)", border: "#7c3aed",          textColor: "#7c3aed" };
+    default:       return { bg: "rgba(0,0,0,0.03)",      border: "var(--border)",    textColor: "var(--text-dim)" };
   }
 }
 
 function gradingFarbe(g?: string | null): string {
   switch (g) {
-    case "A+": return "#04B475";
-    case "A":  return "#04B475";
-    case "B":  return "#008BD2";
+    case "A+": return "var(--afb-green)";
+    case "A":  return "var(--afb-green)";
+    case "B":  return "var(--afb-blue)";
     case "C":  return "#F59E0B";
     default:   return "#94A3B8";
   }
@@ -66,7 +66,7 @@ function EtlDetailModal({ platz, onClose }: { platz: EtlPlatz; onClose: () => vo
 
         {detailQ.isLoading && (
           <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>
-            <div style={{ width: 32, height: 32, border: "3px solid var(--border)", borderTopColor: "#202F61", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 0.8rem" }} />
+            <div style={{ width: 32, height: 32, border: "3px solid var(--border)", borderTopColor: "var(--afb-navy)", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto 0.8rem" }} />
             Lade Details…
           </div>
         )}
@@ -113,7 +113,7 @@ function EtlDetailModal({ platz, onClose }: { platz: EtlPlatz; onClose: () => vo
                         —
                       </span>
                     )}
-                    <span style={{ fontSize: "0.8rem", color: a.bestand > 0 ? "#04B475" : "var(--text-dim)", fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
+                    <span style={{ fontSize: "0.8rem", color: a.bestand > 0 ? "var(--afb-green)" : "var(--text-dim)", fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
                       {a.bestand} Stk
                     </span>
                   </div>
@@ -326,8 +326,8 @@ export default function LagerplaetzePage() {
   const filterBtnStyle = (active: boolean, color?: string): React.CSSProperties => ({
     padding:      "0.4rem 0.9rem",
     borderRadius: 20,
-    border:       `1px solid ${active ? (color ?? "#202F61") : "var(--border)"}`,
-    background:   active ? (color ?? "#202F61") : "transparent",
+    border:       `1px solid ${active ? (color ?? "var(--afb-navy)") : "var(--border)"}`,
+    background:   active ? (color ?? "var(--afb-navy)") : "transparent",
     color:        active ? "#fff" : "var(--text-dim)",
     cursor:       "pointer",
     fontFamily:   "'Ubuntu', sans-serif",
@@ -353,7 +353,7 @@ export default function LagerplaetzePage() {
             </p>
           </div>
           {etlQ.isFetching && (
-            <div style={{ width: 20, height: 20, border: "2px solid var(--border)", borderTopColor: "#202F61", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+            <div style={{ width: 20, height: 20, border: "2px solid var(--border)", borderTopColor: "var(--afb-navy)", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
           )}
         </div>
 
@@ -362,10 +362,10 @@ export default function LagerplaetzePage() {
           {[
             { key: "alle",    label: "Alle" },
             { key: "frei",    label: "Frei",   color: undefined },
-            { key: "belegt",  label: "Belegt", color: "#04B475" },
+            { key: "belegt",  label: "Belegt", color: "var(--afb-green)" },
             { key: "Dell",    label: "Dell",   color: "#008BD2" },
-            { key: "HP",      label: "HP",     color: "#202F61" },
-            { key: "Lenovo",  label: "Lenovo", color: "#04B475" },
+            { key: "HP",      label: "HP",     color: "var(--afb-navy)" },
+            { key: "Lenovo",  label: "Lenovo", color: "var(--afb-green)" },
             { key: "Fujitsu", label: "Fujitsu",color: "#7c3aed" },
           ].map(({ key, label, color }) => (
             <button key={key} style={filterBtnStyle(etlFilter === key, color)} onClick={() => setEtlFilter(key)}>
