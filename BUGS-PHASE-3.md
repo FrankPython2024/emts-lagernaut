@@ -249,7 +249,7 @@ Auf 375px-Viewpoint werden die Kacheln sehr schmal (<60px). Horizontal-Scroll w�
 | B-2 | ✅ ERLEDIGT | `FontSizeToggle` extrahiert + in Admin-Sidebar eingebaut | `components/FontSizeToggle.tsx` + `admin/layout.tsx` | XS |
 | C-3 | ✅ ERLEDIGT | Mobile Topbar nutzt `var(--afb-navy)` + korrekte Hover-Farben | `admin/layout.tsx:173` | XS |
 | D-1 | ✅ ERLEDIGT | „Dark" → „Dunkel" | `techniker/layout.tsx:194` | XS |
-| G-2 | 🟡 WICHTIG | Kein Focus-Trap in Modals | `Modal.tsx` | S |
+| G-2 | ✅ ERLEDIGT | FocusTrap in `Modal.tsx` + `ChatModal.tsx` | `focus-trap-react` eingebunden | S |
 | H-3 | ✅ ERLEDIGT | alle `×`-Buttons mit `aria-label` versehen | 8 Dateien | XS |
 | F-2 | 🟢 KOSMETISCH | Sub-Query ohne Error-State | `modelle/page.tsx` | XS |
 | G-3 | 🟢 KOSMETISCH | Focus-Ring teilweise unsichtbar | global CSS | XS |

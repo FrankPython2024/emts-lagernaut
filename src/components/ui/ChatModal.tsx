@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import FocusTrap from "focus-trap-react";
 import { api }       from "@/trpc/react";
 import { useToast }  from "@/components/ui/Toast";
 import { useSocket } from "@/hooks/useSocket";
@@ -132,7 +133,10 @@ export function ChatModal({
   const headerTitle  = `💬 Chat${partnerName ? ` mit ${partnerName}` : ""}`;
 
   return (
+    <FocusTrap focusTrapOptions={{ escapeDeactivates: false, clickOutsideDeactivates: false, returnFocusOnDeactivate: true }}>
     <div
+      role="dialog"
+      aria-modal="true"
       style={{
         position:       "fixed",
         inset:          0,
@@ -270,5 +274,6 @@ export function ChatModal({
         </div>
       </div>
     </div>
+    </FocusTrap>
   );
 }
