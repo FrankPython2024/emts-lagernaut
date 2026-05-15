@@ -319,7 +319,7 @@ export default function TechnikerPage() {
                   {selectedGeraet.logId !== "---" && ` · ${selectedGeraet.logId}`}
                 </div>
               </div>
-              <button onClick={() => setShowSonderModal(false)} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "1.4rem", lineHeight: 1, padding: "2px 6px" }}>×</button>
+              <button onClick={() => setShowSonderModal(false)} aria-label="Schließen" style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "1.4rem", lineHeight: 1, padding: "8px 10px", minWidth: 44, minHeight: 44 }}>×</button>
             </div>
 
             {/* Body */}

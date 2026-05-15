@@ -446,7 +446,7 @@ export default function LagerplaetzePage() {
               className={`${INPUT_CLS} w-full pr-7`}
             />
             {suche && (
-              <button onClick={() => setSuche("")}
+              <button onClick={() => setSuche("")} aria-label="Suche leeren"
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-[#65676b] hover:text-[#fa3e3e] font-bold text-sm">✕</button>
             )}
           </div>

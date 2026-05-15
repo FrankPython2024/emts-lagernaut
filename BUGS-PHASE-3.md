@@ -250,7 +250,7 @@ Auf 375px-Viewpoint werden die Kacheln sehr schmal (<60px). Horizontal-Scroll w�
 | C-3 | 🟡 WICHTIG | Mobile Topbar ohne Dark-Mode | `admin/layout.tsx:173` | XS |
 | D-1 | ✅ ERLEDIGT | „Dark" → „Dunkel" | `techniker/layout.tsx:194` | XS |
 | G-2 | 🟡 WICHTIG | Kein Focus-Trap in Modals | `Modal.tsx` | S |
-| H-3 | 🟡 WICHTIG | `×`-Buttons ohne `aria-label` | Mehrere Dateien | XS |
+| H-3 | ✅ ERLEDIGT | alle `×`-Buttons mit `aria-label` versehen | 8 Dateien | XS |
 | F-2 | 🟢 KOSMETISCH | Sub-Query ohne Error-State | `modelle/page.tsx` | XS |
 | G-3 | 🟢 KOSMETISCH | Focus-Ring teilweise unsichtbar | global CSS | XS |
 | I-3 | 🟢 KOSMETISCH | ETL-Grid auf 375px ohne Scroll | `lagerplaetze/page.tsx` | XS |

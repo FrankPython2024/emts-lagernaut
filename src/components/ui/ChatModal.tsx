@@ -169,7 +169,7 @@ export function ChatModal({
               <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", marginTop: 1 }}>{bezugInfo}</div>
             )}
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "1.4rem", lineHeight: 1, padding: "2px 6px" }}>×</button>
+          <button onClick={onClose} aria-label="Schließen" style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "1.4rem", lineHeight: 1, padding: "8px 10px", minWidth: 44, minHeight: 44 }}>×</button>
         </div>
 
         {/* ── Nachrichten ── */}

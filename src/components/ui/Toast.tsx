@@ -31,7 +31,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: number) =
     >
       <span className="text-lg">{ICONS[toast.type]}</span>
       <span className="flex-1 text-sm font-medium">{toast.msg}</span>
-      <button onClick={() => onRemove(toast.id)} className="text-gray-400 hover:text-gray-600 ml-2 text-lg leading-none">×</button>
+      <button onClick={() => onRemove(toast.id)} aria-label="Benachrichtigung schließen" className="text-gray-400 hover:text-gray-600 ml-2 text-lg leading-none p-1 rounded">×</button>
     </div>
   );
 }

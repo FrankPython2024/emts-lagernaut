@@ -289,7 +289,7 @@ function MonatsDetailModal({ data, onClose }: { data: MonatsDetailData; onClose:
           <h2 className="font-black text-lg text-[#1a1a1a] dark:text-[#e4e6eb]">
             {data.kuerzel} · {MONATE[data.monat - 1]} {data.jahr}
           </h2>
-          <button onClick={onClose} className="text-[#65676b] hover:text-[#fa3e3e] text-xl font-bold">×</button>
+          <button onClick={onClose} aria-label="Schließen" className="text-[#65676b] hover:text-[#fa3e3e] text-xl font-bold w-11 h-11 flex items-center justify-center rounded-lg hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]">×</button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">

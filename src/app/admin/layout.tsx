@@ -56,7 +56,7 @@ function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => v
           <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#008BD2" }}>Admin</div>
         </div>
         {onClose && (
-          <button onClick={onClose} className="ml-auto text-white/60 hover:text-white text-xl transition-colors">×</button>
+          <button onClick={onClose} aria-label="Menü schließen" className="ml-auto text-white/60 hover:text-white text-xl transition-colors w-11 h-11 flex items-center justify-center rounded-lg hover:bg-white/10">×</button>
         )}
       </div>
 

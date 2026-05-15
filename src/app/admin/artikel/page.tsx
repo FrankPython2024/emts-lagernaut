@@ -278,7 +278,7 @@ export default function ArtikelPage() {
 
           {/* Filter Badge + Reset */}
           {aktiveFilter > 0 && (
-            <button onClick={resetFilter}
+            <button onClick={resetFilter} aria-label="Alle Filter zurücksetzen"
               className="flex items-center gap-1.5 px-3 py-2 bg-[#f7b928]/10 text-[#f7b928] border border-[#f7b928]/30 rounded-lg text-xs font-bold hover:bg-[#f7b928]/20 transition-colors">
               <span>{aktiveFilter} Filter aktiv</span>
               <span className="text-base leading-none">✕</span>
