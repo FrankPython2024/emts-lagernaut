@@ -163,16 +163,16 @@ export default function ArtikelPage() {
       render: (a) => (
         <div className="flex gap-1">
           <Link href={`/admin/artikel/${a.id}`}
-            className="px-2 py-1 text-xs rounded bg-[#f0f2f5] dark:bg-[#3e4042] hover:bg-[#ced4da] dark:hover:bg-[#555] font-semibold">
+            className="px-2 py-2 text-xs rounded min-h-[36px] bg-[#f0f2f5] dark:bg-[#3e4042] hover:bg-[#ced4da] dark:hover:bg-[#555] font-semibold">
             ✏️
           </Link>
           <button onClick={() => setBuchModal(a)}
-            className="px-2 py-1 text-xs rounded bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] hover:bg-[#0064d2]/20 font-semibold">
+            className="px-2 py-2 text-xs rounded min-h-[36px] bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] hover:bg-[#0064d2]/20 font-semibold">
             📥
           </button>
           {a.bestand === 0 && (
             <button onClick={() => setDelTarget(a)}
-              className="px-2 py-1 text-xs rounded bg-[#fa3e3e]/10 text-[#fa3e3e] hover:bg-[#fa3e3e]/20 font-semibold">
+              className="px-2 py-2 text-xs rounded min-h-[36px] bg-[#fa3e3e]/10 text-[#fa3e3e] hover:bg-[#fa3e3e]/20 font-semibold">
               🗑️
             </button>
           )}

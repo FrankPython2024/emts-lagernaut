@@ -243,7 +243,7 @@ Auf 375px-Viewpoint werden die Kacheln sehr schmal (<60px). Horizontal-Scroll w�
 
 | # | Schwere | Befund | Datei | Aufwand |
 |---|---------|--------|-------|---------|
-| A-1 | 🔴 KRITISCH | Touch-Targets <60px (15+ Stellen) | `einlagern/page.tsx`, `anfragen/page.tsx`, `layout.tsx`, `Modal.tsx` | M |
+| A-1 | ✅ ERLEDIGT | Touch-Targets erhöht (primary ≥60px, table-actions ≥44px, Modal ≥44px) | 7 Dateien; Ausnahmen: Tabellen-Inline-Icons dokumentiert | M |
 | C-2 | ✅ ERLEDIGT | AfB-Farben auf CSS-Variablen umgestellt | `einlagern/page.tsx`, `lagerplaetze/page.tsx` | S |
 | H-2 | ✅ ERLEDIGT | Login + Benutzer-Formulare mit htmlFor/id verknüpft | `login/page.tsx`, `benutzer/neu`, `benutzer/[id]` | XS |
 | B-2 | 🟡 WICHTIG | Font-Size-Toggle fehlt im Admin-Panel | `admin/layout.tsx` | XS |

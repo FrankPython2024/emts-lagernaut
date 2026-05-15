@@ -69,7 +69,7 @@ function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => v
               key={href}
               href={href}
               onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl mb-0.5 text-sm font-semibold transition-all ${
+              className={`flex items-center gap-3 px-3 py-3.5 rounded-xl mb-0.5 text-sm font-semibold transition-all min-h-[48px] ${
                 active
                   ? "text-white shadow-sm"
                   : "text-white/65 hover:text-white hover:bg-white/10"
@@ -87,7 +87,7 @@ function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => v
       <div className="px-3 py-4 border-t border-white/10 space-y-1">
         <button
           onClick={toggleTheme}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm text-white/65 hover:text-white hover:bg-white/10 transition-colors"
+          className="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-sm text-white/65 hover:text-white hover:bg-white/10 transition-colors min-h-[44px]"
         >
           <span>{dark ? "☀️" : "🌙"}</span>
           <span>{dark ? "Hell" : "Dunkel"}</span>

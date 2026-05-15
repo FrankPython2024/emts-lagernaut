@@ -617,7 +617,7 @@ export default function ModelleListePage() {
                     {/* 🔗 Verknüpfen */}
                     <button
                       onClick={() => setVerknuepfenId(m.id)}
-                      className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] border border-[#0064d2]/20 hover:bg-[#0064d2]/20 transition-colors"
+                      className="px-2.5 py-2 text-xs font-bold rounded-lg min-h-[36px] bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] border border-[#0064d2]/20 hover:bg-[#0064d2]/20 transition-colors"
                       title="Verknüpfungen bearbeiten"
                     >
                       🔗 Verknüpfen
@@ -625,7 +625,7 @@ export default function ModelleListePage() {
                     {/* 📋 Details */}
                     <button
                       onClick={() => setDetailId(m.id)}
-                      className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#f0f2f5] dark:bg-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] border border-[#ced4da] dark:border-[#555] hover:bg-[#ced4da] dark:hover:bg-[#555] transition-colors"
+                      className="px-2.5 py-2 text-xs font-bold rounded-lg min-h-[36px] bg-[#f0f2f5] dark:bg-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] border border-[#ced4da] dark:border-[#555] hover:bg-[#ced4da] dark:hover:bg-[#555] transition-colors"
                       title="Details anzeigen"
                     >
                       📋 Details
@@ -634,7 +634,7 @@ export default function ModelleListePage() {
                     <button
                       onClick={() => setRemoveAllTarget(m)}
                       disabled={m.kompAnzahl === 0}
-                      className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#fa3e3e]/10 text-[#fa3e3e] border border-[#fa3e3e]/20 hover:bg-[#fa3e3e]/20 disabled:opacity-30 disabled:cursor-default transition-colors"
+                      className="px-2.5 py-2 text-xs font-bold rounded-lg min-h-[36px] bg-[#fa3e3e]/10 text-[#fa3e3e] border border-[#fa3e3e]/20 hover:bg-[#fa3e3e]/20 disabled:opacity-30 disabled:cursor-default transition-colors"
                       title="Alle Verknüpfungen entfernen"
                     >
                       🗑️
@@ -643,7 +643,7 @@ export default function ModelleListePage() {
                     <button
                       onClick={() => setAktiv.mutate({ id: m.id, aktiv: !m.aktiv })}
                       disabled={setAktiv.isPending}
-                      className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#ced4da] dark:hover:bg-[#555] disabled:opacity-50 transition-colors"
+                      className="px-2.5 py-2 text-xs font-semibold rounded-lg min-h-[36px] bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#ced4da] dark:hover:bg-[#555] disabled:opacity-50 transition-colors"
                     >
                       {m.aktiv ? "Deakt." : "Aktiv."}
                     </button>

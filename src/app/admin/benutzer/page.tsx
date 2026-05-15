@@ -83,14 +83,14 @@ export default function BenutzerPage() {
               {u.lastLogin ? `Login: ${new Date(u.lastLogin).toLocaleDateString("de-DE")}` : "Noch kein Login"}
             </div>
             <div className="flex gap-2 flex-wrap">
-              <Link href={`/admin/benutzer/${u.id}`} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#f0f2f5] dark:bg-[#3e4042] hover:bg-[#ced4da] dark:hover:bg-[#555]">
+              <Link href={`/admin/benutzer/${u.id}`} className="px-3 py-2.5 text-xs font-semibold rounded-lg min-h-[44px] bg-[#f0f2f5] dark:bg-[#3e4042] hover:bg-[#ced4da] dark:hover:bg-[#555]">
                 ✏️ Bearbeiten
               </Link>
               {/* Passwort zurücksetzen — nur für Nicht-Admins */}
               {u.rolle !== "ADMIN" && u.aktiv && (
                 <button
                   onClick={() => setResetDialog({ id: u.id, kuerzel: u.kuerzel, name: u.name })}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
+                  className="px-3 py-2.5 text-xs font-semibold rounded-lg min-h-[44px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
                   title="Passwort auf Standard zurücksetzen"
                 >
                   🔄 Passwort reset
@@ -100,7 +100,7 @@ export default function BenutzerPage() {
                 <button
                   onClick={() => deactivate.mutate({ id: u.id })}
                   disabled={deactivate.isPending}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#fa3e3e]/10 text-[#fa3e3e] hover:bg-[#fa3e3e]/20 disabled:opacity-50"
+                  className="px-3 py-2.5 text-xs font-semibold rounded-lg min-h-[44px] bg-[#fa3e3e]/10 text-[#fa3e3e] hover:bg-[#fa3e3e]/20 disabled:opacity-50"
                 >
                   {deactivate.isPending ? "..." : "Deaktivieren"}
                 </button>

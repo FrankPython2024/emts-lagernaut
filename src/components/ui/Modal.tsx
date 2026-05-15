@@ -32,7 +32,8 @@ export function Modal({ open, onClose, title, children, width = "max-w-lg" }: Mo
           <h3 className="text-lg font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{title}</h3>
           <button
             onClick={onClose}
-            className="text-[#65676b] hover:text-[#fa3e3e] text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors"
+            aria-label="Schließen"
+            className="text-[#65676b] hover:text-[#fa3e3e] text-2xl leading-none w-11 h-11 flex items-center justify-center rounded-lg hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors flex-shrink-0"
           >
             ×
           </button>

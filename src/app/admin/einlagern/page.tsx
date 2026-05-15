@@ -103,13 +103,14 @@ const S = {
     fontSize:       "0.95rem",
     fontWeight:     600,
     fontFamily:     "'Ubuntu', sans-serif",
-    padding:        "0.4rem 0.6rem",
+    padding:        "0.75rem 0.6rem",
+    minHeight:      44,
     borderRadius:   8,
   } satisfies React.CSSProperties,
 
   input: {
     width:        "100%",
-    minHeight:    56,
+    minHeight:    60,
     padding:      "0.8rem 1rem",
     borderRadius: 10,
     border:       "2px solid var(--border)",

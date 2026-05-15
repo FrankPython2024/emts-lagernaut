@@ -390,13 +390,13 @@ export default function AnfragenPage() {
         <div className="flex rounded-lg overflow-hidden border border-[#ced4da] dark:border-[#3e4042]">
           <button
             onClick={() => setMeinFilter(false)}
-            className={`px-3 py-1.5 text-xs font-bold transition-colors ${!meinFilter ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
+            className={`px-4 py-3 text-xs font-bold transition-colors min-h-[44px] ${!meinFilter ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
           >
             Alle
           </button>
           <button
             onClick={() => setMeinFilter(true)}
-            className={`px-3 py-1.5 text-xs font-bold border-l border-[#ced4da] dark:border-[#3e4042] transition-colors ${meinFilter ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
+            className={`px-4 py-3 text-xs font-bold border-l border-[#ced4da] dark:border-[#3e4042] transition-colors min-h-[44px] ${meinFilter ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
           >
             🔧 Meine
           </button>
@@ -482,7 +482,7 @@ export default function AnfragenPage() {
                     <button
                       onClick={() => gruppeNehmenMutation.mutate({ anfrageIds: gruppeAnfrageIds })}
                       disabled={gruppeNehmenMutation.isPending}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 transition-colors"
+                      className="px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 transition-colors min-h-[44px]"
                     >
                       {gruppeNehmenMutation.isPending ? "…" : "▶️ In Bearbeitung"}
                     </button>
@@ -491,7 +491,7 @@ export default function AnfragenPage() {
                     <button
                       onClick={() => zurueckgebenMutation.mutate({ anfrageIds: gruppeAnfrageIds })}
                       disabled={zurueckgebenMutation.isPending}
-                      className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg disabled:opacity-50 transition-colors border border-slate-300 dark:border-slate-500"
+                      className="px-3 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg disabled:opacity-50 transition-colors border border-slate-300 dark:border-slate-500 min-h-[44px]"
                     >
                       {zurueckgebenMutation.isPending ? "…" : "⏸️ Zurückgeben"}
                     </button>
@@ -499,7 +499,7 @@ export default function AnfragenPage() {
                   {isLockedByOther && (
                     <button
                       onClick={() => setFreigebenDialog({ anfrageIds: gruppeAnfrageIds, bearbeitetVon: bearbeitetVon!, seit: bearbeitetSeit ?? null })}
-                      className="px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 text-amber-700 dark:text-amber-400 text-xs font-bold rounded-lg border border-amber-300 dark:border-amber-700 transition-colors"
+                      className="px-3 py-2.5 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 text-amber-700 dark:text-amber-400 text-xs font-bold rounded-lg border border-amber-300 dark:border-amber-700 transition-colors min-h-[44px]"
                     >
                       🔓 Freigeben
                     </button>
@@ -510,7 +510,7 @@ export default function AnfragenPage() {
                     onClick={() => firstId && setChatModal({ anfrageId: firstId, bezugInfo, partnerName: gruppe.techniker })}
                     disabled={!firstId}
                     style={chatCount > 0 ? { animation: "chatPulse 1.5s ease-in-out infinite" } : undefined}
-                    className={`relative px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${chatCount > 0 ? "bg-[#0064d2] text-white hover:bg-[#0056b3]" : "bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] hover:bg-[#0064d2]/20"}`}
+                    className={`relative px-3 py-2.5 text-xs font-bold rounded-lg transition-colors min-h-[44px] ${chatCount > 0 ? "bg-[#0064d2] text-white hover:bg-[#0056b3]" : "bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] hover:bg-[#0064d2]/20"}`}
                   >
                     💬 Chat{chatCount > 0 && ` (${chatCount > 9 ? "9+" : chatCount})`}
                   </button>
@@ -520,7 +520,7 @@ export default function AnfragenPage() {
                     onClick={() => alleErledigen(gruppe.anfragen)}
                     disabled={isBusy || isLockedByOther}
                     title={isLockedByOther ? `Gesperrt von ${bearbeitetVon}` : "Alle Anfragen erledigen"}
-                    className="px-3 py-1.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-40 transition-colors"
+                    className="px-3 py-2.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-40 transition-colors min-h-[44px]"
                   >
                     {isBusy ? "…" : "✅ Alle erledigen"}
                   </button>
@@ -579,7 +579,7 @@ export default function AnfragenPage() {
                               artikelBezeichnung: a.teil, lagerplatz: null, kategorie: "", grading: a.grading,
                               techniker: a.techniker, logId: a.logId, restBestand: 0, ersteller, datum: new Date(),
                             })}
-                            className="px-2 py-1 text-xs bg-[#0064d2]/10 text-[#0064d2] rounded hover:bg-[#0064d2]/20 font-bold transition-colors"
+                            className="px-2 py-2 text-xs bg-[#0064d2]/10 text-[#0064d2] rounded hover:bg-[#0064d2]/20 font-bold transition-colors min-h-[36px]"
                             title="Auslagerbeleg erneut drucken"
                           >
                             🖨️
@@ -592,7 +592,7 @@ export default function AnfragenPage() {
                             onClick={() => !rowLockedByOther && handleErledigen(a.id)}
                             disabled={isBusy || rowLockedByOther}
                             title={rowLockedByOther ? `Gesperrt von ${a.bearbeitetVon}` : "Erledigen"}
-                            className="px-2 py-1 text-xs bg-[#00a400]/10 text-[#00a400] rounded hover:bg-[#00a400]/20 font-bold disabled:opacity-40 transition-colors"
+                            className="px-2 py-2 text-xs bg-[#00a400]/10 text-[#00a400] rounded hover:bg-[#00a400]/20 font-bold disabled:opacity-40 transition-colors min-h-[36px]"
                           >
                             {erledigend === a.id ? "…" : "✓"}
                           </button>
@@ -604,7 +604,7 @@ export default function AnfragenPage() {
                             onClick={() => !rowLockedByOther && setStatus.mutate({ id: a.id, status: AnfrageStatus.STORNIERT })}
                             disabled={isBusy || rowLockedByOther}
                             title={rowLockedByOther ? `Gesperrt von ${a.bearbeitetVon}` : "Stornieren"}
-                            className="px-2 py-1 text-xs bg-[#fa3e3e]/10 text-[#fa3e3e] rounded hover:bg-[#fa3e3e]/20 font-bold disabled:opacity-40 transition-colors"
+                            className="px-2 py-2 text-xs bg-[#fa3e3e]/10 text-[#fa3e3e] rounded hover:bg-[#fa3e3e]/20 font-bold disabled:opacity-40 transition-colors min-h-[36px]"
                           >
                             ✕
                           </button>
