@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import FocusTrap from "focus-trap-react";
 import { api } from "@/trpc/react";
+import { printMehrereAuslagerBelege, type AuslagerBelegData } from "@/components/ui/AuslagerBeleg";
 
 // ── Typen ─────────────────────────────────────────────────────────────────────
 
@@ -18,7 +19,18 @@ type Teil = {
 };
 
 export type AuslagerResult = {
-  ausgabe:        { anfrageId: number; artikel: string; lagerplatz: string | null; menge: number }[];
+  ausgabe: {
+    anfrageId:    number;
+    artikel:      string;
+    kategorie:    string;
+    lagerplatz:   string | null;
+    menge:        number;
+    neuerBestand: number;
+    techniker:    string;
+    logId:        string;
+    geraeteName:  string | null;
+    grading:      string | null;
+  }[];
   ausgefuehrtVon: string;
   datum:          Date;
 };
@@ -128,6 +140,33 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
   function handleBestaetigen() {
     if (!anzahl) return;
     mutation.mutate({ anfrageIds: [...ausgewaehlt], notiz: notiz || undefined });
+  }
+
+  // C2/C3: Etiketten drucken — window.open im sync-Kontext, dann QR per await
+  function handleDrucken() {
+    if (!ergebnis) return;
+    const jahr = new Date().getFullYear();
+    // C3: Sortierung nach Lagerplatz (nulls ans Ende), dann Artikel-Bezeichnung
+    const sorted = [...ergebnis.ausgabe].sort((a, b) => {
+      const lpA = a.lagerplatz ?? "\xff\xff";
+      const lpB = b.lagerplatz ?? "\xff\xff";
+      if (lpA !== lpB) return lpA.localeCompare(lpB);
+      return a.artikel.localeCompare(b.artikel);
+    });
+    const belege: AuslagerBelegData[] = sorted.map((a) => ({
+      belegNr:            `AL-${jahr}-${a.anfrageId.toString().padStart(4, "0")}`,
+      artikelBezeichnung: a.artikel,
+      lagerplatz:         a.lagerplatz,
+      kategorie:          a.kategorie,
+      grading:            a.grading,
+      techniker:          a.techniker,
+      logId:              a.logId,
+      geraeteName:        a.geraeteName ?? undefined,
+      restBestand:        a.neuerBestand,
+      ersteller:          ergebnis.ausgefuehrtVon,
+      datum:              ergebnis.datum,
+    }));
+    void printMehrereAuslagerBelege(belege);
   }
 
   return (
@@ -364,10 +403,16 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
             </div>
           )}
           {step === 3 && (
-            <div className="px-6 py-4 border-t border-[#ced4da] dark:border-[#3e4042]">
+            <div className="flex gap-3 px-6 py-4 border-t border-[#ced4da] dark:border-[#3e4042]">
+              <button
+                onClick={handleDrucken}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] font-semibold text-sm hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[44px]"
+              >
+                🏷️ Etiketten drucken
+              </button>
               <button
                 onClick={onClose}
-                className="w-full px-4 py-2.5 rounded-xl bg-[#202f61] text-white font-bold text-sm hover:bg-[#2a3d7a] transition-colors min-h-[44px]"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-[#202f61] text-white font-bold text-sm hover:bg-[#2a3d7a] transition-colors min-h-[44px]"
               >
                 Schließen
               </button>

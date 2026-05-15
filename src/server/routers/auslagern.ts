@@ -172,9 +172,14 @@ export const auslagernRouter = createTRPCRouter({
         const ausgabe: {
           anfrageId:    number;
           artikel:      string;
+          kategorie:    string;
           lagerplatz:   string | null;
           menge:        number;
           neuerBestand: number;
+          techniker:    string;
+          logId:        string;
+          geraeteName:  string | null;
+          grading:      string | null;
         }[] = [];
 
         for (const anfrageId of input.anfrageIds) {
@@ -243,12 +248,24 @@ export const auslagernRouter = createTRPCRouter({
             },
           });
 
+          // ── Grading aus letzter EINGANG-Buchung (für Etikett) ─────────────
+          const letzteBuchung = await tx.buchung.findFirst({
+            where:   { artikelId: anfrage.artikelId, typ: BuchungsTyp.EINGANG },
+            orderBy: { datum: "desc" },
+            select:  { notiz: true },
+          });
+
           ausgabe.push({
             anfrageId,
             artikel:      anfrage.artikel.bezeichnung,
+            kategorie:    anfrage.artikel.kategorie,
             lagerplatz:   anfrage.artikel.lagerplatz ?? null,
             menge:        anfrage.menge,
             neuerBestand,
+            techniker:    anfrage.techniker,
+            logId:        anfrage.logId,
+            geraeteName:  anfrage.geraeteName ?? null,
+            grading:      extractGrading(letzteBuchung?.notiz),
           });
         }
 
