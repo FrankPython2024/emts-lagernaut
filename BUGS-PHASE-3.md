@@ -248,7 +248,7 @@ Auf 375px-Viewpoint werden die Kacheln sehr schmal (<60px). Horizontal-Scroll w�
 | H-2 | ✅ ERLEDIGT | Login + Benutzer-Formulare mit htmlFor/id verknüpft | `login/page.tsx`, `benutzer/neu`, `benutzer/[id]` | XS |
 | B-2 | 🟡 WICHTIG | Font-Size-Toggle fehlt im Admin-Panel | `admin/layout.tsx` | XS |
 | C-3 | 🟡 WICHTIG | Mobile Topbar ohne Dark-Mode | `admin/layout.tsx:173` | XS |
-| D-1 | 🟡 WICHTIG | „Dark" statt „Dunkel" | `techniker/layout.tsx:194` | XS |
+| D-1 | ✅ ERLEDIGT | „Dark" → „Dunkel" | `techniker/layout.tsx:194` | XS |
 | G-2 | 🟡 WICHTIG | Kein Focus-Trap in Modals | `Modal.tsx` | S |
 | H-3 | 🟡 WICHTIG | `×`-Buttons ohne `aria-label` | Mehrere Dateien | XS |
 | F-2 | 🟢 KOSMETISCH | Sub-Query ohne Error-State | `modelle/page.tsx` | XS |

@@ -191,7 +191,7 @@ function TechnikerHeader({ bellShake }: { bellShake: boolean }) {
 
         {/* Dark mode */}
         <button onClick={toggleTheme} style={btnIcon}>
-          {dark ? "☀️ Hell" : "🌙 Dark"}
+          {dark ? "☀️ Hell" : "🌙 Dunkel"}
         </button>
 
         {/* Profil */}
