@@ -253,7 +253,7 @@ Auf 375px-Viewpoint werden die Kacheln sehr schmal (<60px). Horizontal-Scroll w�
 | H-3 | ✅ ERLEDIGT | alle `×`-Buttons mit `aria-label` versehen | 8 Dateien | XS |
 | F-2 | ✅ ERLEDIGT | Error-State auf beide Kompatibilitäts-Sub-Queries | `modelle/page.tsx` | XS |
 | G-3 | ✅ ERLEDIGT | `*:focus-visible` globaler Ring in `globals.css` | Navy (light) / Cyan (dark) | XS |
-| I-3 | 🟢 KOSMETISCH | ETL-Grid auf 375px ohne Scroll | `lagerplaetze/page.tsx` | XS |
+| I-3 | ✅ ERLEDIGT | ETL-Grid mit `overflow-x-auto` + `minmax(88px,1fr)` | `lagerplaetze/page.tsx` | XS |
 
 ---
 

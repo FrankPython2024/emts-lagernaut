@@ -168,8 +168,12 @@ function EtlReihe({ reihe, plaetze, onKlick }: {
         <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
       </div>
 
+      {/* Ebenen-Header + Grid — horizontal scrollbar auf Mobile */}
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div style={{ minWidth: `calc(80px + ${ebenen.length} * 96px + ${ebenen.length * 4}px)` }}>
+
       {/* Ebenen-Header */}
-      <div style={{ display: "grid", gridTemplateColumns: `80px repeat(${ebenen.length}, 1fr)`, gap: 4, marginBottom: 2 }}>
+      <div style={{ display: "grid", gridTemplateColumns: `80px repeat(${ebenen.length}, minmax(88px, 1fr))`, gap: 4, marginBottom: 2 }}>
         <div />
         {ebenen.map((e) => (
           <div key={e} style={{ textAlign: "center", fontSize: "0.7rem", fontWeight: 700, color: "var(--text-dim)" }}>
@@ -180,7 +184,7 @@ function EtlReihe({ reihe, plaetze, onKlick }: {
 
       {/* Grid */}
       {faecher.map((fach) => (
-        <div key={fach} style={{ display: "grid", gridTemplateColumns: `80px repeat(${ebenen.length}, 1fr)`, gap: 4, marginBottom: 4 }}>
+        <div key={fach} style={{ display: "grid", gridTemplateColumns: `80px repeat(${ebenen.length}, minmax(88px, 1fr))`, gap: 4, marginBottom: 4 }}>
           <div style={{ display: "flex", alignItems: "center", fontSize: "0.7rem", fontWeight: 700, color: "var(--text-dim)" }}>
             Fach {fach}
           </div>
@@ -234,6 +238,9 @@ function EtlReihe({ reihe, plaetze, onKlick }: {
           })}
         </div>
       ))}
+
+      </div>{/* min-width container */}
+      </div>{/* overflow-x-auto */}
     </div>
   );
 }
