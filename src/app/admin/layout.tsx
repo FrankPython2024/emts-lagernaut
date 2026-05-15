@@ -7,6 +7,7 @@ import { ToastProvider, useToast } from "@/components/ui/Toast";
 import { LogoutButton } from "@/components/ui/LogoutButton";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS } from "@/modules/realtime/events";
+import { FontSizeToggle } from "@/components/FontSizeToggle";
 
 const NAV = [
   { href: "/admin",            label: "Dashboard",      icon: "📊" },
@@ -85,6 +86,12 @@ function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => v
 
       {/* Footer */}
       <div className="px-3 py-4 border-t border-white/10 space-y-1">
+        {/* Schriftgröße */}
+        <div className="flex items-center gap-2 px-3 py-1">
+          <span className="text-xs text-white/40 font-semibold uppercase tracking-wide flex-1">Schrift</span>
+          <FontSizeToggle />
+        </div>
+
         <button
           onClick={toggleTheme}
           className="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-sm text-white/65 hover:text-white hover:bg-white/10 transition-colors min-h-[44px]"

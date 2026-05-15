@@ -246,7 +246,7 @@ Auf 375px-Viewpoint werden die Kacheln sehr schmal (<60px). Horizontal-Scroll w�
 | A-1 | ✅ ERLEDIGT | Touch-Targets erhöht (primary ≥60px, table-actions ≥44px, Modal ≥44px) | 7 Dateien; Ausnahmen: Tabellen-Inline-Icons dokumentiert | M |
 | C-2 | ✅ ERLEDIGT | AfB-Farben auf CSS-Variablen umgestellt | `einlagern/page.tsx`, `lagerplaetze/page.tsx` | S |
 | H-2 | ✅ ERLEDIGT | Login + Benutzer-Formulare mit htmlFor/id verknüpft | `login/page.tsx`, `benutzer/neu`, `benutzer/[id]` | XS |
-| B-2 | 🟡 WICHTIG | Font-Size-Toggle fehlt im Admin-Panel | `admin/layout.tsx` | XS |
+| B-2 | ✅ ERLEDIGT | `FontSizeToggle` extrahiert + in Admin-Sidebar eingebaut | `components/FontSizeToggle.tsx` + `admin/layout.tsx` | XS |
 | C-3 | ✅ ERLEDIGT | Mobile Topbar nutzt `var(--afb-navy)` + korrekte Hover-Farben | `admin/layout.tsx:173` | XS |
 | D-1 | ✅ ERLEDIGT | „Dark" → „Dunkel" | `techniker/layout.tsx:194` | XS |
 | G-2 | 🟡 WICHTIG | Kein Focus-Trap in Modals | `Modal.tsx` | S |
