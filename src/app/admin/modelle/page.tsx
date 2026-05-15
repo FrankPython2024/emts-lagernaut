@@ -167,7 +167,7 @@ function VerknuepfungsModal({
 }: { modellId: number; onClose: () => void; onSaved: () => void }) {
   const { show } = useToast();
 
-  const { data, isLoading } = api.kompatibilitaet.getModalData.useQuery({ modellId });
+  const { data, isLoading, error } = api.kompatibilitaet.getModalData.useQuery({ modellId });
   const [auswahl, setAuswahl] = useState<Record<string, number | null>>({});
   const [initialized, setInitialized] = useState(false);
 
@@ -198,6 +198,12 @@ function VerknuepfungsModal({
       verknuepfungen: STANDARD_TEILE.map((t) => ({ teiltyp: t, artikelId: auswahl[t] ?? null })),
     });
   }
+
+  if (error) return (
+    <div className="p-4 rounded-lg bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 text-[#fa3e3e] text-sm">
+      Kompatibilitätsdaten konnten nicht geladen werden: {error.message}
+    </div>
+  );
 
   if (isLoading || !data) return (
     <div className="flex justify-center py-8">
@@ -268,7 +274,13 @@ function DetailModal({
   onVerknuepfen:   () => void;
   onAlleEntfernen: () => void;
 }) {
-  const { data, isLoading } = api.kompatibilitaet.getDetailForModell.useQuery({ modellId });
+  const { data, isLoading, error } = api.kompatibilitaet.getDetailForModell.useQuery({ modellId });
+
+  if (error) return (
+    <div className="p-4 rounded-lg bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 text-[#fa3e3e] text-sm">
+      Details konnten nicht geladen werden: {error.message}
+    </div>
+  );
 
   if (isLoading || !data) return (
     <div className="flex justify-center py-8">
