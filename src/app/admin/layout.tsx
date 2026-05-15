@@ -170,10 +170,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Main */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Mobile Topbar */}
-          <div className="lg:hidden flex items-center gap-3 px-4 py-3 shadow-sm" style={{ background: "#202F61" }}>
+          <div className="lg:hidden flex items-center gap-3 px-4 py-3 shadow-sm" style={{ background: "var(--afb-navy)" }}>
             <button
               onClick={() => setMobileOpen(true)}
-              className="p-2 rounded-lg hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] text-[#65676b]"
+              aria-label="Menü öffnen"
+              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
             >
               ☰
             </button>
