@@ -12,6 +12,7 @@ import { FontSizeToggle } from "@/components/FontSizeToggle";
 const NAV = [
   { href: "/admin",            label: "Dashboard",      icon: "📊" },
   { href: "/admin/einlagern",  label: "Teile einlagern", icon: "📦" },
+  { href: "/admin/auslagern",  label: "Teile auslagern", icon: "📤" },
   { href: "/admin/artikel",    label: "Artikel",         icon: "🗃️" },
   { href: "/admin/modelle",      label: "Modelle",      icon: "💻" },
   { href: "/admin/lagerplaetze", label: "Lagerplätze",  icon: "🗄️" },
