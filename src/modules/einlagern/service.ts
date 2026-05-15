@@ -218,19 +218,25 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     }
   }
 
-  // Für Backward-Compat: Artikel/Kompatibilitaet in BEIDEN Namen suchen
-  // (bestehende Einträge können noch "HP EliteBook 840 G5" enthalten)
-  const geraetNamen = sauberModellName !== input.geraetName
-    ? [sauberModellName, input.geraetName]
-    : [sauberModellName];
+  // Kanonische Form MIT Hersteller-Prefix — identisch mit dem Artikel-Generator
+  // (Generator speichert: `${bereinigt} ${teiltyp}` = "HP EliteBook 840 G5 Tastatur")
+  // Vorher wurde hier sauberModellName (ohne Prefix) verwendet, was zu zwei verschiedenen
+  // Kompatibilitaet.geraet-Strings führte und den Techniker-Lookup brach.
+  const geraetVoll = (sauberModellName !== input.geraetName && hersteller)
+    ? `${hersteller} ${sauberModellName}`.trim()
+    : input.geraetName;
+
+  // Rückwärts-Compat: alle Namensformen für die Artikel-Suche (bestehende DB-Einträge)
+  const geraetNamen = [...new Set([geraetVoll, sauberModellName, input.geraetName])];
 
   for (const item of input.items) {
     let istNeu = false;
 
-    // Artikel-Bezeichnung: kanonischer Modellname + Teiltyp (ohne Hersteller-Prefix)
-    const artikelBezeichnung    = `${sauberModellName} ${item.teiltyp}`;
-    const artikelBezeichnungAlt = sauberModellName !== input.geraetName
-      ? `${input.geraetName} ${item.teiltyp}`
+    // Artikel-Bezeichnung: kanonische Form mit Prefix (= Artikel-Generator-Ausgabe)
+    const artikelBezeichnung    = `${geraetVoll} ${item.teiltyp}`;
+    // Backward-Compat: alte Einträge ohne Prefix ("EliteBook 840 G5 Tastatur")
+    const artikelBezeichnungAlt = geraetVoll !== sauberModellName
+      ? `${sauberModellName} ${item.teiltyp}`
       : null;
     console.log(`[Einlagern] Artikel: "${artikelBezeichnung}"`);
 
@@ -294,13 +300,13 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     // 5. Beleg-Nummer
     const belegNr = await naechsteBelegNr("EL");
 
-    // 6. Kompatibilitaet: kanonischer Name, artikelId korrigieren falls falsch verknüpft
+    // 6. Kompatibilitaet: kanonische Form mit Prefix (= Artikel-Generator-Key)
     await prisma.kompatibilitaet.upsert({
-      where:  { geraet_teiltyp: { geraet: sauberModellName, teiltyp: item.teiltyp } },
-      create: { geraet: sauberModellName, teiltyp: item.teiltyp, artikelId: artikel.id },
+      where:  { geraet_teiltyp: { geraet: geraetVoll, teiltyp: item.teiltyp } },
+      create: { geraet: geraetVoll, teiltyp: item.teiltyp, artikelId: artikel.id },
       update: { artikelId: artikel.id },
     });
-    console.log(`[Einlagern] Verknüpft: "${sauberModellName}" + "${item.teiltyp}" → Artikel #${artikel.id}`);
+    console.log(`[Einlagern] Verknüpft: "${geraetVoll}" + "${item.teiltyp}" → Artikel #${artikel.id}`);
 
     results.push({
       teiltyp:       item.teiltyp,

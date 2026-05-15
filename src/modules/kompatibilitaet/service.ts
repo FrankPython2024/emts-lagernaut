@@ -356,10 +356,12 @@ export async function getByGeraetMitStandard(geraet: string): Promise<GeraetMitS
       })
     : [];
 
-  // Map: teiltyp → artikel (nur der erste Treffer pro Teiltyp)
+  // Map: teiltyp → artikel — bei Duplikaten (geraet mit/ohne Prefix) gewinnt höherer Bestand.
+  // Schützt vor dem Fall wo Generator-Einträge (bestand=0) Einlager-Einträge (bestand>0) maskieren.
   const verknuepftMap = new Map<string, { id: number; bezeichnung: string; kategorie: string; bestand: number }>();
   for (const k of treffer) {
-    if (!verknuepftMap.has(k.teiltyp)) {
+    const existing = verknuepftMap.get(k.teiltyp);
+    if (!existing || k.artikel.bestand > existing.bestand) {
       verknuepftMap.set(k.teiltyp, k.artikel);
     }
   }
