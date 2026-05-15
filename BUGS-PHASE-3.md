@@ -252,7 +252,7 @@ Auf 375px-Viewpoint werden die Kacheln sehr schmal (<60px). Horizontal-Scroll w�
 | G-2 | ✅ ERLEDIGT | FocusTrap in `Modal.tsx` + `ChatModal.tsx` | `focus-trap-react` eingebunden | S |
 | H-3 | ✅ ERLEDIGT | alle `×`-Buttons mit `aria-label` versehen | 8 Dateien | XS |
 | F-2 | 🟢 KOSMETISCH | Sub-Query ohne Error-State | `modelle/page.tsx` | XS |
-| G-3 | 🟢 KOSMETISCH | Focus-Ring teilweise unsichtbar | global CSS | XS |
+| G-3 | ✅ ERLEDIGT | `*:focus-visible` globaler Ring in `globals.css` | Navy (light) / Cyan (dark) | XS |
 | I-3 | 🟢 KOSMETISCH | ETL-Grid auf 375px ohne Scroll | `lagerplaetze/page.tsx` | XS |
 
 ---

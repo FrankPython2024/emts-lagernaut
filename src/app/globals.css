@@ -113,3 +113,15 @@ html.font-large  { font-size: 22px; --base-font: 22px; }
   0%, 100% { box-shadow: 0 0 0 0 rgba(0, 139, 210, 0.5); }
   50%       { box-shadow: 0 0 0 8px rgba(0, 139, 210, 0); }
 }
+
+/* ── WCAG AA: Sichtbarer Fokus-Ring für Tastatur-Navigation ──────────────────── */
+
+*:focus-visible {
+  outline:        2px solid var(--afb-navy);
+  outline-offset: 2px;
+  border-radius:  2px;
+}
+
+.dark *:focus-visible {
+  outline: 2px solid var(--afb-blue);
+}
