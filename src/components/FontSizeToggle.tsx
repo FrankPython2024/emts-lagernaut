@@ -12,8 +12,8 @@ const SIZES: { key: FontSize; label: string; px: string }[] = [
 const LS_KEY = "tk_fontsize";
 
 function apply(s: FontSize) {
-  document.body.classList.remove("font-small", "font-medium", "font-large");
-  document.body.classList.add(`font-${s}`);
+  document.documentElement.classList.remove("font-small", "font-medium", "font-large");
+  document.documentElement.classList.add(`font-${s}`);
   localStorage.setItem(LS_KEY, s);
 }
 

@@ -70,9 +70,10 @@ body {
   transition: background 0.3s, color 0.3s;
 }
 
-body.font-small  { --base-font: 14px; }
-body.font-medium { --base-font: 18px; }
-body.font-large  { --base-font: 22px; }
+/* Schriftgröße: html-root ändern damit rem überall skaliert */
+html.font-small  { font-size: 14px; --base-font: 14px; }
+html.font-medium { font-size: 18px; --base-font: 18px; }
+html.font-large  { font-size: 22px; --base-font: 22px; }
 
 /* ── Animationen ─────────────────────────────────────────────────────────────── */
 

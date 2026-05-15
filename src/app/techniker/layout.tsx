@@ -253,8 +253,8 @@ export default function TechnikerLayout({ children }: { children: React.ReactNod
 
   function setFontSize(s: FontSize) {
     _setFontSize(s);
-    document.body.classList.remove("font-small", "font-medium", "font-large");
-    document.body.classList.add(`font-${s}`);
+    document.documentElement.classList.remove("font-small", "font-medium", "font-large");
+    document.documentElement.classList.add(`font-${s}`);
     localStorage.setItem("tk_fontsize", s);
   }
 
