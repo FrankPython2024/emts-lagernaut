@@ -1,7 +1,7 @@
 "use client";
-import { useEffect } from "react";
 import { api } from "@/trpc/react";
 import { StatCard } from "@/components/ui/StatCard";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 
@@ -14,7 +14,7 @@ function BarChart({ items }: { items: { label: string; value: number }[] }) {
           <div className="w-32 text-xs text-[#65676b] dark:text-[#b0b3b8] truncate text-right flex-shrink-0">{item.label}</div>
           <div className="flex-1 bg-[#f0f2f5] dark:bg-[#18191a] rounded-full h-5 overflow-hidden">
             <div
-              className="h-full bg-[#0064d2] dark:bg-[#45bdff] rounded-full transition-all duration-500 flex items-center justify-end pr-2"
+              className="h-full bg-[#008bd2] dark:bg-[#45bdff] rounded-full transition-all duration-500 flex items-center justify-end pr-2"
               style={{ width: `${(item.value / max) * 100}%` }}
             >
               <span className="text-[10px] text-white font-bold">{item.value}</span>
@@ -44,17 +44,37 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Dashboard</h1>
-        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">Aktuell · Aktualisierung alle 30s</p>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        subtitle="Lagerübersicht · Aktualisierung alle 30 s"
+      />
 
-      {/* KPI Cards */}
+      {/* KPI-Karten */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard title="Artikel gesamt"    value={s?.gesamtArtikel ?? 0}    icon="📦" color="primary" />
-        <StatCard title="Offene Anfragen"   value={s?.offeneAnfragen ?? 0}   icon="🔔" color="warning" />
-        <StatCard title="Techniker online"  value={s?.technikerOnline ?? 0}  icon="👥" color="success" />
-        <StatCard title="Buchungen heute"   value={s?.buchungenHeute ?? 0}   icon="📋" color="purple" />
+        <StatCard
+          label="Aktive Anfragen"
+          value={s?.aktiveAnfragen ?? 0}
+          accent="cyan"
+          sub="NEU + IN BEARBEITUNG"
+        />
+        <StatCard
+          label="Offene BEDARF"
+          value={s?.bedarfAnfragen ?? 0}
+          accent="amber"
+          sub="kein Lagerbestand"
+        />
+        <StatCard
+          label="Artikel im Bestand"
+          value={s?.artikelMitBestand ?? 0}
+          accent="green"
+          sub={s?.artikelOhneBestand ? `${s.artikelOhneBestand} leer` : "alle verfügbar"}
+        />
+        <StatCard
+          label="Auslagerungen heute"
+          value={s?.heutigeAuslagerungen ?? 0}
+          accent="navy"
+          sub="AUSGANG + DIREKT"
+        />
       </div>
 
       {/* Second row */}
@@ -82,9 +102,7 @@ export default function DashboardPage() {
         <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm">
           <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-4">Anfragen nach Status</h2>
           {status.data && (
-            <BarChart
-              items={status.data.map((s) => ({ label: s.status, value: s.anzahl }))}
-            />
+            <BarChart items={status.data.map((s) => ({ label: s.status, value: s.anzahl }))} />
           )}
           {s && s.artikelOhneBestand > 0 && (
             <div className="mt-4 p-3 bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 rounded-lg">

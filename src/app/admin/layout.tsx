@@ -10,20 +10,45 @@ import { EVENTS } from "@/modules/realtime/events";
 import { FontSizeToggle } from "@/components/FontSizeToggle";
 import { GlobalSearch } from "@/components/GlobalSearch";
 
-const NAV = [
-  { href: "/admin",            label: "Dashboard",      icon: "📊" },
-  { href: "/admin/einlagern",  label: "Teile einlagern", icon: "📦" },
-  { href: "/admin/artikel",    label: "Artikel",         icon: "🗃️" },
-  { href: "/admin/modelle",      label: "Modelle",      icon: "💻" },
-  { href: "/admin/lagerplaetze", label: "Lagerplätze",  icon: "🗄️" },
-  { href: "/admin/buchungen",    label: "Buchungen",    icon: "📋" },
-  { href: "/admin/anfragen",     label: "Anfragen",     icon: "🔔" },
-  { href: "/admin/statistiken", label: "Statistiken", icon: "📈" },
-  { href: "/admin/benutzer",  label: "Benutzer",    icon: "👥" },
-  { href: "/admin/geraete-lookup", label: "LogID Suche",   icon: "🔍" },
-  { href: "/admin/geraete-import", label: "Geräte Import", icon: "📥" },
-  { href: "/admin/system",              label: "System",        icon: "⚙️" },
-  { href: "/admin/system/stresstest",   label: "Benchmark",     icon: "🔬" },
+const NAV_SECTIONS = [
+  {
+    title: "Übersicht",
+    items: [
+      { href: "/admin",        label: "Dashboard",  icon: "📊" },
+    ],
+  },
+  {
+    title: "Betrieb",
+    items: [
+      { href: "/admin/anfragen",    label: "Anfragen",        icon: "🔔" },
+      { href: "/admin/einlagern",   label: "Teile einlagern", icon: "📦" },
+      { href: "/admin/buchungen",   label: "Buchungen",       icon: "📋" },
+    ],
+  },
+  {
+    title: "Stammdaten",
+    items: [
+      { href: "/admin/artikel",      label: "Artikel",      icon: "🗃️" },
+      { href: "/admin/modelle",      label: "Modelle",      icon: "💻" },
+      { href: "/admin/lagerplaetze", label: "Lagerplätze",  icon: "🗄️" },
+    ],
+  },
+  {
+    title: "Analyse",
+    items: [
+      { href: "/admin/statistiken",    label: "Statistiken",    icon: "📈" },
+      { href: "/admin/geraete-lookup", label: "LogID Suche",    icon: "🔍" },
+      { href: "/admin/geraete-import", label: "Geräte Import",  icon: "📥" },
+    ],
+  },
+  {
+    title: "System",
+    items: [
+      { href: "/admin/benutzer",           label: "Benutzer",   icon: "👥" },
+      { href: "/admin/system",             label: "System",     icon: "⚙️" },
+      { href: "/admin/system/stresstest",  label: "Benchmark",  icon: "🔬" },
+    ],
+  },
 ];
 
 function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose?: () => void; onSearch?: () => void }) {
@@ -63,26 +88,40 @@ function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        {NAV.map(({ href, label, icon }) => {
-          const active = href === "/admin" ? pathname === href : (pathname ?? "").startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-3.5 rounded-xl mb-0.5 text-sm font-semibold transition-all min-h-[48px] ${
-                active
-                  ? "text-white shadow-sm"
-                  : "text-white/65 hover:text-white hover:bg-white/10"
-              }`}
-              style={active ? { background: "rgba(0,139,210,0.35)", borderLeft: "3px solid #008BD2" } : undefined}
-            >
-              <span className="text-base w-5 text-center">{icon}</span>
-              {label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 px-3 py-3 overflow-y-auto">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.title} className="mb-1">
+            {/* Sektion-Header */}
+            <div className="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-widest text-white/35 select-none">
+              {section.title}
+            </div>
+
+            {/* Items */}
+            {section.items.map(({ href, label, icon }) => {
+              const active = href === "/admin"
+                ? pathname === href
+                : (pathname ?? "").startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={onClose}
+                  className={`flex items-center gap-3 px-3 py-3 rounded-lg mb-0.5 text-sm font-medium transition-all min-h-[44px] ${
+                    active
+                      ? "text-white font-semibold"
+                      : "text-white/60 hover:text-white hover:bg-white/8"
+                  }`}
+                  style={active
+                    ? { background: "rgba(0,139,210,0.22)", borderLeft: "3px solid #008BD2", paddingLeft: "0.625rem" }
+                    : undefined}
+                >
+                  <span className="text-base w-5 text-center flex-shrink-0">{icon}</span>
+                  {label}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Footer */}

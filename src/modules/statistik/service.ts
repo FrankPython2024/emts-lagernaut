@@ -1,13 +1,18 @@
-import { AnfrageStatus } from "@prisma/client";
+import { AnfrageStatus, BuchungsTyp } from "@prisma/client";
 import { prisma } from "@/core/db/prisma";
 import { redis } from "@/core/infra/redis";
 
 export type LiveStats = {
-  gesamtArtikel:    number;
-  offeneAnfragen:   number;
-  technikerOnline:  number;
-  buchungenHeute:   number;
-  artikelOhneBestand: number;
+  gesamtArtikel:       number;
+  offeneAnfragen:      number;
+  technikerOnline:     number;
+  buchungenHeute:      number;
+  artikelOhneBestand:  number;
+  // Dashboard-KPIs (v2)
+  aktiveAnfragen:       number;  // NEU + IN_BEARBEITUNG
+  bedarfAnfragen:       number;  // BEDARF
+  artikelMitBestand:    number;  // Artikel mit Bestand > 0
+  heutigeAuslagerungen: number;  // AUSGANG + DIREKT heute
 };
 
 // Hilfsfunktion: tage → { von, bis }
@@ -28,20 +33,31 @@ export async function getLiveStats(): Promise<LiveStats> {
   const heuteEnde  = new Date(heuteStart);
   heuteEnde.setDate(heuteEnde.getDate() + 1);
 
-  const [gesamtArtikel, offeneAnfragen, technikerOnline, buchungenHeute, artikelOhneBestand] =
-    await Promise.all([
-      prisma.artikel.count(),
-      prisma.anfrage.count({
-        where: { status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] } },
-      }),
-      prisma.technikerSession.count({ where: { online: true } }),
-      prisma.buchung.count({
-        where: { datum: { gte: heuteStart, lt: heuteEnde } },
-      }),
-      prisma.artikel.count({ where: { bestand: 0 } }),
-    ]);
+  const [
+    gesamtArtikel, offeneAnfragen, technikerOnline, buchungenHeute, artikelOhneBestand,
+    aktiveAnfragen, bedarfAnfragen, artikelMitBestand, heutigeAuslagerungen,
+  ] = await Promise.all([
+    prisma.artikel.count(),
+    prisma.anfrage.count({ where: { status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] } } }),
+    prisma.technikerSession.count({ where: { online: true } }),
+    prisma.buchung.count({ where: { datum: { gte: heuteStart, lt: heuteEnde } } }),
+    prisma.artikel.count({ where: { bestand: 0 } }),
+    // Dashboard-KPIs v2
+    prisma.anfrage.count({ where: { status: { in: [AnfrageStatus.NEU, AnfrageStatus.IN_BEARBEITUNG] } } }),
+    prisma.anfrage.count({ where: { status: AnfrageStatus.BEDARF } }),
+    prisma.artikel.count({ where: { bestand: { gt: 0 } } }),
+    prisma.buchung.count({
+      where: {
+        datum: { gte: heuteStart, lt: heuteEnde },
+        typ:   { in: [BuchungsTyp.AUSGANG, BuchungsTyp.DIREKT] },
+      },
+    }),
+  ]);
 
-  return { gesamtArtikel, offeneAnfragen, technikerOnline, buchungenHeute, artikelOhneBestand };
+  return {
+    gesamtArtikel, offeneAnfragen, technikerOnline, buchungenHeute, artikelOhneBestand,
+    aktiveAnfragen, bedarfAnfragen, artikelMitBestand, heutigeAuslagerungen,
+  };
 }
 
 /**
