@@ -16,6 +16,8 @@ export type AuslagerBelegData = {
   kommentar?:         string;
   ersteller:          string;
   datum:              Date | string;
+  // DIREKT-Buchung: kein Lagerbezug, Lagerplatz wird durch "⚙️ Direkt" ersetzt
+  istDirekt?:         boolean;
 };
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────────
@@ -54,7 +56,7 @@ async function genQrSvg(content: string): Promise<string> {
 
 function AuslagerBelegInner({ data, qr }: { data: AuslagerBelegData; qr: string }) {
   const grading  = data.grading;
-  const lp       = data.lagerplatz;
+  const lp       = data.istDirekt ? null : data.lagerplatz;
   const klartext = lp ? etlKlartext(lp) : null;
 
   return (
@@ -70,7 +72,9 @@ function AuslagerBelegInner({ data, qr }: { data: AuslagerBelegData; qr: string 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
         {/* Z1: Typ + Grading-Badge */}
         <div style={{ display: "flex", alignItems: "center", gap: "1mm" }}>
-          <span style={{ fontSize: "7pt", fontWeight: "bold", letterSpacing: "0.5px" }}>AUSLAGERUNG</span>
+          <span style={{ fontSize: "7pt", fontWeight: "bold", letterSpacing: "0.5px" }}>
+            {data.istDirekt ? "DIREKT" : "AUSLAGERUNG"}
+          </span>
           {grading && (
             <span style={{
               background: gradingFarbe(grading), color: "#fff", fontWeight: "bold",
@@ -92,17 +96,25 @@ function AuslagerBelegInner({ data, qr }: { data: AuslagerBelegData; qr: string 
           {data.artikelBezeichnung}
         </div>
 
-        {/* Z3: Lagerplatz + ETL-Klartext */}
+        {/* Z3: Lagerplatz + ETL-Klartext (oder DIREKT-Hinweis) */}
         <div style={{ overflow: "hidden" }}>
-          <div style={{
-            fontSize: "7pt", fontWeight: "bold",
-            fontFamily: "monospace, Arial, sans-serif",
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-          }}>
-            {lp ?? "—"}
-          </div>
-          {klartext && (
-            <div style={{ fontSize: "6pt", color: "#555", whiteSpace: "nowrap" }}>{klartext}</div>
+          {data.istDirekt ? (
+            <div style={{ fontSize: "6.5pt", fontWeight: "bold", color: "#b45309", whiteSpace: "nowrap" }}>
+              ⚙️ Direkt · ohne Lagerbezug
+            </div>
+          ) : (
+            <>
+              <div style={{
+                fontSize: "7pt", fontWeight: "bold",
+                fontFamily: "monospace, Arial, sans-serif",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}>
+                {lp ?? "—"}
+              </div>
+              {klartext && (
+                <div style={{ fontSize: "6pt", color: "#555", whiteSpace: "nowrap" }}>{klartext}</div>
+              )}
+            </>
           )}
         </div>
 
@@ -209,11 +221,15 @@ function lagerplatzHtml(lp?: string | null): string {
 }
 
 export async function buildAuslagerBelegHtml(data: AuslagerBelegData): Promise<string> {
-  const qr   = await genQrSvg(`AL:${data.belegNr}`);
-  const bez  = data.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  const tech = data.techniker.replace(/&/g, "&amp;");
-  const log  = data.logId.replace(/&/g, "&amp;");
-  const sm   = data.artikelBezeichnung.length > 22 ? "7.5pt" : "9pt";
+  const qr      = await genQrSvg(`AL:${data.belegNr}`);
+  const bez     = data.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const tech    = data.techniker.replace(/&/g, "&amp;");
+  const log     = data.logId.replace(/&/g, "&amp;");
+  const sm      = data.artikelBezeichnung.length > 22 ? "7.5pt" : "9pt";
+  const typLabel = data.istDirekt ? "DIREKT" : "AUSLAGERUNG";
+  const lpHtml   = data.istDirekt
+    ? `<span style="font-size:6.5pt;font-weight:bold;color:#b45309">&#9881;&#65039; Direkt &middot; ohne Lagerbezug</span>`
+    : lagerplatzHtml(data.lagerplatz);
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: Arial, Helvetica, sans-serif; }
@@ -245,9 +261,9 @@ export async function buildAuslagerBelegHtml(data: AuslagerBelegData): Promise<s
   </style></head><body>
     <div class="wrap"><div class="al">
       <div class="left">
-        <div class="z1"><span class="typ">AUSLAGERUNG</span>${gradingBadgeHtml(data.grading)}</div>
+        <div class="z1"><span class="typ">${typLabel}</span>${gradingBadgeHtml(data.grading)}</div>
         <div class="bez">${bez}</div>
-        <div>${lagerplatzHtml(data.lagerplatz)}</div>
+        <div>${lpHtml}</div>
         <div class="z4">${tech} · ${log}</div>
         <div class="bnr">${data.belegNr}</div>
       </div>
@@ -303,16 +319,20 @@ export async function printMehrereAuslagerBelege(liste: AuslagerBelegData[]): Pr
   `;
 
   const body = entries.map(({ d, qr }) => {
-    const bez  = d.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-    const tech = d.techniker.replace(/&/g, "&amp;");
-    const log  = d.logId.replace(/&/g, "&amp;");
-    const sm   = d.artikelBezeichnung.length > 22 ? "7.5pt" : "9pt";
+    const bez      = d.artikelBezeichnung.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const tech     = d.techniker.replace(/&/g, "&amp;");
+    const log      = d.logId.replace(/&/g, "&amp;");
+    const sm       = d.artikelBezeichnung.length > 22 ? "7.5pt" : "9pt";
+    const typLabel = d.istDirekt ? "DIREKT" : "AUSLAGERUNG";
+    const lpHtml   = d.istDirekt
+      ? `<span style="font-size:6.5pt;font-weight:bold;color:#b45309">&#9881;&#65039; Direkt &middot; ohne Lagerbezug</span>`
+      : lagerplatzHtml(d.lagerplatz);
     return `
       <div class="lw"><div class="al">
         <div class="left">
-          <div class="z1"><span class="typ">AUSLAGERUNG</span>${gradingBadgeHtml(d.grading)}</div>
+          <div class="z1"><span class="typ">${typLabel}</span>${gradingBadgeHtml(d.grading)}</div>
           <div class="bez" style="font-size:${sm}">${bez}</div>
-          <div>${lagerplatzHtml(d.lagerplatz)}</div>
+          <div>${lpHtml}</div>
           <div class="z4">${tech} · ${log}</div>
           <div class="bnr">${d.belegNr}</div>
         </div>
