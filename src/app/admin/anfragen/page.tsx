@@ -261,7 +261,6 @@ function AnfragenPageInner() {
   const [belegModal,    setBelegModal]    = useState<AuslagerBelegData | null>(null);
   const [gruppenBelege, setGruppenBelege] = useState<AuslagerBelegData[] | null>(null);
   const gruppenModus = useRef(false);
-  const [erledigend, setErledigend] = useState<number | null>(null);
 
   const { data: auslagerData } = api.auslagern.listAnfragen.useQuery(undefined, {
     staleTime: 20_000, refetchOnWindowFocus: false,
@@ -374,39 +373,26 @@ function AnfragenPageInner() {
     onError: (e) => show(e.message, "error"),
   });
 
-  async function handleErledigen(anfrageId: number) {
-    if (erledigend !== null) return;
-    setErledigend(anfrageId);
-    gruppenModus.current = false;
-    try {
-      await setStatus.mutateAsync({ id: anfrageId, status: AnfrageStatus.ABGESCHLOSSEN });
-      show("✅ Anfrage erledigt", "success");
-    } catch { /* Fehler in onError */ } finally { setErledigend(null); }
+  // Öffnet AuslagerModal für eine einzelne Anfrage (AUSGANG oder DIREKT je nach Bestand)
+  function handleErledigen(anfrageId: number, gruppenLabel: string) {
+    setAuslagerModal({ anfrageIds: [anfrageId], gruppenLabel });
   }
 
-  async function alleErledigen(anfragen: Anfrage[]) {
+  // Öffnet AuslagerModal für alle offenen Anfragen einer Gruppe
+  function alleErledigen(anfragen: Anfrage[], gruppenLabel: string) {
     const offen = anfragen.filter((a) => {
       const af = a as Anfrage & { bearbeitetVon?: string | null };
       const lockedByOther = af.bearbeitetVon && af.bearbeitetVon.toUpperCase() !== ersteller.toUpperCase();
       return a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT && !lockedByOther;
     });
     if (!offen.length) { show("Keine freigegebenen Anfragen zu erledigen", "info"); return; }
-    gruppenModus.current = true;
-    try {
-      const results = await Promise.all(offen.map((a) => setStatus.mutateAsync({ id: a.id, status: AnfrageStatus.ABGESCHLOSSEN })));
-      show(`✅ ${offen.length} Anfrage(n) erledigt`, "success");
-      const belegeData = results.map((r) => belegAusResult(r as SetStatusResult, ersteller)).filter((b): b is AuslagerBelegData => b !== null);
-      setBelegModal(null);
-      if (belegeData.length > 1) setGruppenBelege(belegeData);
-      else if (belegeData.length === 1) setBelegModal(belegeData[0]);
-      refetch();
-    } catch { show("Fehler beim Erledigen", "error"); } finally { gruppenModus.current = false; }
+    setAuslagerModal({ anfrageIds: offen.map((a) => a.id), gruppenLabel });
   }
 
   if (isLoading) return <PageLoader />;
   if (error) return <div className="p-6 bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 rounded-xl text-[#fa3e3e]">Fehler: {error.message}</div>;
 
-  const isBusy = setStatus.isPending || erledigend !== null;
+  const isBusy = setStatus.isPending;
 
   return (
     <div className="space-y-5">
@@ -579,7 +565,7 @@ function AnfragenPageInner() {
 
                   {/* Alle erledigen */}
                   <button
-                    onClick={() => alleErledigen(gruppe.anfragen)}
+                    onClick={() => alleErledigen(gruppe.anfragen, gruppe.geraeteName ?? gruppe.logId)}
                     disabled={isBusy || isLockedByOther}
                     title={isLockedByOther ? `Gesperrt von ${bearbeitetVon}` : "Alle Anfragen erledigen"}
                     className="px-3 py-2.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-40 transition-colors min-h-[44px]"
@@ -651,12 +637,12 @@ function AnfragenPageInner() {
                         {/* Erledigen */}
                         {a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT && (
                           <button
-                            onClick={() => !rowLockedByOther && handleErledigen(a.id)}
+                            onClick={() => !rowLockedByOther && handleErledigen(a.id, gruppe.geraeteName ?? gruppe.logId)}
                             disabled={isBusy || rowLockedByOther}
                             title={rowLockedByOther ? `Gesperrt von ${a.bearbeitetVon}` : "Erledigen"}
                             className="px-2 py-2 text-xs bg-[#00a400]/10 text-[#00a400] rounded hover:bg-[#00a400]/20 font-bold disabled:opacity-40 transition-colors min-h-[36px]"
                           >
-                            {erledigend === a.id ? "…" : "✓"}
+                            ✓
                           </button>
                         )}
 
@@ -718,8 +704,12 @@ function AnfragenPageInner() {
         <AuslagerModal
           anfrageIds={auslagerModal.anfrageIds}
           gruppenLabel={auslagerModal.gruppenLabel}
-          onClose={() => setAuslagerModal(null)}
-          onSuccess={() => { refetch(); }}
+          onClose={() => { setAuslagerModal(null); refetch(); }}
+          onSuccess={(result) => {
+            const n = result.ausgabe.length;
+            show(`✅ ${n} Teil${n !== 1 ? "e" : ""} abgeschlossen`, "success");
+            refetch();
+          }}
         />
       )}
 
