@@ -1,17 +1,11 @@
 /**
- * Auslager-Wizard Backend — Phase A
+ * Auslager-Wizard Backend
  *
- * Architektur-Notizen:
- * - 1 Anfrage = 1 Teil (kein AnfrageTeil-Table, each Anfrage.artikelId → Artikel)
- * - Gruppen: gemeinsames gruppenNr-Feld ODER techniker+logId als Fallback
- * - Lagerplatz: aus Artikel.lagerplatz (Phase 3e per Modell-Lagerplatz synchronisiert)
- * - Grading: aus letzter EINGANG-Buchung (notiz "Grading: A+")
- * - AUSGANG-Buchung direkt in Transaktion (nicht via bucheLager(), das hat eigene TX)
- * - Bestand: direkt in TX reduziert; syncBestandAusHistorie() bleibt für Storno/Korrektur
+ * HEILIGE REGEL: DIREKT-Buchungen dürfen NIEMALS den Bestand verändern.
+ *   - AUSGANG → Bestand prüfen, Bestand –menge, AUSGANG-Buchung
+ *   - DIREKT  → NUR Buchung anlegen, Bestand bleibt unberührt
  *
- * Phase A: full delivery only (keine Teilmenge-Override)
- * Phase B: UI-Wizard
- * Phase C: Auslager-Beleg PDF
+ * assertKeinBestandEffekt() schützt alle Bestand-Update-Pfade als Sicherheitsgurt.
  */
 
 import { z } from "zod";
@@ -20,6 +14,7 @@ import { createTRPCRouter, adminProcedure } from "@/server/trpc";
 import { BuchungsTyp, AnfrageStatus } from "@prisma/client";
 import type { SessionUser } from "@/core/types";
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
+import { assertKeinBestandEffekt } from "@/lib/buchungen/typeGuards";
 
 // ── Grading aus letzter EINGANG-Buchung extrahieren ───────────────────────────
 
@@ -33,8 +28,9 @@ function extractGrading(notiz: string | null | undefined): string | null {
 export const auslagernRouter = createTRPCRouter({
 
   /**
-   * Aktive Anfragen mit Live-Bestandsprüfung.
-   * Gibt nur Gruppen zurück, die mindestens 1 verfügbares Teil haben.
+   * Aktive Anfragen — ALLE Gruppen (NEU, BEDARF, IN_BEARBEITUNG).
+   * Pro Teil: lagerStatus = 'verfuegbar' | 'bedarf' für Frontend-Entscheidung.
+   * BEDARF-Gruppen (kein Lager-Bestand) erscheinen jetzt auch, da DIREKT-Buchung möglich.
    */
   listAnfragen: adminProcedure.query(async ({ ctx }) => {
     const anfragen = await ctx.prisma.anfrage.findMany({
@@ -61,7 +57,6 @@ export const auslagernRouter = createTRPCRouter({
     const result = [];
 
     for (const [gruppenKey, anfragenInGruppe] of groupMap) {
-      // ── Pro Anfrage: Grading + Verfügbarkeit ───────────────────────────────
       const teile = await Promise.all(
         anfragenInGruppe.map(async (a) => {
           if (!a.artikel || a.artikelId === null) return null;
@@ -72,12 +67,16 @@ export const auslagernRouter = createTRPCRouter({
             select:  { notiz: true },
           });
 
+          const verfuegbar  = a.artikel.bestand >= a.menge;
+          const lagerStatus = verfuegbar ? "verfuegbar" : "bedarf";
+
           return {
             teilId:         a.id,
             teiltyp:        a.artikel.kategorie,
             artikelName:    a.artikel.bezeichnung,
             menge:          a.menge,
-            verfuegbar:     a.artikel.bestand >= a.menge,
+            verfuegbar,
+            lagerStatus,                            // 'verfuegbar' | 'bedarf'
             bestand:        a.artikel.bestand,
             lagerplatzCode: a.artikel.lagerplatz ?? null,
             grading:        extractGrading(letzteBuchung?.notiz),
@@ -86,10 +85,13 @@ export const auslagernRouter = createTRPCRouter({
         }),
       );
 
-      const teileFiltered = teile.filter(Boolean) as NonNullable<typeof teile[0]>[];
+      const teileFiltered    = teile.filter(Boolean) as NonNullable<typeof teile[0]>[];
       const anzahlVerfuegbar = teileFiltered.filter((t) => t.verfuegbar).length;
+      const anzahlBedarf     = teileFiltered.filter((t) => !t.verfuegbar).length;
 
-      if (anzahlVerfuegbar === 0) continue;
+      // Alle Gruppen mit mindestens 1 aktiven Teil anzeigen (auch reine BEDARF-Gruppen).
+      // Früher: if (anzahlVerfuegbar === 0) continue;
+      if (teileFiltered.length === 0) continue;
 
       const ersteAnfrage = anfragenInGruppe[0]!;
       result.push({
@@ -102,6 +104,7 @@ export const auslagernRouter = createTRPCRouter({
         erstelltAm:      ersteAnfrage.datum,
         teile:           teileFiltered,
         anzahlVerfuegbar,
+        anzahlBedarf,
         anzahlTotal:     teileFiltered.length,
       });
     }
@@ -110,8 +113,7 @@ export const auslagernRouter = createTRPCRouter({
   }),
 
   /**
-   * Bestand-Details für eine konkrete Gruppe von Anfragen (für AuslagerModal).
-   * Gibt dieselben Felder wie listAnfragen.teile, aber nur für die übergebenen IDs.
+   * Bestand-Details für AuslagerModal — inkl. lagerStatus pro Teil.
    */
   gruppeDetails: adminProcedure
     .input(z.object({ anfrageIds: z.array(z.number().int().positive()).min(1).max(50) }))
@@ -137,12 +139,15 @@ export const auslagernRouter = createTRPCRouter({
             orderBy: { datum: "desc" },
             select:  { notiz: true },
           });
+          const verfuegbar  = a.artikel.bestand >= a.menge;
+          const lagerStatus = verfuegbar ? "verfuegbar" : "bedarf";
           return {
             teilId:         a.id,
             teiltyp:        a.artikel.kategorie,
             artikelName:    a.artikel.bezeichnung,
             menge:          a.menge,
-            verfuegbar:     a.artikel.bestand >= a.menge,
+            verfuegbar,
+            lagerStatus,
             bestand:        a.artikel.bestand,
             lagerplatzCode: a.artikel.lagerplatz ?? null,
             grading:        extractGrading(letzteBuchung?.notiz),
@@ -156,15 +161,21 @@ export const auslagernRouter = createTRPCRouter({
 
   /**
    * Teile auslagern — transaktional.
-   * Erstellt AUSGANG-Buchung pro Anfrage-ID, reduziert Bestand, setzt Status.
    *
-   * Phase A: full delivery (Anfrage.menge wird vollständig ausgegeben).
-   * Partial delivery → Phase B.
+   * Buchungs-Typ pro Anfrage via `anfrageTypen` (optional, default AUSGANG):
+   *   anfrageTypen: { "42": "DIREKT", "43": "AUSGANG" }
+   *
+   * AUSGANG: Bestand prüfen → Bestand –menge → AUSGANG-Buchung → ABGESCHLOSSEN
+   * DIREKT:  Kein Bestand-Update (HEILIGE REGEL) → DIREKT-Buchung → ABGESCHLOSSEN
+   *
+   * Backward-Compatible: altes { anfrageIds } ohne anfrageTypen → alle AUSGANG.
    */
   teile: adminProcedure
     .input(z.object({
-      anfrageIds: z.array(z.number().int().positive()).min(1).max(50),
-      notiz:      z.string().max(500).optional(),
+      anfrageIds:   z.array(z.number().int().positive()).min(1).max(50),
+      // Key = anfrageId als String, Value = Buchungs-Typ. Default: AUSGANG.
+      anfrageTypen: z.record(z.string(), z.enum(["AUSGANG", "DIREKT"])).optional(),
+      notiz:        z.string().max(500).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const user = ctx.session!.user as SessionUser;
@@ -173,6 +184,8 @@ export const auslagernRouter = createTRPCRouter({
         const ausgabe: {
           anfrageId:    number;
           artikelId:    number;
+          buchungId:    number;
+          buchungsTyp:  "AUSGANG" | "DIREKT";
           artikel:      string;
           kategorie:    string;
           lagerplatz:   string | null;
@@ -185,59 +198,70 @@ export const auslagernRouter = createTRPCRouter({
         }[] = [];
 
         for (const anfrageId of input.anfrageIds) {
+          // Buchungs-Typ: aus anfrageTypen oder Default AUSGANG
+          const buchungsTyp = (
+            input.anfrageTypen?.[String(anfrageId)] ?? "AUSGANG"
+          ) as BuchungsTyp;
+
+          // ── Anfrage laden (InnoDB Row-Lock innerhalb TX) ──────────────────
           const anfrage = await tx.anfrage.findUnique({
             where:   { id: anfrageId },
             include: { artikel: true },
           });
 
           if (!anfrage) {
-            throw new TRPCError({ code: "NOT_FOUND", message: `Anfrage #${anfrageId} nicht gefunden` });
+            throw new TRPCError({ code: "NOT_FOUND",   message: `Anfrage #${anfrageId} nicht gefunden` });
           }
           if (!anfrage.artikelId || !anfrage.artikel) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: `Anfrage #${anfrageId} hat keinen verknüpften Artikel` });
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Anfrage #${anfrageId} hat keinen Artikel` });
           }
-          if (
-            anfrage.status === AnfrageStatus.ABGESCHLOSSEN ||
-            anfrage.status === AnfrageStatus.STORNIERT
-          ) {
-            throw new TRPCError({
-              code:    "BAD_REQUEST",
-              message: `Anfrage #${anfrageId} ist bereits ${anfrage.status}`,
-            });
+          if (anfrage.status === AnfrageStatus.ABGESCHLOSSEN || anfrage.status === AnfrageStatus.STORNIERT) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Anfrage #${anfrageId} ist bereits ${anfrage.status}` });
           }
 
-          // ── Bestand-Prüfung (innerhalb TX — InnoDB Row-Lock schützt) ──────
           const aktuellerBestand = anfrage.artikel.bestand;
-          if (aktuellerBestand < anfrage.menge) {
-            throw new TRPCError({
-              code:    "CONFLICT",
-              message: `Nicht genug Bestand für „${anfrage.artikel.bezeichnung}": vorhanden ${aktuellerBestand}, benötigt ${anfrage.menge}`,
-            });
-          }
+          let   neuerBestand     = aktuellerBestand;
 
-          // ── AUSGANG-Buchung anlegen ────────────────────────────────────────
           const notizTeile = [
             `Anfrage #${anfrageId}`,
-            anfrage.gruppenNr ? `Gruppe: ${anfrage.gruppenNr}` : null,
+            anfrage.gruppenNr        ? `Gruppe: ${anfrage.gruppenNr}` : null,
+            buchungsTyp === "DIREKT" ? "DIREKT (Techniker hat selbst ausgebaut)" : null,
             input.notiz,
           ].filter(Boolean).join(" | ");
 
-          await tx.buchung.create({
+          if (buchungsTyp === BuchungsTyp.AUSGANG) {
+            // ── AUSGANG: Bestand prüfen + reduzieren ──────────────────────
+            if (aktuellerBestand < anfrage.menge) {
+              throw new TRPCError({
+                code:    "CONFLICT",
+                message: `Nicht genug Bestand für „${anfrage.artikel.bezeichnung}": vorhanden ${aktuellerBestand}, benötigt ${anfrage.menge}`,
+              });
+            }
+
+            neuerBestand = aktuellerBestand - anfrage.menge;
+
+            // Sicherheitsgurt: schützt diesen Bestand-Update-Pfad.
+            // Wirft wenn buchungsTyp fälschlicherweise DIREKT wäre (defensive programming).
+            assertKeinBestandEffekt(buchungsTyp, "auslagern.teile AUSGANG-Zweig");
+
+            await tx.artikel.update({
+              where: { id: anfrage.artikelId },
+              data:  { bestand: neuerBestand },
+            });
+          }
+          // DIREKT: absichtlich kein Artikel-Update.
+          // assertKeinBestandEffekt(DIREKT) würde hier feuern — das IST die Sicherung.
+
+          // ── Buchung anlegen (AUSGANG oder DIREKT) ─────────────────────────
+          const buchung = await tx.buchung.create({
             data: {
               artikelId:   anfrage.artikelId,
               bezeichnung: anfrage.artikel.bezeichnung,
-              typ:         BuchungsTyp.AUSGANG,
+              typ:         buchungsTyp,
               menge:       anfrage.menge,
               mitarbeiter: user.kuerzel,
               notiz:       notizTeile,
             },
-          });
-
-          // ── Bestand reduzieren ────────────────────────────────────────────
-          const neuerBestand = aktuellerBestand - anfrage.menge;
-          await tx.artikel.update({
-            where: { id: anfrage.artikelId },
-            data:  { bestand: neuerBestand },
           });
 
           // ── Anfrage → ABGESCHLOSSEN ───────────────────────────────────────
@@ -250,7 +274,7 @@ export const auslagernRouter = createTRPCRouter({
             },
           });
 
-          // ── Grading aus letzter EINGANG-Buchung (für Etikett) ─────────────
+          // ── Grading aus letzter EINGANG-Buchung (für Beleg) ───────────────
           const letzteBuchung = await tx.buchung.findFirst({
             where:   { artikelId: anfrage.artikelId, typ: BuchungsTyp.EINGANG },
             orderBy: { datum: "desc" },
@@ -259,36 +283,29 @@ export const auslagernRouter = createTRPCRouter({
 
           ausgabe.push({
             anfrageId,
-            artikelId:    anfrage.artikelId,
-            artikel:      anfrage.artikel.bezeichnung,
-            kategorie:    anfrage.artikel.kategorie,
-            lagerplatz:   anfrage.artikel.lagerplatz ?? null,
-            menge:        anfrage.menge,
+            artikelId:   anfrage.artikelId,
+            buchungId:   buchung.id,
+            buchungsTyp: buchungsTyp as "AUSGANG" | "DIREKT",
+            artikel:     anfrage.artikel.bezeichnung,
+            kategorie:   anfrage.artikel.kategorie,
+            lagerplatz:  anfrage.artikel.lagerplatz ?? null,
+            menge:       anfrage.menge,
             neuerBestand,
-            techniker:    anfrage.techniker,
-            logId:        anfrage.logId,
-            geraeteName:  anfrage.geraeteName ?? null,
-            grading:      extractGrading(letzteBuchung?.notiz),
+            techniker:   anfrage.techniker,
+            logId:       anfrage.logId,
+            geraeteName: anfrage.geraeteName ?? null,
+            grading:     extractGrading(letzteBuchung?.notiz),
           });
         }
 
-        return {
-          ausgabe,
-          ausgefuehrtVon: user.kuerzel,
-          datum:          new Date(),
-        };
+        return { ausgabe, ausgefuehrtVon: user.kuerzel, datum: new Date() };
       });
 
-      // Meilisearch sync — fire-and-forget nach commit der Transaktion
+      // Meilisearch sync — fire-and-forget nach TX-Commit
       for (const item of txResult.ausgabe) {
         meilisearchSync.anfrage(item.anfrageId);
         meilisearchSync.artikel(item.artikelId);
-        // Letzte AUSGANG-Buchung für diesen Artikel nachträglich ermitteln
-        ctx.prisma.buchung.findFirst({
-          where:   { artikelId: item.artikelId, typ: BuchungsTyp.AUSGANG },
-          orderBy: { id: "desc" },
-          select:  { id: true },
-        }).then(b => { if (b) meilisearchSync.buchung(b.id); }).catch(() => {});
+        meilisearchSync.buchung(item.buchungId);
       }
 
       return txResult;
