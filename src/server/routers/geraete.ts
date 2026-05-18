@@ -10,6 +10,7 @@ import {
 } from "@/modules/geraete/service";
 import { prisma } from "@/core/db/prisma";
 import { TRPCError } from "@trpc/server";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 
 export const geraeteRouter = createTRPCRouter({
 
@@ -92,6 +93,7 @@ export const geraeteRouter = createTRPCRouter({
       }
 
       await prisma.geraeteModell.delete({ where: { id: input.id } });
+      meilisearchSync.deleteModell(input.id);
       return { geloescht: geraetVoll };
     }),
 

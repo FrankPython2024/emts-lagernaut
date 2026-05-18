@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 import type {
   ArtikelErstellenInput,
   ArtikelAktualisierenInput,
@@ -135,7 +136,7 @@ export async function getArtikelListe(input: {
  * Neuen Artikel anlegen.
  */
 export async function erstelleArtikel(input: ArtikelErstellenInput) {
-  return prisma.artikel.create({
+  const artikel = await prisma.artikel.create({
     data: {
       bezeichnung: input.bezeichnung,
       kategorie:   input.kategorie,
@@ -143,6 +144,8 @@ export async function erstelleArtikel(input: ArtikelErstellenInput) {
       bestand:     0,
     },
   });
+  meilisearchSync.artikel(artikel.id);
+  return artikel;
 }
 
 /**
@@ -156,7 +159,7 @@ export async function aktualisiereArtikel(input: ArtikelAktualisierenInput) {
     throw new TRPCError({ code: "NOT_FOUND", message: `Artikel ${id} nicht gefunden.` });
   }
 
-  return prisma.artikel.update({
+  const result = await prisma.artikel.update({
     where: { id },
     data:  {
       ...(data.bezeichnung !== undefined && { bezeichnung: data.bezeichnung }),
@@ -164,6 +167,8 @@ export async function aktualisiereArtikel(input: ArtikelAktualisierenInput) {
       ...(data.lagerplatz  !== undefined && { lagerplatz:  data.lagerplatz }),
     },
   });
+  meilisearchSync.artikel(id);
+  return result;
 }
 
 /**

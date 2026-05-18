@@ -40,28 +40,135 @@ async function handleBelegeJob(job: { id?: string | undefined; name: string; dat
 }
 
 async function handleMeilisearchJob(job: { id?: string | undefined; name: string; data: Record<string, unknown> }) {
-  console.log(`[BullMQ:meilisearch] Job #${job.id} — ${job.name}`);
+  console.log(`[BullMQ:meilisearch] #${job.id} ${job.name}`);
   const { prisma }      = await import("@/core/db/prisma");
   const { meilisearch } = await import("@/core/infra/meilisearch");
 
   switch (job.name) {
+
+    // ── Bulk-Reindex (via npm run reindex bevorzugt) ──────────────────────────
     case "reindex-artikel": {
-      const artikel = await prisma.artikel.findMany({
-        select: { id: true, bezeichnung: true, kategorie: true, bestand: true },
+      const rows = await prisma.artikel.findMany({
+        select: { id: true, bezeichnung: true, kategorie: true, bestand: true, lagerplatz: true },
       });
-      await meilisearch.index("artikel").addDocuments(artikel, { primaryKey: "id" });
-      console.log(`[BullMQ:meilisearch] ${artikel.length} Artikel re-indexiert`);
+      const docs = rows.map(a => {
+        const t = a.bezeichnung.trim().split(/\s+/);
+        return { id: a.id, bezeichnung: a.bezeichnung, kategorie: a.kategorie, bestand: a.bestand,
+          lagerplatz: a.lagerplatz ?? null, modell: t.length > 1 ? t.slice(0, -1).join(" ") : a.bezeichnung,
+          bestandStatus: a.bestand > 0 ? "vorhanden" : "leer" };
+      });
+      await meilisearch.index("artikel").addDocuments(docs, { primaryKey: "id" });
+      console.log(`[BullMQ:meilisearch] ${docs.length} Artikel bulk-reindexiert`);
       break;
     }
     case "reindex-geraete": {
-      const geraete = await prisma.geraeteModell.findMany({
+      const rows = await prisma.geraeteModell.findMany({
         where:  { aktiv: true },
         select: { id: true, hersteller: true, modell: true },
       });
-      await meilisearch.index("geraete").addDocuments(geraete, { primaryKey: "id" });
-      console.log(`[BullMQ:meilisearch] ${geraete.length} Geräte re-indexiert`);
+      const docs = rows.map(g => ({ ...g, aktiv: true, lagerplatz: null, logIds: [], anzahlLogIds: 0 }));
+      await meilisearch.index("modelle").addDocuments(docs, { primaryKey: "id" });
+      console.log(`[BullMQ:meilisearch] ${docs.length} Geräte bulk-reindexiert`);
       break;
     }
+
+    // ── Artikel ───────────────────────────────────────────────────────────────
+    case "sync-artikel": {
+      const artikelId = job.data.artikelId as number;
+      const a = await prisma.artikel.findUnique({
+        where:  { id: artikelId },
+        select: { id: true, bezeichnung: true, kategorie: true, bestand: true, lagerplatz: true },
+      });
+      if (!a) {
+        await meilisearch.index("artikel").deleteDocument(artikelId);
+        break;
+      }
+      const t = a.bezeichnung.trim().split(/\s+/);
+      await meilisearch.index("artikel").addDocuments([{
+        id: a.id, bezeichnung: a.bezeichnung, kategorie: a.kategorie, bestand: a.bestand,
+        lagerplatz: a.lagerplatz ?? null,
+        modell: t.length > 1 ? t.slice(0, -1).join(" ") : a.bezeichnung,
+        bestandStatus: a.bestand > 0 ? "vorhanden" : "leer",
+      }], { primaryKey: "id" });
+      break;
+    }
+    case "delete-artikel": {
+      await meilisearch.index("artikel").deleteDocument(job.data.artikelId as number);
+      break;
+    }
+
+    // ── Modelle ───────────────────────────────────────────────────────────────
+    case "sync-modell": {
+      const modellId = job.data.modellId as number;
+      const m = await prisma.geraeteModell.findUnique({
+        where:  { id: modellId },
+        select: { id: true, hersteller: true, modell: true, aktiv: true,
+                  lagerplatz: { select: { code: true } } },
+      });
+      if (!m) {
+        await meilisearch.index("modelle").deleteDocument(modellId);
+        break;
+      }
+      const logIds = (await prisma.geraeteLookup.findMany({
+        where:  { bereinigt: m.modell },
+        select: { logId: true },
+      })).map(l => l.logId);
+      await meilisearch.index("modelle").addDocuments([{
+        id: m.id, hersteller: m.hersteller, modell: m.modell, aktiv: m.aktiv,
+        lagerplatz: m.lagerplatz?.code ?? null, logIds, anzahlLogIds: logIds.length,
+      }], { primaryKey: "id" });
+      break;
+    }
+    case "delete-modell": {
+      await meilisearch.index("modelle").deleteDocument(job.data.modellId as number);
+      break;
+    }
+
+    // ── Anfragen ──────────────────────────────────────────────────────────────
+    case "sync-anfrage": {
+      const anfrageId = job.data.anfrageId as number;
+      const a = await prisma.anfrage.findUnique({
+        where:  { id: anfrageId },
+        select: { id: true, gruppenNr: true, teil: true, geraet: true,
+                  techniker: true, status: true, kommentar: true, datum: true },
+      });
+      if (!a) {
+        await meilisearch.index("anfragen").deleteDocument(anfrageId);
+        break;
+      }
+      await meilisearch.index("anfragen").addDocuments([{
+        id: a.id, gruppenNr: a.gruppenNr ?? null, teiltyp: a.teil, geraet: a.geraet,
+        hersteller: a.geraet.split(" ")[0] ?? null, techniker: a.techniker, status: a.status,
+        notiz: a.kommentar ?? null, erstelltAm: a.datum.getTime(),
+      }], { primaryKey: "id" });
+      break;
+    }
+
+    // ── Buchungen ─────────────────────────────────────────────────────────────
+    case "sync-buchung": {
+      const buchungId = job.data.buchungId as number;
+      const b = await prisma.buchung.findUnique({
+        where:  { id: buchungId },
+        select: { id: true, typ: true, bezeichnung: true, menge: true,
+                  notiz: true, mitarbeiter: true, datum: true,
+                  artikel: { select: { kategorie: true } } },
+      });
+      if (!b) {
+        await meilisearch.index("buchungen").deleteDocument(buchungId);
+        break;
+      }
+      await meilisearch.index("buchungen").addDocuments([{
+        id: b.id, typ: b.typ, artikelBezeichnung: b.bezeichnung, menge: b.menge,
+        notiz: b.notiz ?? null, ausgefuehrtVon: b.mitarbeiter,
+        artikelKategorie: b.artikel?.kategorie ?? null, datum: b.datum.getTime(),
+      }], { primaryKey: "id" });
+      break;
+    }
+    case "delete-buchung": {
+      await meilisearch.index("buchungen").deleteDocument(job.data.buchungId as number);
+      break;
+    }
+
     default:
       console.warn("[BullMQ:meilisearch] Unbekannter Job:", job.name);
   }

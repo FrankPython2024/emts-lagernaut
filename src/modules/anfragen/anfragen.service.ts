@@ -2,6 +2,7 @@ import { AnfrageStatus } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { aktualisiereBestand } from "@/modules/buchungen/buchungen.service";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 import type { AnfrageErstellenInput } from "./anfragen.schema";
 
 /**
@@ -47,6 +48,8 @@ export async function erstelleAnfrage(input: AnfrageErstellenInput) {
       artikel: { select: { id: true, bezeichnung: true, kategorie: true } },
     },
   });
+
+  meilisearchSync.anfrage(anfrage.id);
 
   return {
     anfrage,

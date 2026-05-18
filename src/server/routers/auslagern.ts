@@ -19,6 +19,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, adminProcedure } from "@/server/trpc";
 import { BuchungsTyp, AnfrageStatus } from "@prisma/client";
 import type { SessionUser } from "@/core/types";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 
 // ── Grading aus letzter EINGANG-Buchung extrahieren ───────────────────────────
 
@@ -168,9 +169,10 @@ export const auslagernRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const user = ctx.session!.user as SessionUser;
 
-      return ctx.prisma.$transaction(async (tx) => {
+      const txResult = await ctx.prisma.$transaction(async (tx) => {
         const ausgabe: {
           anfrageId:    number;
+          artikelId:    number;
           artikel:      string;
           kategorie:    string;
           lagerplatz:   string | null;
@@ -257,6 +259,7 @@ export const auslagernRouter = createTRPCRouter({
 
           ausgabe.push({
             anfrageId,
+            artikelId:    anfrage.artikelId,
             artikel:      anfrage.artikel.bezeichnung,
             kategorie:    anfrage.artikel.kategorie,
             lagerplatz:   anfrage.artikel.lagerplatz ?? null,
@@ -275,6 +278,20 @@ export const auslagernRouter = createTRPCRouter({
           datum:          new Date(),
         };
       });
+
+      // Meilisearch sync — fire-and-forget nach commit der Transaktion
+      for (const item of txResult.ausgabe) {
+        meilisearchSync.anfrage(item.anfrageId);
+        meilisearchSync.artikel(item.artikelId);
+        // Letzte AUSGANG-Buchung für diesen Artikel nachträglich ermitteln
+        ctx.prisma.buchung.findFirst({
+          where:   { artikelId: item.artikelId, typ: BuchungsTyp.AUSGANG },
+          orderBy: { id: "desc" },
+          select:  { id: true },
+        }).then(b => { if (b) meilisearchSync.buchung(b.id); }).catch(() => {});
+      }
+
+      return txResult;
     }),
 
 });

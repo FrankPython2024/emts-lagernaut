@@ -6,6 +6,7 @@ import { sendeSystemNachricht } from "@/modules/nachrichten/service";
 import { emitToAdmins, emitToAll, emitToUser } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
 import { invalidateTechnikerCache } from "@/modules/statistik/service";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 
 export type GruppenAnfrage = {
   gruppenNr:    string | null;
@@ -73,6 +74,7 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
     },
   });
 
+  meilisearchSync.anfrage(anfrage.id);
   invalidateTechnikerCache(anfrage.techniker).catch(() => {});
   emitToAdmins(EVENTS.ANFRAGE_NEU, {
     id: anfrage.id, techniker: anfrage.techniker, logId: anfrage.logId,
@@ -103,6 +105,7 @@ export async function storniereAnfrage(data: {
   if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Keine stornierbare Anfrage gefunden (nur NEU oder BEDARF möglich)." });
 
   await prisma.anfrage.update({ where: { id: anfrage.id }, data: { status: AnfrageStatus.STORNIERT } });
+  meilisearchSync.anfrage(anfrage.id);
   if (anfrage.artikelId) await syncBestandAusHistorie(anfrage.artikelId);
 }
 
@@ -128,6 +131,8 @@ export async function gruppeInBearbeitungNehmen(
       bearbeitetSeit: new Date(),
     },
   });
+
+  for (const id of anfrageIds) meilisearchSync.anfrage(id);
 
   if (result.count === 0) {
     // Diagnose: prüfen warum
@@ -172,6 +177,7 @@ export async function gruppeFreigeben(
       where: { id: a.id },
       data:  { status: neuerStatus, bearbeitetVon: null, bearbeitetSeit: null },
     });
+    meilisearchSync.anfrage(a.id);
     freigegeben++;
   }
 
@@ -205,6 +211,7 @@ export async function gruppeZurueckgeben(
       where: { id: a.id },
       data:  { status: neuerStatus, bearbeitetVon: null, bearbeitetSeit: null },
     });
+    meilisearchSync.anfrage(a.id);
   }
 
   return anfragen.length;
@@ -252,6 +259,7 @@ export async function setzeStatus(id: number, status: AnfrageStatus): Promise<An
     include: { artikel: { select: { id: true, bezeichnung: true } } },
   });
 
+  meilisearchSync.anfrage(id);
   invalidateTechnikerCache(aktualisiert.techniker).catch(() => {});
   emitToAll(EVENTS.ANFRAGE_UPDATED, { id, status });
   emitToUser(aktualisiert.techniker, EVENTS.ANFRAGE_UPDATED, { id, status });
@@ -300,6 +308,7 @@ export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
     where: { id },
     data:  { status: AnfrageStatus.ABGESCHLOSSEN, bearbeitetVon: null, bearbeitetSeit: null },
   });
+  meilisearchSync.anfrage(id);
 
   sendeSystemNachricht({
     empfKuerzel: anfrage.techniker,

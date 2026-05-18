@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, adminProcedure } from "@/server/trpc";
 import { getOrCreateModell } from "@/lib/geraete/getOrCreateModell";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 
 export const modellRouter = createTRPCRouter({
 
@@ -56,10 +57,12 @@ export const modellRouter = createTRPCRouter({
       if (!modell) throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden" });
       if (modell.aktiv) return modell; // Idempotent
 
-      return ctx.prisma.geraeteModell.update({
+      const result = await ctx.prisma.geraeteModell.update({
         where: { id: input.id },
         data:  { aktiv: true, deaktiviertGrund: null, deaktiviertAm: null },
       });
+      meilisearchSync.modell(input.id);
+      return result;
     }),
 
 });

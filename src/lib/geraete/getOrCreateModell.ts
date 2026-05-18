@@ -2,6 +2,7 @@ import { prisma } from "@/core/db/prisma";
 import { bereinigeBezeichnung } from "./bezeichnungBereinigen";
 import { checkHersteller } from "./herstellerFilter";
 import type { ErlaubterHersteller } from "./herstellerFilter";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 
 export interface AehnlichesModell {
   id:               number;
@@ -110,5 +111,6 @@ export async function getOrCreateModell(
   const neu = await prisma.geraeteModell.create({
     data: { modell: sauber, hersteller, aktiv: true },
   });
+  meilisearchSync.modell(neu.id);
   return { modell: neu, istNeu: true, istUnsicher: false, aehnliche };
 }

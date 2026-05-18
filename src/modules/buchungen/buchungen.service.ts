@@ -1,6 +1,7 @@
 import { BuchungsTyp } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 import type { BuchungErstellenInput } from "./buchungen.schema";
 
 /**
@@ -36,6 +37,7 @@ export async function aktualisiereBestand(artikelId: number): Promise<number> {
     where: { id: artikelId },
     data:  { bestand: neuerBestand },
   });
+  meilisearchSync.artikel(artikelId);
   return neuerBestand;
 }
 
@@ -88,6 +90,7 @@ export async function erstelleBuchung(input: BuchungErstellenInput) {
 
   if (input.typ === BuchungsTyp.DIREKT) {
     // DIREKT = Bedarf-Buchung: Eingang + Ausgang → Netto 0, Bestand unverändert
+    // createMany gibt keine IDs zurück → DIREKT-Buchungen erst beim nächsten `npm run reindex` im Index
     await prisma.buchung.createMany({
       data: [
         {
@@ -109,7 +112,7 @@ export async function erstelleBuchung(input: BuchungErstellenInput) {
       ],
     });
   } else {
-    await prisma.buchung.create({
+    const buchung = await prisma.buchung.create({
       data: {
         artikelId:   input.artikelId,
         bezeichnung: artikel.bezeichnung,
@@ -119,6 +122,7 @@ export async function erstelleBuchung(input: BuchungErstellenInput) {
         notiz:       input.notiz,
       },
     });
+    meilisearchSync.buchung(buchung.id);
   }
 
   const neuerBestand = await aktualisiereBestand(input.artikelId);

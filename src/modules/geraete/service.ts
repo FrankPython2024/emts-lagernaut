@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { getOrCreateModell } from "@/lib/geraete/getOrCreateModell";
 import { STANDARD_TEILNAMEN } from "@/lib/constants/teiltypen";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 
 export type ModellAnlegenResult = {
   modell:        { id: number; hersteller: string; modell: string };
@@ -68,6 +69,11 @@ export async function legeModellAn(
     return teile;
   });
 
+  meilisearchSync.modell(neuesModell.id);
+  for (const teil of angelegtTeile) {
+    meilisearchSync.artikel(teil.artikelId);
+  }
+
   return { modell: neuesModell, angelegtTeile };
 }
 
@@ -107,6 +113,7 @@ export async function legeEinzelteilAn(data: {
     return { artikel };
   });
 
+  meilisearchSync.artikel(artikel.id);
   return { artikelId: artikel.id, bezeichnung };
 }
 
@@ -192,8 +199,8 @@ export async function setzeModellAktiv(id: number, aktiv: boolean) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Gerätemodell nicht gefunden." });
   }
 
-  return prisma.$transaction(async (tx) => {
-    const updated = await tx.geraeteModell.update({
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.geraeteModell.update({
       where: { id },
       data:  {
         aktiv,
@@ -210,6 +217,9 @@ export async function setzeModellAktiv(id: number, aktiv: boolean) {
       });
     }
 
-    return updated;
+    return result;
   });
+
+  meilisearchSync.modell(id);
+  return updated;
 }

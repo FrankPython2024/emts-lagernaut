@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 
 /**
  * Volltextsuche für das Techniker-Portal.
@@ -184,9 +185,11 @@ export async function createArtikel(data: {
   kategorie:   string;
   lagerplatz?: string;
 }) {
-  return prisma.artikel.create({
+  const artikel = await prisma.artikel.create({
     data: { ...data, bestand: 0 },
   });
+  meilisearchSync.artikel(artikel.id);
+  return artikel;
 }
 
 /**
@@ -201,7 +204,9 @@ export async function updateArtikel(
     throw new TRPCError({ code: "NOT_FOUND", message: `Artikel ${id} nicht gefunden.` });
   }
 
-  return prisma.artikel.update({ where: { id }, data });
+  const result = await prisma.artikel.update({ where: { id }, data });
+  meilisearchSync.artikel(id);
+  return result;
 }
 
 /**
@@ -225,6 +230,7 @@ export async function deleteArtikel(id: number): Promise<void> {
   }
 
   await prisma.artikel.delete({ where: { id } });
+  meilisearchSync.deleteArtikel(id);
 }
 
 /**

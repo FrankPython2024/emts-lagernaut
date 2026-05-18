@@ -12,6 +12,7 @@ import { prisma } from "@/core/db/prisma";
 import { sendeSystemNachricht } from "@/modules/nachrichten/service";
 import { emitToAdmins, emitToAll } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 
 export type BucheLagerData = {
   artikelId:   number;
@@ -106,6 +107,10 @@ export async function bucheLager(data: BucheLagerData): Promise<Buchung> {
     return [neueBuchung];
   });
 
+  // Meilisearch: Artikel-Bestand + neue Buchung asynchron synchronisieren
+  meilisearchSync.artikel(data.artikelId);
+  meilisearchSync.buchung(buchung.id);
+
   // Socket.io: Buchung + Bestand live broadcasten
   const aktuellerBestand = await prisma.artikel.findUnique({
     where:  { id: data.artikelId },
@@ -165,6 +170,7 @@ export async function syncBestandAusHistorie(artikelId: number): Promise<number>
     where: { id: artikelId },
     data:  { bestand: neuerBestand },
   });
+  meilisearchSync.artikel(artikelId);
   return neuerBestand;
 }
 
@@ -192,6 +198,7 @@ export async function aktualisiereBuchung(id: number, data: { menge: number; not
     where: { id },
     data:  { menge: data.menge, notiz: data.notiz ?? null },
   });
+  meilisearchSync.buchung(id);
 
   return syncBestandAusHistorie(buchung.artikelId);
 }
@@ -207,6 +214,7 @@ export async function loescheBuchung(id: number): Promise<number> {
   if (!buchung) throw new TRPCError({ code: "NOT_FOUND", message: "Buchung nicht gefunden." });
 
   await prisma.buchung.delete({ where: { id } });
+  meilisearchSync.deleteBuchung(id);
   return syncBestandAusHistorie(buchung.artikelId);
 }
 
