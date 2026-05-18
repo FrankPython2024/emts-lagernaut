@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ToastProvider }  from "@/components/ui/Toast";
 import { LogoutButton }   from "@/components/ui/LogoutButton";
+import { GlobalSearch }   from "@/components/GlobalSearch";
 import { api }            from "@/trpc/react";
 import { useSocket }      from "@/hooks/useSocket";
 import { EVENTS }         from "@/modules/realtime/events";
@@ -113,7 +114,7 @@ function NachrichtToast({ data, onClose }: { data: ToastData; onClose: () => voi
 
 // ── Header ────────────────────────────────────────────────────────────────────
 
-function TechnikerHeader({ bellShake }: { bellShake: boolean }) {
+function TechnikerHeader({ bellShake, onSearch }: { bellShake: boolean; onSearch: () => void }) {
   const { data: session } = useSession();
   const { fontSize, setFontSize } = useFontSize();
   const [dark, setDark] = useState(false);
@@ -189,6 +190,16 @@ function TechnikerHeader({ bellShake }: { bellShake: boolean }) {
         <button onClick={() => setFontSize("large")}  style={{ ...btnIcon, fontSize: "1.2rem" }}>A</button>
         <span style={{ borderLeft: "1px solid var(--border)", margin: "0 0.8rem", height: 24 }} />
 
+        {/* Globale Suche */}
+        <button
+          onClick={onSearch}
+          title="Globale Suche (Strg+K)"
+          aria-label="Globale Suche öffnen"
+          style={{ ...btnIcon, fontSize: "1.1rem", minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          🔍
+        </button>
+
         {/* Dark mode */}
         <button onClick={toggleTheme} style={btnIcon}>
           {dark ? "☀️ Hell" : "🌙 Dunkel"}
@@ -246,10 +257,23 @@ function TechnikerHeader({ bellShake }: { bellShake: boolean }) {
 // ── Layout root ───────────────────────────────────────────────────────────────
 
 export default function TechnikerLayout({ children }: { children: React.ReactNode }) {
-  const [fontSize, _setFontSize] = useState<FontSize>("medium");
+  const [fontSize, _setFontSize]  = useState<FontSize>("medium");
   const [nachrichtToast, setNachrichtToast] = useState<ToastData | null>(null);
   const [bellShake,      setBellShake]      = useState(false);
+  const [searchOpen,     setSearchOpen]     = useState(false);
   const { on, off } = useSocket();
+
+  // Globaler Ctrl+K / Cmd+K Shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(s => !s);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   function setFontSize(s: FontSize) {
     _setFontSize(s);
@@ -287,8 +311,9 @@ export default function TechnikerLayout({ children }: { children: React.ReactNod
   return (
     <FontCtx.Provider value={{ fontSize, setFontSize }}>
       <ToastProvider>
+        <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
         <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-          <TechnikerHeader bellShake={bellShake} />
+          <TechnikerHeader bellShake={bellShake} onSearch={() => setSearchOpen(true)} />
           {children}
 
           {/* Große Nachricht-Toast (kein Auto-Dismiss) */}

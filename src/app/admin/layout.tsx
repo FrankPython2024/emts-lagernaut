@@ -8,6 +8,7 @@ import { LogoutButton } from "@/components/ui/LogoutButton";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS } from "@/modules/realtime/events";
 import { FontSizeToggle } from "@/components/FontSizeToggle";
+import { GlobalSearch } from "@/components/GlobalSearch";
 
 const NAV = [
   { href: "/admin",            label: "Dashboard",      icon: "📊" },
@@ -25,7 +26,7 @@ const NAV = [
   { href: "/admin/system/stresstest",   label: "Benchmark",     icon: "🔬" },
 ];
 
-function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => void }) {
+function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose?: () => void; onSearch?: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [dark, setDark] = useState(false);
@@ -86,6 +87,19 @@ function Sidebar({ collapsed, onClose }: { collapsed: boolean; onClose?: () => v
 
       {/* Footer */}
       <div className="px-3 py-4 border-t border-white/10 space-y-1">
+        {/* Globale Suche */}
+        {onSearch && (
+          <button
+            onClick={onSearch}
+            title="Globale Suche (Strg+K)"
+            className="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-sm text-white/65 hover:text-white hover:bg-white/10 transition-colors min-h-[44px]"
+          >
+            <span>🔍</span>
+            <span className="flex-1 text-left">Suchen</span>
+            <kbd className="text-[10px] text-white/30 bg-white/10 px-1.5 py-0.5 rounded font-mono">Strg+K</kbd>
+          </button>
+        )}
+
         {/* Schriftgröße */}
         <div className="flex items-center gap-2 px-3 py-1">
           <span className="text-xs text-white/40 font-semibold uppercase tracking-wide flex-1">Schrift</span>
@@ -153,22 +167,37 @@ function SocketNotifications() {
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileOpen,  setMobileOpen]  = useState(false);
+  const [searchOpen,  setSearchOpen]  = useState(false);
+
+  // Globaler Ctrl+K / Cmd+K Shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(s => !s);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   return (
     <ToastProvider>
       <SocketNotifications />
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+
       <div className="flex h-screen bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden">
         {/* Desktop Sidebar */}
         <div className="hidden lg:flex flex-col w-60 flex-shrink-0">
-          <Sidebar collapsed={false} />
+          <Sidebar collapsed={false} onSearch={() => setSearchOpen(true)} />
         </div>
 
         {/* Mobile Overlay */}
         {mobileOpen && (
           <div className="fixed inset-0 z-50 flex lg:hidden">
             <div className="w-60 flex-shrink-0 flex flex-col shadow-2xl">
-              <Sidebar collapsed={false} onClose={() => setMobileOpen(false)} />
+              <Sidebar collapsed={false} onClose={() => setMobileOpen(false)} onSearch={() => { setMobileOpen(false); setSearchOpen(true); }} />
             </div>
             <div className="flex-1 bg-black/50" onClick={() => setMobileOpen(false)} />
           </div>
@@ -185,7 +214,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               ☰
             </button>
-            <span className="font-black text-white">Lagernaut Admin</span>
+            <span className="font-black text-white flex-1">Lagernaut Admin</span>
+            {/* Mobile Suche */}
+            <button
+              onClick={() => setSearchOpen(true)}
+              aria-label="Globale Suche öffnen"
+              title="Globale Suche (Strg+K)"
+              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors text-lg"
+            >
+              🔍
+            </button>
           </div>
 
           {/* Page Content */}
