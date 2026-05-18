@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { AnfrageStatus, type Anfrage } from "@prisma/client";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { api } from "@/trpc/react";
 import { useSocket } from "@/hooks/useSocket";
@@ -223,6 +224,9 @@ export default function AnfragenPage() {
   const user     = session?.user as SessionUser | undefined;
   const ersteller = user?.kuerzel ?? "ADMIN";
 
+  const searchParams = useSearchParams();
+  const highlightId  = searchParams?.get("highlight") ?? null;
+
   function statusHighlightClass(status: string): string {
     if (status === "NEU" || status === "BEDARF") return "anfrage-neu";
     if (status === "IN_BEARBEITUNG") return "anfrage-bearbeitung";
@@ -288,6 +292,17 @@ export default function AnfragenPage() {
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Globale Suche: ?highlight=<anfrageId> → zur Anfrage-Zeile scrollen ────
+  useEffect(() => {
+    if (!highlightId || !data) return;
+    const el = document.getElementById(`row-${highlightId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("row-highlight");
+      setTimeout(() => el.classList.remove("row-highlight"), 3000);
+    }
+  }, [highlightId, data]);
 
   // ── Socket: Chat-Badge ────────────────────────────────────────────────────
   useEffect(() => {
@@ -580,7 +595,7 @@ export default function AnfragenPage() {
                   const rowLockedByOther = !!a.bearbeitetVon && a.bearbeitetVon.toUpperCase() !== ersteller.toUpperCase();
                   const rowCls = rowLockedByOther ? "opacity-60" : "";
                   return (
-                    <div key={a.id} className={`flex items-center gap-4 px-5 py-3 flex-wrap gap-y-1 ${rowCls}`}
+                    <div key={a.id} id={`row-${a.id}`} className={`flex items-center gap-4 px-5 py-3 flex-wrap gap-y-1 ${rowCls}`}
                       style={a.istSonderAnfrage ? { borderLeft: "3px solid #f97316", paddingLeft: "0.9rem" } : undefined}>
                       <div className="flex-1 min-w-0">
                         {a.istSonderAnfrage && (

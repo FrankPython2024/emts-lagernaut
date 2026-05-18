@@ -194,12 +194,15 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
   function handleHit(hit: AnyHit) {
     const q = query.trim();
     if (q) saveToHistory(q);
-    const qParam = q ? `?q=${encodeURIComponent(q)}` : "";
+    const hl     = `highlight=${hit.id}`;
+    const qAndHl = q ? `?q=${encodeURIComponent(q)}&${hl}` : `?${hl}`;
     switch (hit._type) {
-      case "artikel":  router.push(isAdmin ? `/admin/artikel${qParam}` : "/techniker"); break;
-      case "modell":   router.push(`/admin/modelle${qParam}`); break;
-      case "anfrage":  router.push(`/admin/anfragen${qParam}`); break;
-      case "buchung":  router.push(`/admin/buchungen${qParam}`); break;
+      // Artikel: direkt zur Detail-Seite
+      case "artikel":  router.push(isAdmin ? `/admin/artikel/${hit.id}` : "/techniker"); break;
+      // Listenseiten: Filter + Scroll-Hervorhebung via URL-Params
+      case "modell":   router.push(`/admin/modelle${qAndHl}`);  break;
+      case "anfrage":  router.push(`/admin/anfragen${qAndHl}`); break;
+      case "buchung":  router.push(`/admin/buchungen${qAndHl}`); break;
     }
     onClose();
   }

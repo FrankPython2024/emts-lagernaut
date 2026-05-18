@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BuchungsTyp, type Buchung } from "@prisma/client";
 import { useDebounce } from "use-debounce";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
@@ -171,6 +172,9 @@ export default function BuchungenPage() {
   const { data: session } = useSession();
   const user = session?.user as SessionUser | undefined;
 
+  const searchParams = useSearchParams();
+  const highlightId  = searchParams?.get("highlight") ?? null;
+
   // Liste-Filter
   const [typFilter,    setTypFilter]    = useState<BuchungsTyp | "">("");
 
@@ -256,6 +260,17 @@ export default function BuchungenPage() {
     },
     onError: (e) => show(e.message, "error"),
   });
+
+  // Globale Suche: ?highlight=<buchungId> → zur Buchungs-Zeile scrollen
+  useEffect(() => {
+    if (!highlightId || !data) return;
+    const el = document.getElementById(`row-${highlightId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("row-highlight");
+      setTimeout(() => el.classList.remove("row-highlight"), 3000);
+    }
+  }, [highlightId, data]);
 
   const selBezeichnung = suche.data?.find((a) => a.id === selArtikelId)?.bezeichnung ?? "";
 
@@ -359,7 +374,7 @@ export default function BuchungenPage() {
             </thead>
             <tbody>
               {data?.buchungen.map((b) => (
-                <tr key={b.id} className="border-b border-[#ced4da] dark:border-[#3e4042] hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] text-sm">
+                <tr key={b.id} id={`row-${b.id}`} className="border-b border-[#ced4da] dark:border-[#3e4042] hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] text-sm">
                   <td className="px-4 py-3 text-[#65676b] dark:text-[#b0b3b8] whitespace-nowrap">
                     {formatDatum(b.datum)}
                   </td>

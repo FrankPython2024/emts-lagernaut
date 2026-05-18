@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useDebounce } from "use-debounce";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
@@ -510,7 +511,11 @@ type Modell = { id: number; hersteller: string; modell: string; kompAnzahl: numb
 export default function ModelleListePage() {
   const { show } = useToast();
 
-  const [search,       setSearch]       = useState("");
+  const searchParams = useSearchParams();
+  const initialQ    = searchParams?.get("q")         ?? "";
+  const highlightId = searchParams?.get("highlight") ?? null;
+
+  const [search,       setSearch]       = useState(initialQ);
   const [hersteller,   setHersteller]   = useState("");
   const [ohneKomp,     setOhneKomp]     = useState(false);
   const [page,         setPage]         = useState(1);
@@ -554,6 +559,20 @@ export default function ModelleListePage() {
   });
 
   const selectedModell = data?.modelle.find((m) => m.id === (verknuepfenId ?? detailId));
+
+  // Aus GlobalSearch: ?highlight=<id> → Detail-Modal öffnen + zur Zeile scrollen
+  useEffect(() => {
+    if (!highlightId || !data) return;
+    const n = Number(highlightId);
+    if (isNaN(n)) return;
+    setDetailId(n);
+    const el = document.getElementById(`row-${n}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("row-highlight");
+      setTimeout(() => el.classList.remove("row-highlight"), 3000);
+    }
+  }, [highlightId, data]);
 
   if (isLoading) return <PageLoader />;
   if (error)     return <div className="p-6 bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 rounded-xl text-[#fa3e3e]">Fehler: {error.message}</div>;
@@ -611,7 +630,7 @@ export default function ModelleListePage() {
           </thead>
           <tbody>
             {modelle.map((m) => (
-              <tr key={m.id} className={`border-b border-[#ced4da] dark:border-[#3e4042] hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] ${!m.aktiv ? "opacity-50" : ""}`}>
+              <tr key={m.id} id={`row-${m.id}`} className={`border-b border-[#ced4da] dark:border-[#3e4042] hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] ${!m.aktiv ? "opacity-50" : ""}`}>
                 <td className="px-4 py-3 text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase">{m.hersteller}</td>
                 <td className="px-4 py-3 font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">{m.modell}</td>
                 <td className="px-4 py-3 text-center">
