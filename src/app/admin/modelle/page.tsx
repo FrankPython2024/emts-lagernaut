@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useDebounce } from "use-debounce";
@@ -508,7 +508,7 @@ function GlobalRemoveAllDialog({
 
 type Modell = { id: number; hersteller: string; modell: string; kompAnzahl: number; aktiv: boolean };
 
-export default function ModelleListePage() {
+function ModelleListePageInner() {
   const { show } = useToast();
 
   const searchParams = useSearchParams();
@@ -770,5 +770,13 @@ export default function ModelleListePage() {
         />
       )}
     </div>
+  );
+}
+
+export default function ModelleListePage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-[#65676b] dark:text-[#b0b3b8]">Lade…</div>}>
+      <ModelleListePageInner />
+    </Suspense>
   );
 }

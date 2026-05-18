@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { BuchungsTyp, type Buchung } from "@prisma/client";
 import { useDebounce } from "use-debounce";
 import { useSearchParams } from "next/navigation";
@@ -167,7 +167,7 @@ function DeleteModal({
 
 // ── Haupt-Seite ───────────────────────────────────────────────────────────────
 
-export default function BuchungenPage() {
+function BuchungenPageInner() {
   const { show }  = useToast();
   const { data: session } = useSession();
   const user = session?.user as SessionUser | undefined;
@@ -455,5 +455,13 @@ export default function BuchungenPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function BuchungenPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-[#65676b] dark:text-[#b0b3b8]">Lade…</div>}>
+      <BuchungenPageInner />
+    </Suspense>
   );
 }

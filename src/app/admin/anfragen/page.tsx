@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, Suspense } from "react";
 import { AnfrageStatus, type Anfrage } from "@prisma/client";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -217,7 +217,7 @@ function FreigebenDialog({
 
 // ── Haupt-Seite ───────────────────────────────────────────────────────────────
 
-export default function AnfragenPage() {
+function AnfragenPageInner() {
   const { show }    = useToast();
   const { on, off } = useSocket();
   const { data: session } = useSession();
@@ -741,5 +741,13 @@ export default function AnfragenPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function AnfragenPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-[#65676b] dark:text-[#b0b3b8]">Lade…</div>}>
+      <AnfragenPageInner />
+    </Suspense>
   );
 }
