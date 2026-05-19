@@ -14,15 +14,37 @@ const connection: ConnectionOptions = new Redis(
   },
 ) as ConnectionOptions;
 
-// ── Queue-Definitionen (lightweight, keine Worker-Verbindung) ─────────────────
+// ── Queue-Definitionen (lazy — keine Verbindung beim Modul-Import) ───────────
+// Getter-Syntax: Queues werden erst beim ersten Zugriff instanziiert.
+// Schützt den Next.js-Build vor Redis-Verbindungsversuchen.
+
+let _queues: {
+  belege:           Queue;
+  meilisearch:      Queue;
+  notify:           Queue;
+  artikelGenerator: Queue;
+  reprocessGeraete: Queue;
+} | null = null;
+
+function initQueues() {
+  if (_queues) return _queues;
+  _queues = {
+    belege:           new Queue("belege",            { connection }),
+    meilisearch:      new Queue("meilisearch",       { connection }),
+    notify:           new Queue("notify",            { connection }),
+    artikelGenerator: new Queue("artikel-generator", { connection }),
+    reprocessGeraete: new Queue("reprocess-geraete", { connection }),
+  };
+  return _queues;
+}
 
 export const queues = {
-  belege:           new Queue("belege",            { connection }),
-  meilisearch:      new Queue("meilisearch",       { connection }),
-  notify:           new Queue("notify",            { connection }),
-  artikelGenerator: new Queue("artikel-generator",  { connection }),
-  reprocessGeraete: new Queue("reprocess-geraete",  { connection }),
-} as const;
+  get belege()           { return initQueues().belege; },
+  get meilisearch()      { return initQueues().meilisearch; },
+  get notify()           { return initQueues().notify; },
+  get artikelGenerator() { return initQueues().artikelGenerator; },
+  get reprocessGeraete() { return initQueues().reprocessGeraete; },
+};
 
 // ── Job-Handler ───────────────────────────────────────────────────────────────
 

@@ -1,3 +1,7 @@
+// Verhindert Prerender beim Build — Route braucht DB/Redis zur Laufzeit
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "@/server/routers";
 import { getServerSession } from "next-auth";
