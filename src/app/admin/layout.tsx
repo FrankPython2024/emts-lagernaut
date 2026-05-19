@@ -91,7 +91,7 @@ function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose
           <img
             src="/afb-logo-svg.svg"
             alt="AfB"
-            className="h-10 w-auto"
+            className="w-full max-w-[160px] h-auto"
           />
           <div>
             <div className="text-base font-bold text-gray-900 dark:text-white leading-tight">

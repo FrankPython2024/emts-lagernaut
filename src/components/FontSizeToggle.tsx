@@ -46,8 +46,8 @@ export function FontSizeToggle({ className }: { className?: string }) {
             aria-pressed={active}
             className={`flex items-center justify-center w-9 h-9 rounded-lg font-black transition-colors ${
               active
-                ? "bg-white/20 text-white"
-                : "text-white/50 hover:text-white hover:bg-white/10"
+                ? "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 ring-1 ring-cyan-500/20"
+                : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
             }`}
             style={{ fontSize: px, minHeight: 36, minWidth: 36 }}
           >
