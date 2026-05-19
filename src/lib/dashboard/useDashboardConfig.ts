@@ -25,6 +25,8 @@ function loadVisibility(): Record<string, boolean> {
 export function useDashboardConfig() {
   const [layouts,    setLayouts]    = useState<LayoutsMap>(() => loadLayouts());
   const [visibility, setVisibility] = useState<Record<string, boolean>>(() => loadVisibility());
+  // resetKey: ändert sich bei Reset → zwingt react-grid-layout zum Remount
+  const [resetKey,   setResetKey]   = useState(0);
 
   function updateLayout(newLayouts: LayoutsMap) {
     setLayouts(newLayouts);
@@ -38,13 +40,15 @@ export function useDashboardConfig() {
   }
 
   function resetToDefault() {
-    setLayouts(DEFAULT_LAYOUT);
-    setVisibility(DEFAULT_VISIBILITY);
+    // Neue Objekt-Referenzen erzwingen Rerender (gleiche Konstante löst das u.U. nicht aus)
+    setLayouts(JSON.parse(JSON.stringify(DEFAULT_LAYOUT)) as LayoutsMap);
+    setVisibility({ ...DEFAULT_VISIBILITY });
+    setResetKey(k => k + 1);  // erzwingt Remount der Responsive-Komponente
     try {
       localStorage.removeItem(LS_LAYOUT);
       localStorage.removeItem(LS_VISIBILITY);
     } catch {}
   }
 
-  return { layouts, visibility, updateLayout, toggleWidget, resetToDefault };
+  return { layouts, visibility, resetKey, updateLayout, toggleWidget, resetToDefault };
 }

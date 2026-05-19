@@ -45,7 +45,7 @@ interface DashboardGridProps {
 }
 
 export function DashboardGrid({ editMode }: DashboardGridProps) {
-  const { layouts, visibility, updateLayout, toggleWidget } = useDashboardConfig();
+  const { layouts, visibility, resetKey, updateLayout, toggleWidget } = useDashboardConfig();
   const [mounted, setMounted]     = useState(false);
   const [gridWidth, setGridWidth] = useState(1200);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -111,6 +111,7 @@ export function DashboardGrid({ editMode }: DashboardGridProps) {
       <div ref={containerRef}>
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <Responsive {...({
+          key:         resetKey,           // erzwingt Remount nach Reset
           width:       gridWidth,
           className:   "dashboard-grid",
           layouts:     filterLayouts(layouts),

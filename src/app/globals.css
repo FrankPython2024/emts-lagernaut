@@ -214,15 +214,43 @@ html.font-large  { font-size: 22px; --base-font: 22px; }
   outline-offset: 3px;
 }
 
-/* Resize-Handle sichtbarer in beiden Themes */
+/* Resize-Handle: stabil rechts-unten, sichtbar im Edit-Mode */
 .react-resizable-handle {
-  opacity: 0.4;
+  position:   absolute !important;
+  right:      4px !important;
+  bottom:     4px !important;
+  width:      20px !important;
+  height:     20px !important;
+  z-index:    5;
+  cursor:     se-resize;
+  opacity:    0.35;
+  transition: opacity 0.15s;
 }
-.react-resizable-handle:hover {
-  opacity: 1;
+.react-resizable-handle:hover { opacity: 1; }
+
+/* Kleines Dreieck-Indikator im Edit-Mode */
+.react-grid-item.resizing .react-resizable-handle::after,
+.edit-mode .react-resizable-handle::after {
+  content:       "";
+  position:      absolute;
+  right:         3px;
+  bottom:        3px;
+  width:         9px;
+  height:        9px;
+  border-right:  2px solid var(--afb-blue);
+  border-bottom: 2px solid var(--afb-blue);
 }
 
-/* Grid-Container kein overflow-hidden (damit Drag-Widgets sichtbar bleiben) */
+/* Widget-Card: overflow visible für Resize-Handle, Inhalt scrollt intern */
+.widget-card {
+  position: relative !important;
+  overflow: visible !important;
+}
+.widget-card > .flex-1 {
+  overflow: auto;
+}
+
+/* Grid-Container kein overflow-hidden (Drag-Widgets sichtbar) */
 .dashboard-grid {
   overflow: visible !important;
 }
