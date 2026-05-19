@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from "react";
 // react-grid-layout v3: kein WidthProvider — stattdessen manuelle Breitenmessung
 import { Responsive } from "react-grid-layout";
 
-import { useDashboardConfig }        from "@/lib/dashboard/useDashboardConfig";
+// useDashboardConfig wird in admin/page.tsx aufgerufen, Config via Props übergeben
 import { WIDGET_META, type LayoutsMap } from "@/lib/dashboard/defaultLayout";
 import { WidgetEditContextProvider }  from "@/lib/dashboard/widgetContext";
 
@@ -50,11 +50,24 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType> = {
 };
 
 interface DashboardGridProps {
-  editMode: boolean;
+  editMode:        boolean;
+  layouts:         LayoutsMap;
+  visibility:      Record<string, boolean>;
+  resetKey:        number;
+  isResettingRef:  React.MutableRefObject<boolean>;
+  onLayoutChange:  (l: LayoutsMap) => void;
+  onToggleWidget:  (id: string) => void;
 }
 
-export function DashboardGrid({ editMode }: DashboardGridProps) {
-  const { layouts, visibility, resetKey, isResettingRef, updateLayout, toggleWidget } = useDashboardConfig();
+export function DashboardGrid({
+  editMode,
+  layouts,
+  visibility,
+  resetKey,
+  isResettingRef,
+  onLayoutChange,
+  onToggleWidget,
+}: DashboardGridProps) {
   const [mounted, setMounted]     = useState(false);
   const [gridWidth, setGridWidth] = useState(1200);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -105,7 +118,7 @@ export function DashboardGrid({ editMode }: DashboardGridProps) {
             {hiddenWidgets.map(w => (
               <button
                 key={w.id}
-                onClick={() => toggleWidget(w.id)}
+                onClick={() => onToggleWidget(w.id)}
                 className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 hover:border-cyan-300 dark:hover:border-cyan-700 transition-colors min-h-[36px]"
                 type="button"
               >
@@ -134,9 +147,7 @@ export function DashboardGrid({ editMode }: DashboardGridProps) {
           isResizable:  editMode,
           useCSSTransforms: true,
           onLayoutChange: (_: unknown, allLayouts: unknown) => {
-            // isResettingRef verhindert dass Responsive beim Remount nach Reset
-            // den alten Zustand aus onLayoutChange zurückschreibt (Ursache B)
-            if (editMode && !isResettingRef.current) updateLayout(allLayouts as LayoutsMap);
+            if (editMode && !isResettingRef.current) onLayoutChange(allLayouts as LayoutsMap);
           },
         } as any)}>
           {visibleWidgets.map(w => {
@@ -144,7 +155,7 @@ export function DashboardGrid({ editMode }: DashboardGridProps) {
             if (!WidgetComponent) return null;
             return (
               <div key={w.id}>
-                <WidgetEditContextProvider value={{ editMode, widgetId: w.id, onHide: toggleWidget }}>
+                <WidgetEditContextProvider value={{ editMode, widgetId: w.id, onHide: onToggleWidget }}>
                   <WidgetComponent />
                 </WidgetEditContextProvider>
               </div>

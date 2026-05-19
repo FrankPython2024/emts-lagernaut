@@ -9,16 +9,18 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  name      String
-  kuerzel   String    @unique
-  email     String    @unique
-  password  String
-  rolle     UserRolle @default(TECHNIKER)
-  aktiv     Boolean   @default(true)
-  lastLogin DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id              Int       @id @default(autoincrement())
+  name            String
+  kuerzel         String    @unique
+  email           String    @unique
+  password        String
+  rolle           UserRolle @default(TECHNIKER)
+  aktiv           Boolean   @default(true)
+  lastLogin       DateTime?
+  // Dashboard-Konfiguration pro User: { layouts, visibility } | null = Default
+  dashboardConfig Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 enum UserRolle {

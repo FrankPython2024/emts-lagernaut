@@ -18,7 +18,8 @@ import { lagerplatzRouter }     from "./lagerplatz";
 import { modellRouter }         from "./modell";
 import { auslagernRouter }      from "./auslagern";
 import { searchRouter }         from "./search";
-import { dashboardRouter }      from "./dashboard";
+import { dashboardRouter }         from "./dashboard";
+import { userPreferencesRouter }  from "./userPreferences";
 
 export const appRouter = createTRPCRouter({
   lager:           lagerRouter,
@@ -40,7 +41,8 @@ export const appRouter = createTRPCRouter({
   modell:          modellRouter,
   auslagern:       auslagernRouter,
   search:          searchRouter,
-  dashboard:       dashboardRouter,
+  dashboard:        dashboardRouter,
+  userPreferences:  userPreferencesRouter,
 });
 
 export type AppRouter = typeof appRouter;

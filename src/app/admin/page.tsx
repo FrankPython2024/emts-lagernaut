@@ -7,13 +7,13 @@ import { useSocket }          from "@/hooks/useSocket";
 import { EVENTS }             from "@/modules/realtime/events";
 import { api }                from "@/trpc/react";
 
-// Socket.io → tRPC Cache-Invalidierung für Dashboard-Queries (K2-Fix)
+// ── Socket.io → tRPC Cache-Invalidierung ─────────────────────────────────────
+
 function useDashboardSocketInvalidation() {
   const { on, off } = useSocket();
   const utils = api.useUtils();
 
   useEffect(() => {
-    // Neue Anfrage: KPIs, letzte Anfragen, Status-Verteilung, Aktivität
     on(EVENTS.ANFRAGE_NEU, () => {
       void utils.dashboard.stats.invalidate();
       void utils.dashboard.letzteAnfragen.invalidate();
@@ -21,16 +21,12 @@ function useDashboardSocketInvalidation() {
       void utils.dashboard.aktivitaetsProtokoll.invalidate();
       void utils.dashboard.technikerAktivitaet.invalidate();
     });
-
-    // Status-Änderung (ABGESCHLOSSEN, STORNIERT, BEDARF usw.)
     on(EVENTS.ANFRAGE_UPDATED, () => {
       void utils.dashboard.stats.invalidate();
       void utils.dashboard.anfragenStatusVerteilung.invalidate();
       void utils.dashboard.aktivitaetsProtokoll.invalidate();
       void utils.dashboard.topTeiltypen.invalidate();
     });
-
-    // Neue Buchung: KPIs, Buchungen-Liste, Trend, Top-Teile, Aktivität
     on(EVENTS.BUCHUNG_ERSTELLT, () => {
       void utils.dashboard.stats.invalidate();
       void utils.dashboard.letzteBuchungen.invalidate();
@@ -38,13 +34,10 @@ function useDashboardSocketInvalidation() {
       void utils.dashboard.topTeiltypen.invalidate();
       void utils.dashboard.aktivitaetsProtokoll.invalidate();
     });
-
-    // Bestand-Update: KPIs + Mindestbestand-Alarm
     on(EVENTS.BESTAND_UPDATED, () => {
       void utils.dashboard.stats.invalidate();
       void utils.dashboard.mindestbestand.invalidate();
     });
-
     return () => {
       off(EVENTS.ANFRAGE_NEU);
       off(EVENTS.ANFRAGE_UPDATED);
@@ -54,12 +47,36 @@ function useDashboardSocketInvalidation() {
   }, [on, off, utils]);
 }
 
-// Separater Inner-Component damit useDashboardConfig (localStorage) nur Client-seitig läuft
+// ── Lade-Skeleton ─────────────────────────────────────────────────────────────
+
+function DashboardLoadingSkeleton() {
+  return (
+    <div className="grid grid-cols-12 gap-4">
+      {/* 4 KPI-Karten */}
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="col-span-6 xl:col-span-3 animate-pulse bg-gray-100 dark:bg-gray-800 rounded-xl" style={{ height: 176 }} />
+      ))}
+      {/* 2 Charts */}
+      {[...Array(2)].map((_, i) => (
+        <div key={i + 4} className="col-span-12 lg:col-span-6 animate-pulse bg-gray-100 dark:bg-gray-800 rounded-xl" style={{ height: 352 }} />
+      ))}
+      {/* 3 Listen */}
+      {[...Array(3)].map((_, i) => (
+        <div key={i + 6} className="col-span-12 md:col-span-6 xl:col-span-4 animate-pulse bg-gray-100 dark:bg-gray-800 rounded-xl" style={{ height: 280 }} />
+      ))}
+    </div>
+  );
+}
+
+// ── Dashboard-Content ─────────────────────────────────────────────────────────
+
 function DashboardContent() {
   const [editMode, setEditMode] = useState(false);
-  const { resetToDefault }      = useDashboardConfig();
 
-  // K2-Fix: Socket.io-Events invalidieren tRPC-Cache
+  // Config aus DB laden + verwalten (Phase 3)
+  const config = useDashboardConfig();
+
+  // Socket.io → tRPC-Cache-Invalidierung
   useDashboardSocketInvalidation();
 
   const now = new Date().toLocaleString("de-DE", {
@@ -67,17 +84,28 @@ function DashboardContent() {
     hour: "2-digit", minute: "2-digit",
   });
 
+  // Lade-State: Skeleton anzeigen bis Config vom Server kommt
+  if (config.isLoading) {
+    return (
+      <div className="space-y-4">
+        <PageHeader title="Dashboard" subtitle="Konfiguration wird geladen…" />
+        <DashboardLoadingSkeleton />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
         title="Dashboard"
-        subtitle={`Stand: ${now} · Auto-Refresh aktiv`}
+        subtitle={`Stand: ${now} · ${config.isSaving ? "💾 Speichert…" : config.isResetting ? "🔄 Zurücksetzen…" : "Auto-Refresh aktiv"}`}
         action={
           <div className="flex items-center gap-2">
             {editMode && (
               <button
-                onClick={() => { resetToDefault(); }}
-                className="px-3 py-2 rounded-lg text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors min-h-[44px] flex items-center gap-1.5"
+                onClick={() => void config.resetToDefault()}
+                disabled={config.isResetting}
+                className="px-3 py-2 rounded-lg text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors min-h-[44px] flex items-center gap-1.5"
                 title="Layout auf Standard zurücksetzen"
                 type="button"
               >
@@ -102,13 +130,20 @@ function DashboardContent() {
       {editMode && (
         <div className="flex items-center gap-2 p-3 bg-cyan-50 dark:bg-cyan-900/10 border border-cyan-200 dark:border-cyan-800 rounded-xl text-sm text-cyan-700 dark:text-cyan-300">
           <span>ℹ️</span>
-          <span>Widgets verschieben: Drag am <strong>Cyan-Balken</strong> oben · Größe: rechte untere Ecke · Ausblenden: 👁️‍🗨️</span>
+          <span>Widgets verschieben: Drag am <strong>Cyan-Balken</strong> · Größe: rechte untere Ecke · Ausblenden: 👁️‍🗨️ · Änderungen werden automatisch gespeichert</span>
         </div>
       )}
 
-      {/* Phase 2: DashboardGrid mit Drag & Drop */}
-      {/* Phase 3: Layout-Persistierung im Backend (User-Preferences) */}
-      <DashboardGrid editMode={editMode} />
+      {/* Phase 3: Layout/Visibility wird in DB gespeichert (userPreferences.saveDashboardConfig) */}
+      <DashboardGrid
+        editMode={editMode}
+        layouts={config.layouts}
+        visibility={config.visibility}
+        resetKey={config.resetKey}
+        isResettingRef={config.isResettingRef}
+        onLayoutChange={config.updateLayout}
+        onToggleWidget={config.toggleWidget}
+      />
     </div>
   );
 }
