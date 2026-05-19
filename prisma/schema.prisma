@@ -19,14 +19,34 @@ model User {
   lastLogin       DateTime?
   // Dashboard-Konfiguration pro User: { layouts, visibility } | null = Default
   dashboardConfig Json?
+  standortId      Int?
+  standort        Standort? @relation(fields: [standortId], references: [id])
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  @@index([standortId])
 }
 
 enum UserRolle {
   ADMIN
   TECHNIKER
   BETRACHTER
+}
+
+// ── Multi-Standort ────────────────────────────────────────────────────────────
+
+model Standort {
+  id           Int          @id @default(autoincrement())
+  name         String       @db.VarChar(100)
+  kurzname     String       @unique @db.VarChar(10)
+  adresse      String?      @db.VarChar(500)
+  aktiv        Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  lagerplaetze Lagerplatz[]
+  users        User[]
+  artikel      Artikel[]
 }
 
 model Artikel {
@@ -39,10 +59,13 @@ model Artikel {
   anfragen    Anfrage[]
   kompatibel  Kompatibilitaet[]
   korbItems   WarenkorbItem[]
+  standortId  Int               @default(1)
+  standort    Standort          @relation(fields: [standortId], references: [id])
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
-  @@unique([bezeichnung, kategorie])
+  @@unique([bezeichnung, kategorie, standortId])
+  @@index([standortId])
 }
 
 model Buchung {
@@ -143,11 +166,14 @@ model Lagerplatz {
   hersteller String? // "HP" | "Lenovo" | "Dell" | null
   modellId   Int?           @unique
   modell     GeraeteModell? @relation(fields: [modellId], references: [id], onDelete: SetNull)
+  standortId Int            @default(1)
+  standort   Standort       @relation(fields: [standortId], references: [id])
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
   @@index([hersteller])
   @@index([reihe, ebene, fach])
+  @@index([standortId])
   @@map("lagerplatz")
 }
 

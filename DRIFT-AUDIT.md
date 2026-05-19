@@ -82,4 +82,25 @@ WarenkorbItem.beschreibung    @db.Text
 Nachricht.betreff             @db.VarChar(255)
 Nachricht.inhalt              @db.Text
 NachrichtAntwort.inhalt       @db.Text
+Standort.name                 @db.VarChar(100)
+Standort.kurzname             @db.VarChar(10)
+Standort.adresse              @db.VarChar(500)
 ```
+
+---
+
+## Neue Spalten — Phase 1 Multi-Standort (kein Drift, expected)
+
+Diese Spalten wurden im Zuge der Multi-Standort-Vorbereitung ergänzt.
+Sie sind im Schema korrekt annotiert und entsprechen der DB-Realität nach `db push + seed:standort`.
+
+| Tabelle | Spalte | Typ | Default | Bedeutung |
+|---|---|---|---|---|
+| `Standort` | neue Tabelle | — | — | Standort-Master (ETL, BLN, ...) |
+| `Lagerplatz` | `standortId` | `INT NOT NULL` | `1` | FK → Standort |
+| `User` | `standortId` | `INT NULL` | `NULL` | FK → Standort (null = Admin) |
+| `Artikel` | `standortId` | `INT NOT NULL` | `1` | FK → Standort |
+| `Artikel` | `@@unique` | triple key | — | `(bezeichnung, kategorie, standortId)` |
+
+**Seed:** `npm run seed:standort` nach `db push` ausführen — setzt alle bestehenden
+Zeilen auf `standortId = 1` (Sömmerda). Idempotent, darf mehrfach laufen.

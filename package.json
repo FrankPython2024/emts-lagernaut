@@ -25,6 +25,7 @@
     "reprocess:geraete": "tsx scripts/reprocessGeraete.ts",
     "test:bezeichnung": "tsx tests/bezeichnungBereinigen.test.ts",
     "seed:lagerplaetze": "tsx prisma/seed-lagerplaetze.ts",
+    "seed:standort": "tsx prisma/seeds/standort-sommerda.ts",
     "reindex": "tsx src/scripts/reindex-meilisearch.ts"
   },
   "dependencies": {
