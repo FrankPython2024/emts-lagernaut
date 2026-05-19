@@ -76,33 +76,36 @@ function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose
     <aside className="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
 
       {/* ── Logo-Bereich ─────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-gray-100 dark:border-gray-800">
-        {/*
-          AfB-Logo: kein lokales File in /public/ gefunden.
-          Nutze externen CDN-Link. TODO: logo.svg nach /public/ kopieren.
-        */}
-        <img
-          src="https://www.afbshop.de/media/ca/1f/fe/1760428029/logo.svg"
-          alt="AfB Logo"
-          className="h-10 flex-shrink-0 dark:brightness-200"
-        />
-        <div className="min-w-0">
-          <div className="font-black text-base text-gray-900 dark:text-white leading-tight truncate">
-            EMTS Lagernaut
-          </div>
-          <div className="text-[11px] text-gray-400 dark:text-gray-500 font-medium truncate">
-            v2.0 · Sömmerda
-          </div>
-        </div>
+      {/*
+        Logo: /public/afb-logo.svg ist ein SVG-Approximation (Navy + Cyan + Grün).
+        TODO Frank: echtes AfB-Logo als afb-logo.svg unter /public/ ablegen.
+      */}
+      <div className="relative px-4 py-5 border-b border-gray-100 dark:border-gray-800">
         {onClose && (
           <button
             onClick={onClose}
             aria-label="Menü schließen"
-            className="ml-auto text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200 text-xl transition-colors w-11 h-11 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 flex-shrink-0"
+            className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200 text-xl transition-colors w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             ×
           </button>
         )}
+        {/* Logo vertikal: Bild oben, Text darunter */}
+        <div className="flex flex-col items-start gap-3">
+          <img
+            src="/afb-logo.svg"
+            alt="AfB"
+            className="h-10 w-auto dark:invert"
+          />
+          <div>
+            <div className="text-base font-bold text-gray-900 dark:text-white leading-tight">
+              EMTS Lagernaut
+            </div>
+            <div className="text-[11px] text-gray-400 dark:text-gray-500 font-medium mt-0.5">
+              v2.0 · Sömmerda
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Navigation ───────────────────────────────────────────────────── */}
@@ -281,9 +284,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
             <div className="flex items-center gap-2 flex-1">
               <img
-                src="https://www.afbshop.de/media/ca/1f/fe/1760428029/logo.svg"
+                src="/afb-logo.svg"
                 alt="AfB"
-                className="h-6 dark:brightness-200 flex-shrink-0"
+                className="h-6 w-auto dark:invert flex-shrink-0"
               />
               <span className="font-black text-gray-900 dark:text-white text-sm">Lagernaut</span>
             </div>
