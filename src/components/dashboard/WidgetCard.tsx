@@ -25,7 +25,7 @@ export function WidgetCard({ title, icon, action, children, minHeight = "200px" 
         <div className="widget-drag-handle flex items-center justify-between px-3 bg-cyan-50 dark:bg-cyan-900/20 border-b border-cyan-200 dark:border-cyan-800 cursor-move select-none flex-shrink-0"
           style={{ minHeight: 44 }}>
           <span className="text-xs text-cyan-700 dark:text-cyan-300 font-medium flex items-center gap-1.5">
-            <span className="text-base leading-none" aria-hidden>⠿</span>
+            <span className="text-sm leading-none tracking-tighter" aria-hidden>⋮⋮</span>
             Ziehen zum Verschieben
           </span>
           <button

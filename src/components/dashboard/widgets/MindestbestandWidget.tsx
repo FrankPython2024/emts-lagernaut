@@ -6,7 +6,7 @@ import { WidgetSkeleton } from "@/components/dashboard/WidgetSkeleton";
 
 export function MindestbestandWidget() {
   const { data, isLoading, error } = api.dashboard.mindestbestand.useQuery(
-    undefined, { staleTime: 120_000 }
+    undefined, { staleTime: 120_000, refetchInterval: 120_000, refetchIntervalInBackground: false }
   );
 
   return (

@@ -11,7 +11,7 @@ function shortDate(iso: string) {
 
 export function AuslagerungsTrendWidget() {
   const { data, isLoading, error } = api.dashboard.auslagerungsTrend.useQuery(
-    undefined, { staleTime: 60_000 }
+    undefined, { staleTime: 60_000, refetchInterval: 60_000, refetchIntervalInBackground: false }
   );
 
   return (

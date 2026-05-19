@@ -5,7 +5,7 @@ import { WidgetSkeleton } from "@/components/dashboard/WidgetSkeleton";
 
 export function LagerplatzHeatmapWidget() {
   const { data, isLoading, error } = api.dashboard.lagerplatzAuslastung.useQuery(
-    undefined, { staleTime: 120_000 }
+    undefined, { staleTime: 120_000, refetchInterval: 120_000, refetchIntervalInBackground: false }
   );
 
   return (
@@ -47,14 +47,20 @@ export function LagerplatzHeatmapWidget() {
                         {plaetze.map(p => (
                           <div
                             key={p.code}
-                            title={p.belegt ? (p.modell ?? "Belegt") : `${p.code} — frei`}
-                            className={`w-4 h-4 rounded-sm cursor-default transition-colors ${
+                            title={p.belegt
+                              ? `${p.code} · belegt${p.modell ? ` mit ${p.modell}` : ""}`
+                              : `${p.code} · frei`}
+                            aria-label={p.belegt
+                              ? `${p.code}, belegt${p.modell ? ` mit ${p.modell}` : ""}`
+                              : `${p.code}, frei`}
+                            className={`w-5 h-5 rounded-sm cursor-default transition-colors text-[9px] font-bold leading-none flex items-center justify-center flex-shrink-0 ${
                               p.belegt
-                                ? "bg-cyan-500 dark:bg-cyan-600"
-                                : "bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                                ? "bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-700"
+                                : "bg-transparent text-gray-300 dark:text-gray-600 border border-dashed border-gray-300 dark:border-gray-600"
                             }`}
-                            aria-label={`${p.code}: ${p.belegt ? "belegt" : "frei"}`}
-                          />
+                          >
+                            {p.belegt ? "✓" : ""}
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -66,13 +72,15 @@ export function LagerplatzHeatmapWidget() {
             <p className="text-sm text-gray-400 text-center py-4">Keine Lagerplätze konfiguriert</p>
           )}
 
-          {/* Legende */}
+          {/* Legende — zweiter visueller Kanal (Symbol + Farbe) für WCAG 1.4.1 */}
           <div className="flex items-center gap-4 mt-3 text-[11px] text-gray-500 dark:text-gray-400">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-cyan-500 inline-block" /> Belegt
+              <span className="w-4 h-4 rounded-sm bg-cyan-100 dark:bg-cyan-900/40 border border-cyan-300 dark:border-cyan-700 flex items-center justify-center text-[8px] font-bold text-cyan-700 dark:text-cyan-300 flex-shrink-0">✓</span>
+              Belegt
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 inline-block" /> Frei
+              <span className="w-4 h-4 rounded-sm bg-transparent border border-dashed border-gray-300 dark:border-gray-600 flex-shrink-0" />
+              Frei
             </span>
           </div>
         </>

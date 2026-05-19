@@ -23,8 +23,8 @@ function StatusDot({ status, label }: { status: Status; label: string }) {
 }
 
 export function SystemStatusWidget() {
-  const { data, isLoading, error, refetch } = api.dashboard.systemStatus.useQuery(
-    undefined, { staleTime: 60_000 }
+  const { data, isLoading, error, refetch, dataUpdatedAt } = api.dashboard.systemStatus.useQuery(
+    undefined, { staleTime: 60_000, refetchInterval: 60_000, refetchIntervalInBackground: false }
   );
 
   return (
@@ -50,10 +50,17 @@ export function SystemStatusWidget() {
           <StatusDot status={data.db}          label="Datenbank"    />
           <StatusDot status={data.meilisearch} label="Meilisearch"  />
           <StatusDot status={data.redis}       label="Redis / Queue" />
-          <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+          <div className="pt-2 border-t border-gray-100 dark:border-gray-800 space-y-1">
             <p className="text-[11px] text-gray-400 dark:text-gray-500">
-              Alle Services: {[data.db, data.meilisearch, data.redis].every(s => s === "ok") ? "✅ Betriebsbereit" : "⚠️ Einige Services haben Probleme"}
+              {[data.db, data.meilisearch, data.redis].every(s => s === "ok")
+                ? "✅ Alle Services betriebsbereit"
+                : "⚠️ Einige Services haben Probleme"}
             </p>
+            {dataUpdatedAt > 0 && (
+              <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                Stand: {new Date(dataUpdatedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </p>
+            )}
           </div>
         </div>
       )}

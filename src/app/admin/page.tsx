@@ -1,13 +1,66 @@
 "use client";
-import { useState } from "react";
-import { PageHeader }     from "@/components/ui/PageHeader";
-import { DashboardGrid }  from "@/components/dashboard/DashboardGrid";
+import { useState, useEffect } from "react";
+import { PageHeader }         from "@/components/ui/PageHeader";
+import { DashboardGrid }      from "@/components/dashboard/DashboardGrid";
 import { useDashboardConfig } from "@/lib/dashboard/useDashboardConfig";
+import { useSocket }          from "@/hooks/useSocket";
+import { EVENTS }             from "@/modules/realtime/events";
+import { api }                from "@/trpc/react";
+
+// Socket.io → tRPC Cache-Invalidierung für Dashboard-Queries (K2-Fix)
+function useDashboardSocketInvalidation() {
+  const { on, off } = useSocket();
+  const utils = api.useUtils();
+
+  useEffect(() => {
+    // Neue Anfrage: KPIs, letzte Anfragen, Status-Verteilung, Aktivität
+    on(EVENTS.ANFRAGE_NEU, () => {
+      void utils.dashboard.stats.invalidate();
+      void utils.dashboard.letzteAnfragen.invalidate();
+      void utils.dashboard.anfragenStatusVerteilung.invalidate();
+      void utils.dashboard.aktivitaetsProtokoll.invalidate();
+      void utils.dashboard.technikerAktivitaet.invalidate();
+    });
+
+    // Status-Änderung (ABGESCHLOSSEN, STORNIERT, BEDARF usw.)
+    on(EVENTS.ANFRAGE_UPDATED, () => {
+      void utils.dashboard.stats.invalidate();
+      void utils.dashboard.anfragenStatusVerteilung.invalidate();
+      void utils.dashboard.aktivitaetsProtokoll.invalidate();
+      void utils.dashboard.topTeiltypen.invalidate();
+    });
+
+    // Neue Buchung: KPIs, Buchungen-Liste, Trend, Top-Teile, Aktivität
+    on(EVENTS.BUCHUNG_ERSTELLT, () => {
+      void utils.dashboard.stats.invalidate();
+      void utils.dashboard.letzteBuchungen.invalidate();
+      void utils.dashboard.auslagerungsTrend.invalidate();
+      void utils.dashboard.topTeiltypen.invalidate();
+      void utils.dashboard.aktivitaetsProtokoll.invalidate();
+    });
+
+    // Bestand-Update: KPIs + Mindestbestand-Alarm
+    on(EVENTS.BESTAND_UPDATED, () => {
+      void utils.dashboard.stats.invalidate();
+      void utils.dashboard.mindestbestand.invalidate();
+    });
+
+    return () => {
+      off(EVENTS.ANFRAGE_NEU);
+      off(EVENTS.ANFRAGE_UPDATED);
+      off(EVENTS.BUCHUNG_ERSTELLT);
+      off(EVENTS.BESTAND_UPDATED);
+    };
+  }, [on, off, utils]);
+}
 
 // Separater Inner-Component damit useDashboardConfig (localStorage) nur Client-seitig läuft
 function DashboardContent() {
   const [editMode, setEditMode] = useState(false);
   const { resetToDefault }      = useDashboardConfig();
+
+  // K2-Fix: Socket.io-Events invalidieren tRPC-Cache
+  useDashboardSocketInvalidation();
 
   const now = new Date().toLocaleString("de-DE", {
     day: "2-digit", month: "2-digit", year: "numeric",
@@ -18,7 +71,7 @@ function DashboardContent() {
     <div className="space-y-4">
       <PageHeader
         title="Dashboard"
-        subtitle={`Stand: ${now} · Widgets aktualisieren sich automatisch`}
+        subtitle={`Stand: ${now} · Auto-Refresh aktiv`}
         action={
           <div className="flex items-center gap-2">
             {editMode && (

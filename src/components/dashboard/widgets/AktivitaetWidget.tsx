@@ -2,16 +2,7 @@
 import { api } from "@/trpc/react";
 import { WidgetCard } from "@/components/dashboard/WidgetCard";
 import { WidgetSkeleton } from "@/components/dashboard/WidgetSkeleton";
-
-function relTime(d: Date | string) {
-  const diff = Date.now() - new Date(d).getTime();
-  const min  = Math.floor(diff / 60_000);
-  if (min < 1)  return "gerade eben";
-  if (min < 60) return `vor ${min} Min`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `vor ${h} Std`;
-  return `vor ${Math.floor(h / 24)} Tagen`;
-}
+import { relTime } from "@/lib/utils/relativeTime";
 
 const BADGE: Record<string, string> = {
   EINGANG:        "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",

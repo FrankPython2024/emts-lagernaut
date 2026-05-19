@@ -8,7 +8,7 @@ const COLORS = ["#008BD2","#04B475","#202F61","#F59E0B","#EF4444","#8B5CF6","#EC
 
 export function TopTeiltypenWidget() {
   const { data, isLoading, error } = api.dashboard.topTeiltypen.useQuery(
-    undefined, { staleTime: 120_000 }
+    undefined, { staleTime: 120_000, refetchInterval: 120_000, refetchIntervalInBackground: false }
   );
 
   return (

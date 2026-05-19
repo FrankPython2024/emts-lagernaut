@@ -5,7 +5,7 @@ import { WidgetSkeleton } from "@/components/dashboard/WidgetSkeleton";
 
 export function TechnikerAktivitaetWidget() {
   const { data, isLoading, error } = api.dashboard.technikerAktivitaet.useQuery(
-    undefined, { staleTime: 60_000 }
+    undefined, { staleTime: 60_000, refetchInterval: 60_000, refetchIntervalInBackground: false }
   );
 
   return (

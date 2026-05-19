@@ -4,16 +4,8 @@ import { api } from "@/trpc/react";
 import { WidgetCard } from "@/components/dashboard/WidgetCard";
 import { WidgetSkeleton } from "@/components/dashboard/WidgetSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { relTime } from "@/lib/utils/relativeTime";
 import type { AnfrageStatus } from "@prisma/client";
-
-function relTime(d: Date | string) {
-  const diff = Date.now() - new Date(d).getTime();
-  const min  = Math.floor(diff / 60_000);
-  if (min < 60) return `${min}min`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
-}
 
 export function LetzteAnfragenWidget() {
   const { data, isLoading, error } = api.dashboard.letzteAnfragen.useQuery(

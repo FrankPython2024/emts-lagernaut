@@ -6,7 +6,7 @@ import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recha
 
 export function AnfragenStatusWidget() {
   const { data, isLoading, error } = api.dashboard.anfragenStatusVerteilung.useQuery(
-    undefined, { staleTime: 60_000 }
+    undefined, { staleTime: 60_000, refetchInterval: 60_000, refetchIntervalInBackground: false }
   );
 
   return (
