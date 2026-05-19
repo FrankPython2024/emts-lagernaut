@@ -47,8 +47,8 @@ export async function legeModellAn(
     for (const teil of STANDARD_TEILNAMEN) {
       const bezeichnung = `${kanonischerName} ${teil}`;
 
-      const vorher = await tx.artikel.findUnique({
-        where: { bezeichnung_kategorie: { bezeichnung, kategorie: teil } },
+      const vorher = await tx.artikel.findFirst({
+        where: { bezeichnung, kategorie: teil, standortId: 1 }, // TODO Phase 2: aus User-Kontext (ctx.user.standortId ?? Filter)
         select: { id: true },
       });
 
