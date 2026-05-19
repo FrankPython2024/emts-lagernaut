@@ -70,29 +70,47 @@ function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose
   const user = session?.user as { name?: string; kuerzel?: string; rolle?: string } | undefined;
 
   return (
-    <aside className="flex flex-col h-full" style={{ background: "linear-gradient(180deg, #202F61 0%, #1A2550 100%)" }}>
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
+    // Light: bg-white border-r border-gray-200
+    // Dark:  bg-gray-900 border-r border-gray-800
+    // Navy (#202F61) bleibt Akzent-Farbe, nicht Background
+    <aside className="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
+
+      {/* ── Logo-Bereich ─────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 px-5 py-5 border-b border-gray-100 dark:border-gray-800">
+        {/*
+          AfB-Logo: kein lokales File in /public/ gefunden.
+          Nutze externen CDN-Link. TODO: logo.svg nach /public/ kopieren.
+        */}
         <img
           src="https://www.afbshop.de/media/ca/1f/fe/1760428029/logo.svg"
-          alt="AfB"
-          className="h-7 bg-white/90 rounded p-0.5"
+          alt="AfB Logo"
+          className="h-10 flex-shrink-0 dark:brightness-200"
         />
-        <div>
-          <div className="font-black text-sm text-white leading-none">Lagernaut</div>
-          <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#008BD2" }}>Admin</div>
+        <div className="min-w-0">
+          <div className="font-black text-base text-gray-900 dark:text-white leading-tight truncate">
+            EMTS Lagernaut
+          </div>
+          <div className="text-[11px] text-gray-400 dark:text-gray-500 font-medium truncate">
+            v2.0 · Sömmerda
+          </div>
         </div>
         {onClose && (
-          <button onClick={onClose} aria-label="Menü schließen" className="ml-auto text-white/60 hover:text-white text-xl transition-colors w-11 h-11 flex items-center justify-center rounded-lg hover:bg-white/10">×</button>
+          <button
+            onClick={onClose}
+            aria-label="Menü schließen"
+            className="ml-auto text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200 text-xl transition-colors w-11 h-11 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 flex-shrink-0"
+          >
+            ×
+          </button>
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-3 overflow-y-auto">
+      {/* ── Navigation ───────────────────────────────────────────────────── */}
+      <nav className="flex-1 px-3 py-3 overflow-y-auto sidebar-scroll">
         {NAV_SECTIONS.map((section) => (
           <div key={section.title} className="mb-1">
             {/* Sektion-Header */}
-            <div className="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-widest text-white/35 select-none">
+            <div className="px-3 pt-6 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 select-none first:pt-2">
               {section.title}
             </div>
 
@@ -106,16 +124,16 @@ function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose
                   key={href}
                   href={href}
                   onClick={onClose}
-                  className={`flex items-center gap-3 px-3 py-3 rounded-lg mb-0.5 text-sm font-medium transition-all min-h-[44px] ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg mb-0.5 text-sm transition-all min-h-[44px] ${
                     active
-                      ? "text-white font-semibold"
-                      : "text-white/60 hover:text-white hover:bg-white/8"
+                      ? "bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 font-semibold"
+                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white font-medium"
                   }`}
-                  style={active
-                    ? { background: "rgba(0,139,210,0.22)", borderLeft: "3px solid #008BD2", paddingLeft: "0.625rem" }
-                    : undefined}
+                  style={active ? { borderLeft: "3px solid #008BD2", paddingLeft: "0.625rem" } : undefined}
                 >
-                  <span className="text-base w-5 text-center flex-shrink-0">{icon}</span>
+                  <span className={`text-base w-5 text-center flex-shrink-0 ${active ? "text-cyan-600 dark:text-cyan-400" : "text-gray-400 dark:text-gray-500"}`}>
+                    {icon}
+                  </span>
                   {label}
                 </Link>
               );
@@ -124,46 +142,54 @@ function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose
         ))}
       </nav>
 
-      {/* Footer */}
-      <div className="px-3 py-4 border-t border-white/10 space-y-1">
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <div className="px-3 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 space-y-1">
+
         {/* Globale Suche */}
         {onSearch && (
           <button
             onClick={onSearch}
             title="Globale Suche (Strg+K)"
-            className="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-sm text-white/65 hover:text-white hover:bg-white/10 transition-colors min-h-[44px]"
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-colors min-h-[44px]"
           >
-            <span>🔍</span>
+            <span className="text-gray-400 dark:text-gray-500 w-5 text-center text-base">🔍</span>
             <span className="flex-1 text-left">Suchen</span>
-            <kbd className="text-[10px] text-white/30 bg-white/10 px-1.5 py-0.5 rounded font-mono">Strg+K</kbd>
+            <kbd className="text-[10px] text-gray-400 dark:text-gray-600 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded font-mono border border-gray-200 dark:border-gray-700">
+              Strg+K
+            </kbd>
           </button>
         )}
 
         {/* Schriftgröße */}
         <div className="flex items-center gap-2 px-3 py-1">
-          <span className="text-xs text-white/40 font-semibold uppercase tracking-wide flex-1">Schrift</span>
+          <span className="text-[11px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide flex-1">Schrift</span>
           <FontSizeToggle />
         </div>
 
+        {/* Dark-Mode-Toggle */}
         <button
           onClick={toggleTheme}
-          className="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-sm text-white/65 hover:text-white hover:bg-white/10 transition-colors min-h-[44px]"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-colors min-h-[44px]"
         >
-          <span>{dark ? "☀️" : "🌙"}</span>
-          <span>{dark ? "Hell" : "Dunkel"}</span>
+          <span className="w-5 text-center text-base">{dark ? "☀️" : "🌙"}</span>
+          <span>{dark ? "Hellmodus" : "Dunkelmodus"}</span>
         </button>
 
+        {/* User-Card */}
         {user && (
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-8 h-8 rounded-full text-white text-xs font-black flex items-center justify-center flex-shrink-0" style={{ background: "#008BD2" }}>
-              {user.kuerzel?.slice(0, 2) ?? "??"}
+          <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-100/60 dark:bg-gray-800/60 mt-1">
+            <div
+              className="w-8 h-8 rounded-full text-white text-xs font-black flex items-center justify-center flex-shrink-0"
+              style={{ background: "#008BD2" }}
+            >
+              {user.kuerzel?.slice(0, 2).toUpperCase() ?? "??"}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-white truncate">{user.name}</div>
-              <div className="text-[10px] text-white/50">{user.rolle}</div>
+              <div className="text-xs font-bold text-gray-900 dark:text-white truncate">{user.name}</div>
+              <div className="text-[10px] text-gray-500 dark:text-gray-400">{user.rolle}</div>
             </div>
             <LogoutButton
-              className="text-white/50 hover:text-[#fa3e3e] text-sm transition-colors"
+              className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 text-sm transition-colors p-1 rounded min-w-[32px] min-h-[32px] flex items-center justify-center"
               title="Abmelden"
             >
               🚪
@@ -228,14 +254,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <div className="flex h-screen bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden">
         {/* Desktop Sidebar */}
-        <div className="hidden lg:flex flex-col w-60 flex-shrink-0">
+        <div className="hidden lg:flex flex-col w-64 flex-shrink-0">
           <Sidebar collapsed={false} onSearch={() => setSearchOpen(true)} />
         </div>
 
         {/* Mobile Overlay */}
         {mobileOpen && (
           <div className="fixed inset-0 z-50 flex lg:hidden">
-            <div className="w-60 flex-shrink-0 flex flex-col shadow-2xl">
+            <div className="w-64 flex-shrink-0 flex flex-col shadow-2xl">
               <Sidebar collapsed={false} onClose={() => setMobileOpen(false)} onSearch={() => { setMobileOpen(false); setSearchOpen(true); }} />
             </div>
             <div className="flex-1 bg-black/50" onClick={() => setMobileOpen(false)} />
@@ -245,21 +271,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Main */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Mobile Topbar */}
-          <div className="lg:hidden flex items-center gap-3 px-4 py-3 shadow-sm" style={{ background: "var(--afb-navy)" }}>
+          <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
             <button
               onClick={() => setMobileOpen(true)}
               aria-label="Menü öffnen"
-              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               ☰
             </button>
-            <span className="font-black text-white flex-1">Lagernaut Admin</span>
+            <div className="flex items-center gap-2 flex-1">
+              <img
+                src="https://www.afbshop.de/media/ca/1f/fe/1760428029/logo.svg"
+                alt="AfB"
+                className="h-6 dark:brightness-200 flex-shrink-0"
+              />
+              <span className="font-black text-gray-900 dark:text-white text-sm">Lagernaut</span>
+            </div>
             {/* Mobile Suche */}
             <button
               onClick={() => setSearchOpen(true)}
               aria-label="Globale Suche öffnen"
               title="Globale Suche (Strg+K)"
-              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors text-lg"
+              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-lg"
             >
               🔍
             </button>
