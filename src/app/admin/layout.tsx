@@ -89,7 +89,7 @@ function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose
         {/* Logo vertikal: Bild oben, Text darunter */}
         <div className="flex flex-col items-start gap-3">
           <img
-            src="/afb-logo.png"
+            src="/afb-logo-svg.svg"
             alt="AfB"
             className="h-10 w-auto"
           />
@@ -280,7 +280,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
             <div className="flex items-center gap-2 flex-1">
               <img
-                src="/afb-logo.png"
+                src="/afb-logo-svg.svg"
                 alt="AfB"
                 className="h-6 w-auto flex-shrink-0"
               />
