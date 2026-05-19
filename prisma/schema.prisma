@@ -31,7 +31,7 @@ enum UserRolle {
 
 model Artikel {
   id          Int               @id @default(autoincrement())
-  bezeichnung String
+  bezeichnung String            @db.VarChar(255) // TODO: 47 Drift-Artikel mit Marketing-Text bereinigen
   lagerplatz  String?
   kategorie   String
   bestand     Int               @default(0)
@@ -69,29 +69,29 @@ enum BuchungsTyp {
 }
 
 model Anfrage {
-  id          Int           @id @default(autoincrement())
-  datum       DateTime      @default(now())
-  techniker   String
-  logId       String
-  geraeteName String?
-  geraet      String
-  artikelId   Int?
-  teil        String
-  menge       Int           @default(1)
-  grading     String?
-  kommentar   String?
-  gruppenNr   String?
-  korbId      Int?
-  korb        Warenkorb?     @relation(fields: [korbId], references: [id], onDelete: SetNull)
-  istSonderAnfrage Boolean   @default(false)
-  beschreibung     String?   @db.Text
+  id               Int           @id @default(autoincrement())
+  datum            DateTime      @default(now())
+  techniker        String
+  logId            String
+  geraeteName      String?
+  geraet           String
+  artikelId        Int?
+  teil             String
+  menge            Int           @default(1)
+  grading          String?
+  kommentar        String?
+  gruppenNr        String?
+  korbId           Int?
+  korb             Warenkorb?    @relation(fields: [korbId], references: [id], onDelete: SetNull)
+  istSonderAnfrage Boolean       @default(false)
+  beschreibung     String?       @db.Text
   sonderKategorie  String?
-  status          AnfrageStatus  @default(NEU)
-  bearbeitetVon   String?
-  bearbeitetSeit  DateTime?
-  artikel         Artikel?       @relation(fields: [artikelId], references: [id])
-  createdAt       DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  status           AnfrageStatus @default(NEU)
+  bearbeitetVon    String?
+  bearbeitetSeit   DateTime?
+  artikel          Artikel?      @relation(fields: [artikelId], references: [id])
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   @@index([techniker])
   @@index([status])
@@ -120,14 +120,14 @@ model Kompatibilitaet {
 }
 
 model GeraeteModell {
-  id                Int         @id @default(autoincrement())
-  hersteller        String
-  modell            String
-  aktiv             Boolean     @default(true)
-  deaktiviertGrund  String?     @db.VarChar(191)
-  deaktiviertAm     DateTime?
-  createdAt         DateTime    @default(now())
-  lagerplatz        Lagerplatz?
+  id               Int         @id @default(autoincrement())
+  hersteller       String
+  modell           String
+  aktiv            Boolean     @default(true)
+  deaktiviertGrund String?     @db.VarChar(191)
+  deaktiviertAm    DateTime?
+  createdAt        DateTime    @default(now())
+  lagerplatz       Lagerplatz?
 
   @@unique([hersteller, modell])
   @@index([aktiv])
@@ -135,12 +135,12 @@ model GeraeteModell {
 
 model Lagerplatz {
   id         Int            @id @default(autoincrement())
-  code       String         @unique           // "ETL-1-6-5"
-  regal      Int                              // logische Regal-Nr
-  reihe      Int                              // physische Reihen-Nr (für Anzeige)
+  code       String         @unique // "ETL-1-6-5"
+  regal      Int // logische Regal-Nr
+  reihe      Int // physische Reihen-Nr (für Anzeige)
   ebene      Int
   fach       Int
-  hersteller String?                          // "HP" | "Lenovo" | "Dell" | null
+  hersteller String? // "HP" | "Lenovo" | "Dell" | null
   modellId   Int?           @unique
   modell     GeraeteModell? @relation(fields: [modellId], references: [id], onDelete: SetNull)
   createdAt  DateTime       @default(now())
@@ -155,7 +155,7 @@ model GeraeteLookup {
   id          Int      @id @default(autoincrement())
   logId       String   @unique
   logIdClean  String
-  bezeichnung String
+  bezeichnung String   @db.Text // TEXT: Marketing-Beschreibungen bis 514+ Zeichen
   bereinigt   String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -184,17 +184,17 @@ enum KorbStatus {
 }
 
 model WarenkorbItem {
-  id               Int      @id @default(autoincrement())
+  id               Int       @id @default(autoincrement())
   korbId           Int
   artikelId        Int?
   teiltyp          String?
   grading          String?
   zusatzinfo       String?
-  istSonderAnfrage Boolean  @default(false)
-  beschreibung     String?  @db.Text
+  istSonderAnfrage Boolean   @default(false)
+  beschreibung     String?   @db.Text
   sonderKategorie  String?
-  korb       Warenkorb @relation(fields: [korbId], references: [id])
-  artikel    Artikel?  @relation(fields: [artikelId], references: [id])
+  korb             Warenkorb @relation(fields: [korbId], references: [id])
+  artikel          Artikel?  @relation(fields: [artikelId], references: [id])
 }
 
 model TechnikerSession {
