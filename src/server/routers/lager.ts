@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { standortWhere, resolveStandortId } from "@/lib/auth/standortFilter";
+import type { SessionUser } from "@/core/types";
 import {
   sucheArtikel,
   sucheArtikelAdmin,
@@ -22,20 +24,23 @@ export const lagerRouter = createTRPCRouter({
       limit:  z.number().int().min(1).max(50).default(20),
       offset: z.number().int().min(0).default(0),
     }))
-    .query(({ input }) =>
-      sucheArtikel(input.query),
-    ),
+    .query(({ input, ctx }) => {
+      const sId = (ctx.session.user as SessionUser).standortId;
+      return sucheArtikel(input.query, sId);
+    }),
 
   // Suche mit Lagerplatz — nur Admin
   searchAdmin: adminProcedure
     .input(z.object({
-      query:  z.string().min(1).max(200),
-      limit:  z.number().int().min(1).max(50).default(20),
-      offset: z.number().int().min(0).default(0),
+      query:      z.string().min(1).max(200),
+      limit:      z.number().int().min(1).max(50).default(20),
+      offset:     z.number().int().min(0).default(0),
+      standortId: z.number().int().positive().nullish(),
     }))
-    .query(({ input }) =>
-      sucheArtikelAdmin(input),
-    ),
+    .query(({ input, ctx }) => {
+      const sId = standortWhere(ctx, input.standortId).standortId as number | undefined;
+      return sucheArtikelAdmin({ ...input, standortId: sId ?? null });
+    }),
 
   // Alle Artikel mit Filter + Pagination — Admin
   getAll: adminProcedure
@@ -48,10 +53,12 @@ export const lagerRouter = createTRPCRouter({
       sortOrder:  z.enum(["asc", "desc"]).optional(),
       page:       z.number().int().min(1).default(1),
       limit:      z.number().int().min(1).max(200).default(50),
+      standortId: z.number().int().positive().nullish(),
     }).optional())
-    .query(({ input }) =>
-      getAlleArtikel(input),
-    ),
+    .query(({ input, ctx }) => {
+      const filter = standortWhere(ctx, input?.standortId);
+      return getAlleArtikel({ ...input, standortId: (filter.standortId as number | undefined) ?? null });
+    }),
 
   // Artikel per ID — ohne Lagerplatz (Techniker-Portal)
   getById: protectedProcedure
@@ -81,10 +88,12 @@ export const lagerRouter = createTRPCRouter({
       bezeichnung: z.string().min(1).max(255),
       kategorie:   z.string().min(1).max(100),
       lagerplatz:  z.string().max(50).optional(),
+      standortId:  z.number().int().positive().optional(),
     }))
-    .mutation(({ input }) =>
-      createArtikel(input),
-    ),
+    .mutation(({ input, ctx }) => {
+      const standortId = resolveStandortId(ctx, input.standortId);
+      return createArtikel({ ...input, standortId });
+    }),
 
   // Artikel aktualisieren — Admin
   update: adminProcedure

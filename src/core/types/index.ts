@@ -52,11 +52,12 @@ export type WarenkorbWithItems = Warenkorb & {
 
 // Session-Payload für NextAuth
 export type SessionUser = {
-  id: number;
-  name: string;
-  kuerzel: string;
-  email: string;
-  rolle: UserRolle;
+  id:          number;
+  name:        string;
+  kuerzel:     string;
+  email:       string;
+  rolle:       UserRolle;
+  standortId?: number | null; // null = Admin (alle Standorte), Zahl = Techniker-Standort
 };
 
 // Buchungs-Abschluss für Label/Beleg

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { resolveStandortId } from "@/lib/auth/standortFilter";
 import {
   legeModellAn,
   legeEinzelteilAn,
@@ -42,9 +43,10 @@ export const geraeteRouter = createTRPCRouter({
       hersteller: z.string().min(1).max(100),
       modell:     z.string().min(1).max(100),
     }))
-    .mutation(({ input }) =>
-      legeModellAn(input.hersteller, input.modell),
-    ),
+    .mutation(({ input, ctx }) => {
+      const standortId = resolveStandortId(ctx);
+      return legeModellAn(input.hersteller, input.modell, standortId);
+    }),
 
   // Einzelnes Ersatzteil zu Modell hinzufügen — Admin
   legeEinzelteilAn: adminProcedure

@@ -222,16 +222,18 @@ export async function loescheBuchung(id: number): Promise<number> {
  * Buchungshistorie mit Filter und Pagination.
  */
 export async function getBuchungsListe(input: {
-  artikelId?: number;
-  typ?:       BuchungsTyp;
-  von?:       Date;
-  bis?:       Date;
-  limit:      number;
-  offset:     number;
+  artikelId?:  number;
+  typ?:        BuchungsTyp;
+  von?:        Date;
+  bis?:        Date;
+  limit:       number;
+  offset:      number;
+  standortId?: number | null;
 }) {
   const where = {
-    ...(input.artikelId && { artikelId: input.artikelId }),
-    ...(input.typ       && { typ: input.typ }),
+    ...(input.artikelId  && { artikelId: input.artikelId }),
+    ...(input.standortId != null && { artikel: { standortId: input.standortId } }),
+    ...(input.typ        && { typ: input.typ }),
     ...(input.von || input.bis
       ? { datum: {
             ...(input.von && { gte: input.von }),

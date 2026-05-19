@@ -364,12 +364,14 @@ export async function getAnfragenByTechniker(data: {
 }
 
 export async function getAnfragenGruppiert(input?: {
-  status?:    AnfrageStatus;
-  techniker?: string;
-  von?:       Date;
-  bis?:       Date;
+  status?:     AnfrageStatus;
+  techniker?:  string;
+  von?:        Date;
+  bis?:        Date;
+  standortId?: number | null;
 }): Promise<GruppenAnfrage[]> {
   const where = {
+    ...(input?.standortId != null && { artikel: { standortId: input.standortId } }),
     ...(input?.status    && { status: input.status }),
     ...(input?.techniker && { techniker: input.techniker.toUpperCase().trim() }),
     ...(input?.von || input?.bis
@@ -425,14 +427,16 @@ export async function getAnfragenGruppiert(input?: {
 }
 
 export async function getAnfragenAdmin(input: {
-  status?:    AnfrageStatus;
-  techniker?: string;
-  von?:       Date;
-  bis?:       Date;
-  limit:      number;
-  offset:     number;
+  status?:     AnfrageStatus;
+  techniker?:  string;
+  von?:        Date;
+  bis?:        Date;
+  limit:       number;
+  offset:      number;
+  standortId?: number | null;
 }) {
   const where = {
+    ...(input.standortId != null && { artikel: { standortId: input.standortId } }),
     ...(input.status    && { status: input.status }),
     ...(input.techniker && { techniker: input.techniker.toUpperCase().trim() }),
     ...(input.von || input.bis

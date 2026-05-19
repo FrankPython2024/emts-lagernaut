@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, adminProcedure } from "@/server/trpc";
 import { extractSerie } from "@/lib/lager/serien";
 import { prisma as _prisma } from "@/core/db/prisma";
+import { standortWhere } from "@/lib/auth/standortFilter";
 
 type PrismaInstance = typeof _prisma;
 
@@ -129,6 +130,7 @@ export const lagerplatzRouter = createTRPCRouter({
 
   list: adminProcedure.query(({ ctx }) =>
     ctx.prisma.lagerplatz.findMany({
+      where:   standortWhere(ctx),
       include: { modell: { select: { id: true, modell: true, hersteller: true } } },
       orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
     })
@@ -137,6 +139,7 @@ export const lagerplatzRouter = createTRPCRouter({
   // Leichtgewichtige Übersicht für Grid-Anzeige (kein Artikel-Load)
   uebersicht: adminProcedure.query(({ ctx }) =>
     ctx.prisma.lagerplatz.findMany({
+      where:   standortWhere(ctx),
       include: { modell: { select: { id: true, modell: true, hersteller: true } } },
       orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
     })
@@ -217,6 +220,7 @@ export const lagerplatzRouter = createTRPCRouter({
     .query(({ ctx, input }) =>
       ctx.prisma.lagerplatz.findMany({
         where: {
+          ...standortWhere(ctx),
           modellId: null,
           ...(input.hersteller ? { hersteller: input.hersteller } : {}),
         },

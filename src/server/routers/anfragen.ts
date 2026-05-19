@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AnfrageStatus, BuchungsTyp } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { standortWhere } from "@/lib/auth/standortFilter";
 import {
   erstelleAnfrage,
   storniereAnfrage,
@@ -41,14 +42,19 @@ export const anfragenRouter = createTRPCRouter({
   // Alle Anfragen — Admin mit Filter
   getAll: adminProcedure
     .input(z.object({
-      status:    z.nativeEnum(AnfrageStatus).optional(),
-      techniker: z.string().optional(),
-      von:       z.date().optional(),
-      bis:       z.date().optional(),
-      limit:     z.number().int().min(1).max(100).default(50),
-      offset:    z.number().int().min(0).default(0),
+      status:     z.nativeEnum(AnfrageStatus).optional(),
+      techniker:  z.string().optional(),
+      von:        z.date().optional(),
+      bis:        z.date().optional(),
+      limit:      z.number().int().min(1).max(100).default(50),
+      offset:     z.number().int().min(0).default(0),
+      standortId: z.number().int().positive().nullish(),
     }).optional())
-    .query(({ input }) => getAnfragenAdmin({ limit: 50, offset: 0, ...input })),
+    .query(({ input, ctx }) => {
+      const sF = standortWhere(ctx, input?.standortId);
+      const sId = sF.standortId as number | undefined ?? null;
+      return getAnfragenAdmin({ limit: 50, offset: 0, ...input, standortId: sId });
+    }),
 
   // Anfragen eines Technikers
   getByTechniker: protectedProcedure
@@ -154,12 +160,17 @@ export const anfragenRouter = createTRPCRouter({
   // Gruppenansicht — Admin
   getGruppiert: adminProcedure
     .input(z.object({
-      status:    z.nativeEnum(AnfrageStatus).optional(),
-      techniker: z.string().optional(),
-      von:       z.date().optional(),
-      bis:       z.date().optional(),
+      status:     z.nativeEnum(AnfrageStatus).optional(),
+      techniker:  z.string().optional(),
+      von:        z.date().optional(),
+      bis:        z.date().optional(),
+      standortId: z.number().int().positive().nullish(),
     }).optional())
-    .query(({ input }) => getAnfragenGruppiert(input)),
+    .query(({ input, ctx }) => {
+      const sF = standortWhere(ctx, input?.standortId);
+      const sId = sF.standortId as number | undefined ?? null;
+      return getAnfragenGruppiert({ ...input, standortId: sId });
+    }),
 
   // ── Lock-System ────────────────────────────────────────────────────────────
 

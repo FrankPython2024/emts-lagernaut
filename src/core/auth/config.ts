@@ -34,11 +34,12 @@ export const authOptions: NextAuthOptions = {
         });
 
         return {
-          id: String(user.id),
-          name: user.name,
-          email: user.email,
-          kuerzel: user.kuerzel,
-          rolle: user.rolle,
+          id:         String(user.id),
+          name:       user.name,
+          email:      user.email,
+          kuerzel:    user.kuerzel,
+          rolle:      user.rolle,
+          standortId: user.standortId ?? null,
         };
       },
     }),
@@ -46,17 +47,19 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     jwt({ token, user }) {
       if (user) {
-        token.id = Number(user.id);
-        token.kuerzel = (user as SessionUser & { id: string }).kuerzel;
-        token.rolle = (user as SessionUser & { id: string }).rolle;
+        token.id         = Number(user.id);
+        token.kuerzel    = (user as SessionUser & { id: string }).kuerzel;
+        token.rolle      = (user as SessionUser & { id: string }).rolle;
+        token.standortId = (user as SessionUser & { id: string }).standortId ?? null;
       }
       return token;
     },
     session({ session, token }) {
       if (session.user) {
-        (session.user as SessionUser).id = token.id as number;
-        (session.user as SessionUser).kuerzel = token.kuerzel as string;
-        (session.user as SessionUser).rolle = token.rolle as SessionUser["rolle"];
+        (session.user as SessionUser).id         = token.id as number;
+        (session.user as SessionUser).kuerzel    = token.kuerzel as string;
+        (session.user as SessionUser).rolle      = token.rolle as SessionUser["rolle"];
+        (session.user as SessionUser).standortId = token.standortId as number | null | undefined;
       }
       return session;
     },

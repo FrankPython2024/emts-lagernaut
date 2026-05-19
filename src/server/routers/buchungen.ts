@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { BuchungsTyp } from "@prisma/client";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { standortWhere } from "@/lib/auth/standortFilter";
 import {
   bucheLager,
   getBuchungsListe,
@@ -72,16 +73,19 @@ export const buchungenRouter = createTRPCRouter({
   // Buchungshistorie mit Filter
   getAll: protectedProcedure
     .input(z.object({
-      artikelId: z.number().int().positive().optional(),
-      typ:       z.nativeEnum(BuchungsTyp).optional(),
-      von:       z.date().optional(),
-      bis:       z.date().optional(),
-      limit:     z.number().int().min(1).max(200).default(50),
-      offset:    z.number().int().min(0).default(0),
+      artikelId:  z.number().int().positive().optional(),
+      typ:        z.nativeEnum(BuchungsTyp).optional(),
+      von:        z.date().optional(),
+      bis:        z.date().optional(),
+      limit:      z.number().int().min(1).max(200).default(50),
+      offset:     z.number().int().min(0).default(0),
+      standortId: z.number().int().positive().nullish(),
     }).optional())
-    .query(({ input }) =>
-      getBuchungsListe({ limit: 50, offset: 0, ...input }),
-    ),
+    .query(({ input, ctx }) => {
+      const sF  = standortWhere(ctx, input?.standortId);
+      const sId = sF.standortId as number | undefined ?? null;
+      return getBuchungsListe({ limit: 50, offset: 0, ...input, standortId: sId });
+    }),
 
   // Buchungen für einen Artikel
   getByArtikel: protectedProcedure

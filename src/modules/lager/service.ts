@@ -6,11 +6,13 @@ import { meilisearchSync } from "@/core/infra/meilisearchSync";
  * Volltextsuche für das Techniker-Portal.
  * KEIN Lagerplatz im Ergebnis — Techniker dürfen ihn nicht sehen.
  */
-export async function sucheArtikel(query: string) {
-  const q = query.trim();
+export async function sucheArtikel(query: string, standortId?: number | null) {
+  const q   = query.trim();
+  const sF  = standortId != null ? { standortId } : {};
 
   const direktTreffer = await prisma.artikel.findMany({
     where: {
+      ...sF,
       OR: [
         { bezeichnung: { contains: q } },
         { kategorie:   { contains: q } },
@@ -22,7 +24,7 @@ export async function sucheArtikel(query: string) {
 
   // Treffer über Kompatibilitäts-Gerätename (z.B. "HP 840 G5")
   const kompTreffer = await prisma.kompatibilitaet.findMany({
-    where: { geraet: { contains: q } },
+    where: { geraet: { contains: q }, ...(standortId != null ? { artikel: { standortId } } : {}) },
     include: {
       artikel: { include: { kompatibel: { select: { geraet: true } } } },
     },
@@ -53,8 +55,8 @@ export async function sucheArtikel(query: string) {
 /**
  * Volltextsuche MIT Lagerplatz — nur für Admin-Bereich.
  */
-export async function sucheArtikelAdmin(input: { query: string; limit?: number; offset?: number }) {
-  const treffer = await sucheArtikel(input.query);
+export async function sucheArtikelAdmin(input: { query: string; limit?: number; offset?: number; standortId?: number | null }) {
+  const treffer = await sucheArtikel(input.query, input.standortId);
   const ids     = treffer.map((t) => t.id);
 
   const mitLagerplatz = await prisma.artikel.findMany({
@@ -113,14 +115,15 @@ export async function getArtikelMitLagerplatz(id: number) {
 }
 
 export type ArtikelFilter = {
-  search?:    string;
-  kategorie?: string;
+  search?:     string;
+  kategorie?:  string;
   lagerplatz?: string;
-  bestand?:   "alle" | "vorhanden" | "leer" | "kritisch";
-  sortBy?:    "bezeichnung" | "bestand" | "kategorie" | "updatedAt";
-  sortOrder?: "asc" | "desc";
-  page?:      number;
-  limit?:     number;
+  bestand?:    "alle" | "vorhanden" | "leer" | "kritisch";
+  sortBy?:     "bezeichnung" | "bestand" | "kategorie" | "updatedAt";
+  sortOrder?:  "asc" | "desc";
+  page?:       number;
+  limit?:      number;
+  standortId?: number | null;
 };
 
 /**
@@ -132,6 +135,8 @@ export async function getAlleArtikel(input?: ArtikelFilter) {
   const offset = (page - 1) * limit;
 
   const where: Record<string, unknown> = {};
+
+  if (input?.standortId != null) where.standortId = input.standortId;
 
   if (input?.search) {
     where.OR = [
@@ -184,9 +189,10 @@ export async function createArtikel(data: {
   bezeichnung: string;
   kategorie:   string;
   lagerplatz?: string;
+  standortId?: number;
 }) {
   const artikel = await prisma.artikel.create({
-    data: { ...data, bestand: 0 },
+    data: { ...data, bestand: 0, standortId: data.standortId ?? 1 },
   });
   meilisearchSync.artikel(artikel.id);
   return artikel;

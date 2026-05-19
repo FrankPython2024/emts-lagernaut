@@ -19,8 +19,9 @@ export type ModellAnlegenResult = {
  * - Kompatibilitaet Einträge
  */
 export async function legeModellAn(
-  hersteller: string,
-  modell:     string,
+  hersteller:  string,
+  modell:      string,
+  standortId?: number,
 ): Promise<ModellAnlegenResult> {
   const herstellerClean = hersteller.trim();
   const modellClean     = modell.trim();
@@ -48,12 +49,12 @@ export async function legeModellAn(
       const bezeichnung = `${kanonischerName} ${teil}`;
 
       const vorher = await tx.artikel.findFirst({
-        where: { bezeichnung, kategorie: teil, standortId: 1 }, // TODO Phase 2: aus User-Kontext (ctx.user.standortId ?? Filter)
+        where: { bezeichnung, kategorie: teil, standortId: standortId ?? 1 },
         select: { id: true },
       });
 
       const artikel = vorher ?? await tx.artikel.create({
-        data: { bezeichnung, kategorie: teil, lagerplatz: null, bestand: 0 },
+        data: { bezeichnung, kategorie: teil, lagerplatz: null, bestand: 0, standortId: standortId ?? 1 },
       });
 
       // Kompatibilität mit kanonischem Namen (nicht "HP EliteBook 840 G5")

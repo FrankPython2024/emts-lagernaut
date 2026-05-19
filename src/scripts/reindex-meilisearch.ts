@@ -20,7 +20,7 @@ const onlyIndex = onlyPos >= 0
 const SETTINGS = {
   artikel: {
     searchableAttributes: ["bezeichnung", "modell", "kategorie"],
-    filterableAttributes: ["kategorie", "bestandStatus", "lagerplatz"],
+    filterableAttributes: ["standortId", "kategorie", "bestandStatus", "lagerplatz"],
     sortableAttributes:   ["bestand", "bezeichnung"],
   },
   modelle: {
@@ -30,12 +30,12 @@ const SETTINGS = {
   },
   anfragen: {
     searchableAttributes: ["gruppenNr", "teiltyp", "geraet", "techniker", "notiz"],
-    filterableAttributes: ["status", "techniker", "hersteller"],
+    filterableAttributes: ["standortId", "status", "techniker", "hersteller"],
     sortableAttributes:   ["erstelltAm"],
   },
   buchungen: {
     searchableAttributes: ["artikelBezeichnung", "notiz", "ausgefuehrtVon"],
-    filterableAttributes: ["typ", "ausgefuehrtVon", "artikelKategorie"],
+    filterableAttributes: ["standortId", "typ", "ausgefuehrtVon", "artikelKategorie"],
     sortableAttributes:   ["datum"],
   },
 } as const;
@@ -72,7 +72,7 @@ async function reindexArtikel(): Promise<number> {
   await initIndex("artikel", SETTINGS.artikel);
 
   const rows = await prisma.artikel.findMany({
-    select: { id: true, bezeichnung: true, kategorie: true, bestand: true, lagerplatz: true },
+    select: { id: true, bezeichnung: true, kategorie: true, bestand: true, lagerplatz: true, standortId: true },
   });
 
   const docs = rows.map(a => {
@@ -84,6 +84,7 @@ async function reindexArtikel(): Promise<number> {
       kategorie:     a.kategorie,
       bestand:       a.bestand,
       lagerplatz:    a.lagerplatz ?? null,
+      standortId:    a.standortId,
       modell,
       bestandStatus: a.bestand > 0 ? "vorhanden" : "leer",
     };
@@ -141,6 +142,7 @@ async function reindexAnfragen(): Promise<number> {
     select: {
       id: true, gruppenNr: true, teil: true, geraet: true,
       techniker: true, status: true, kommentar: true, datum: true,
+      artikel: { select: { standortId: true } },
     },
   });
 
@@ -154,6 +156,7 @@ async function reindexAnfragen(): Promise<number> {
     status:      a.status,
     notiz:       a.kommentar ?? null,
     erstelltAm:  a.datum.getTime(),
+    standortId:  a.artikel?.standortId ?? null,
   }));
 
   await addInBatches("anfragen", docs);
@@ -177,7 +180,7 @@ async function reindexBuchungen(): Promise<number> {
       select: {
         id: true, typ: true, bezeichnung: true, menge: true,
         notiz: true, mitarbeiter: true, datum: true,
-        artikel: { select: { kategorie: true } },
+        artikel: { select: { kategorie: true, standortId: true } },
       },
     });
 
@@ -191,6 +194,7 @@ async function reindexBuchungen(): Promise<number> {
       notiz:            b.notiz ?? null,
       ausgefuehrtVon:   b.mitarbeiter,
       artikelKategorie: b.artikel?.kategorie ?? null,
+      standortId:       b.artikel?.standortId ?? null,
       datum:            b.datum.getTime(),
     }));
 

@@ -15,6 +15,7 @@ import { BuchungsTyp, AnfrageStatus } from "@prisma/client";
 import type { SessionUser } from "@/core/types";
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
 import { assertKeinBestandEffekt } from "@/lib/buchungen/typeGuards";
+import { getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 
 // ── Grading aus letzter EINGANG-Buchung extrahieren ───────────────────────────
 
@@ -33,8 +34,13 @@ export const auslagernRouter = createTRPCRouter({
    * BEDARF-Gruppen (kein Lager-Bestand) erscheinen jetzt auch, da DIREKT-Buchung möglich.
    */
   listAnfragen: adminProcedure.query(async ({ ctx }) => {
+    const standortIds    = getZugaenglicheStandortIds(ctx);
+    const artikelFilter  = standortIds
+      ? { artikel: { standortId: standortIds.length === 1 ? standortIds[0]! : { in: standortIds } } }
+      : {};
     const anfragen = await ctx.prisma.anfrage.findMany({
       where: {
+        ...artikelFilter,
         status:    { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] },
         artikelId: { not: null },
       },

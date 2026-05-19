@@ -1,6 +1,7 @@
 import { z }                                    from "zod";
 import { createTRPCRouter, adminProcedure }    from "@/server/trpc";
 import type { SessionUser }                    from "@/core/types";
+import { resolveStandortId }                   from "@/lib/auth/standortFilter";
 import {
   geraetSuchen,
   preview,
@@ -46,8 +47,9 @@ export const einlagernRouter = createTRPCRouter({
       gewaehlterLagerplatzId: z.number().int().positive().optional(),
     }))
     .mutation(({ input, ctx }) => {
-      const user = ctx.session!.user as SessionUser;
-      return execute({ ...input, mitarbeiter: user.kuerzel });
+      const user       = ctx.session!.user as SessionUser;
+      const standortId = resolveStandortId(ctx);
+      return execute({ ...input, mitarbeiter: user.kuerzel, standortId });
     }),
 
   // Einzelner Lagerplatz-Vorschlag für eine Kategorie

@@ -95,7 +95,7 @@ export async function preview(items: PreviewItem[], geraetName: string): Promise
       // 2. Exakter Artikel-Bezeichnungs-Lookup — KEIN Kategorie-Fallback!
       //    Verhindert Cross-Device-Zuordnung (z.B. T14-Tastatur zu HP 840 zuweisen)
       const artikel = await prisma.artikel.findFirst({
-        where: { bezeichnung: artikelBezeichnung, kategorie: item.teiltyp, standortId: 1 }, // TODO Phase 2: aus User-Kontext (ctx.user.standortId ?? Filter)
+        where: { bezeichnung: artikelBezeichnung, kategorie: item.teiltyp, standortId: 1 },
       });
       if (artikel) {
         return {
@@ -143,6 +143,7 @@ export type ExecuteInput = {
   mitarbeiter:             string;
   items:                   ExecuteItem[];
   gewaehlterLagerplatzId?: number;
+  standortId?:             number;
 };
 
 export type ExecuteResult = {
@@ -163,6 +164,7 @@ export type ExecuteResult = {
 
 export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
   const results: ExecuteResult[] = [];
+  const sId     = input.standortId ?? 1;
 
   console.log(`[Einlagern] Gerät: "${input.geraetName}"${input.logId ? ` (LogID: ${input.logId})` : ""}`);
 
@@ -248,14 +250,14 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     // 2. Artikel per kanonischer Bezeichnung — KEIN Kategorie-Fallback!
     if (!artikel) {
       artikel = await prisma.artikel.findFirst({
-        where: { bezeichnung: artikelBezeichnung, kategorie: item.teiltyp, standortId: 1 }, // TODO Phase 2: aus User-Kontext (ctx.user.standortId ?? Filter)
+        where: { bezeichnung: artikelBezeichnung, kategorie: item.teiltyp, standortId: sId },
       });
     }
 
     // 2b. Backward-Compat: alte Bezeichnung mit Hersteller-Prefix
     if (!artikel && artikelBezeichnungAlt) {
       artikel = await prisma.artikel.findFirst({
-        where: { bezeichnung: artikelBezeichnungAlt, kategorie: item.teiltyp, standortId: 1 }, // TODO Phase 2: aus User-Kontext (ctx.user.standortId ?? Filter)
+        where: { bezeichnung: artikelBezeichnungAlt, kategorie: item.teiltyp, standortId: sId },
       });
     }
 
@@ -270,6 +272,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
           kategorie:   item.teiltyp,
           bestand:     0,
           lagerplatz:  lagerplatzFuerArtikel,
+          standortId:  sId,
         },
       });
       console.log(`[Einlagern] Neuer Artikel: "${artikelBezeichnung}" (ID: ${artikel.id})`);

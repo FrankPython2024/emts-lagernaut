@@ -3,6 +3,22 @@ import { prisma }       from "@/core/db/prisma";
 import { meilisearch }  from "@/core/infra/meilisearch";
 import { redis }        from "@/core/infra/redis";
 import { AnfrageStatus, BuchungsTyp } from "@prisma/client";
+import { standortWhere, getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
+import type { TRPCContext } from "@/server/trpc";
+
+// Hilfsfunktionen für verschachtelte Standort-Filter (Anfragen/Buchungen über Artikel-Relation)
+function anfrageStandortFilter(ctx: TRPCContext) {
+  const ids = getZugaenglicheStandortIds(ctx);
+  if (!ids) return {};
+  const sId = ids.length === 1 ? ids[0]! : { in: ids };
+  return { artikel: { standortId: sId } };
+}
+function buchungStandortFilter(ctx: TRPCContext) {
+  const ids = getZugaenglicheStandortIds(ctx);
+  if (!ids) return {};
+  const sId = ids.length === 1 ? ids[0]! : { in: ids };
+  return { artikel: { standortId: sId } };
+}
 
 // ── Hilfe ─────────────────────────────────────────────────────────────────────
 
@@ -26,24 +42,29 @@ function daysAgo(n: number): Date {
 export const dashboardRouter = createTRPCRouter({
 
   // 1 — KPI-Zahlen
-  stats: adminProcedure.query(async () => {
+  stats: adminProcedure.query(async ({ ctx }) => {
     const { start, end } = heuteRange();
+    const aF = anfrageStandortFilter(ctx);
+    const bF = buchungStandortFilter(ctx);
+    const lF = standortWhere(ctx);
     const [aktiveAnfragen, offeneBedarf, artikelImBestand, auslagerungenHeute] =
       await Promise.all([
-        prisma.anfrage.count({ where: { status: { in: [AnfrageStatus.NEU, AnfrageStatus.IN_BEARBEITUNG] } } }),
-        prisma.anfrage.count({ where: { status: AnfrageStatus.BEDARF } }),
-        prisma.artikel.count({ where: { bestand: { gt: 0 } } }),
+        prisma.anfrage.count({ where: { ...aF, status: { in: [AnfrageStatus.NEU, AnfrageStatus.IN_BEARBEITUNG] } } }),
+        prisma.anfrage.count({ where: { ...aF, status: AnfrageStatus.BEDARF } }),
+        prisma.artikel.count({ where: { ...lF, bestand: { gt: 0 } } }),
         prisma.buchung.count({
-          where: { datum: { gte: start, lt: end }, typ: { in: [BuchungsTyp.AUSGANG, BuchungsTyp.DIREKT] } },
+          where: { ...bF, datum: { gte: start, lt: end }, typ: { in: [BuchungsTyp.AUSGANG, BuchungsTyp.DIREKT] } },
         }),
       ]);
     return { aktiveAnfragen, offeneBedarf, artikelImBestand, auslagerungenHeute };
   }),
 
   // 2 — Anfragen-Status-Verteilung
-  anfragenStatusVerteilung: adminProcedure.query(async () => {
+  anfragenStatusVerteilung: adminProcedure.query(async ({ ctx }) => {
+    const aF = anfrageStandortFilter(ctx);
     const grouped = await prisma.anfrage.groupBy({
       by: ["status"], _count: { status: true },
+      where: Object.keys(aF).length ? aF : undefined,
     });
     const m = new Map(grouped.map(g => [g.status, g._count.status]));
     return [
@@ -56,10 +77,11 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 3 — Auslagerungs-Trend (letzte 30 Tage)
-  auslagerungsTrend: adminProcedure.query(async () => {
+  auslagerungsTrend: adminProcedure.query(async ({ ctx }) => {
     const von = daysAgo(30);
+    const bF  = buchungStandortFilter(ctx);
     const buchungen = await prisma.buchung.findMany({
-      where: { datum: { gte: von }, typ: { in: [BuchungsTyp.AUSGANG, BuchungsTyp.DIREKT] } },
+      where: { ...bF, datum: { gte: von }, typ: { in: [BuchungsTyp.AUSGANG, BuchungsTyp.DIREKT] } },
       select: { datum: true, typ: true },
       orderBy: { datum: "asc" },
     });
@@ -81,11 +103,12 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 4 — Top Teiltypen (letzte 30 Tage, abgeschlossene Anfragen)
-  topTeiltypen: adminProcedure.query(async () => {
+  topTeiltypen: adminProcedure.query(async ({ ctx }) => {
     const von = daysAgo(30);
+    const aF  = anfrageStandortFilter(ctx);
     const grouped = await prisma.anfrage.groupBy({
       by: ["teil"],
-      where: { datum: { gte: von }, status: AnfrageStatus.ABGESCHLOSSEN },
+      where: { ...aF, datum: { gte: von }, status: AnfrageStatus.ABGESCHLOSSEN },
       _count: { teil: true },
       orderBy: { _count: { teil: "desc" } },
       take: 10,
@@ -94,15 +117,16 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 5 — Techniker-Aktivität (letzte 7 Tage)
-  technikerAktivitaet: adminProcedure.query(async () => {
+  technikerAktivitaet: adminProcedure.query(async ({ ctx }) => {
     const von = daysAgo(7);
+    const aF  = anfrageStandortFilter(ctx);
     const [alle, abg] = await Promise.all([
       prisma.anfrage.groupBy({
-        by: ["techniker"], where: { datum: { gte: von } },
+        by: ["techniker"], where: { ...aF, datum: { gte: von } },
         _count: { techniker: true }, orderBy: { _count: { techniker: "desc" } }, take: 10,
       }),
       prisma.anfrage.groupBy({
-        by: ["techniker"], where: { datum: { gte: von }, status: AnfrageStatus.ABGESCHLOSSEN },
+        by: ["techniker"], where: { ...aF, datum: { gte: von }, status: AnfrageStatus.ABGESCHLOSSEN },
         _count: { techniker: true },
       }),
     ]);
@@ -115,24 +139,28 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 6 — Letzte 10 Anfragen
-  letzteAnfragen: adminProcedure.query(() =>
+  letzteAnfragen: adminProcedure.query(({ ctx }) =>
     prisma.anfrage.findMany({
+      where:   anfrageStandortFilter(ctx),
       take: 10, orderBy: { datum: "desc" },
       select: { id: true, techniker: true, status: true, teil: true, datum: true, geraeteName: true },
     })
   ),
 
   // 7 — Letzte 10 Buchungen
-  letzteBuchungen: adminProcedure.query(() =>
+  letzteBuchungen: adminProcedure.query(({ ctx }) =>
     prisma.buchung.findMany({
+      where:   buchungStandortFilter(ctx),
       take: 10, orderBy: { datum: "desc" },
       select: { id: true, typ: true, bezeichnung: true, menge: true, mitarbeiter: true, datum: true },
     })
   ),
 
   // 8 — Lagerplatz-Auslastung
-  lagerplatzAuslastung: adminProcedure.query(async () => {
+  lagerplatzAuslastung: adminProcedure.query(async ({ ctx }) => {
+    const lF     = standortWhere(ctx);
     const plaetze = await prisma.lagerplatz.findMany({
+      where: lF,
       select: {
         code: true, regal: true, reihe: true, ebene: true, fach: true,
         hersteller: true, modellId: true,
@@ -155,10 +183,11 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 9 — Mindestbestand (Artikel unter Schwellwert 2)
-  mindestbestand: adminProcedure.query(async () => {
+  mindestbestand: adminProcedure.query(async ({ ctx }) => {
     const SCHWELLWERT = 2;
+    const lF     = standortWhere(ctx);
     const artikel = await prisma.artikel.findMany({
-      where: { bestand: { gte: 0, lt: SCHWELLWERT } },
+      where: { ...lF, bestand: { gte: 0, lt: SCHWELLWERT } },
       select: { id: true, bezeichnung: true, kategorie: true, bestand: true, lagerplatz: true },
       orderBy: { bestand: "asc" },
       take: 20,
@@ -167,13 +196,17 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 10 — Aktivitäts-Protokoll (letzte Aktionen aus Buchungen + Anfragen)
-  aktivitaetsProtokoll: adminProcedure.query(async () => {
+  aktivitaetsProtokoll: adminProcedure.query(async ({ ctx }) => {
+    const aF = anfrageStandortFilter(ctx);
+    const bF = buchungStandortFilter(ctx);
     const [buchungen, anfragen] = await Promise.all([
       prisma.buchung.findMany({
+        where: bF,
         take: 6, orderBy: { datum: "desc" },
         select: { id: true, typ: true, bezeichnung: true, menge: true, mitarbeiter: true, datum: true },
       }),
       prisma.anfrage.findMany({
+        where: aF,
         take: 6, orderBy: { datum: "desc" },
         select: { id: true, techniker: true, status: true, teil: true, datum: true },
       }),
@@ -207,12 +240,13 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 12 — Quick Stats
-  quickStats: adminProcedure.query(async () => {
+  quickStats: adminProcedure.query(async ({ ctx }) => {
+    const lF = standortWhere(ctx);
     const [modelle, aktiveTechniker, lpTotal, lpBelegt] = await Promise.all([
       prisma.geraeteModell.count({ where: { aktiv: true } }),
       prisma.technikerSession.count({ where: { online: true } }),
-      prisma.lagerplatz.count(),
-      prisma.lagerplatz.count({ where: { modellId: { not: null } } }),
+      prisma.lagerplatz.count({ where: lF }),
+      prisma.lagerplatz.count({ where: { ...lF, modellId: { not: null } } }),
     ]);
     return {
       modelle,
