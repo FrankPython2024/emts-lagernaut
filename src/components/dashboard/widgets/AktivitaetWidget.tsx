@@ -1,6 +1,7 @@
 "use client";
 import { api } from "@/trpc/react";
 import { WidgetCard } from "@/components/dashboard/WidgetCard";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { WidgetSkeleton } from "@/components/dashboard/WidgetSkeleton";
 import { relTime } from "@/lib/utils/relativeTime";
 
@@ -16,8 +17,9 @@ const BADGE: Record<string, string> = {
 };
 
 export function AktivitaetWidget() {
+  const { activeStandortId } = useStandortFilter();
   const { data, isLoading, error } = api.dashboard.aktivitaetsProtokoll.useQuery(
-    undefined, { staleTime: 30_000, refetchInterval: 60_000 }
+    { standortId: activeStandortId }, { staleTime: 30_000, refetchInterval: 60_000 }
   );
 
   return (

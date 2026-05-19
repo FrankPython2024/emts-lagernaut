@@ -9,6 +9,8 @@ import { useSocket } from "@/hooks/useSocket";
 import { EVENTS } from "@/modules/realtime/events";
 import { FontSizeToggle } from "@/components/FontSizeToggle";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { StandortProvider } from "@/lib/standort/standortContext";
+import { StandortSwitcher } from "@/components/StandortSwitcher";
 
 const NAV_SECTIONS = [
   {
@@ -45,6 +47,7 @@ const NAV_SECTIONS = [
     title: "System",
     items: [
       { href: "/admin/benutzer",           label: "Benutzer",   icon: "👥" },
+      { href: "/admin/standorte",          label: "Standorte",  icon: "🏭" },
       { href: "/admin/system",             label: "System",     icon: "⚙️" },
       { href: "/admin/system/stresstest",  label: "Benchmark",  icon: "🔬" },
     ],
@@ -143,6 +146,9 @@ function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       <div className="px-3 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 space-y-1">
+
+        {/* Standort-Switcher (nur Admin) */}
+        <StandortSwitcher />
 
         {/* Globale Suche */}
         {onSearch && (
@@ -248,6 +254,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <ToastProvider>
+      <StandortProvider>
       <SocketNotifications />
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
 
@@ -303,6 +310,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </main>
         </div>
       </div>
+      </StandortProvider>
     </ToastProvider>
   );
 }

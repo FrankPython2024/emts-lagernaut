@@ -1,6 +1,7 @@
 "use client";
 import { api } from "@/trpc/react";
 import { WidgetCard } from "@/components/dashboard/WidgetCard";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { ChartSkeleton } from "@/components/dashboard/WidgetSkeleton";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
 
@@ -10,8 +11,9 @@ function shortDate(iso: string) {
 }
 
 export function AuslagerungsTrendWidget() {
+  const { activeStandortId } = useStandortFilter();
   const { data, isLoading, error } = api.dashboard.auslagerungsTrend.useQuery(
-    undefined, { staleTime: 60_000, refetchInterval: 60_000, refetchIntervalInBackground: false }
+    { standortId: activeStandortId }, { staleTime: 60_000, refetchInterval: 60_000, refetchIntervalInBackground: false }
   );
 
   return (

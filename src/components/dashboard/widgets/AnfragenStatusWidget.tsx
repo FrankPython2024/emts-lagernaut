@@ -1,12 +1,14 @@
 "use client";
 import { api } from "@/trpc/react";
 import { WidgetCard } from "@/components/dashboard/WidgetCard";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { ChartSkeleton } from "@/components/dashboard/WidgetSkeleton";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 export function AnfragenStatusWidget() {
+  const { activeStandortId } = useStandortFilter();
   const { data, isLoading, error } = api.dashboard.anfragenStatusVerteilung.useQuery(
-    undefined, { staleTime: 60_000, refetchInterval: 60_000, refetchIntervalInBackground: false }
+    { standortId: activeStandortId }, { staleTime: 60_000, refetchInterval: 60_000, refetchIntervalInBackground: false }
   );
 
   return (

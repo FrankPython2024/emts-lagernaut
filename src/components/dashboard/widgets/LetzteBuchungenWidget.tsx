@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { api } from "@/trpc/react";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { WidgetCard } from "@/components/dashboard/WidgetCard";
 import { WidgetSkeleton } from "@/components/dashboard/WidgetSkeleton";
 import type { BuchungsTyp } from "@prisma/client";
@@ -12,8 +13,9 @@ const TYP_STYLE: Record<BuchungsTyp, string> = {
 };
 
 export function LetzteBuchungenWidget() {
+  const { activeStandortId } = useStandortFilter();
   const { data, isLoading, error } = api.dashboard.letzteBuchungen.useQuery(
-    undefined, { staleTime: 30_000, refetchInterval: 60_000 }
+    { standortId: activeStandortId }, { staleTime: 30_000, refetchInterval: 60_000 }
   );
 
   return (

@@ -9,12 +9,13 @@ export const searchRouter = createTRPCRouter({
 
   global: protectedProcedure
     .input(z.object({
-      query: z.string().min(1).max(100),
-      limit: z.number().int().min(1).max(20).default(5),
+      query:      z.string().min(1).max(100),
+      limit:      z.number().int().min(1).max(20).default(5),
+      standortId: z.number().int().positive().nullish(),
     }))
     .query(async ({ input, ctx }) => {
       const isAdmin     = (ctx.session.user as SessionUser).rolle === "ADMIN";
-      const standortIds = getZugaenglicheStandortIds(ctx);
+      const standortIds = getZugaenglicheStandortIds(ctx, input.standortId);
       const sFilter     = standortIds
         ? `standortId IN [${standortIds.join(",")}]`
         : undefined;

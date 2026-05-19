@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createTRPCRouter, adminProcedure } from "@/server/trpc";
 import { prisma }       from "@/core/db/prisma";
 import { meilisearch }  from "@/core/infra/meilisearch";
@@ -6,15 +7,17 @@ import { AnfrageStatus, BuchungsTyp } from "@prisma/client";
 import { standortWhere, getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 import type { TRPCContext } from "@/server/trpc";
 
+const STANDORT_INPUT = { standortId: z.number().int().positive().nullish() };
+
 // Hilfsfunktionen für verschachtelte Standort-Filter (Anfragen/Buchungen über Artikel-Relation)
-function anfrageStandortFilter(ctx: TRPCContext) {
-  const ids = getZugaenglicheStandortIds(ctx);
+function anfrageStandortFilter(ctx: TRPCContext, filterStandortId?: number | null) {
+  const ids = getZugaenglicheStandortIds(ctx, filterStandortId);
   if (!ids) return {};
   const sId = ids.length === 1 ? ids[0]! : { in: ids };
   return { artikel: { standortId: sId } };
 }
-function buchungStandortFilter(ctx: TRPCContext) {
-  const ids = getZugaenglicheStandortIds(ctx);
+function buchungStandortFilter(ctx: TRPCContext, filterStandortId?: number | null) {
+  const ids = getZugaenglicheStandortIds(ctx, filterStandortId);
   if (!ids) return {};
   const sId = ids.length === 1 ? ids[0]! : { in: ids };
   return { artikel: { standortId: sId } };
@@ -42,11 +45,12 @@ function daysAgo(n: number): Date {
 export const dashboardRouter = createTRPCRouter({
 
   // 1 — KPI-Zahlen
-  stats: adminProcedure.query(async ({ ctx }) => {
+  stats: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+    const sId = input?.standortId;
     const { start, end } = heuteRange();
-    const aF = anfrageStandortFilter(ctx);
-    const bF = buchungStandortFilter(ctx);
-    const lF = standortWhere(ctx);
+    const aF = anfrageStandortFilter(ctx, sId);
+    const bF = buchungStandortFilter(ctx, sId);
+    const lF = standortWhere(ctx, sId);
     const [aktiveAnfragen, offeneBedarf, artikelImBestand, auslagerungenHeute] =
       await Promise.all([
         prisma.anfrage.count({ where: { ...aF, status: { in: [AnfrageStatus.NEU, AnfrageStatus.IN_BEARBEITUNG] } } }),
@@ -60,8 +64,8 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 2 — Anfragen-Status-Verteilung
-  anfragenStatusVerteilung: adminProcedure.query(async ({ ctx }) => {
-    const aF = anfrageStandortFilter(ctx);
+  anfragenStatusVerteilung: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+    const aF = anfrageStandortFilter(ctx, input?.standortId);
     const grouped = await prisma.anfrage.groupBy({
       by: ["status"], _count: { status: true },
       where: Object.keys(aF).length ? aF : undefined,
@@ -77,9 +81,9 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 3 — Auslagerungs-Trend (letzte 30 Tage)
-  auslagerungsTrend: adminProcedure.query(async ({ ctx }) => {
+  auslagerungsTrend: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const von = daysAgo(30);
-    const bF  = buchungStandortFilter(ctx);
+    const bF  = buchungStandortFilter(ctx, input?.standortId);
     const buchungen = await prisma.buchung.findMany({
       where: { ...bF, datum: { gte: von }, typ: { in: [BuchungsTyp.AUSGANG, BuchungsTyp.DIREKT] } },
       select: { datum: true, typ: true },
@@ -103,9 +107,9 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 4 — Top Teiltypen (letzte 30 Tage, abgeschlossene Anfragen)
-  topTeiltypen: adminProcedure.query(async ({ ctx }) => {
+  topTeiltypen: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const von = daysAgo(30);
-    const aF  = anfrageStandortFilter(ctx);
+    const aF  = anfrageStandortFilter(ctx, input?.standortId);
     const grouped = await prisma.anfrage.groupBy({
       by: ["teil"],
       where: { ...aF, datum: { gte: von }, status: AnfrageStatus.ABGESCHLOSSEN },
@@ -117,9 +121,9 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 5 — Techniker-Aktivität (letzte 7 Tage)
-  technikerAktivitaet: adminProcedure.query(async ({ ctx }) => {
+  technikerAktivitaet: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const von = daysAgo(7);
-    const aF  = anfrageStandortFilter(ctx);
+    const aF  = anfrageStandortFilter(ctx, input?.standortId);
     const [alle, abg] = await Promise.all([
       prisma.anfrage.groupBy({
         by: ["techniker"], where: { ...aF, datum: { gte: von } },
@@ -139,26 +143,26 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 6 — Letzte 10 Anfragen
-  letzteAnfragen: adminProcedure.query(({ ctx }) =>
+  letzteAnfragen: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(({ input, ctx }) =>
     prisma.anfrage.findMany({
-      where:   anfrageStandortFilter(ctx),
+      where:   anfrageStandortFilter(ctx, input?.standortId),
       take: 10, orderBy: { datum: "desc" },
       select: { id: true, techniker: true, status: true, teil: true, datum: true, geraeteName: true },
     })
   ),
 
   // 7 — Letzte 10 Buchungen
-  letzteBuchungen: adminProcedure.query(({ ctx }) =>
+  letzteBuchungen: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(({ input, ctx }) =>
     prisma.buchung.findMany({
-      where:   buchungStandortFilter(ctx),
+      where:   buchungStandortFilter(ctx, input?.standortId),
       take: 10, orderBy: { datum: "desc" },
       select: { id: true, typ: true, bezeichnung: true, menge: true, mitarbeiter: true, datum: true },
     })
   ),
 
   // 8 — Lagerplatz-Auslastung
-  lagerplatzAuslastung: adminProcedure.query(async ({ ctx }) => {
-    const lF     = standortWhere(ctx);
+  lagerplatzAuslastung: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+    const lF      = standortWhere(ctx, input?.standortId);
     const plaetze = await prisma.lagerplatz.findMany({
       where: lF,
       select: {
@@ -183,9 +187,9 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 9 — Mindestbestand (Artikel unter Schwellwert 2)
-  mindestbestand: adminProcedure.query(async ({ ctx }) => {
+  mindestbestand: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const SCHWELLWERT = 2;
-    const lF     = standortWhere(ctx);
+    const lF     = standortWhere(ctx, input?.standortId);
     const artikel = await prisma.artikel.findMany({
       where: { ...lF, bestand: { gte: 0, lt: SCHWELLWERT } },
       select: { id: true, bezeichnung: true, kategorie: true, bestand: true, lagerplatz: true },
@@ -196,9 +200,9 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 10 — Aktivitäts-Protokoll (letzte Aktionen aus Buchungen + Anfragen)
-  aktivitaetsProtokoll: adminProcedure.query(async ({ ctx }) => {
-    const aF = anfrageStandortFilter(ctx);
-    const bF = buchungStandortFilter(ctx);
+  aktivitaetsProtokoll: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+    const aF = anfrageStandortFilter(ctx, input?.standortId);
+    const bF = buchungStandortFilter(ctx, input?.standortId);
     const [buchungen, anfragen] = await Promise.all([
       prisma.buchung.findMany({
         where: bF,
@@ -225,7 +229,7 @@ export const dashboardRouter = createTRPCRouter({
     ].sort((a, b) => b.datum.getTime() - a.datum.getTime()).slice(0, 10);
   }),
 
-  // 11 — System-Status
+  // 11 — System-Status (kein Standort-Filter — infrastruktur-global)
   systemStatus: adminProcedure.query(async () => {
     const [dbOk, msOk, redisOk] = await Promise.all([
       prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
@@ -240,8 +244,8 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 12 — Quick Stats
-  quickStats: adminProcedure.query(async ({ ctx }) => {
-    const lF = standortWhere(ctx);
+  quickStats: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+    const lF = standortWhere(ctx, input?.standortId);
     const [modelle, aktiveTechniker, lpTotal, lpBelegt] = await Promise.all([
       prisma.geraeteModell.count({ where: { aktiv: true } }),
       prisma.technikerSession.count({ where: { online: true } }),

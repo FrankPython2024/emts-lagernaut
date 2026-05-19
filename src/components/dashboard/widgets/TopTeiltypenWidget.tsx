@@ -1,14 +1,16 @@
 "use client";
 import { api } from "@/trpc/react";
 import { WidgetCard } from "@/components/dashboard/WidgetCard";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { ChartSkeleton } from "@/components/dashboard/WidgetSkeleton";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const COLORS = ["#008BD2","#04B475","#202F61","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16","#F97316"];
 
 export function TopTeiltypenWidget() {
+  const { activeStandortId } = useStandortFilter();
   const { data, isLoading, error } = api.dashboard.topTeiltypen.useQuery(
-    undefined, { staleTime: 120_000, refetchInterval: 120_000, refetchIntervalInBackground: false }
+    { standortId: activeStandortId }, { staleTime: 120_000, refetchInterval: 120_000, refetchIntervalInBackground: false }
   );
 
   return (

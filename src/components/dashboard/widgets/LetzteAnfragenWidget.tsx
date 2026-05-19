@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { api } from "@/trpc/react";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { WidgetCard } from "@/components/dashboard/WidgetCard";
 import { WidgetSkeleton } from "@/components/dashboard/WidgetSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -8,8 +9,9 @@ import { relTime } from "@/lib/utils/relativeTime";
 import type { AnfrageStatus } from "@prisma/client";
 
 export function LetzteAnfragenWidget() {
+  const { activeStandortId } = useStandortFilter();
   const { data, isLoading, error } = api.dashboard.letzteAnfragen.useQuery(
-    undefined, { staleTime: 30_000, refetchInterval: 60_000 }
+    { standortId: activeStandortId }, { staleTime: 30_000, refetchInterval: 60_000 }
   );
 
   return (

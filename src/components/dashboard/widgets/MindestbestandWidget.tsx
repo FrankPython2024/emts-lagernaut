@@ -1,12 +1,14 @@
 "use client";
 import Link from "next/link";
 import { api } from "@/trpc/react";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { WidgetCard } from "@/components/dashboard/WidgetCard";
 import { WidgetSkeleton } from "@/components/dashboard/WidgetSkeleton";
 
 export function MindestbestandWidget() {
+  const { activeStandortId } = useStandortFilter();
   const { data, isLoading, error } = api.dashboard.mindestbestand.useQuery(
-    undefined, { staleTime: 120_000, refetchInterval: 120_000, refetchIntervalInBackground: false }
+    { standortId: activeStandortId }, { staleTime: 120_000, refetchInterval: 120_000, refetchIntervalInBackground: false }
   );
 
   return (

@@ -1,10 +1,12 @@
 "use client";
 import { api } from "@/trpc/react";
 import { StatCard } from "@/components/ui/StatCard";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { WidgetSkeleton } from "@/components/dashboard/WidgetSkeleton";
 
 export function StatsWidget() {
-  const { data, isLoading, error, refetch } = api.dashboard.stats.useQuery(undefined, {
+  const { activeStandortId } = useStandortFilter();
+  const { data, isLoading, error, refetch } = api.dashboard.stats.useQuery({ standortId: activeStandortId }, {
     staleTime: 30_000, refetchInterval: 30_000, refetchIntervalInBackground: false,
   });
 

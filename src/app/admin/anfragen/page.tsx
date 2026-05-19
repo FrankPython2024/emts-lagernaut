@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { BelegModal, MehrBelegModal } from "@/components/ui/BelegModal";
 import { AuslagerModal } from "@/components/auslagern/AuslagerModal";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import {
   buildAuslagerBelegHtml,
   printAuslagerBeleg,
@@ -74,11 +75,13 @@ function TagesuebersichtModal({ onClose }: { onClose: () => void }) {
   const [sfStatus, setSfStatus] = useState<"" | "offen" | "erledigt">("");
   const [sfTech,   setSfTech]   = useState("");
 
+  const { activeStandortId: sId } = useStandortFilter();
   const { data, isLoading } = api.anfragen.getAll.useQuery({
     von: new Date(datum + "T00:00:00"),
     bis: new Date(datum + "T23:59:59"),
     ...(sfTech ? { techniker: sfTech } : {}),
     limit: 500, offset: 0,
+    standortId: sId,
   });
 
   const anfragen  = (data?.anfragen ?? []) as (Anfrage & { artikel?: { bezeichnung: string } })[];
@@ -219,6 +222,7 @@ function FreigebenDialog({
 
 function AnfragenPageInner() {
   const { show }    = useToast();
+  const { activeStandortId } = useStandortFilter();
   const { on, off } = useSocket();
   const { data: session } = useSession();
   const user     = session?.user as SessionUser | undefined;
@@ -275,6 +279,7 @@ function AnfragenPageInner() {
   const { data: rawData, isLoading, error, refetch } = api.anfragen.getGruppiert.useQuery({
     ...(statusFilter ? { status: statusFilter as AnfrageStatus } : {}),
     ...(techFilter   ? { techniker: techFilter } : {}),
+    standortId: activeStandortId,
   });
 
   // "Meine" Quick-Filter — client-seitig

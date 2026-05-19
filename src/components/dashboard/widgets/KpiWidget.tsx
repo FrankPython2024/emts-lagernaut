@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { api } from "@/trpc/react";
 import { useWidgetEditContext } from "@/lib/dashboard/widgetContext";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 
 // ── AfB-Akzentfarben ──────────────────────────────────────────────────────────
 const ACCENT: Record<string, string> = {
@@ -24,9 +25,10 @@ interface KpiBaseProps {
 // ── Gemeinsame Basis ──────────────────────────────────────────────────────────
 
 function KpiBase({ field, label, accent, sub, href }: KpiBaseProps) {
-  const { editMode, widgetId, onHide } = useWidgetEditContext();
+  const { editMode, widgetId, onHide }  = useWidgetEditContext();
+  const { activeStandortId }            = useStandortFilter();
 
-  const { data, isLoading, error, refetch } = api.dashboard.stats.useQuery(undefined, {
+  const { data, isLoading, error, refetch } = api.dashboard.stats.useQuery({ standortId: activeStandortId }, {
     staleTime: 30_000,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,

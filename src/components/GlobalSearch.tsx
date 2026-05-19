@@ -6,6 +6,7 @@ import { useDebounce } from "use-debounce";
 import FocusTrap from "focus-trap-react";
 import { api } from "@/trpc/react";
 import type { SessionUser } from "@/core/types";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 
 // ── Domain types (narrowed from Meilisearch hits) ─────────────────────────────
 type ArtikelHit  = { id: number; bezeichnung: string; kategorie: string; bestand: number; lagerplatz?: string | null; modell?: string; bestandStatus?: string };
@@ -127,19 +128,20 @@ interface GlobalSearchProps {
 }
 
 export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
-  const { data: session }         = useSession();
-  const isAdmin                   = (session?.user as SessionUser | undefined)?.rolle === "ADMIN";
-  const [query, setQuery]         = useState("");
-  const [activeIdx, setActiveIdx] = useState(-1);
-  const [history, setHistory]     = useState<string[]>([]);
-  const inputRef                  = useRef<HTMLInputElement>(null);
-  const listRef                   = useRef<HTMLDivElement>(null);
-  const router                    = useRouter();
+  const { data: session }               = useSession();
+  const isAdmin                         = (session?.user as SessionUser | undefined)?.rolle === "ADMIN";
+  const { activeStandortId }            = useStandortFilter();
+  const [query, setQuery]               = useState("");
+  const [activeIdx, setActiveIdx]       = useState(-1);
+  const [history, setHistory]           = useState<string[]>([]);
+  const inputRef                        = useRef<HTMLInputElement>(null);
+  const listRef                         = useRef<HTMLDivElement>(null);
+  const router                          = useRouter();
 
   const [debouncedQuery] = useDebounce(query, 200);
 
   const { data, isLoading, isError } = api.search.global.useQuery(
-    { query: debouncedQuery, limit: 5 },
+    { query: debouncedQuery, limit: 5, standortId: activeStandortId },
     { enabled: debouncedQuery.length >= 2, staleTime: 30_000 },
   );
 

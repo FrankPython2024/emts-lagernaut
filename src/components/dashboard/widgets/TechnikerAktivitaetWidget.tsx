@@ -1,11 +1,13 @@
 "use client";
 import { api } from "@/trpc/react";
 import { WidgetCard } from "@/components/dashboard/WidgetCard";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { WidgetSkeleton } from "@/components/dashboard/WidgetSkeleton";
 
 export function TechnikerAktivitaetWidget() {
+  const { activeStandortId } = useStandortFilter();
   const { data, isLoading, error } = api.dashboard.technikerAktivitaet.useQuery(
-    undefined, { staleTime: 60_000, refetchInterval: 60_000, refetchIntervalInBackground: false }
+    { standortId: activeStandortId }, { staleTime: 60_000, refetchInterval: 60_000, refetchIntervalInBackground: false }
   );
 
   return (

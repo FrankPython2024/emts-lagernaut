@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { BelegModal } from "@/components/ui/BelegModal";
 import { buildEinlagerBelegHtml, type EinlagerBelegData } from "@/components/ui/EinlagerBeleg";
@@ -170,6 +171,7 @@ function DeleteModal({
 function BuchungenPageInner() {
   const { show }  = useToast();
   const { data: session } = useSession();
+  const { activeStandortId } = useStandortFilter();
   const user = session?.user as SessionUser | undefined;
 
   const searchParams = useSearchParams();
@@ -193,7 +195,9 @@ function BuchungenPageInner() {
   // Queries
   const { data, isLoading, refetch } = api.buchungen.getAll.useQuery({
     ...(typFilter ? { typ: typFilter as BuchungsTyp } : {}),
-    limit: 200, offset: 0,
+    limit:      200,
+    offset:     0,
+    standortId: activeStandortId,
   });
 
   const suche = api.lager.searchAdmin.useQuery(

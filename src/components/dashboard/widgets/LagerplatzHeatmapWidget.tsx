@@ -1,11 +1,13 @@
 "use client";
 import { api } from "@/trpc/react";
 import { WidgetCard } from "@/components/dashboard/WidgetCard";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { WidgetSkeleton } from "@/components/dashboard/WidgetSkeleton";
 
 export function LagerplatzHeatmapWidget() {
+  const { activeStandortId } = useStandortFilter();
   const { data, isLoading, error } = api.dashboard.lagerplatzAuslastung.useQuery(
-    undefined, { staleTime: 120_000, refetchInterval: 120_000, refetchIntervalInBackground: false }
+    { standortId: activeStandortId }, { staleTime: 120_000, refetchInterval: 120_000, refetchIntervalInBackground: false }
   );
 
   return (

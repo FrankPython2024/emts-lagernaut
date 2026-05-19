@@ -9,6 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { printMehrereLabels } from "@/components/ui/ArtikelLabel";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 
 type Artikel = {
   id: number; bezeichnung: string; kategorie: string;
@@ -25,6 +26,7 @@ const INPUT_CLS = "px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e
 
 export default function ArtikelPage() {
   const { show } = useToast();
+  const { activeStandortId } = useStandortFilter();
 
   // Filter State
   const [search,     setSearch]     = useState("");
@@ -56,7 +58,8 @@ export default function ArtikelPage() {
       sortBy,
       sortOrder,
       page,
-      limit: LIMIT,
+      limit:      LIMIT,
+      standortId: activeStandortId,
     },
     { refetchOnMount: "always", staleTime: 0 },
   );
