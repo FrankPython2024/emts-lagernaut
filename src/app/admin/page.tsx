@@ -1,132 +1,83 @@
 "use client";
-import { api } from "@/trpc/react";
-import { StatCard } from "@/components/ui/StatCard";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { StatusBadge } from "@/components/ui/StatusBadge";
-import { PageLoader } from "@/components/ui/LoadingSpinner";
+import { StatsWidget }                from "@/components/dashboard/widgets/StatsWidget";
+import { AnfragenStatusWidget }       from "@/components/dashboard/widgets/AnfragenStatusWidget";
+import { AuslagerungsTrendWidget }    from "@/components/dashboard/widgets/AuslagerungsTrendWidget";
+import { TopTeiltypenWidget }         from "@/components/dashboard/widgets/TopTeiltypenWidget";
+import { TechnikerAktivitaetWidget }  from "@/components/dashboard/widgets/TechnikerAktivitaetWidget";
+import { LetzteAnfragenWidget }       from "@/components/dashboard/widgets/LetzteAnfragenWidget";
+import { LetzteBuchungenWidget }      from "@/components/dashboard/widgets/LetzteBuchungenWidget";
+import { LagerplatzHeatmapWidget }    from "@/components/dashboard/widgets/LagerplatzHeatmapWidget";
+import { MindestbestandWidget }       from "@/components/dashboard/widgets/MindestbestandWidget";
+import { QuickActionsWidget }         from "@/components/dashboard/widgets/QuickActionsWidget";
+import { AktivitaetWidget }           from "@/components/dashboard/widgets/AktivitaetWidget";
+import { SystemStatusWidget }         from "@/components/dashboard/widgets/SystemStatusWidget";
 
-function BarChart({ items }: { items: { label: string; value: number }[] }) {
-  const max = Math.max(...items.map((i) => i.value), 1);
-  return (
-    <div className="space-y-2 mt-3">
-      {items.map((item) => (
-        <div key={item.label} className="flex items-center gap-3">
-          <div className="w-32 text-xs text-[#65676b] dark:text-[#b0b3b8] truncate text-right flex-shrink-0">{item.label}</div>
-          <div className="flex-1 bg-[#f0f2f5] dark:bg-[#18191a] rounded-full h-5 overflow-hidden">
-            <div
-              className="h-full bg-[#008bd2] dark:bg-[#45bdff] rounded-full transition-all duration-500 flex items-center justify-end pr-2"
-              style={{ width: `${(item.value / max) * 100}%` }}
-            >
-              <span className="text-[10px] text-white font-bold">{item.value}</span>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+// Phase 2: Drag & Drop wird hier integriert (react-beautiful-dnd o.ä.)
+// Phase 3: Widget-Sichtbarkeit via User-Preferences persistiert
 
 export default function DashboardPage() {
-  const stats   = api.statistik.getLiveStats.useQuery(undefined, { refetchInterval: 30_000 });
-  const geraete = api.statistik.getMeistgefragteGeraete.useQuery({ tage: 30 });
-  const teile   = api.statistik.getMeistgefragteTeile.useQuery({ tage: 30 });
-  const anfragen = api.anfragen.getAll.useQuery({ limit: 10, offset: 0 });
-  const status  = api.statistik.getAnfragenNachStatus.useQuery();
-
-  if (stats.isLoading) return <PageLoader text="Dashboard wird geladen..." />;
-  if (stats.error) return (
-    <div className="p-6 bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 rounded-xl text-[#fa3e3e]">
-      Dashboard-Fehler: {stats.error.message}
-    </div>
-  );
-
-  const s = stats.data;
+  const now = new Date().toLocaleString("de-DE", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         title="Dashboard"
-        subtitle="Lagerübersicht · Aktualisierung alle 30 s"
+        subtitle={`Stand: ${now} · Widgets aktualisieren sich automatisch`}
       />
 
-      {/* KPI-Karten */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard
-          label="Aktive Anfragen"
-          value={s?.aktiveAnfragen ?? 0}
-          accent="cyan"
-          sub="NEU + IN BEARBEITUNG"
-        />
-        <StatCard
-          label="Offene BEDARF"
-          value={s?.bedarfAnfragen ?? 0}
-          accent="amber"
-          sub="kein Lagerbestand"
-        />
-        <StatCard
-          label="Artikel im Bestand"
-          value={s?.artikelMitBestand ?? 0}
-          accent="green"
-          sub={s?.artikelOhneBestand ? `${s.artikelOhneBestand} leer` : "alle verfügbar"}
-        />
-        <StatCard
-          label="Auslagerungen heute"
-          value={s?.heutigeAuslagerungen ?? 0}
-          accent="navy"
-          sub="AUSGANG + DIREKT"
-        />
-      </div>
+      {/* Statisches 12-Spalten-Grid — Phase 1 */}
+      <div className="grid grid-cols-12 gap-4">
 
-      {/* Second row */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Letzte Anfragen */}
-        <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm">
-          <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-4">Letzte Anfragen</h2>
-          <div className="space-y-2">
-            {anfragen.data?.anfragen.slice(0, 8).map((a) => (
-              <div key={a.id} className="flex items-center justify-between gap-3 py-2 border-b border-[#ced4da] dark:border-[#3e4042] last:border-0">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{a.logId}</div>
-                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{a.techniker} · {a.teil}</div>
-                </div>
-                <StatusBadge status={a.status} />
-              </div>
-            ))}
-            {!anfragen.data?.anfragen.length && (
-              <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] text-center py-4">Keine Anfragen</p>
-            )}
-          </div>
+        {/* Row 1: KPI-Karten (full-width) */}
+        <div className="col-span-12">
+          <StatsWidget />
         </div>
 
-        {/* Anfragen nach Status */}
-        <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm">
-          <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-4">Anfragen nach Status</h2>
-          {status.data && (
-            <BarChart items={status.data.map((s) => ({ label: s.status, value: s.anzahl }))} />
-          )}
-          {s && s.artikelOhneBestand > 0 && (
-            <div className="mt-4 p-3 bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 rounded-lg">
-              <p className="text-sm font-bold text-[#fa3e3e]">
-                ⚠️ {s.artikelOhneBestand} Artikel mit Bestand = 0
-              </p>
-            </div>
-          )}
+        {/* Row 2: Status-Donut + Trend-Chart */}
+        <div className="col-span-12 lg:col-span-6">
+          <AnfragenStatusWidget />
         </div>
-      </div>
+        <div className="col-span-12 lg:col-span-6">
+          <AuslagerungsTrendWidget />
+        </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm">
-          <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Top 5 Geräte (30 Tage)</h2>
-          {geraete.data && (
-            <BarChart items={geraete.data.slice(0, 5).map((g) => ({ label: g.geraet, value: g.anzahl }))} />
-          )}
+        {/* Row 3: Top Teile + Techniker */}
+        <div className="col-span-12 lg:col-span-6">
+          <TopTeiltypenWidget />
         </div>
-        <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm">
-          <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Top 5 Ersatzteile (30 Tage)</h2>
-          {teile.data && (
-            <BarChart items={teile.data.slice(0, 5).map((t) => ({ label: t.teil, value: t.anzahl }))} />
-          )}
+        <div className="col-span-12 lg:col-span-6">
+          <TechnikerAktivitaetWidget />
+        </div>
+
+        {/* Row 4: 3 Listen-Widgets */}
+        <div className="col-span-12 md:col-span-6 xl:col-span-4">
+          <LetzteAnfragenWidget />
+        </div>
+        <div className="col-span-12 md:col-span-6 xl:col-span-4">
+          <LetzteBuchungenWidget />
+        </div>
+        <div className="col-span-12 md:col-span-12 xl:col-span-4">
+          <AktivitaetWidget />
+        </div>
+
+        {/* Row 5: Heatmap + Mindestbestand */}
+        <div className="col-span-12 lg:col-span-8">
+          <LagerplatzHeatmapWidget />
+        </div>
+        <div className="col-span-12 lg:col-span-4">
+          <MindestbestandWidget />
+        </div>
+
+        {/* Row 6: Quick-Actions + System-Status */}
+        <div className="col-span-12 md:col-span-8">
+          <QuickActionsWidget />
+        </div>
+        <div className="col-span-12 md:col-span-4">
+          <SystemStatusWidget />
         </div>
       </div>
     </div>
