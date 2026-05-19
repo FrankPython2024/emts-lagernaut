@@ -156,7 +156,7 @@ model GeraeteLookup {
   logId       String   @unique
   logIdClean  String
   bezeichnung String   @db.Text // TEXT: Marketing-Beschreibungen bis 514+ Zeichen
-  bereinigt   String
+  bereinigt   String   @db.Text // TEXT: bereinigter Modellname bis 502+ Zeichen
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
