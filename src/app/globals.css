@@ -186,3 +186,43 @@ html.font-large  { font-size: 22px; --base-font: 22px; }
 .dark *:focus-visible {
   outline: 2px solid var(--afb-blue);
 }
+
+/* ── react-grid-layout — Dashboard Overrides ─────────────────────────────── */
+
+/* Placeholder (Ghost) während Drag */
+.react-grid-item.react-grid-placeholder {
+  background:    rgba(0, 139, 210, 0.12) !important;
+  border:        2px dashed var(--afb-blue) !important;
+  border-radius: 12px !important;
+  box-shadow:    none !important;
+}
+
+/* Widget beim Resizen über andere heben */
+.react-grid-item.resizing  { z-index: 10; }
+.react-grid-item.react-draggable-dragging { z-index: 20; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
+
+/* Drag-Handle: kein User-Select */
+.widget-drag-handle {
+  user-select:         none;
+  -webkit-user-select: none;
+  touch-action:        none;
+}
+
+/* Edit-Mode: alle Widgets mit dezenter gestrichelter Outline */
+.edit-mode .widget-card {
+  outline:        1px dashed rgba(0, 139, 210, 0.30);
+  outline-offset: 3px;
+}
+
+/* Resize-Handle sichtbarer in beiden Themes */
+.react-resizable-handle {
+  opacity: 0.4;
+}
+.react-resizable-handle:hover {
+  opacity: 1;
+}
+
+/* Grid-Container kein overflow-hidden (damit Drag-Widgets sichtbar bleiben) */
+.dashboard-grid {
+  overflow: visible !important;
+}

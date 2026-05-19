@@ -1,22 +1,14 @@
 "use client";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { StatsWidget }                from "@/components/dashboard/widgets/StatsWidget";
-import { AnfragenStatusWidget }       from "@/components/dashboard/widgets/AnfragenStatusWidget";
-import { AuslagerungsTrendWidget }    from "@/components/dashboard/widgets/AuslagerungsTrendWidget";
-import { TopTeiltypenWidget }         from "@/components/dashboard/widgets/TopTeiltypenWidget";
-import { TechnikerAktivitaetWidget }  from "@/components/dashboard/widgets/TechnikerAktivitaetWidget";
-import { LetzteAnfragenWidget }       from "@/components/dashboard/widgets/LetzteAnfragenWidget";
-import { LetzteBuchungenWidget }      from "@/components/dashboard/widgets/LetzteBuchungenWidget";
-import { LagerplatzHeatmapWidget }    from "@/components/dashboard/widgets/LagerplatzHeatmapWidget";
-import { MindestbestandWidget }       from "@/components/dashboard/widgets/MindestbestandWidget";
-import { QuickActionsWidget }         from "@/components/dashboard/widgets/QuickActionsWidget";
-import { AktivitaetWidget }           from "@/components/dashboard/widgets/AktivitaetWidget";
-import { SystemStatusWidget }         from "@/components/dashboard/widgets/SystemStatusWidget";
+import { useState } from "react";
+import { PageHeader }     from "@/components/ui/PageHeader";
+import { DashboardGrid }  from "@/components/dashboard/DashboardGrid";
+import { useDashboardConfig } from "@/lib/dashboard/useDashboardConfig";
 
-// Phase 2: Drag & Drop wird hier integriert (react-beautiful-dnd o.ä.)
-// Phase 3: Widget-Sichtbarkeit via User-Preferences persistiert
+// Separater Inner-Component damit useDashboardConfig (localStorage) nur Client-seitig läuft
+function DashboardContent() {
+  const [editMode, setEditMode] = useState(false);
+  const { resetToDefault }      = useDashboardConfig();
 
-export default function DashboardPage() {
   const now = new Date().toLocaleString("de-DE", {
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
@@ -27,59 +19,47 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard"
         subtitle={`Stand: ${now} · Widgets aktualisieren sich automatisch`}
+        action={
+          <div className="flex items-center gap-2">
+            {editMode && (
+              <button
+                onClick={() => { resetToDefault(); }}
+                className="px-3 py-2 rounded-lg text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors min-h-[44px] flex items-center gap-1.5"
+                title="Layout auf Standard zurücksetzen"
+                type="button"
+              >
+                🔄 Zurücksetzen
+              </button>
+            )}
+            <button
+              onClick={() => setEditMode(!editMode)}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] flex items-center gap-1.5 ${
+                editMode
+                  ? "bg-cyan-500 hover:bg-cyan-600 text-white"
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+              }`}
+              type="button"
+            >
+              {editMode ? "✓ Fertig" : "✏️ Anpassen"}
+            </button>
+          </div>
+        }
       />
 
-      {/* Statisches 12-Spalten-Grid — Phase 1 */}
-      <div className="grid grid-cols-12 gap-4">
+      {editMode && (
+        <div className="flex items-center gap-2 p-3 bg-cyan-50 dark:bg-cyan-900/10 border border-cyan-200 dark:border-cyan-800 rounded-xl text-sm text-cyan-700 dark:text-cyan-300">
+          <span>ℹ️</span>
+          <span>Widgets verschieben: Drag am <strong>Cyan-Balken</strong> oben · Größe: rechte untere Ecke · Ausblenden: 👁️‍🗨️</span>
+        </div>
+      )}
 
-        {/* Row 1: KPI-Karten (full-width) */}
-        <div className="col-span-12">
-          <StatsWidget />
-        </div>
-
-        {/* Row 2: Status-Donut + Trend-Chart */}
-        <div className="col-span-12 lg:col-span-6">
-          <AnfragenStatusWidget />
-        </div>
-        <div className="col-span-12 lg:col-span-6">
-          <AuslagerungsTrendWidget />
-        </div>
-
-        {/* Row 3: Top Teile + Techniker */}
-        <div className="col-span-12 lg:col-span-6">
-          <TopTeiltypenWidget />
-        </div>
-        <div className="col-span-12 lg:col-span-6">
-          <TechnikerAktivitaetWidget />
-        </div>
-
-        {/* Row 4: 3 Listen-Widgets */}
-        <div className="col-span-12 md:col-span-6 xl:col-span-4">
-          <LetzteAnfragenWidget />
-        </div>
-        <div className="col-span-12 md:col-span-6 xl:col-span-4">
-          <LetzteBuchungenWidget />
-        </div>
-        <div className="col-span-12 md:col-span-12 xl:col-span-4">
-          <AktivitaetWidget />
-        </div>
-
-        {/* Row 5: Heatmap + Mindestbestand */}
-        <div className="col-span-12 lg:col-span-8">
-          <LagerplatzHeatmapWidget />
-        </div>
-        <div className="col-span-12 lg:col-span-4">
-          <MindestbestandWidget />
-        </div>
-
-        {/* Row 6: Quick-Actions + System-Status */}
-        <div className="col-span-12 md:col-span-8">
-          <QuickActionsWidget />
-        </div>
-        <div className="col-span-12 md:col-span-4">
-          <SystemStatusWidget />
-        </div>
-      </div>
+      {/* Phase 2: DashboardGrid mit Drag & Drop */}
+      {/* Phase 3: Layout-Persistierung im Backend (User-Preferences) */}
+      <DashboardGrid editMode={editMode} />
     </div>
   );
+}
+
+export default function DashboardPage() {
+  return <DashboardContent />;
 }
