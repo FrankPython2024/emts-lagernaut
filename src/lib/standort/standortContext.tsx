@@ -34,8 +34,15 @@ export function StandortProvider({ children }: { children: ReactNode }) {
   );
 }
 
+const NOOP_FILTER: StandortFilter = {
+  activeStandortId:    null,
+  setActiveStandortId: () => {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("setActiveStandortId called outside StandortProvider — ignored");
+    }
+  },
+};
+
 export function useStandortFilter(): StandortFilter {
-  const ctx = useContext(StandortContext);
-  if (!ctx) throw new Error("useStandortFilter must be used inside StandortProvider");
-  return ctx;
+  return useContext(StandortContext) ?? NOOP_FILTER;
 }
