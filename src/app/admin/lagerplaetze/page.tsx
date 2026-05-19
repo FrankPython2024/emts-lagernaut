@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 
@@ -249,6 +250,7 @@ function EtlReihe({ reihe, plaetze, onKlick }: {
 
 export default function LagerplaetzePage() {
   const { show } = useToast();
+  const { activeStandortId } = useStandortFilter();
   const { data: session } = useSession();
   const kuerzel = (session?.user as { kuerzel?: string })?.kuerzel ?? "ADMIN";
 
@@ -275,7 +277,7 @@ export default function LagerplaetzePage() {
   const bereiche = api.lagerplaetze.getBereiche.useQuery();
 
   const etlQ = api.lagerplatz.uebersicht.useQuery(
-    undefined,
+    { standortId: activeStandortId },
     { staleTime: 30_000, refetchInterval: 30_000 },
   );
 

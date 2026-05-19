@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
-import { resolveStandortId } from "@/lib/auth/standortFilter";
+import { resolveStandortId, getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 import {
   legeModellAn,
   legeEinzelteilAn,
@@ -23,8 +23,12 @@ export const geraeteRouter = createTRPCRouter({
       ohneKomp:   z.boolean().default(false),
       page:       z.number().int().min(1).default(1),
       limit:      z.number().int().min(1).max(100).default(50),
+      standortId: z.number().int().positive().nullish(),
     }).optional())
-    .query(({ input }) => getAlleModelleWithKompCount(input)),
+    .query(({ input, ctx }) => {
+      const ids = getZugaenglicheStandortIds(ctx, input?.standortId);
+      return getAlleModelleWithKompCount({ ...input, standortIds: ids ?? undefined });
+    }),
 
   // Alle Hersteller für Filter-Dropdown
   getHersteller: adminProcedure

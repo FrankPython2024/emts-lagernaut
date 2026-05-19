@@ -6,6 +6,7 @@ import { useDebounce } from "use-debounce";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { STANDARD_TEILNAMEN } from "@/lib/constants/teiltypen";
 
@@ -510,6 +511,7 @@ type Modell = { id: number; hersteller: string; modell: string; kompAnzahl: numb
 
 function ModelleListePageInner() {
   const { show } = useToast();
+  const { activeStandortId } = useStandortFilter();
 
   const searchParams = useSearchParams();
   const initialQ    = searchParams?.get("q")         ?? "";
@@ -528,7 +530,7 @@ function ModelleListePageInner() {
   const [globalRemoveOpen, setGlobalRemoveOpen] = useState(false);
 
   const { data, isLoading, error, refetch } = api.geraete.getAllWithKompCount.useQuery(
-    { search: debouncedSearch || undefined, hersteller: hersteller || undefined, ohneKomp, page, limit: 50 },
+    { search: debouncedSearch || undefined, hersteller: hersteller || undefined, ohneKomp, page, limit: 50, standortId: activeStandortId },
     { refetchOnMount: "always", staleTime: 0 },
   );
   const herstellerOpts = api.geraete.getHersteller.useQuery();

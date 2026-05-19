@@ -137,6 +137,7 @@ export async function getAlleModelleWithKompCount(input?: {
   ohneKomp?:    boolean;
   page?:        number;
   limit?:       number;
+  standortIds?: number[];
 }) {
   const limit  = input?.limit ?? 50;
   const page   = input?.page  ?? 1;
@@ -149,6 +150,10 @@ export async function getAlleModelleWithKompCount(input?: {
       { hersteller: { contains: input.search } },
       { modell:     { contains: input.search } },
     ];
+  }
+  if (input?.standortIds?.length) {
+    const sId = input.standortIds.length === 1 ? input.standortIds[0] : { in: input.standortIds };
+    where.lagerplatz = { standortId: sId };
   }
 
   const [alleModelle, total, kompCounts] = await Promise.all([

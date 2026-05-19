@@ -128,22 +128,26 @@ export const lagerplatzRouter = createTRPCRouter({
 
   // ── Lesende Endpoints ──────────────────────────────────────────────────────
 
-  list: adminProcedure.query(({ ctx }) =>
-    ctx.prisma.lagerplatz.findMany({
-      where:   standortWhere(ctx),
-      include: { modell: { select: { id: true, modell: true, hersteller: true } } },
-      orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
-    })
-  ),
+  list: adminProcedure
+    .input(z.object({ standortId: z.number().int().positive().nullish() }).optional())
+    .query(({ ctx, input }) =>
+      ctx.prisma.lagerplatz.findMany({
+        where:   standortWhere(ctx, input?.standortId),
+        include: { modell: { select: { id: true, modell: true, hersteller: true } } },
+        orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
+      })
+    ),
 
   // Leichtgewichtige Übersicht für Grid-Anzeige (kein Artikel-Load)
-  uebersicht: adminProcedure.query(({ ctx }) =>
-    ctx.prisma.lagerplatz.findMany({
-      where:   standortWhere(ctx),
-      include: { modell: { select: { id: true, modell: true, hersteller: true } } },
-      orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
-    })
-  ),
+  uebersicht: adminProcedure
+    .input(z.object({ standortId: z.number().int().positive().nullish() }).optional())
+    .query(({ ctx, input }) =>
+      ctx.prisma.lagerplatz.findMany({
+        where:   standortWhere(ctx, input?.standortId),
+        include: { modell: { select: { id: true, modell: true, hersteller: true } } },
+        orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
+      })
+    ),
 
   // Detail für Modal — lädt Artikel + Grading nur bei Klick
   platzDetail: adminProcedure
