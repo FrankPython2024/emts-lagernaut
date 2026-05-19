@@ -3,7 +3,7 @@
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 // react-grid-layout v3: kein WidthProvider — stattdessen manuelle Breitenmessung
 import { Responsive } from "react-grid-layout";
 
@@ -11,7 +11,12 @@ import { useDashboardConfig }        from "@/lib/dashboard/useDashboardConfig";
 import { WIDGET_META, type LayoutsMap } from "@/lib/dashboard/defaultLayout";
 import { WidgetEditContextProvider }  from "@/lib/dashboard/widgetContext";
 
-import { StatsWidget }                from "@/components/dashboard/widgets/StatsWidget";
+import {
+  KpiAktiveAnfragenWidget,
+  KpiOffeneBedarfWidget,
+  KpiArtikelImBestandWidget,
+  KpiAuslagerungenHeuteWidget,
+} from "@/components/dashboard/widgets/KpiWidget";
 import { AnfragenStatusWidget }       from "@/components/dashboard/widgets/AnfragenStatusWidget";
 import { AuslagerungsTrendWidget }    from "@/components/dashboard/widgets/AuslagerungsTrendWidget";
 import { TopTeiltypenWidget }         from "@/components/dashboard/widgets/TopTeiltypenWidget";
@@ -26,7 +31,11 @@ import { SystemStatusWidget }         from "@/components/dashboard/widgets/Syste
 
 // Widget-ID → Komponente
 const WIDGET_COMPONENTS: Record<string, React.ComponentType> = {
-  stats:           StatsWidget,
+  // 4 individuelle KPI-Widgets (ersetzt altes 'stats')
+  kpiAnfragen:     KpiAktiveAnfragenWidget,
+  kpiBedarf:       KpiOffeneBedarfWidget,
+  kpiBestand:      KpiArtikelImBestandWidget,
+  kpiAuslagerungen:KpiAuslagerungenHeuteWidget,
   status:          AnfragenStatusWidget,
   trend:           AuslagerungsTrendWidget,
   topTeile:        TopTeiltypenWidget,
@@ -45,7 +54,7 @@ interface DashboardGridProps {
 }
 
 export function DashboardGrid({ editMode }: DashboardGridProps) {
-  const { layouts, visibility, resetKey, updateLayout, toggleWidget } = useDashboardConfig();
+  const { layouts, visibility, resetKey, isResettingRef, updateLayout, toggleWidget } = useDashboardConfig();
   const [mounted, setMounted]     = useState(false);
   const [gridWidth, setGridWidth] = useState(1200);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -125,7 +134,9 @@ export function DashboardGrid({ editMode }: DashboardGridProps) {
           isResizable:  editMode,
           useCSSTransforms: true,
           onLayoutChange: (_: unknown, allLayouts: unknown) => {
-            if (editMode) updateLayout(allLayouts as LayoutsMap);
+            // isResettingRef verhindert dass Responsive beim Remount nach Reset
+            // den alten Zustand aus onLayoutChange zurückschreibt (Ursache B)
+            if (editMode && !isResettingRef.current) updateLayout(allLayouts as LayoutsMap);
           },
         } as any)}>
           {visibleWidgets.map(w => {
