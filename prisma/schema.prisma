@@ -122,7 +122,7 @@ model Kompatibilitaet {
 model GeraeteModell {
   id               Int         @id @default(autoincrement())
   hersteller       String
-  modell           String
+  modell           String      @db.VarChar(500)
   aktiv            Boolean     @default(true)
   deaktiviertGrund String?     @db.VarChar(191)
   deaktiviertAm    DateTime?
@@ -235,7 +235,7 @@ model StressTestRun {
 
 model Nachricht {
   id         Int                @id @default(autoincrement())
-  betreff    String
+  betreff    String              @db.VarChar(255)
   inhalt     String             @db.Text
   vonKuerzel String
   typ        NachrichtTyp       @default(DIREKT)
