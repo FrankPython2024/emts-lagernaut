@@ -1,16 +1,19 @@
 "use client";
 import { useEffect } from "react";
+import { useSocket } from "@/hooks/useSocket";
 
 /**
- * Ruft /api/socketio einmalig beim App-Start auf.
- * Das initialisiert den Socket.io-Server über den Pages-Router-Trick
- * (res.socket.server) bevor irgendein Client sich verbindet.
+ * Persistente Socket.io-Verbindung im Root-Layout.
+ * - fetch("/api/socketio") weckt den Server-Socket (Pages-Router-Trick)
+ * - useSocket() baut die echte Client-Verbindung auf (Singleton, bleibt offen)
+ * - Guards sind in useSocket selbst: connect nur wenn User eingeloggt (kuerzel vorhanden)
  */
 export function SocketInitializer() {
+  useSocket(); // baut globale Verbindung auf sobald Session vorhanden
+
   useEffect(() => {
-    fetch("/api/socketio").catch(() => {
-      // Kein Fehler — socketio wird beim ersten Client-Connect initialisiert
-    });
+    fetch("/api/socketio").catch(() => {});
   }, []);
+
   return null;
 }
