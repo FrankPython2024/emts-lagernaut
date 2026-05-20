@@ -518,4 +518,104 @@ export const lagerplatzRouter = createTRPCRouter({
         return ergebnis;
       });
     }),
+
+  // ── Lagerstruktur-Generator ───────────────────────────────────────────────
+
+  generateForStandort: adminProcedure
+    .input(z.object({
+      standortId: z.number().int().positive(),
+      regale: z.array(z.object({
+        name:            z.string().min(1).max(10),
+        ebenen:          z.number().int().min(1).max(20),
+        faecherProEbene: z.number().int().min(1).max(50),
+      })).min(1).max(50),
+      ueberschreiben: z.boolean().default(false),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const standort = await ctx.prisma.standort.findUnique({ where: { id: input.standortId } });
+      if (!standort) throw new TRPCError({ code: "NOT_FOUND", message: "Standort nicht gefunden" });
+
+      const existing = await ctx.prisma.lagerplatz.count({ where: { standortId: input.standortId } });
+
+      if (existing > 0 && !input.ueberschreiben) {
+        throw new TRPCError({
+          code:    "CONFLICT",
+          message: `${existing} Lagerplätze existieren bereits. Mit ueberschreiben=true erzwingen.`,
+        });
+      }
+
+      if (input.ueberschreiben && existing > 0) {
+        const belegt = await ctx.prisma.lagerplatz.count({
+          where: { standortId: input.standortId, modellId: { not: null } },
+        });
+        if (belegt > 0) {
+          throw new TRPCError({
+            code:    "CONFLICT",
+            message: `${belegt} Lagerplätze sind belegt — kann nicht überschreiben`,
+          });
+        }
+        await ctx.prisma.lagerplatz.deleteMany({ where: { standortId: input.standortId } });
+      }
+
+      const plaetze: {
+        code: string; standortId: number;
+        regal: number; reihe: number; ebene: number; fach: number;
+      }[] = [];
+
+      input.regale.forEach((regal, idx) => {
+        const regalNr = parseInt(regal.name, 10) || (idx + 1);
+        for (let e = 1; e <= regal.ebenen; e++) {
+          for (let f = 1; f <= regal.faecherProEbene; f++) {
+            plaetze.push({
+              code:       `${standort.kurzname}-${regal.name}-${e}-${f}`,
+              standortId: input.standortId,
+              regal:      regalNr,
+              reihe:      regalNr,
+              ebene:      e,
+              fach:       f,
+            });
+          }
+        }
+      });
+
+      await ctx.prisma.lagerplatz.createMany({ data: plaetze, skipDuplicates: true });
+
+      return {
+        angelegt:      plaetze.length,
+        beispielCodes: plaetze.slice(0, 3).map((p) => p.code),
+      };
+    }),
+
+  // Liest die Regal-Konfiguration eines Standorts aus bestehenden Plätzen
+  getRegalKonfig: adminProcedure
+    .input(z.object({ standortId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const plaetze = await ctx.prisma.lagerplatz.findMany({
+        where:  { standortId: input.standortId },
+        select: { code: true, regal: true, ebene: true, fach: true },
+      });
+
+      if (plaetze.length === 0) return { regale: [], total: 0 };
+
+      // Gruppieren nach regal-Nummer
+      const byRegal = new Map<number, { name: string; maxEbene: number; maxFach: number }>();
+      for (const p of plaetze) {
+        // Regal-Name aus Code extrahieren (Format: kurzname-regalName-ebene-fach)
+        const parts    = p.code.split("-");
+        const regalName = parts[1] ?? String(p.regal);
+        const existing  = byRegal.get(p.regal);
+        if (!existing) {
+          byRegal.set(p.regal, { name: regalName, maxEbene: p.ebene, maxFach: p.fach });
+        } else {
+          existing.maxEbene = Math.max(existing.maxEbene, p.ebene);
+          existing.maxFach  = Math.max(existing.maxFach,  p.fach);
+        }
+      }
+
+      const regale = [...byRegal.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([, r]) => ({ name: r.name, ebenen: r.maxEbene, faecherProEbene: r.maxFach }));
+
+      return { regale, total: plaetze.length };
+    }),
 });

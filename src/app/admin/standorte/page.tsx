@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { api } from "@/trpc/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
@@ -206,12 +207,20 @@ export default function StandortePage() {
                     </button>
                   </td>
                   <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                    <Link
+                      href={`/admin/standorte/${s.id}`}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-900/40 transition min-h-[36px] inline-flex items-center"
+                    >
+                      Lagerstruktur
+                    </Link>
                     <button
                       onClick={() => openEdit(s as { id: number; name: string; kurzname: string; adresse?: string | null })}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 hover:text-cyan-700 dark:hover:text-cyan-300 transition min-h-[36px]"
                     >
                       Bearbeiten
                     </button>
+                    </div>
                   </td>
                 </tr>
               ))}
