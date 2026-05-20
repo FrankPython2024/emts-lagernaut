@@ -2,6 +2,7 @@ import { z }                                    from "zod";
 import { createTRPCRouter, adminProcedure }    from "@/server/trpc";
 import type { SessionUser }                    from "@/core/types";
 import { resolveStandortId }                   from "@/lib/auth/standortFilter";
+import { TRPCError }                           from "@trpc/server";
 import {
   geraetSuchen,
   preview,
@@ -47,9 +48,30 @@ export const einlagernRouter = createTRPCRouter({
       gewaehlterLagerplatzId: z.number().int().positive().optional(),
       standortId:             z.number().int().positive().optional(),
     }))
-    .mutation(({ input, ctx }) => {
-      const user       = ctx.session!.user as SessionUser;
-      const standortId = input.standortId ?? resolveStandortId(ctx);
+    .mutation(async ({ input, ctx }) => {
+      const user = ctx.session!.user as SessionUser;
+
+      // Standort ableiten — Lagerplatz hat immer Vorrang
+      let standortId: number;
+      if (input.gewaehlterLagerplatzId) {
+        const platz = await ctx.prisma.lagerplatz.findUnique({
+          where:  { id: input.gewaehlterLagerplatzId },
+          select: { standortId: true, code: true },
+        });
+        if (!platz) {
+          throw new TRPCError({ code: "NOT_FOUND", message: `Lagerplatz #${input.gewaehlterLagerplatzId} nicht gefunden` });
+        }
+        standortId = platz.standortId;
+      } else {
+        standortId = input.standortId ?? resolveStandortId(ctx);
+      }
+
+      // Techniker-Schutz: kein Einlagern in fremden Standort
+      const userStandortId = (user as SessionUser).standortId;
+      if (userStandortId != null && userStandortId !== standortId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Techniker kann nicht in fremden Standort einlagern" });
+      }
+
       return execute({ ...input, mitarbeiter: user.kuerzel, standortId });
     }),
 
