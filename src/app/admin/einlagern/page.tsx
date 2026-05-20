@@ -5,6 +5,7 @@ import { useSession }   from "next-auth/react";
 import { api }          from "@/trpc/react";
 import { useToast }     from "@/components/ui/Toast";
 import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 import {
   printAlleEinlagerBelege,
   printEinlagerBeleg,
@@ -796,14 +797,16 @@ function PlatzKarte({
 function LagerplatzBrowser({
   onWaehlen,
   onSchliessen,
+  standortId,
 }: {
   onWaehlen:    (id: number, code: string) => void;
   onSchliessen: () => void;
+  standortId:   number;
 }) {
   const [suche,   setSuche]   = useState("");
   const [klapp,   setKlapp]   = useState<Record<number, boolean>>({});
 
-  const freieQ = api.lagerplatz.free.useQuery({}, { staleTime: 30_000 });
+  const freieQ = api.lagerplatz.free.useQuery({ standortId }, { staleTime: 30_000 });
 
   const gefiltert = (freieQ.data ?? []).filter((p) =>
     !suche || p.code.toUpperCase().includes(suche.toUpperCase()),
@@ -906,17 +909,19 @@ function LagerplatzBrowser({
 
 function StepLagerplatz({
   geraet,
+  standortId,
   onWeiter,
   onBack,
 }: {
-  geraet:   GeraetState;
-  onWeiter: (lagerplatzId: number | null) => void;
-  onBack:   () => void;
+  geraet:     GeraetState;
+  standortId: number;
+  onWeiter:   (lagerplatzId: number | null) => void;
+  onBack:     () => void;
 }) {
   const [browserAuf, setBrowserAuf] = useState(false);
 
   const vorschlagQ = api.lagerplatz.vorschlagByName.useQuery(
-    { geraetName: geraet.name },
+    { geraetName: geraet.name, standortId },
     { staleTime: 0, retry: 1 },
   );
 
@@ -1074,6 +1079,7 @@ function StepLagerplatz({
 
       {browserAuf && (
         <LagerplatzBrowser
+          standortId={standortId}
           onWaehlen={(id) => { onWeiter(id); setBrowserAuf(false); }}
           onSchliessen={() => setBrowserAuf(false)}
         />
@@ -1304,10 +1310,12 @@ function StepTeile({
 function StepBestaetigung({
   geraet,
   items,
+  standortId,
   onBack,
   onEinbuchen,
 }: {
   geraet:      GeraetState;
+  standortId:  number;
   items:       AusgewaehltItem[];
   onBack:      () => void;
   onEinbuchen: (itemsWithLager: AusgewaehltItem[]) => void;
@@ -1323,7 +1331,7 @@ function StepBestaetigung({
   const neueKateg    = [...new Set(neueItems.map((p) => p.teiltyp))];
 
   const vorschlaegeQuery = api.einlagern.lagerplatzVorschlaegeMulti.useQuery(
-    { kategorien: neueKateg },
+    { kategorien: neueKateg, standortId },
     { enabled: neueKateg.length > 0, staleTime: 0 },
   );
 
@@ -1690,6 +1698,8 @@ export default function EinlagernPage() {
   const router  = useRouter();
   const { show } = useToast();
   const { data: session } = useSession();
+  const { activeStandortId } = useStandortFilter();
+  const einlagerStandortId   = activeStandortId ?? 1;
 
   const [step,              setStep]              = useState<WizardStep>(0);
   const [geraet,            setGeraet]            = useState<GeraetState | null>(null);
@@ -1698,6 +1708,11 @@ export default function EinlagernPage() {
   const [selectedLagerplatzId, setSelectedLagerplatzId] = useState<number | null>(null);
 
   const kuerzel = (session?.user as { kuerzel?: string } | undefined)?.kuerzel ?? "";
+
+  const { data: einlagerStandort } = api.standort.byId.useQuery(
+    { id: einlagerStandortId },
+    { staleTime: 300_000 },
+  );
 
   const executeMutation = api.einlagern.execute.useMutation({
     onSuccess: (data) => {
@@ -1735,6 +1750,7 @@ export default function EinlagernPage() {
       geraetName:             geraet.name,
       logId:                  geraet.logId ?? undefined,
       gewaehlterLagerplatzId: selectedLagerplatzId ?? undefined,
+      standortId:             einlagerStandortId,
       items:                  finalItems.map((i) => ({
         teiltyp:    i.teiltyp,
         menge:      i.menge,
@@ -1766,6 +1782,24 @@ export default function EinlagernPage() {
 
   return (
     <div style={{ minHeight: "60vh" }}>
+      {/* Standort-Banner */}
+      {step > 0 && step < 5 && (
+        activeStandortId === null ? (
+          <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+            <div className="text-sm text-amber-800 dark:text-amber-200">
+              ⚠️ Du hast „Alle Standorte" aktiv. Eingelagert wird nach <strong>{einlagerStandort?.name ?? "AfB Sömmerda"}</strong>.
+              Andere Filiale? Wähle sie zuerst im Sidebar-Dropdown.
+            </div>
+          </div>
+        ) : (
+          <div className="mb-4 p-3 rounded-lg bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800">
+            <div className="text-sm text-cyan-800 dark:text-cyan-200">
+              📍 Eingelagert wird nach <strong>{einlagerStandort?.name ?? "…"}</strong>
+            </div>
+          </div>
+        )
+      )}
+
       {step === 0 && (
         <StepWillkommen onStart={() => setStep(1)} />
       )}
@@ -1781,6 +1815,7 @@ export default function EinlagernPage() {
       {step === 2 && geraet && (
         <StepLagerplatz
           geraet={geraet}
+          standortId={einlagerStandortId}
           onBack={() => setStep(1)}
           onWeiter={(id) => { setSelectedLagerplatzId(id); setStep(3); }}
         />
@@ -1800,6 +1835,7 @@ export default function EinlagernPage() {
         <StepBestaetigung
           geraet={geraet}
           items={items}
+          standortId={einlagerStandortId}
           onBack={() => setStep(3)}
           onEinbuchen={handleEinbuchen}
         />

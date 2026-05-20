@@ -333,10 +333,11 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
 
 // ── Lagerplatz-Vorschlag ──────────────────────────────────────────────────────
 
-export async function lagerplatzVorschlag(kategorie: string): Promise<string | null> {
+export async function lagerplatzVorschlag(kategorie: string, standortId?: number): Promise<string | null> {
+  const sF = standortId != null ? { standortId } : {};
   // Gleichartige Teile mit vorhandenem Lagerplatz finden
   const gleiche = await prisma.artikel.findMany({
-    where:  { kategorie, lagerplatz: { not: null } },
+    where:  { ...sF, kategorie, lagerplatz: { not: null } },
     select: { lagerplatz: true },
     take:   50,
   });
@@ -397,9 +398,10 @@ export async function lagerplatzVorschlag(kategorie: string): Promise<string | n
 // Multi-Vorschlag für mehrere Kategorien auf einmal
 export async function lagerplatzVorschlaegeMulti(
   kategorien: string[],
+  standortId?: number,
 ): Promise<Record<string, string | null>> {
   const entries = await Promise.all(
-    kategorien.map(async (k) => [k, await lagerplatzVorschlag(k)] as const),
+    kategorien.map(async (k) => [k, await lagerplatzVorschlag(k, standortId)] as const),
   );
   return Object.fromEntries(entries);
 }

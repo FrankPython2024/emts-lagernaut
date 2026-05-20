@@ -45,21 +45,28 @@ export const einlagernRouter = createTRPCRouter({
       logId:                  z.string().optional(),
       items:                  z.array(EinlagerItemSchema).min(1).max(13),
       gewaehlterLagerplatzId: z.number().int().positive().optional(),
+      standortId:             z.number().int().positive().optional(),
     }))
     .mutation(({ input, ctx }) => {
       const user       = ctx.session!.user as SessionUser;
-      const standortId = resolveStandortId(ctx);
+      const standortId = input.standortId ?? resolveStandortId(ctx);
       return execute({ ...input, mitarbeiter: user.kuerzel, standortId });
     }),
 
   // Einzelner Lagerplatz-Vorschlag für eine Kategorie
   lagerplatzVorschlag: adminProcedure
-    .input(z.object({ kategorie: z.string().min(1).max(100) }))
-    .query(({ input }) => lagerplatzVorschlag(input.kategorie)),
+    .input(z.object({
+      kategorie:  z.string().min(1).max(100),
+      standortId: z.number().int().positive().optional(),
+    }))
+    .query(({ input }) => lagerplatzVorschlag(input.kategorie, input.standortId)),
 
   // Mehrere Lagerplatz-Vorschläge auf einmal (für Step 3)
   lagerplatzVorschlaegeMulti: adminProcedure
-    .input(z.object({ kategorien: z.array(z.string().min(1).max(100)).max(13) }))
-    .query(({ input }) => lagerplatzVorschlaegeMulti(input.kategorien)),
+    .input(z.object({
+      kategorien: z.array(z.string().min(1).max(100)).max(13),
+      standortId: z.number().int().positive().optional(),
+    }))
+    .query(({ input }) => lagerplatzVorschlaegeMulti(input.kategorien, input.standortId)),
 
 });

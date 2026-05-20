@@ -43,15 +43,17 @@ type FreierPlatz = {
 // ── Shared Score-Berechnung ────────────────────────────────────────────────────
 
 async function ladeGeschwister(
-  prisma:     PrismaInstance,
-  hersteller: string,
-  familie:    string | null,
+  prisma:      PrismaInstance,
+  hersteller:  string,
+  familie:     string | null,
+  standortId?: number,
 ): Promise<{ regal: number; fach: number; ebene: number; serie: string | null }[]> {
   if (!familie || !hersteller) return [];
 
   const naheVerwandte = await prisma.lagerplatz.findMany({
     where: {
       modellId: { not: null },
+      ...(standortId != null ? { standortId } : {}),
       modell: {
         aktiv: true,
         hersteller,
@@ -220,11 +222,14 @@ export const lagerplatzRouter = createTRPCRouter({
     ),
 
   free: adminProcedure
-    .input(z.object({ hersteller: z.string().optional() }))
+    .input(z.object({
+      hersteller: z.string().optional(),
+      standortId: z.number().int().positive().nullish(),
+    }))
     .query(({ ctx, input }) =>
       ctx.prisma.lagerplatz.findMany({
         where: {
-          ...standortWhere(ctx),
+          ...standortWhere(ctx, input.standortId),
           modellId: null,
           ...(input.hersteller ? { hersteller: input.hersteller } : {}),
         },
@@ -235,8 +240,14 @@ export const lagerplatzRouter = createTRPCRouter({
   // ── Vorschlag (nach ModellId) ──────────────────────────────────────────────
 
   vorschlag: adminProcedure
-    .input(z.object({ modellId: z.number().int().positive() }))
+    .input(z.object({
+      modellId:   z.number().int().positive(),
+      standortId: z.number().int().positive().nullish(),
+    }))
     .query(async ({ ctx, input }) => {
+      const sId  = standortWhere(ctx, input.standortId);
+      const sIdN = (sId.standortId as number | undefined) ?? null;
+
       const modell = await ctx.prisma.geraeteModell.findUnique({
         where:   { id: input.modellId },
         include: { lagerplatz: true },
@@ -256,7 +267,7 @@ export const lagerplatzRouter = createTRPCRouter({
       }
 
       const freie = await ctx.prisma.lagerplatz.findMany({
-        where:   { modellId: null },
+        where:   { ...sId, modellId: null },
         orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
       });
 
@@ -270,7 +281,7 @@ export const lagerplatzRouter = createTRPCRouter({
       }
 
       const { familie, serie } = extractSerie(modell.modell);
-      const geschwister = await ladeGeschwister(ctx.prisma as PrismaInstance, modell.hersteller, familie);
+      const geschwister = await ladeGeschwister(ctx.prisma as PrismaInstance, modell.hersteller, familie, sIdN ?? undefined);
 
       return {
         bereitsZugewiesen: false as const,
@@ -283,8 +294,13 @@ export const lagerplatzRouter = createTRPCRouter({
   // ── Vorschlag (nach Gerätename — für Wizard vor execute) ──────────────────
 
   vorschlagByName: adminProcedure
-    .input(z.object({ geraetName: z.string().min(1) }))
+    .input(z.object({
+      geraetName: z.string().min(1),
+      standortId: z.number().int().positive().nullish(),
+    }))
     .query(async ({ ctx, input }) => {
+      const sId        = standortWhere(ctx, input.standortId);
+      const sIdN       = (sId.standortId as number | undefined) ?? null;
       const hersteller = input.geraetName.split(" ")[0] ?? "";
 
       const modell = hersteller
@@ -305,7 +321,7 @@ export const lagerplatzRouter = createTRPCRouter({
       }
 
       const freie = await ctx.prisma.lagerplatz.findMany({
-        where:   { modellId: null },
+        where:   { ...sId, modellId: null },
         orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
       });
 
@@ -319,7 +335,7 @@ export const lagerplatzRouter = createTRPCRouter({
       }
 
       const { familie, serie } = extractSerie(input.geraetName);
-      const geschwister = await ladeGeschwister(ctx.prisma as PrismaInstance, hersteller, familie);
+      const geschwister = await ladeGeschwister(ctx.prisma as PrismaInstance, hersteller, familie, sIdN ?? undefined);
 
       return {
         bereitsZugewiesen: false as const,
