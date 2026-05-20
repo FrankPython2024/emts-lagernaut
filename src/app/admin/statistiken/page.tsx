@@ -3,6 +3,7 @@ import { useState } from "react";
 import { AnfrageStatus } from "@prisma/client";
 import { api } from "@/trpc/react";
 import { StatCard } from "@/components/ui/StatCard";
+import { useStandortFilter } from "@/lib/standort/standortContext";
 
 // ── Typen & Konstanten ────────────────────────────────────────────────────────
 
@@ -605,20 +606,23 @@ export default function StatistikenPage() {
   const [letzteOff,  setLetzteOff] = useState(0);
   const [uebersichtTab, setUebersichtTab] = useState<"overview" | "jahresarchiv">("overview");
 
+  const { activeStandortId } = useStandortFilter();
+  const sId = activeStandortId;
+
   const tage     = TAGE_MAP[filter];
   const hatTech  = kuerzel !== "";
 
   // ── Queries Übersicht (Alle) ───────────────────────────────────────────────
-  const kpi         = api.statistik.getKpiOverview.useQuery({ tage }, { enabled: !hatTech });
-  const verlaufAlle = api.statistik.getAnfragenVerlauf.useQuery({ tage }, { enabled: !hatTech });
-  const statusData  = api.statistik.getAnfragenNachStatus.useQuery(undefined, { enabled: !hatTech });
-  const topGeraete  = api.statistik.getMeistgefragteGeraete.useQuery({ tage }, { enabled: !hatTech });
-  const topTeile    = api.statistik.getMeistgefragteTeile.useQuery({ tage }, { enabled: !hatTech });
-  const teamVergl   = api.statistik.getTechnikerTeamVergleich.useQuery({ tage }, { enabled: !hatTech });
+  const kpi         = api.statistik.getKpiOverview.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
+  const verlaufAlle = api.statistik.getAnfragenVerlauf.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
+  const statusData  = api.statistik.getAnfragenNachStatus.useQuery({ standortId: sId }, { enabled: !hatTech });
+  const topGeraete  = api.statistik.getMeistgefragteGeraete.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
+  const topTeile    = api.statistik.getMeistgefragteTeile.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
+  const teamVergl   = api.statistik.getTechnikerTeamVergleich.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
 
   // ── Queries Techniker-Detail ──────────────────────────────────────────────
   const techKpis      = api.statistik.getTechnikerKpis.useQuery({ kuerzel, tage }, { enabled: hatTech });
-  const verlaufTech   = api.statistik.getAnfragenVerlauf.useQuery({ tage, kuerzel }, { enabled: hatTech });
+  const verlaufTech   = api.statistik.getAnfragenVerlauf.useQuery({ tage, kuerzel, standortId: sId }, { enabled: hatTech });
   const techTeile     = api.statistik.getTechnikerTeile.useQuery({ kuerzel, tage }, { enabled: hatTech });
   const techGeraete   = api.statistik.getTechnikerGeraete.useQuery({ kuerzel, tage }, { enabled: hatTech });
   const techWochentag = api.statistik.getTechnikerWochentage.useQuery({ kuerzel, tage: 90 }, { enabled: hatTech });
@@ -628,8 +632,8 @@ export default function StatistikenPage() {
     { enabled: hatTech },
   );
 
-  // Techniker-Liste für Selector
-  const techList = api.statistik.getTechnikerTeamVergleich.useQuery({ tage: 365 });
+  // Techniker-Liste für Selector (standortId-gefiltert für Standort-Dropdown)
+  const techList = api.statistik.getTechnikerTeamVergleich.useQuery({ tage: 365, standortId: sId });
   const techniker = techList.data?.map((t) => t.techniker) ?? [];
 
   return (

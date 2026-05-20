@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 import {
   getLiveStats,
   getMeistgefragteGeraete,
@@ -24,61 +25,75 @@ import {
 } from "@/modules/statistik/service";
 
 const TageSchema = z.object({
-  tage: z.number().int().min(1).max(365).default(30),
+  tage:       z.number().int().min(1).max(365).default(30),
+  standortId: z.number().int().positive().nullish(),
 });
+
+function resolveStatStandortId(
+  ctx:    Parameters<typeof getZugaenglicheStandortIds>[0],
+  input?: { standortId?: number | null },
+): number | null {
+  const ids = getZugaenglicheStandortIds(ctx, input?.standortId);
+  if (ids === null) return null; // Admin, kein Filter → alle Daten
+  return ids.length === 1 ? (ids[0] ?? null) : null; // Techniker oder Admin-Filter
+}
 
 export const statistikRouter = createTRPCRouter({
 
   // Live-Kennzahlen — alle eingeloggten User
   getLiveStats: protectedProcedure
-    .query(() => getLiveStats()),
+    .input(z.object({ standortId: z.number().int().positive().nullish() }).optional())
+    .query(({ input, ctx }) => getLiveStats(resolveStatStandortId(ctx, input))),
 
   // Meistgefragte Geräte — Admin
   getMeistgefragteGeraete: adminProcedure
     .input(TageSchema)
-    .query(({ input }) => getMeistgefragteGeraete(input.tage)),
+    .query(({ input, ctx }) => getMeistgefragteGeraete(input.tage, resolveStatStandortId(ctx, input))),
 
   // Meistgefragte Teile — Admin
   getMeistgefragteTeile: adminProcedure
     .input(TageSchema)
-    .query(({ input }) => getMeistgefragteTeile(input.tage)),
+    .query(({ input, ctx }) => getMeistgefragteTeile(input.tage, resolveStatStandortId(ctx, input))),
 
   // Anfragen nach Status — Admin
   getAnfragenNachStatus: adminProcedure
-    .query(() => getAnfragenNachStatus()),
+    .input(z.object({ standortId: z.number().int().positive().nullish() }).optional())
+    .query(({ input, ctx }) => getAnfragenNachStatus(resolveStatStandortId(ctx, input))),
 
   // Buchungsverlauf täglich — Admin
   getBuchungenVerlauf: adminProcedure
     .input(TageSchema)
-    .query(({ input }) => getBuchungenVerlauf(input.tage)),
+    .query(({ input, ctx }) => getBuchungenVerlauf(input.tage, resolveStatStandortId(ctx, input))),
 
   // KPI-Übersicht — Admin (tage statt Date-Objekte)
   getKpiOverview: adminProcedure
     .input(TageSchema)
-    .query(({ input }) => getKpiOverview(input.tage)),
+    .query(({ input, ctx }) => getKpiOverview(input.tage, resolveStatStandortId(ctx, input))),
 
   // Techniker-Statistik — Admin
   getTechnikerStats: adminProcedure
     .input(TageSchema)
-    .query(({ input }) => getTechnikerStats(input.tage)),
+    .query(({ input, ctx }) => getTechnikerStats(input.tage, resolveStatStandortId(ctx, input))),
 
   // Monatsbericht — Admin
   getMonatsbericht: adminProcedure
     .input(z.object({
-      monat: z.number().int().min(1).max(12),
-      jahr:  z.number().int().min(2020).max(2100),
+      monat:      z.number().int().min(1).max(12),
+      jahr:       z.number().int().min(2020).max(2100),
+      standortId: z.number().int().positive().nullish(),
     }))
-    .query(({ input }) => getMonatsbericht(input.monat, input.jahr)),
+    .query(({ input, ctx }) => getMonatsbericht(input.monat, input.jahr, resolveStatStandortId(ctx, input))),
 
   // ── Techniker-Statistik (Anfragen-basiert) ────────────────────────────────
 
   // Anfragen-Verlauf täglich (optional nach Techniker gefiltert)
   getAnfragenVerlauf: adminProcedure
     .input(z.object({
-      tage:    z.number().int().min(1).max(365).default(30),
-      kuerzel: z.string().optional(),
+      tage:       z.number().int().min(1).max(365).default(30),
+      kuerzel:    z.string().optional(),
+      standortId: z.number().int().positive().nullish(),
     }))
-    .query(({ input }) => getAnfragenVerlauf(input.tage, input.kuerzel)),
+    .query(({ input, ctx }) => getAnfragenVerlauf(input.tage, input.kuerzel, resolveStatStandortId(ctx, input))),
 
   // Techniker-KPIs (6 Kennzahlen, nur für einen Techniker)
   getTechnikerKpis: adminProcedure
@@ -135,7 +150,7 @@ export const statistikRouter = createTRPCRouter({
   // Team-Vergleich: alle Techniker mit mehreren Metriken
   getTechnikerTeamVergleich: adminProcedure
     .input(TageSchema)
-    .query(({ input }) => getTechnikerTeamVergleich(input.tage)),
+    .query(({ input, ctx }) => getTechnikerTeamVergleich(input.tage, resolveStatStandortId(ctx, input))),
 
   // ── Jahres-Archiv ─────────────────────────────────────────────────────────
 

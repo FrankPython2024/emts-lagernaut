@@ -15,6 +15,10 @@ export type LiveStats = {
   heutigeAuslagerungen: number;  // AUSGANG + DIREKT heute
 };
 
+// Standort-Filter-Fragmente (fire-and-forget, kein import nötig)
+function aF(sId?: number | null) { return sId != null ? { artikel: { standortId: sId } } : {}; }
+function sF(sId?: number | null) { return sId != null ? { standortId: sId } : {}; }
+
 // Hilfsfunktion: tage → { von, bis }
 function tageZuDateRange(tage: number): { von: Date; bis: Date } {
   const bis = new Date();
@@ -27,27 +31,30 @@ function tageZuDateRange(tage: number): { von: Date; bis: Date } {
 /**
  * Live-Kennzahlen für Dashboard.
  */
-export async function getLiveStats(): Promise<LiveStats> {
+export async function getLiveStats(standortId?: number | null): Promise<LiveStats> {
   const heute      = new Date();
   const heuteStart = new Date(heute.toISOString().slice(0, 10));
   const heuteEnde  = new Date(heuteStart);
   heuteEnde.setDate(heuteEnde.getDate() + 1);
+  const s = sF(standortId);
+  const a = aF(standortId);
 
   const [
     gesamtArtikel, offeneAnfragen, technikerOnline, buchungenHeute, artikelOhneBestand,
     aktiveAnfragen, bedarfAnfragen, artikelMitBestand, heutigeAuslagerungen,
   ] = await Promise.all([
-    prisma.artikel.count(),
-    prisma.anfrage.count({ where: { status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] } } }),
+    prisma.artikel.count({ where: s }),
+    prisma.anfrage.count({ where: { ...a, status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] } } }),
     prisma.technikerSession.count({ where: { online: true } }),
-    prisma.buchung.count({ where: { datum: { gte: heuteStart, lt: heuteEnde } } }),
-    prisma.artikel.count({ where: { bestand: 0 } }),
+    prisma.buchung.count({ where: { ...a, datum: { gte: heuteStart, lt: heuteEnde } } }),
+    prisma.artikel.count({ where: { ...s, bestand: 0 } }),
     // Dashboard-KPIs v2
-    prisma.anfrage.count({ where: { status: { in: [AnfrageStatus.NEU, AnfrageStatus.IN_BEARBEITUNG] } } }),
-    prisma.anfrage.count({ where: { status: AnfrageStatus.BEDARF } }),
-    prisma.artikel.count({ where: { bestand: { gt: 0 } } }),
+    prisma.anfrage.count({ where: { ...a, status: { in: [AnfrageStatus.NEU, AnfrageStatus.IN_BEARBEITUNG] } } }),
+    prisma.anfrage.count({ where: { ...a, status: AnfrageStatus.BEDARF } }),
+    prisma.artikel.count({ where: { ...s, bestand: { gt: 0 } } }),
     prisma.buchung.count({
       where: {
+        ...a,
         datum: { gte: heuteStart, lt: heuteEnde },
         typ:   { in: [BuchungsTyp.AUSGANG, BuchungsTyp.DIREKT] },
       },
@@ -63,13 +70,13 @@ export async function getLiveStats(): Promise<LiveStats> {
 /**
  * Meistgefragte Geräte im Zeitraum.
  */
-export async function getMeistgefragteGeraete(tage: number) {
+export async function getMeistgefragteGeraete(tage: number, standortId?: number | null) {
   const von = new Date();
   von.setDate(von.getDate() - tage);
 
   const anfragen = await prisma.anfrage.groupBy({
     by:      ["geraet"],
-    where:   { datum: { gte: von } },
+    where:   { ...aF(standortId), datum: { gte: von } },
     _count:  { geraet: true },
     orderBy: { _count: { geraet: "desc" } },
     take:    10,
@@ -81,13 +88,13 @@ export async function getMeistgefragteGeraete(tage: number) {
 /**
  * Meistgefragte Teile / Kategorien im Zeitraum.
  */
-export async function getMeistgefragteTeile(tage: number) {
+export async function getMeistgefragteTeile(tage: number, standortId?: number | null) {
   const von = new Date();
   von.setDate(von.getDate() - tage);
 
   const anfragen = await prisma.anfrage.groupBy({
     by:      ["teil"],
-    where:   { datum: { gte: von } },
+    where:   { ...aF(standortId), datum: { gte: von } },
     _count:  { teil: true },
     orderBy: { _count: { teil: "desc" } },
     take:    10,
@@ -99,9 +106,10 @@ export async function getMeistgefragteTeile(tage: number) {
 /**
  * Anfragen nach Status aufgeteilt.
  */
-export async function getAnfragenNachStatus() {
+export async function getAnfragenNachStatus(standortId?: number | null) {
   const gruppen = await prisma.anfrage.groupBy({
     by:     ["status"],
+    where:  Object.keys(aF(standortId)).length ? aF(standortId) : undefined,
     _count: { status: true },
   });
 
@@ -111,13 +119,13 @@ export async function getAnfragenNachStatus() {
 /**
  * Buchungsverlauf der letzten N Tage (täglich).
  */
-export async function getBuchungenVerlauf(tage: number) {
+export async function getBuchungenVerlauf(tage: number, standortId?: number | null) {
   const von = new Date();
   von.setDate(von.getDate() - tage);
   von.setHours(0, 0, 0, 0);
 
   const buchungen = await prisma.buchung.findMany({
-    where:  { datum: { gte: von } },
+    where:  { ...aF(standortId), datum: { gte: von } },
     select: { datum: true, typ: true, menge: true },
     orderBy: { datum: "asc" },
   });
@@ -147,17 +155,18 @@ export async function getBuchungenVerlauf(tage: number) {
 /**
  * KPI-Übersicht — tage: Anzahl Tage rückwärts von heute.
  */
-export async function getKpiOverview(tage: number) {
+export async function getKpiOverview(tage: number, standortId?: number | null) {
   const { von, bis } = tageZuDateRange(tage);
-  const where = { datum: { gte: von, lte: bis } };
+  const where  = { datum: { gte: von, lte: bis } };
+  const artFlt = aF(standortId);
 
   const [gesamtAnfragen, abgeschlossen, bedarf, storniert, gesamtBuchungen] =
     await Promise.all([
-      prisma.anfrage.count({ where }),
-      prisma.anfrage.count({ where: { ...where, status: AnfrageStatus.ABGESCHLOSSEN } }),
-      prisma.anfrage.count({ where: { ...where, status: AnfrageStatus.BEDARF } }),
-      prisma.anfrage.count({ where: { ...where, status: AnfrageStatus.STORNIERT } }),
-      prisma.buchung.count({ where }),
+      prisma.anfrage.count({ where: { ...artFlt, ...where } }),
+      prisma.anfrage.count({ where: { ...artFlt, ...where, status: AnfrageStatus.ABGESCHLOSSEN } }),
+      prisma.anfrage.count({ where: { ...artFlt, ...where, status: AnfrageStatus.BEDARF } }),
+      prisma.anfrage.count({ where: { ...artFlt, ...where, status: AnfrageStatus.STORNIERT } }),
+      prisma.buchung.count({ where: { ...artFlt, ...where } }),
     ]);
 
   const erledigungsquote =
@@ -169,9 +178,9 @@ export async function getKpiOverview(tage: number) {
 /**
  * Techniker-Statistik — tage: Anzahl Tage rückwärts von heute.
  */
-export async function getTechnikerStats(tage: number) {
+export async function getTechnikerStats(tage: number, standortId?: number | null) {
   const { von, bis } = tageZuDateRange(tage);
-  const where = { datum: { gte: von, lte: bis } };
+  const where = { ...aF(standortId), datum: { gte: von, lte: bis } };
 
   const anfragen = await prisma.anfrage.groupBy({
     by:      ["techniker"],
@@ -192,13 +201,14 @@ export async function getTechnikerStats(tage: number) {
  * Anfragen-Verlauf täglich (ersetzt Buchungs-Verlauf in Techniker-Statistik).
  * Optional nach Techniker-Kürzel filterbar.
  */
-export async function getAnfragenVerlauf(tage: number, kuerzel?: string) {
+export async function getAnfragenVerlauf(tage: number, kuerzel?: string, standortId?: number | null) {
   const von = new Date();
   von.setDate(von.getDate() - tage);
   von.setHours(0, 0, 0, 0);
 
   const anfragen = await prisma.anfrage.findMany({
     where: {
+      ...aF(standortId),
       datum: { gte: von },
       ...(kuerzel ? { techniker: kuerzel } : {}),
     },
@@ -400,11 +410,11 @@ export async function getTechnikerLetzteAnfragen(kuerzel: string, tage: number, 
 /**
  * Team-Vergleich: alle Techniker mit mehreren Metriken (für Radar/Grid).
  */
-export async function getTechnikerTeamVergleich(tage: number) {
+export async function getTechnikerTeamVergleich(tage: number, standortId?: number | null) {
   const { von, bis } = tageZuDateRange(tage);
 
   const alle = await prisma.anfrage.findMany({
-    where:  { datum: { gte: von, lte: bis } },
+    where:  { ...aF(standortId), datum: { gte: von, lte: bis } },
     select: { techniker: true, status: true, createdAt: true, updatedAt: true },
   });
 
@@ -439,18 +449,19 @@ export async function getTechnikerTeamVergleich(tage: number) {
 /**
  * Monatsbericht: alle Buchungen + Anfragen eines Monats.
  */
-export async function getMonatsbericht(monat: number, jahr: number) {
-  const von = new Date(jahr, monat - 1, 1);
-  const bis = new Date(jahr, monat, 1);
+export async function getMonatsbericht(monat: number, jahr: number, standortId?: number | null) {
+  const von    = new Date(jahr, monat - 1, 1);
+  const bis    = new Date(jahr, monat, 1);
+  const artFlt = aF(standortId);
 
   const [buchungen, anfragen] = await Promise.all([
     prisma.buchung.findMany({
-      where:   { datum: { gte: von, lt: bis } },
+      where:   { ...artFlt, datum: { gte: von, lt: bis } },
       orderBy: { datum: "asc" },
       include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true } } },
     }),
     prisma.anfrage.findMany({
-      where:   { datum: { gte: von, lt: bis } },
+      where:   { ...artFlt, datum: { gte: von, lt: bis } },
       orderBy: { datum: "asc" },
       include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true } } },
     }),
