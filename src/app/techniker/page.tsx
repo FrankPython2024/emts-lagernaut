@@ -27,7 +27,7 @@ const GREEN   = "#04B475";
 // Status in leichter Sprache
 const STATUS_CFG: Record<string, { text: string; color: string; bg: string }> = {
   NEU:            { text: "Neu",            color: "#005fa3", bg: "#dbeafe" },
-  BEDARF:         { text: "Wird bestellt",  color: "#92400e", bg: "#fef3c7" },
+  BEDARF:         { text: "Bedarf",          color: "#92400e", bg: "#fef3c7" },
   IN_BEARBEITUNG: { text: "In Bearbeitung", color: "#92400e", bg: "#fef3c7" },
   ABGESCHLOSSEN:  { text: "Abgeschlossen",  color: "#15803d", bg: "#dcfce7" },
   STORNIERT:      { text: "Storniert",      color: "#6b7280", bg: "#f3f4f6" },

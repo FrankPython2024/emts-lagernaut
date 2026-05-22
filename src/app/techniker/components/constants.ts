@@ -16,7 +16,7 @@ export const TEIL_ICONS: Record<string, string> = {
 
 export const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
   NEU:            { bg: "#dbeafe", color: "#1d4ed8", label: "NEU" },
-  BEDARF:         { bg: "#ede9fe", color: "#7c3aed", label: "BEDARF" },
+  BEDARF:         { bg: "#fef3c7", color: "#92400e", label: "Bedarf" },
   IN_BEARBEITUNG: { bg: "#fef3c7", color: "#92400e", label: "IN BEARBEITUNG 🔧" },
   ABGESCHLOSSEN:  { bg: "#dcfce7", color: "#15803d", label: "ERLEDIGT ✅" },
   STORNIERT:      { bg: "#f3f4f6", color: "#9ca3af", label: "STORNIERT" },
