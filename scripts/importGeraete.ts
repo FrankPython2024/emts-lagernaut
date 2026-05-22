@@ -1,3 +1,12 @@
+// ⛔ CSV-Import deaktiviert (Frank's Entscheidung, Phase 3b)
+// Daten kommen ausschließlich über den gehärteten Einlager-Assistenten.
+// Reaktivierung nur nach Rücksprache mit Frank via Code-Änderung.
+throw new Error(
+  'CSV-Re-Import ist deaktiviert. ' +
+  'Daten kommen nur noch über den Einlager-Assistenten mit gehärtetem Filter. ' +
+  'Aktivieren via Code-Änderung nach Rücksprache mit Frank.',
+);
+
 import { PrismaClient } from '@prisma/client'
 import { parse } from 'csv-parse/sync'
 import fs from 'fs'
