@@ -284,9 +284,14 @@ export default function TechnikerPage() {
     });
   }
 
-  const koerbe       = korbQuery.data ?? [];
-  const alleKorbItems = koerbe.flatMap((k) => k.items);
-  const totalKorbTeile = alleKorbItems.length;
+  const koerbe            = korbQuery.data ?? [];
+  const alleKorbItems     = koerbe.flatMap((k) => k.items);
+  const totalKorbTeile    = alleKorbItems.length;
+  // Items des aktiven Korbs für das aktuell gewählte Gerät (für Toggle-Prüfung)
+  const aktuellerLogId    = selectedGeraet?.logId === "---" ? "unbekannt" : selectedGeraet?.logId;
+  const aktuelleKorbItems = selectedGeraet
+    ? (koerbe.find((k) => k.logId === aktuellerLogId)?.items ?? [])
+    : [];
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -569,14 +574,18 @@ export default function TechnikerPage() {
                   gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))",
                   gap:                 "0.75rem",
                 }}>
-                  {teileQuery.data.teile.map((teil) => (
-                    <TeilKarte
-                      key={teil.teiltyp}
-                      teil={teil}
-                      onCart={handleAddToCart}
-                      inCart={alleKorbItems.some((i) => i.artikelId === teil.artikelId && teil.artikelId !== null)}
-                    />
-                  ))}
+                  {teileQuery.data.teile.map((teil) => {
+                    const inCartItem = aktuelleKorbItems.find((i) => i.teiltyp === teil.teiltyp);
+                    return (
+                      <TeilKarte
+                        key={teil.teiltyp}
+                        teil={teil}
+                        onCart={handleAddToCart}
+                        onRemove={(itemId) => removeFromCartMutation.mutate({ itemId })}
+                        inCartItemId={inCartItem?.id ?? null}
+                      />
+                    );
+                  })}
                 </div>
               )}
 
@@ -852,11 +861,13 @@ const MAX_BESTAND = 10;
 function TeilKarte({
   teil,
   onCart,
-  inCart,
+  onRemove,
+  inCartItemId,
 }: {
-  teil:   TeilInfo;
-  onCart: (t: TeilInfo, grading: string | null, zusatzinfo: string) => void;
-  inCart: boolean;
+  teil:         TeilInfo;
+  onCart:       (t: TeilInfo, grading: string | null, zusatzinfo: string) => void;
+  onRemove:     (itemId: number) => void;
+  inCartItemId: number | null;
 }) {
   const [grading,    setGrading]    = useState<string | null>(null);
   const [zusatzinfo, setZusatzinfo] = useState("");
@@ -866,15 +877,15 @@ function TeilKarte({
 
   // Zustand bestimmen
   const zustand: "A" | "B" | "C" | "D" =
-    inCart       ? "D" :
-    !hasArtikel  ? "C" :
-    isAvailable  ? "A" : "B";
+    inCartItemId !== null ? "D" :
+    !hasArtikel           ? "C" :
+    isAvailable           ? "A" : "B";
 
-  const BTN: Record<"A"|"B"|"C"|"D", { bg: string; label: string; cursor: string }> = {
-    A: { bg: "var(--primary)", label: "🛒 In Warenkorb",       cursor: "pointer"     },
-    B: { bg: "var(--purple)",  label: "📋 Als Bedarf anfragen", cursor: "pointer"     },
-    C: { bg: "#f97316",        label: "📋 Trotzdem anfragen",   cursor: "pointer"     },
-    D: { bg: "#16a34a",        label: "✓ Im Warenkorb",         cursor: "not-allowed" },
+  const BTN: Record<"A"|"B"|"C"|"D", { bg: string; label: string }> = {
+    A: { bg: "var(--primary)", label: "🛒 In Warenkorb"        },
+    B: { bg: "var(--purple)",  label: "📋 Als Bedarf anfragen"  },
+    C: { bg: "#f97316",        label: "📋 Trotzdem anfragen"    },
+    D: { bg: "transparent",    label: "✓ Im Korb – entfernen"  },
   };
 
   const btn = BTN[zustand];
@@ -948,8 +959,8 @@ function TeilKarte({
         </div>
       )}
       {zustand === "D" && (
-        <div style={{ textAlign: "center", fontWeight: 800, fontSize: "0.8rem", color: "#16a34a" }}>
-          ✓ Hinzugefügt
+        <div style={{ textAlign: "center", fontWeight: 800, fontSize: "0.8rem", color: "#0e7490" }}>
+          ✓ Im Korb
         </div>
       )}
 
@@ -1018,19 +1029,23 @@ function TeilKarte({
 
       {/* Haupt-Button */}
       <button
-        onClick={() => zustand !== "D" && onCart(teil, grading, zusatzinfo)}
-        disabled={zustand === "D"}
+        onClick={() => {
+          if (zustand === "D") { if (inCartItemId) onRemove(inCartItemId); }
+          else                 { onCart(teil, grading, zusatzinfo); }
+        }}
+        title={zustand === "D" ? "Diesen Teiltyp aus dem Korb entfernen" : undefined}
         style={{
-          background:   btn.bg,
-          color:        "white",
-          border:       "none",
+          background:   zustand === "D" ? "rgba(6,182,212,0.10)" : btn.bg,
+          color:        zustand === "D" ? "#0e7490" : "white",
+          border:       zustand === "D" ? "2px solid #06b6d4" : "none",
           padding:      "0.6rem",
           borderRadius: 8,
           fontWeight:   "bold",
-          cursor:       btn.cursor,
+          cursor:       "pointer",
           fontFamily:   "'Ubuntu', sans-serif",
           fontSize:     "0.82rem",
-          opacity:      zustand === "D" ? 0.85 : 1,
+          minHeight:    44,
+          boxSizing:    "border-box",
           marginTop:    "auto",
         }}
       >

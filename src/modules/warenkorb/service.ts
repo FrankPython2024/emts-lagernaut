@@ -55,6 +55,9 @@ export async function addItem(data: {
     }
   }
 
+  // Freitext-Sonderanfragen (kein fester Teiltyp) dürfen mehrfach vorkommen
+  const SONDERFALL_TEILTYPEN = ["Sonstiges", "Spezielle Anfrage"];
+
   const korbId = await prisma.$transaction(async (tx) => {
     let korb = await tx.warenkorb.findFirst({
       where: { techniker, logId, status: KorbStatus.AKTIV },
@@ -64,6 +67,19 @@ export async function addItem(data: {
       korb = await tx.warenkorb.create({
         data: { techniker, logId, geraeteName: data.geraeteName, status: KorbStatus.AKTIV },
       });
+    }
+
+    // Safety-Net: Teiltyp darf pro Gerät max 1× im aktiven Korb sein
+    if (data.teiltyp && !SONDERFALL_TEILTYPEN.includes(data.teiltyp)) {
+      const existing = await tx.warenkorbItem.findFirst({
+        where: { korbId: korb.id, teiltyp: data.teiltyp },
+      });
+      if (existing) {
+        throw new TRPCError({
+          code:    "CONFLICT",
+          message: `${data.teiltyp} ist bereits in der Anfrage`,
+        });
+      }
     }
 
     await tx.warenkorbItem.create({
