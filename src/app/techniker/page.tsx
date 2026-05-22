@@ -10,7 +10,7 @@ import { type AnfrageRow, type GruppeData } from "./components/constants";
 import {
   Cpu, Monitor, MonitorSmartphone, Mouse, Square, Keyboard,
   Volume2, CircleDot, Power, Usb, Network, Wifi,
-  Battery, Box, Plug, type LucideIcon,
+  Battery, Box, Plug, Loader2, MessageCircle, type LucideIcon,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -142,25 +142,14 @@ export default function TechnikerPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gruppen]);
 
-  // ── Stats ──────────────────────────────────────────────────────────────────
-
-  const gesamt        = alleAnfragen.length;
-  const abgeschlossen = alleAnfragen.filter(a => a.status === "ABGESCHLOSSEN").length;
-  const letzteAnfrage = alleAnfragen.length > 0
-    ? new Date(Math.max(...alleAnfragen.map(a => new Date(a.datum).getTime())))
-    : null;
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ maxWidth: 680, margin: "0 auto", padding: "1.5rem 1rem 3rem" }}>
+    <div style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem 1.25rem 3rem" }}>
 
       {/* ── Begrüßung ── */}
-      <div style={{ marginBottom: "1.75rem" }}>
-        <p style={{ margin: 0, color: "var(--text-dim)", fontSize: "0.875rem" }}>
-          {new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })}
-        </p>
-        <h1 style={{ margin: "0.25rem 0 0.1rem", fontSize: "1.6rem", fontWeight: 800, lineHeight: 1.2 }}>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ margin: "0 0 0.1rem", fontSize: "1.6rem", fontWeight: 800, lineHeight: 1.2 }}>
           Hallo {vorname || kuerzel || "…"},
         </h1>
         <p style={{ margin: 0, color: "var(--text-dim)", fontSize: "1rem" }}>
@@ -168,92 +157,74 @@ export default function TechnikerPage() {
         </p>
       </div>
 
-      {/* ── Aktions-Card ── */}
-      <button
-        onClick={() => setShowFlow(true)}
-        style={{
-          display:        "flex",
-          flexDirection:  "column",
-          alignItems:     "flex-start",
-          width:          "100%",
-          padding:        "1.4rem 1.6rem",
-          background:     CYAN,
-          color:          "white",
-          border:         "none",
-          borderRadius:   16,
-          cursor:         "pointer",
-          marginBottom:   "2rem",
-          textAlign:      "left",
-          boxShadow:      "0 4px 20px rgba(0,139,210,0.30)",
-          fontFamily:     "'Ubuntu', sans-serif",
-          minHeight:      80,
-        }}
-      >
-        <span style={{ fontSize: "1.375rem", fontWeight: 800, lineHeight: 1.2 }}>
-          Ersatzteile anfragen
-        </span>
-        <span style={{ fontSize: "1rem", opacity: 0.9, marginTop: "0.35rem" }}>
-          Tippen oder Gerät scannen
-        </span>
-      </button>
+      {/* ── Two-column grid ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-      {/* ── Anfragen-Liste ── */}
-      <section style={{ marginBottom: "2rem" }}>
-        <h2 style={{ margin: "0 0 1rem", fontSize: "1.2rem", fontWeight: 700 }}>
-          Deine Anfragen
-        </h2>
-
-        {anfragenQuery.isLoading && (
-          <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>
-            Laden…
-          </div>
-        )}
-
-        {!anfragenQuery.isLoading && gruppen.length === 0 && (
-          <div style={{
-            padding:      "1.5rem",
-            background:   "var(--card-bg)",
-            borderRadius: 12,
-            border:       "1px solid var(--border)",
-            color:        "var(--text-dim)",
-            textAlign:    "center",
-          }}>
-            Du hast noch keine Anfragen gestellt.
-          </div>
-        )}
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {gruppen.map(g => (
-            <AnfrageKarte
-              key={g.key}
-              gruppe={g}
-              onClick={() => setDetailGruppe(g)}
-            />
-          ))}
+        {/* ── Left: Aktions-Card ── */}
+        <div>
+          <button
+            onClick={() => setShowFlow(true)}
+            style={{
+              display:       "flex",
+              flexDirection: "column",
+              alignItems:    "flex-start",
+              width:         "100%",
+              padding:       "1.5rem 1.75rem",
+              background:    CYAN,
+              color:         "white",
+              border:        "none",
+              borderRadius:  16,
+              cursor:        "pointer",
+              textAlign:     "left",
+              boxShadow:     "0 4px 20px rgba(0,139,210,0.30)",
+              fontFamily:    "'Ubuntu', sans-serif",
+              minHeight:     100,
+              transition:    "transform 0.15s, box-shadow 0.15s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,139,210,0.45)"; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,139,210,0.30)"; }}
+          >
+            <span style={{ fontSize: "1.375rem", fontWeight: 800, lineHeight: 1.2 }}>
+              Ersatzteile anfragen
+            </span>
+            <span style={{ fontSize: "1rem", opacity: 0.9, marginTop: "0.4rem" }}>
+              Tippen oder Gerät scannen
+            </span>
+          </button>
         </div>
-      </section>
 
-      {/* ── Statistik ── */}
-      {gesamt > 0 && (
-        <section style={{
-          padding:      "1.2rem 1.4rem",
-          background:   "var(--card-bg)",
-          borderRadius: 12,
-          border:       "1px solid var(--border)",
-        }}>
-          <h2 style={{ margin: "0 0 0.5rem", fontSize: "1rem", fontWeight: 700 }}>
-            Deine Statistik
+        {/* ── Right: Anfragen-Liste ── */}
+        <div>
+          <h2 style={{ margin: "0 0 0.875rem", fontSize: "1.2rem", fontWeight: 700 }}>
+            Deine Anfragen
           </h2>
-          <p style={{ margin: "0 0 0.3rem", fontSize: "1rem" }}>
-            Du hast {gesamt} Anfragen gestellt. {abgeschlossen} sind abgeschlossen.
-          </p>
-          {letzteAnfrage && (
-            <p style={{ margin: 0, fontSize: "0.95rem", color: "var(--text-dim)" }}>
-              Deine letzte Anfrage war {relativeZeit(letzteAnfrage)}.
-            </p>
+
+          {anfragenQuery.isLoading && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "3rem 0", color: "var(--text-dim)" }}>
+              <Loader2 size={20} style={{ animation: "tkSpin 0.8s linear infinite" }} />
+              Wird geladen
+              <style>{`@keyframes tkSpin{to{transform:rotate(360deg)}}`}</style>
+            </div>
           )}
-        </section>
-      )}
+
+          {!anfragenQuery.isLoading && gruppen.length === 0 && (
+            <div style={{ padding: "1.5rem", background: "var(--card-bg)", borderRadius: 12, border: "1px solid var(--border)", color: "var(--text-dim)", textAlign: "center" }}>
+              Du hast noch keine Anfragen gestellt.
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+            {gruppen.map(g => (
+              <AnfrageKarte
+                key={g.key}
+                gruppe={g}
+                onClick={() => setDetailGruppe(g)}
+              />
+            ))}
+          </div>
+        </div>
+
+      </div>{/* end grid */}
 
       {/* ── Modals ── */}
       {showFlow && (
@@ -285,55 +256,56 @@ function ChatBadge({ anfrageId }: { anfrageId: number }) {
   if (n === 0) return null;
   return (
     <span style={{
-      display:      "inline-block",
-      background:   "#ef4444",
-      color:        "white",
+      display:      "inline-flex",
+      alignItems:   "center",
+      gap:          5,
+      background:   "rgba(0,139,210,0.10)",
+      color:        "#005fa3",
       borderRadius: 20,
-      padding:      "2px 10px",
+      padding:      "3px 10px",
       fontSize:     "0.82rem",
-      fontWeight:   800,
+      fontWeight:   700,
     }}>
-      Neue Nachricht{n !== 1 ? `en (${n})` : " (1)"}
+      <MessageCircle size={13} />
+      {n === 1 ? "1 neue Nachricht" : `${n} neue Nachrichten`}
     </span>
   );
 }
 
 function AnfrageKarte({ gruppe, onClick }: { gruppe: GruppeData; onClick: () => void }) {
-  const status    = gruppeStatus(gruppe);
-  const cfg       = STATUS_CFG[status] ?? STATUS_CFG.NEU!;
-  const teileAnz  = gruppe.anfragen.length;
-  const hasLogId  = !!(gruppe.logId && gruppe.logId !== "unbekannt");
-  const geraet    = gruppe.geraeteName ?? (hasLogId ? gruppe.logId! : "Unbekanntes Gerät");
-  const firstId   = gruppe.anfragen[0]?.id;
+  const status   = gruppeStatus(gruppe);
+  const cfg      = STATUS_CFG[status] ?? STATUS_CFG.NEU!;
+  const teileAnz = gruppe.anfragen.length;
+  const hasLogId = !!(gruppe.logId && gruppe.logId !== "unbekannt");
+  const geraet   = gruppe.geraeteName ?? (hasLogId ? gruppe.logId! : "Unbekanntes Gerät");
+  const firstId  = gruppe.anfragen[0]?.id;
 
   return (
     <button
       onClick={onClick}
+      className="block w-full text-left transition-all duration-200 hover:border-[#008BD2] hover:shadow-md active:scale-[0.99]"
       style={{
-        display:    "block",
-        width:      "100%",
-        padding:    "1rem 1.2rem",
-        background: "var(--card-bg)",
-        border:     "1px solid var(--border)",
-        borderRadius: 12,
-        cursor:     "pointer",
-        textAlign:  "left",
-        boxShadow:  "0 2px 8px rgba(0,0,0,0.05)",
-        fontFamily: "'Ubuntu', sans-serif",
-        color:      "var(--text)",
-        minHeight:  72,
+        padding:      "1.1rem 1.25rem",
+        background:   "var(--card-bg)",
+        border:       "1.5px solid var(--border)",
+        borderRadius: 16,
+        cursor:       "pointer",
+        fontFamily:   "'Ubuntu', sans-serif",
+        color:        "var(--text)",
+        minHeight:    72,
+        boxShadow:    "0 1px 4px rgba(0,0,0,0.06)",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-        <span style={{ fontWeight: 800, fontSize: "1.05rem", lineHeight: 1.3, flex: 1 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: "0.3rem" }}>
+        <span style={{ fontWeight: 700, fontSize: "1.05rem", lineHeight: 1.3, flex: 1 }}>
           {geraet}
         </span>
         <span style={{
           background:   cfg.bg,
           color:        cfg.color,
           borderRadius: 20,
-          padding:      "2px 10px",
-          fontSize:     "0.82rem",
+          padding:      "3px 11px",
+          fontSize:     "0.8rem",
           fontWeight:   700,
           flexShrink:   0,
         }}>
@@ -341,14 +313,14 @@ function AnfrageKarte({ gruppe, onClick }: { gruppe: GruppeData; onClick: () => 
         </span>
       </div>
 
-      <div style={{ marginTop: "0.3rem", fontSize: "0.9rem", color: "var(--text-dim)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ fontSize: "0.875rem", color: "var(--text-dim)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <span>{teileAnz} {teileAnz === 1 ? "Teil" : "Teile"} angefragt</span>
         <span aria-hidden>·</span>
         <span>{relativeZeit(new Date(gruppe.datum))}</span>
       </div>
 
       {firstId !== undefined && (
-        <div style={{ marginTop: "0.4rem" }}>
+        <div style={{ marginTop: "0.5rem" }}>
           <ChatBadge anfrageId={firstId} />
         </div>
       )}
@@ -491,12 +463,13 @@ function AnfrageFlow({
       onClick={step === "done" || step === "sending" ? undefined : onClose}
     >
       <div
+        className="modal-enter"
         style={{ width: "100%", maxWidth: 680, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.3)", maxHeight: "90vh", overflowY: "auto", color: "var(--text)" }}
         onClick={e => e.stopPropagation()}
       >
         {/* ── Step 1: LogID ── */}
         {step === "logid" && (
-          <div style={{ padding: "1.5rem 1.5rem 2rem" }}>
+          <div key="logid" className="step-enter" style={{ padding: "1.5rem 1.5rem 2rem" }}>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.75rem" }}>
               <button onClick={onClose} aria-label="Schließen" style={closeBtn}>✕</button>
             </div>
@@ -539,7 +512,7 @@ function AnfrageFlow({
 
         {/* ── Step 2: Teile-Auswahl ── */}
         {step === "teile" && selectedGeraet && (
-          <div style={{ padding: "1.5rem 1.5rem 2rem" }}>
+          <div key="teile" className="step-enter" style={{ padding: "1.5rem 1.5rem 2rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.25rem" }}>
               <div>
                 <h2 style={{ margin: "0 0 0.2rem", fontSize: "1.25rem", fontWeight: 800, lineHeight: 1.2 }}>
@@ -571,6 +544,7 @@ function AnfrageFlow({
                     <button
                       key={t.teiltyp}
                       onClick={() => toggleTeil(t.teiltyp)}
+                      className="active:scale-95"
                       style={{
                         padding:        "0.9rem 0.5rem 0.75rem",
                         borderRadius:   12,
@@ -653,7 +627,7 @@ function AnfrageFlow({
 
         {/* ── Step: Sending ── */}
         {step === "sending" && (
-          <div style={{ padding: "4rem 2rem", textAlign: "center" }}>
+          <div key="sending" className="step-enter" style={{ padding: "4rem 2rem", textAlign: "center" }}>
             <div style={{ width: 44, height: 44, border: `4px solid rgba(0,139,210,0.2)`, borderTopColor: CYAN, borderRadius: "50%", animation: "tkSpin 0.7s linear infinite", margin: "0 auto 1rem" }} />
             <p style={{ color: "var(--text-dim)", fontSize: "1rem", margin: 0 }}>Anfrage wird gesendet…</p>
             <style>{`@keyframes tkSpin { to { transform: rotate(360deg); } }`}</style>
@@ -662,7 +636,7 @@ function AnfrageFlow({
 
         {/* ── Step: Done ── */}
         {step === "done" && (
-          <div style={{ padding: "3rem 2rem", textAlign: "center" }}>
+          <div key="done" className="step-enter" style={{ padding: "3rem 2rem", textAlign: "center" }}>
             <div style={{ fontSize: "3.5rem", marginBottom: "0.75rem", lineHeight: 1 }}>✅</div>
             <h2 style={{ margin: "0 0 0.4rem", fontSize: "1.5rem", fontWeight: 800 }}>Danke!</h2>
             <p style={{ color: "var(--text-dim)", margin: "0 0 0.25rem", fontSize: "1rem" }}>
@@ -731,6 +705,7 @@ function AnfrageDetailModal({
       onClick={onClose}
     >
       <div
+        className="modal-enter"
         style={{ width: "100%", maxWidth: 680, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.3)", maxHeight: "90vh", overflowY: "auto", color: "var(--text)" }}
         onClick={e => e.stopPropagation()}
       >

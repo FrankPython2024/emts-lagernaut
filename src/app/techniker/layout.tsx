@@ -1,14 +1,11 @@
 "use client";
 import { useState, useEffect, createContext, useContext } from "react";
-import Link        from "next/link";
-import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { ToastProvider }  from "@/components/ui/Toast";
-import { LogoutButton }   from "@/components/ui/LogoutButton";
-import { GlobalSearch }   from "@/components/GlobalSearch";
-import { api }            from "@/trpc/react";
-import { useSocket }      from "@/hooks/useSocket";
-import { EVENTS }         from "@/modules/realtime/events";
+import { useSession }   from "next-auth/react";
+import { ToastProvider } from "@/components/ui/Toast";
+import { LogoutButton }  from "@/components/ui/LogoutButton";
+import { api }           from "@/trpc/react";
+import { useSocket }     from "@/hooks/useSocket";
+import { EVENTS }        from "@/modules/realtime/events";
 
 // ── Font size context ─────────────────────────────────────────────────────────
 
@@ -20,13 +17,26 @@ export function useFontSize() { return useContext(FontCtx); }
 
 type SessionUser = { name?: string; kuerzel?: string; rolle?: string };
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function relativeZeit(date: Date): string {
+  const s = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (s < 60)  return "gerade eben";
+  const m = Math.floor(s / 60);
+  if (m < 60)  return `vor ${m} Minute${m !== 1 ? "n" : ""}`;
+  const h = Math.floor(m / 60);
+  if (h < 24)  return `vor ${h} Stunde${h !== 1 ? "n" : ""}`;
+  const d = Math.floor(h / 24);
+  if (d === 1) return "gestern";
+  if (d < 7)   return `vor ${d} Tagen`;
+  return date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+}
+
 // ── NachrichtToast ────────────────────────────────────────────────────────────
 
 type ToastData = { id: number; betreff: string; inhalt: string; vonKuerzel: string };
 
 function NachrichtToast({ data, onClose }: { data: ToastData; onClose: () => void }) {
-  const router = useRouter();
-
   return (
     <div style={{
       position:     "fixed",
@@ -41,72 +51,151 @@ function NachrichtToast({ data, onClose }: { data: ToastData; onClose: () => voi
       borderRadius: 14,
       boxShadow:    "0 16px 48px rgba(0,0,0,0.28)",
       padding:      "1.2rem 1.5rem",
-      animation:    "slideInFromTop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
       color:        "var(--text)",
     }}>
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
         <strong style={{ fontSize: "0.95rem", display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: "1.2rem" }}>📬</span>
           Neue Chat-Nachricht
         </strong>
-        <button
-          onClick={onClose}
-          style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: "var(--text-dim)", fontSize: "1.3rem", lineHeight: 1, padding: "0 2px",
-          }}
-        >
-          ×
-        </button>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)", fontSize: "1.3rem", lineHeight: 1, padding: "0 2px" }}>×</button>
       </div>
-
       <hr style={{ border: 0, borderTop: "1px solid var(--border)", margin: "8px 0" }} />
-
-      {/* Betreff */}
-      <div style={{ fontWeight: 800, fontSize: "0.9rem", marginBottom: 5, color: "var(--primary)" }}>
-        {data.betreff}
-      </div>
-
-      {/* Inhalt-Vorschau */}
+      <div style={{ fontWeight: 800, fontSize: "0.9rem", marginBottom: 5, color: "var(--primary)" }}>{data.betreff}</div>
       <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", marginBottom: 14, lineHeight: 1.5 }}>
         {data.inhalt.substring(0, 100)}{data.inhalt.length > 100 ? "…" : ""}
       </div>
+      <button
+        onClick={onClose}
+        style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "0.5rem 1.1rem", borderRadius: 8, cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontWeight: 600, fontSize: "0.85rem" }}
+      >
+        × Schließen
+      </button>
+    </div>
+  );
+}
 
-      {/* Buttons */}
-      <div style={{ display: "flex", gap: 8 }}>
-        <button
-          onClick={() => { router.push("/techniker"); onClose(); }}
-          style={{
-            background:   "var(--primary)",
-            color:        "white",
-            border:       "none",
-            padding:      "0.5rem 1.1rem",
-            borderRadius: 8,
-            cursor:       "pointer",
-            fontFamily:   "'Ubuntu', sans-serif",
-            fontWeight:   700,
-            fontSize:     "0.85rem",
-          }}
-        >
-          📖 Lesen
-        </button>
-        <button
-          onClick={onClose}
-          style={{
-            background:   "var(--bg)",
-            border:       "1px solid var(--border)",
-            color:        "var(--text)",
-            padding:      "0.5rem 1.1rem",
-            borderRadius: 8,
-            cursor:       "pointer",
-            fontFamily:   "'Ubuntu', sans-serif",
-            fontWeight:   600,
-            fontSize:     "0.85rem",
-          }}
-        >
-          × Schließen
-        </button>
+// ── LiveUhr ───────────────────────────────────────────────────────────────────
+
+function LiveUhr() {
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (!now) return <div style={{ width: 110, height: 36 }} />;
+
+  const uhrzeit = now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const datum   = now.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.3 }}>
+      <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, fontSize: "0.95rem", letterSpacing: "0.02em" }}>
+        {uhrzeit}
+      </span>
+      <span style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>
+        {datum}
+      </span>
+    </div>
+  );
+}
+
+// ── ProfilModal ───────────────────────────────────────────────────────────────
+
+function ProfilModal({ kuerzel, name, onClose }: { kuerzel: string; name: string; onClose: () => void }) {
+  const anfragenQuery = api.anfragen.getByTechniker.useQuery(
+    { kuerzel, showAll: true, limit: 200 },
+    { enabled: !!kuerzel, staleTime: 10_000 },
+  );
+
+  const alle         = anfragenQuery.data?.anfragen ?? [];
+  const gesamt       = alle.length;
+  const abgeschlossen = alle.filter(a => a.status === "ABGESCHLOSSEN").length;
+  const aktiv        = alle.filter(a => ["NEU", "IN_BEARBEITUNG", "BEDARF"].includes(a.status)).length;
+  const storniert    = alle.filter(a => a.status === "STORNIERT").length;
+  const letzte       = gesamt > 0
+    ? new Date(Math.max(...alle.map(a => new Date(a.datum).getTime())))
+    : null;
+
+  const btnClose: React.CSSProperties = {
+    background: "none", border: "none", cursor: "pointer",
+    fontSize: "1.3rem", color: "var(--text-dim)", padding: "4px 8px", lineHeight: 1,
+    minHeight: 44, minWidth: 44,
+  };
+  const statRow: React.CSSProperties = {
+    display: "flex", justifyContent: "space-between", padding: "0.6rem 0",
+    borderBottom: "1px solid var(--border)", fontSize: "1rem",
+  };
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
+      onClick={onClose}
+    >
+      <div
+        className="modal-enter"
+        style={{ width: "100%", maxWidth: 480, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.25)", color: "var(--text)", overflow: "hidden" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
+          <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800 }}>Profil und Statistiken</h2>
+          <button onClick={onClose} aria-label="Schließen" style={btnClose}>✕</button>
+        </div>
+
+        <div style={{ padding: "1.2rem 1.5rem 2rem" }}>
+          {/* Persönliche Daten */}
+          <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>
+            Persönliche Daten
+          </h3>
+          <div style={statRow}>
+            <span style={{ color: "var(--text-dim)" }}>Name</span>
+            <span style={{ fontWeight: 700 }}>{name || "–"}</span>
+          </div>
+          <div style={{ ...statRow, marginBottom: "1.5rem" }}>
+            <span style={{ color: "var(--text-dim)" }}>Kürzel</span>
+            <span style={{ fontWeight: 700 }}>{kuerzel}</span>
+          </div>
+
+          {/* Statistiken */}
+          <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>
+            Statistiken
+          </h3>
+
+          {anfragenQuery.isLoading ? (
+            <p style={{ color: "var(--text-dim)", textAlign: "center", padding: "1rem 0" }}>Wird geladen…</p>
+          ) : (
+            <>
+              <div style={statRow}>
+                <span style={{ color: "var(--text-dim)" }}>Anfragen gesamt</span>
+                <span style={{ fontWeight: 800, fontSize: "1.1rem" }}>{gesamt}</span>
+              </div>
+              <div style={statRow}>
+                <span style={{ color: "var(--text-dim)" }}>Abgeschlossen</span>
+                <span style={{ fontWeight: 700, color: "#15803d" }}>{abgeschlossen}</span>
+              </div>
+              <div style={statRow}>
+                <span style={{ color: "var(--text-dim)" }}>Aktiv</span>
+                <span style={{ fontWeight: 700, color: "#005fa3" }}>{aktiv}</span>
+              </div>
+              {storniert > 0 && (
+                <div style={statRow}>
+                  <span style={{ color: "var(--text-dim)" }}>Storniert</span>
+                  <span style={{ fontWeight: 700, color: "#6b7280" }}>{storniert}</span>
+                </div>
+              )}
+              {letzte && (
+                <div style={{ ...statRow, borderBottom: "none" }}>
+                  <span style={{ color: "var(--text-dim)" }}>Letzte Anfrage</span>
+                  <span style={{ fontWeight: 600 }}>{relativeZeit(letzte)}</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -114,19 +203,15 @@ function NachrichtToast({ data, onClose }: { data: ToastData; onClose: () => voi
 
 // ── Header ────────────────────────────────────────────────────────────────────
 
-function TechnikerHeader({ bellShake, onSearch }: { bellShake: boolean; onSearch: () => void }) {
-  const { data: session } = useSession();
-  const { fontSize, setFontSize } = useFontSize();
-  const [dark, setDark] = useState(false);
+function TechnikerHeader() {
+  const { data: session }          = useSession();
+  const { fontSize, setFontSize }  = useFontSize();
+  const [dark,       setDark]      = useState(false);
+  const [showProfil, setShowProfil] = useState(false);
 
   const user    = session?.user as SessionUser | undefined;
   const kuerzel = user?.kuerzel ?? "";
-
-  const ungelesenQuery = api.chat.getUngelesenCount.useQuery(
-    undefined,
-    { enabled: !!kuerzel, refetchInterval: 15_000 },
-  );
-  const badge = ungelesenQuery.data ?? 0;
+  const name    = user?.name    ?? "";
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
@@ -140,134 +225,107 @@ function TechnikerHeader({ bellShake, onSearch }: { bellShake: boolean; onSearch
   }
 
   const btnIcon: React.CSSProperties = {
-    background:   "var(--bg)",
-    border:       "1px solid var(--border)",
-    color:        "var(--text)",
-    padding:      "0.4rem 0.8rem",
+    background:  "var(--bg)",
+    border:      "1px solid var(--border)",
+    color:       "var(--text)",
+    padding:     "0.4rem 0.8rem",
     borderRadius: 6,
-    cursor:       "pointer",
-    fontWeight:   600,
-    margin:       "0.1rem",
-    transition:   "all 0.2s",
-    fontFamily:   "'Ubuntu', sans-serif",
-    whiteSpace:   "nowrap",
+    cursor:      "pointer",
+    fontWeight:  600,
+    margin:      "0.1rem",
+    transition:  "all 0.2s",
+    fontFamily:  "'Ubuntu', sans-serif",
+    whiteSpace:  "nowrap",
   };
 
   return (
-    <header style={{
-      display:        "flex",
-      justifyContent: "space-between",
-      alignItems:     "center",
-      padding:        "1rem 2.5rem",
-      background:     "var(--card-bg)",
-      borderBottom:   "1px solid var(--border)",
-      position:       "sticky",
-      top:            0,
-      zIndex:         1000,
-      boxShadow:      "0 2px 4px rgba(0,0,0,0.1)",
-    }}>
-      {/* Logo + Title */}
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <img
-          src="https://www.afbshop.de/media/ca/1f/fe/1760428029/logo.svg"
-          alt="AfB"
-          className="dark:bg-white/90 dark:rounded dark:p-0.5"
-          style={{ height: "2.5rem", marginRight: "1.2rem" }}
-        />
-        <div style={{ borderLeft: "2px solid var(--border)", paddingLeft: "1.2rem" }}>
-          <strong style={{ display: "block" }}>EMTS | Lagernaut</strong>
-          <small style={{ color: "var(--primary)", fontWeight: "bold", textTransform: "uppercase", letterSpacing: 1 }}>
-            AfB Sömmerda
-          </small>
+    <>
+      <header style={{
+        display:        "flex",
+        justifyContent: "space-between",
+        alignItems:     "center",
+        padding:        "0.75rem 2rem",
+        background:     "var(--card-bg)",
+        borderBottom:   "1px solid var(--border)",
+        position:       "sticky",
+        top:            0,
+        zIndex:         1000,
+        boxShadow:      "0 2px 4px rgba(0,0,0,0.08)",
+        gap:            "1rem",
+      }}>
+        {/* Logo + Title */}
+        <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+          <img
+            src="https://www.afbshop.de/media/ca/1f/fe/1760428029/logo.svg"
+            alt="AfB"
+            className="dark:bg-white/90 dark:rounded dark:p-0.5"
+            style={{ height: "2.2rem", marginRight: "1rem" }}
+          />
+          <div style={{ borderLeft: "2px solid var(--border)", paddingLeft: "1rem" }}>
+            <strong style={{ display: "block", fontSize: "0.9rem" }}>EMTS | Lagernaut</strong>
+            <small style={{ color: "var(--primary)", fontWeight: "bold", textTransform: "uppercase", letterSpacing: 1, fontSize: "0.65rem" }}>
+              AfB Sömmerda
+            </small>
+          </div>
         </div>
-      </div>
 
-      {/* Controls */}
-      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.2rem" }}>
-        {/* Schriftgröße */}
-        {(["small", "medium", "large"] as const).map((sz, i) => {
-          const isActive = fontSize === sz;
-          return (
+        {/* Live-Uhr (mittig) */}
+        <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+          <LiveUhr />
+        </div>
+
+        {/* Controls */}
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.2rem", flexShrink: 0 }}>
+          {/* Schriftgröße */}
+          {(["small", "medium", "large"] as const).map((sz, i) => {
+            const isActive = fontSize === sz;
+            return (
+              <button
+                key={sz}
+                onClick={() => setFontSize(sz)}
+                title={sz === "small" ? "Klein" : sz === "medium" ? "Standard" : "Groß"}
+                style={{
+                  ...btnIcon,
+                  fontSize:   ["0.75rem", "1rem", "1.25rem"][i],
+                  background: isActive ? "var(--primary)" : "var(--bg)",
+                  color:      isActive ? "white"          : "var(--text)",
+                  border:     isActive ? "1px solid var(--primary)" : "1px solid var(--border)",
+                  fontWeight: isActive ? 800 : 600,
+                }}
+              >
+                A
+              </button>
+            );
+          })}
+
+          <span style={{ borderLeft: "1px solid var(--border)", margin: "0 0.5rem", height: 24 }} />
+
+          {/* Dark mode */}
+          <button onClick={toggleTheme} style={btnIcon}>
+            {dark ? "☀️ Hell" : "🌙 Dunkel"}
+          </button>
+
+          {/* Profil + Statistiken */}
+          {kuerzel && (
             <button
-              key={sz}
-              onClick={() => setFontSize(sz)}
-              title={sz === "small" ? "Klein" : sz === "medium" ? "Standard" : "Groß"}
-              style={{
-                ...btnIcon,
-                fontSize:   ["0.75rem", "1rem", "1.25rem"][i],
-                background: isActive ? "var(--primary)" : "var(--bg)",
-                color:      isActive ? "white"          : "var(--text)",
-                border:     isActive ? "1px solid var(--primary)" : "1px solid var(--border)",
-                fontWeight: isActive ? 800 : 600,
-              }}
+              onClick={() => setShowProfil(true)}
+              style={{ ...btnIcon, color: "var(--primary)", fontWeight: 700 }}
             >
-              A
+              👤 Profil und Statistiken
             </button>
-          );
-        })}
-        <span style={{ borderLeft: "1px solid var(--border)", margin: "0 0.8rem", height: 24 }} />
-
-        {/* Globale Suche */}
-        <button
-          onClick={onSearch}
-          title="Globale Suche (Strg+K)"
-          aria-label="Globale Suche öffnen"
-          style={{ ...btnIcon, fontSize: "1.1rem", minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}
-        >
-          🔍
-        </button>
-
-        {/* Dark mode */}
-        <button onClick={toggleTheme} style={btnIcon}>
-          {dark ? "☀️ Hell" : "🌙 Dunkel"}
-        </button>
-
-        {/* Profil */}
-        {kuerzel && (
-          <Link href="/techniker/profil" style={{ ...btnIcon, color: "var(--primary)", textDecoration: "none", marginLeft: "0.5rem" }}>
-            👤 {kuerzel}
-          </Link>
-        )}
-
-        {/* Nachrichten badge */}
-        <Link
-          href="/techniker/nachrichten"
-          style={{
-            ...btnIcon,
-            position:      "relative",
-            textDecoration: "none",
-            animation:     bellShake ? "bellShake 0.5s ease" : "none",
-          }}
-        >
-          🔔
-          {badge > 0 && (
-            <span style={{
-              position:       "absolute",
-              top:            -4,
-              right:          -4,
-              background:     "var(--danger)",
-              color:          "white",
-              borderRadius:   "50%",
-              width:          18,
-              height:         18,
-              display:        "flex",
-              alignItems:     "center",
-              justifyContent: "center",
-              fontSize:       "0.6rem",
-              fontWeight:     "bold",
-              lineHeight:     1,
-            }}>
-              {badge > 9 ? "9+" : badge}
-            </span>
           )}
-        </Link>
 
-        {/* Logout */}
-        <LogoutButton style={{ ...btnIcon, marginLeft: "0.2rem" }} title="Abmelden">
-          Abmelden
-        </LogoutButton>
-      </div>
-    </header>
+          {/* Logout */}
+          <LogoutButton style={{ ...btnIcon, marginLeft: "0.2rem" }} title="Abmelden">
+            Abmelden
+          </LogoutButton>
+        </div>
+      </header>
+
+      {showProfil && (
+        <ProfilModal kuerzel={kuerzel} name={name} onClose={() => setShowProfil(false)} />
+      )}
+    </>
   );
 }
 
@@ -276,21 +334,7 @@ function TechnikerHeader({ bellShake, onSearch }: { bellShake: boolean; onSearch
 export default function TechnikerLayout({ children }: { children: React.ReactNode }) {
   const [fontSize, _setFontSize]  = useState<FontSize>("medium");
   const [nachrichtToast, setNachrichtToast] = useState<ToastData | null>(null);
-  const [bellShake,      setBellShake]      = useState(false);
-  const [searchOpen,     setSearchOpen]     = useState(false);
   const { on, off } = useSocket();
-
-  // Globaler Ctrl+K / Cmd+K Shortcut
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-        e.preventDefault();
-        setSearchOpen(s => !s);
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, []);
 
   function setFontSize(s: FontSize) {
     _setFontSize(s);
@@ -309,16 +353,14 @@ export default function TechnikerLayout({ children }: { children: React.ReactNod
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Socket: neuer Chat → Toast + Glocke schütteln
+  // Socket: neuer Chat → Toast
   useEffect(() => {
     const handler = (data: unknown) => {
       const d = data as ToastData;
       setNachrichtToast(d);
-      setBellShake(true);
-      setTimeout(() => setBellShake(false), 600);
     };
     on(EVENTS.CHAT_NEU,      handler);
-    on(EVENTS.NACHRICHT_NEU, handler);  // Legacy
+    on(EVENTS.NACHRICHT_NEU, handler);
     return () => {
       off(EVENTS.CHAT_NEU);
       off(EVENTS.NACHRICHT_NEU);
@@ -328,12 +370,10 @@ export default function TechnikerLayout({ children }: { children: React.ReactNod
   return (
     <FontCtx.Provider value={{ fontSize, setFontSize }}>
       <ToastProvider>
-        <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
         <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-          <TechnikerHeader bellShake={bellShake} onSearch={() => setSearchOpen(true)} />
+          <TechnikerHeader />
           {children}
 
-          {/* Große Nachricht-Toast (kein Auto-Dismiss) */}
           {nachrichtToast && (
             <NachrichtToast
               data={nachrichtToast}
