@@ -55,6 +55,11 @@ const TEIL_ICON: Record<string, LucideIcon> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function formatLogId(logId: string): string {
+  const clean = logId.replace(/\D/g, "");
+  return clean.replace(/(\d{3})(?=\d)/g, "$1.");
+}
+
 function relativeZeit(date: Date): string {
   const s = Math.floor((Date.now() - date.getTime()) / 1000);
   if (s < 60)   return "gerade eben";
@@ -177,7 +182,7 @@ export default function TechnikerPage() {
             Ersatzteile anfragen
           </div>
           <div style={{ fontSize: "1rem", opacity: 0.88, lineHeight: 1.5 }}>
-            LogID scannen oder eintippen —<br />wir kümmern uns sofort.
+            LogID scannen oder eintippen
           </div>
         </button>
 
@@ -308,7 +313,7 @@ function AnfrageKarte({ gruppe, onClick }: { gruppe: GruppeData; onClick: () => 
         boxShadow:    "0 1px 4px rgba(0,0,0,0.06)",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: "0.3rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: "0.2rem" }}>
         <span style={{ fontWeight: 700, fontSize: "1.05rem", lineHeight: 1.3, flex: 1 }}>
           {geraet}
         </span>
@@ -324,6 +329,12 @@ function AnfrageKarte({ gruppe, onClick }: { gruppe: GruppeData; onClick: () => 
           {cfg.text}
         </span>
       </div>
+
+      {hasLogId && (
+        <div style={{ fontSize: "0.82rem", color: "var(--text-dim)", fontFamily: "monospace", marginBottom: "0.25rem" }}>
+          {formatLogId(gruppe.logId!)}
+        </div>
+      )}
 
       <div style={{ fontSize: "0.875rem", color: "var(--text-dim)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <span>{teileAnz} {teileAnz === 1 ? "Teil" : "Teile"} angefragt</span>
@@ -355,12 +366,14 @@ function AnfrageFlow({
 }) {
   const { show } = useToast();
 
-  const [step,           setStep]           = useState<FlowStep>("logid");
-  const [logIdInput,     setLogIdInput]     = useState("");
-  const [logIdQuery,     setLogIdQuery]     = useState<string | null>(null);
-  const [selectedGeraet, setSelectedGeraet] = useState<GeraetInfo | null>(null);
-  const [selectedTeile,  setSelectedTeile]  = useState<Set<string>>(new Set());
-  const [sonderBeschr,   setSonderBeschr]   = useState("");
+  const [step,               setStep]               = useState<FlowStep>("logid");
+  const [logIdInput,         setLogIdInput]         = useState("");
+  const [logIdQuery,         setLogIdQuery]         = useState<string | null>(null);
+  const [selectedGeraet,     setSelectedGeraet]     = useState<GeraetInfo | null>(null);
+  const [selectedTeile,      setSelectedTeile]      = useState<Set<string>>(new Set());
+  const [sonderBeschr,       setSonderBeschr]       = useState("");
+  const [tastaturModalOffen, setTastaturModalOffen] = useState(false);
+  const [tastaturBeschr,     setTastaturBeschr]     = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const logIdLookup = api.geraeteLookup.byLogId.useQuery(
@@ -419,6 +432,8 @@ function AnfrageFlow({
     setSelectedGeraet(null);
     setSelectedTeile(new Set());
     setSonderBeschr("");
+    setTastaturBeschr("");
+    setTastaturModalOffen(false);
   }
 
   async function handleSenden() {
@@ -440,6 +455,7 @@ function AnfrageFlow({
           geraeteName: selectedGeraet.bereinigt,
           artikelId:   info?.artikelId ?? null,
           teiltyp,
+          zusatzinfo:  teiltyp === "Tastatur" && tastaturBeschr ? tastaturBeschr : undefined,
         });
       }
 
@@ -550,12 +566,13 @@ function AnfrageFlow({
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "0.6rem", marginBottom: "1.5rem" }}>
                 {teile.map(t => {
+                  const isTastatur = t.teiltyp === "Tastatur";
                   const sel  = selectedTeile.has(t.teiltyp);
                   const Icon = TEIL_ICON[t.teiltyp] ?? Box;
                   return (
                     <button
                       key={t.teiltyp}
-                      onClick={() => toggleTeil(t.teiltyp)}
+                      onClick={() => isTastatur ? setTastaturModalOffen(true) : toggleTeil(t.teiltyp)}
                       className="active:scale-95"
                       style={{
                         padding:        "0.9rem 0.5rem 0.75rem",
@@ -574,7 +591,7 @@ function AnfrageFlow({
                         flexDirection:  "column",
                         alignItems:     "center",
                         justifyContent: "center",
-                        gap:            8,
+                        gap:            6,
                         transition:     "background 0.1s, border-color 0.1s",
                         position:       "relative",
                       }}
@@ -584,6 +601,13 @@ function AnfrageFlow({
                         style={{ color: sel ? "#005fa3" : "var(--text-dim)", flexShrink: 0 }}
                       />
                       <span>{t.teiltyp}</span>
+                      {isTastatur && sel && tastaturBeschr && (
+                        <span style={{ fontSize: "0.72rem", color: "#005fa3", lineHeight: 1.2 }}>
+                          {tastaturBeschr.startsWith("Einzeltasten:")
+                            ? tastaturBeschr.replace("Einzeltasten:", "").trim().split(",").length + " Tasten"
+                            : "Komplett"}
+                        </span>
+                      )}
                       {sel && (
                         <span style={{
                           position:   "absolute",
@@ -667,6 +691,194 @@ function AnfrageFlow({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Tastatur-Auswahl Sub-Modal */}
+      {tastaturModalOffen && (
+        <TastenAuswahlModal
+          initial={tastaturBeschr}
+          onClose={() => setTastaturModalOffen(false)}
+          onConfirm={(beschreibung) => {
+            setTastaturBeschr(beschreibung);
+            setSelectedTeile(prev => { const n = new Set(prev); n.add("Tastatur"); return n; });
+            setTastaturModalOffen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── TastenAuswahlModal ────────────────────────────────────────────────────────
+
+const KEYBOARD_ROWS: string[][] = [
+  ["Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12"],
+  ["^°","1","2","3","4","5","6","7","8","9","0","ß?","´`","Backspace"],
+  ["Tab","Q","W","E","R","T","Z","U","I","O","P","Ü","+*","Enter"],
+  ["Caps","A","S","D","F","G","H","J","K","L","Ö","Ä","#'"],
+  ["Shift","<>","Y","X","C","V","B","N","M",",;",".:","–_","Shift"],
+  ["Strg","Fn","Win","Alt","Space","AltGr","Menu","Strg"],
+];
+
+const KEY_W: Record<string, number> = {
+  Backspace: 2, Tab: 1.5, Enter: 2, Caps: 1.75,
+  Shift: 2.25, Strg: 1.4, Alt: 1.4, AltGr: 1.4,
+  Win: 1.4, Fn: 1.25, Menu: 1.4, Space: 6,
+};
+
+function TastenKomponente({
+  gewaehlt,
+  setGewaehlt,
+}: {
+  gewaehlt:    Set<string>;
+  setGewaehlt: (s: Set<string>) => void;
+}) {
+  function toggle(key: string) {
+    const n = new Set(gewaehlt);
+    if (n.has(key)) n.delete(key); else n.add(key);
+    setGewaehlt(n);
+  }
+
+  return (
+    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", borderRadius: 12, background: "var(--bg)", padding: "0.75rem" }}>
+      <div style={{ minWidth: 700, display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+        {KEYBOARD_ROWS.map((row, ri) => (
+          <div key={ri} style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
+            {row.map((key, ki) => {
+              const sel = gewaehlt.has(key);
+              const w   = KEY_W[key] ?? 1;
+              return (
+                <button
+                  key={`${key}-${ki}`}
+                  onClick={() => toggle(key)}
+                  className="active:scale-95"
+                  style={{
+                    width:        `${w * 2.5}rem`,
+                    minHeight:    "2.75rem",
+                    borderRadius: 6,
+                    border:       sel ? `2px solid ${CYAN}` : "1px solid var(--border)",
+                    background:   sel ? CYAN : "var(--card-bg)",
+                    color:        sel ? "white" : "var(--text)",
+                    cursor:       "pointer",
+                    fontSize:     "0.75rem",
+                    fontWeight:   sel ? 700 : 500,
+                    fontFamily:   "'Ubuntu', sans-serif",
+                    transition:   "background 0.1s, border-color 0.1s",
+                    flexShrink:   0,
+                    overflow:     "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace:   "nowrap",
+                    padding:      "0 2px",
+                  }}
+                >
+                  {key}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <p style={{ textAlign: "center", fontSize: "0.7rem", color: "var(--text-dim)", marginTop: "0.5rem" }}>
+        ← Tastatur seitlich scrollen (mobil)
+      </p>
+    </div>
+  );
+}
+
+function TastenAuswahlModal({
+  initial,
+  onClose,
+  onConfirm,
+}: {
+  initial:   string;
+  onClose:   () => void;
+  onConfirm: (beschreibung: string) => void;
+}) {
+  const isKomplettInitial = !initial.startsWith("Einzeltasten:");
+  const initialTasten     = initial.startsWith("Einzeltasten:")
+    ? new Set(initial.replace("Einzeltasten:", "").split(",").map(s => s.trim()).filter(Boolean))
+    : new Set<string>();
+
+  const [modus,      setModus]      = useState<"komplett" | "einzeln">(isKomplettInitial ? "komplett" : "einzeln");
+  const [gewaehlt,   setGewaehlt]   = useState<Set<string>>(initialTasten);
+
+  function confirm() {
+    if (modus === "komplett") {
+      onConfirm("Komplette Tastatur");
+    } else {
+      const tasten = Array.from(gewaehlt);
+      onConfirm(`Einzeltasten: ${tasten.join(", ")}`);
+    }
+  }
+
+  const canConfirm = modus === "komplett" || gewaehlt.size > 0;
+
+  const modusBtn = (active: boolean): React.CSSProperties => ({
+    flex:         1,
+    padding:      "0.8rem",
+    borderRadius: 12,
+    border:       active ? `2px solid ${CYAN}` : "1.5px solid var(--border)",
+    background:   active ? "rgba(0,139,210,0.08)" : "var(--card-bg)",
+    color:        active ? "#005fa3" : "var(--text)",
+    cursor:       "pointer",
+    fontWeight:   active ? 700 : 500,
+    fontFamily:   "'Ubuntu', sans-serif",
+    fontSize:     "0.92rem",
+    minHeight:    56,
+  });
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
+      onClick={onClose}
+    >
+      <div
+        className="modal-enter"
+        style={{ width: "100%", maxWidth: 760, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.35)", color: "var(--text)", maxHeight: "90vh", overflowY: "auto" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
+          <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800 }}>⌨️ Tastatur</h2>
+          <button onClick={onClose} aria-label="Schließen" style={closeBtn}>✕</button>
+        </div>
+
+        <div style={{ padding: "1.25rem 1.5rem 1.5rem" }}>
+          {/* Modus-Switch */}
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem" }}>
+            <button onClick={() => setModus("komplett")} style={modusBtn(modus === "komplett")}>
+              Komplette Tastatur
+            </button>
+            <button onClick={() => setModus("einzeln")} style={modusBtn(modus === "einzeln")}>
+              Einzelne Tasten
+            </button>
+          </div>
+
+          {/* Keyboard */}
+          {modus === "einzeln" && (
+            <div style={{ marginBottom: "1.25rem" }}>
+              <TastenKomponente gewaehlt={gewaehlt} setGewaehlt={setGewaehlt} />
+            </div>
+          )}
+
+          {/* Footer */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem" }}>
+            <span style={{ fontSize: "0.95rem", color: "var(--text-dim)" }}>
+              {modus === "komplett"
+                ? "Komplette Tastatur"
+                : gewaehlt.size === 0
+                ? "Bitte Tasten auswählen"
+                : `${gewaehlt.size} Taste${gewaehlt.size !== 1 ? "n" : ""} ausgewählt`}
+            </span>
+            <button
+              onClick={confirm}
+              disabled={!canConfirm}
+              style={primaryBtn(canConfirm, CYAN)}
+            >
+              Übernehmen
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
