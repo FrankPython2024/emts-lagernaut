@@ -110,14 +110,24 @@ async function resetAllData() {
     const buchungen          = await tx.buchung.deleteMany();     // vor Artikel!
     const komps              = await tx.kompatibilitaet.deleteMany(); // vor Artikel!
     const artikel            = await tx.artikel.deleteMany();
+    // Lagerplatz-Belegungen zurücksetzen (Hüllen bleiben erhalten)
+    const lagerplatzReset    = await tx.lagerplatz.updateMany({
+      where: { modellId: { not: null } },
+      data:  { modellId: null },
+    });
+    // Jetzt sind keine FK-Verweise mehr — Modelle und Lookup können weg
+    const modelle            = await tx.geraeteModell.deleteMany();
+    const lookup             = await tx.geraeteLookup.deleteMany();
     const sessions           = await tx.technikerSession.deleteMany();
     const stresstests        = await tx.stressTestRun.deleteMany();
     return { artikel: artikel.count, buchungen: buchungen.count, anfragen: anfragen.count,
              nachrichten: nachrichten.count, komps: komps.count, koerbe: koerbe.count,
              korbItems: korbItems.count, sessions: sessions.count,
              nachrichtAntworten: nachrichtAntworten.count, nachrichtEmpf: nachrichtEmpf.count,
-             stresstests: stresstests.count };
-  }, { timeout: 60_000 });
+             stresstests: stresstests.count,
+             lagerplatzReset: lagerplatzReset.count,
+             modelle: modelle.count, lookup: lookup.count };
+  }, { timeout: 120_000 });
 
   // Redis Beleg-Counter zurücksetzen (non-critical)
   let redisKeys = 0;
@@ -202,15 +212,20 @@ export const systemRouter = createTRPCRouter({
   // Vorschau: aktuelle DB-Zähler für Danger Zone
   getResetPreview: adminProcedure
     .query(async () => {
-      const [artikel, buchungen, anfragen, komps, koerbe, nachrichten] = await Promise.all([
+      const [artikel, buchungen, anfragen, komps, koerbe, nachrichten,
+             modelle, lookup, belegteLagerplaetze] = await Promise.all([
         prisma.artikel.count(),
         prisma.buchung.count(),
         prisma.anfrage.count(),
         prisma.kompatibilitaet.count(),
         prisma.warenkorb.count(),
         prisma.nachricht.count(),
+        prisma.geraeteModell.count(),
+        prisma.geraeteLookup.count(),
+        prisma.lagerplatz.count({ where: { modellId: { not: null } } }),
       ]);
-      return { artikel, buchungen, anfragen, komps, koerbe, nachrichten };
+      return { artikel, buchungen, anfragen, komps, koerbe, nachrichten,
+               modelle, lookup, belegteLagerplaetze };
     }),
 
   // ⚠️  RESET — löscht alle Lager-Daten, behält User + GeraeteLookup

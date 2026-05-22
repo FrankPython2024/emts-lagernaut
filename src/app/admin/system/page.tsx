@@ -525,26 +525,35 @@ function DangerZone() {
               🗑️ Kompletter Lagernaut-Reset
             </div>
             <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginBottom: 14, lineHeight: 1.5 }}>
-              Löscht alle Anfragen, Buchungen, Artikel und Kompatibilitäten.
-              <strong style={{ color: "var(--text)" }}> User und GeraeteLookup bleiben erhalten.</strong>
+              Löscht alle Artikel, Buchungen, Anfragen, Geräte-Modelle und Lookup-Einträge.
+              Lagerplatz-Belegungen werden zurückgesetzt.
+              <strong style={{ color: "var(--text)" }}> User, Standorte und Lagerplatz-Hüllen bleiben erhalten.</strong>
             </p>
 
             {p && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
-                {[
-                  { label: "Artikel",          val: p.artikel },
-                  { label: "Buchungen",         val: p.buchungen },
-                  { label: "Anfragen",          val: p.anfragen },
-                  { label: "Kompatibilitäten",  val: p.komps },
-                  { label: "Warenkörbe",        val: p.koerbe },
-                  { label: "Nachrichten",       val: p.nachrichten },
-                ].map(({ label, val }) => (
-                  <div key={label} style={{ background: "var(--bg)", borderRadius: 8, padding: "0.5rem 0.7rem", textAlign: "center" }}>
-                    <div style={{ fontSize: "1.2rem", fontWeight: 900, color: val > 0 ? "#fa3e3e" : "var(--text-dim)" }}>{val.toLocaleString("de-DE")}</div>
-                    <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", fontWeight: 600 }}>{label}</div>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 8 }}>
+                  {[
+                    { label: "Artikel",          val: p.artikel },
+                    { label: "Buchungen",         val: p.buchungen },
+                    { label: "Anfragen",          val: p.anfragen },
+                    { label: "Kompatibilitäten",  val: p.komps },
+                    { label: "Warenkörbe",        val: p.koerbe },
+                    { label: "Nachrichten",       val: p.nachrichten },
+                    { label: "Geräte-Modelle",    val: p.modelle },
+                    { label: "Geräte-Lookup",     val: p.lookup },
+                    { label: "Belegte Lagerpl.",  val: p.belegteLagerplaetze },
+                  ].map(({ label, val }) => (
+                    <div key={label} style={{ background: "var(--bg)", borderRadius: 8, padding: "0.5rem 0.7rem", textAlign: "center" }}>
+                      <div style={{ fontSize: "1.2rem", fontWeight: 900, color: val > 0 ? "#fa3e3e" : "var(--text-dim)" }}>{val.toLocaleString("de-DE")}</div>
+                      <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", fontWeight: 600 }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: "0.78rem", color: "#04B475", fontWeight: 700, marginBottom: 14 }}>
+                  ✓ BLEIBEN: User, Standorte, Lagerplatz-Hüllen (nur Belegung wird geleert)
+                </div>
+              </>
             )}
 
             <button
@@ -561,12 +570,19 @@ function DangerZone() {
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: "3rem", marginBottom: 8 }}>⚠️</div>
             <div style={{ fontSize: "1.1rem", fontWeight: 900, marginBottom: 6 }}>Wirklich ALLE Daten löschen?</div>
-            <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginBottom: 20, lineHeight: 1.5 }}>
+            <div style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginBottom: 20, lineHeight: 1.7, textAlign: "left", maxWidth: 360, margin: "0 auto 20px" }}>
               Diese Aktion kann <strong style={{ color: "#fa3e3e" }}>nicht rückgängig</strong> gemacht werden.
-              {p && p.artikel + p.buchungen + p.anfragen > 0 && (
-                <> Es werden {(p.artikel + p.buchungen + p.anfragen).toLocaleString("de-DE")} Datensätze gelöscht.</>
+              {p && (
+                <ul style={{ margin: "10px 0 10px 16px", padding: 0, listStyle: "disc" }}>
+                  <li>{p.artikel.toLocaleString("de-DE")} Artikel</li>
+                  <li>{p.modelle.toLocaleString("de-DE")} Geräte-Modelle</li>
+                  <li>{p.lookup.toLocaleString("de-DE")} Lookup-Einträge</li>
+                  <li>{(p.buchungen + p.anfragen + p.komps + p.koerbe + p.nachrichten).toLocaleString("de-DE")} weitere Datensätze</li>
+                  <li style={{ color: "#f7b928" }}>{p.belegteLagerplaetze} Lagerplatz-Belegungen werden zurückgesetzt</li>
+                </ul>
               )}
-            </p>
+              <strong style={{ color: "#04B475" }}>✓ BLEIBEN: User, Standorte, Lagerplatz-Hüllen</strong>
+            </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
               <button
                 onClick={() => setPhase("idle")}
