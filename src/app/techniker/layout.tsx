@@ -184,10 +184,27 @@ function TechnikerHeader({ bellShake, onSearch }: { bellShake: boolean; onSearch
 
       {/* Controls */}
       <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.2rem" }}>
-        {/* Font size */}
-        <button onClick={() => setFontSize("small")}  style={{ ...btnIcon, fontSize: "0.75rem" }}>A</button>
-        <button onClick={() => setFontSize("medium")} style={{ ...btnIcon, fontSize: "1rem"   }}>A</button>
-        <button onClick={() => setFontSize("large")}  style={{ ...btnIcon, fontSize: "1.2rem" }}>A</button>
+        {/* Schriftgröße */}
+        {(["small", "medium", "large"] as const).map((sz, i) => {
+          const isActive = fontSize === sz;
+          return (
+            <button
+              key={sz}
+              onClick={() => setFontSize(sz)}
+              title={sz === "small" ? "Klein" : sz === "medium" ? "Standard" : "Groß"}
+              style={{
+                ...btnIcon,
+                fontSize:   ["0.75rem", "1rem", "1.25rem"][i],
+                background: isActive ? "var(--primary)" : "var(--bg)",
+                color:      isActive ? "white"          : "var(--text)",
+                border:     isActive ? "1px solid var(--primary)" : "1px solid var(--border)",
+                fontWeight: isActive ? 800 : 600,
+              }}
+            >
+              A
+            </button>
+          );
+        })}
         <span style={{ borderLeft: "1px solid var(--border)", margin: "0 0.8rem", height: 24 }} />
 
         {/* Globale Suche */}
@@ -247,7 +264,7 @@ function TechnikerHeader({ bellShake, onSearch }: { bellShake: boolean; onSearch
 
         {/* Logout */}
         <LogoutButton style={{ ...btnIcon, marginLeft: "0.2rem" }} title="Abmelden">
-          🚪
+          Abmelden
         </LogoutButton>
       </div>
     </header>

@@ -1,1056 +1,893 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useSession }    from "next-auth/react";
-import { api }           from "@/trpc/react";
-import { useToast }      from "@/components/ui/Toast";
-import { useSocket }     from "@/hooks/useSocket";
-import { EVENTS }        from "@/modules/realtime/events";
-import { TastaturModal } from "@/components/ui/TastaturModal";
-import AnfragenBox       from "./components/AnfragenBox";
-import { TEIL_ICONS }    from "./components/constants";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useSession }     from "next-auth/react";
+import { api }            from "@/trpc/react";
+import { useToast }       from "@/components/ui/Toast";
+import { useSocket }      from "@/hooks/useSocket";
+import { EVENTS }         from "@/modules/realtime/events";
+import GruppenNachrichten from "./components/GruppenNachrichten";
+import { type AnfrageRow, type GruppeData } from "./components/constants";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type SessionUser = { name?: string; kuerzel?: string; rolle?: string };
+type GeraetInfo  = { logId: string; bereinigt: string };
 
-type GeraetInfo = { logId: string; bereinigt: string };
+// ── Constants & design tokens ─────────────────────────────────────────────────
 
-type TeilInfo = {
-  teiltyp:    string;
-  artikelId:  number | null;
-  bezeichnung: string | null;
-  bestand:    number;
-  verfuegbar: boolean;
+const CYAN    = "#008BD2";
+const PRIMARY = "#202F61";
+const GREEN   = "#04B475";
+
+// Status in leichter Sprache
+const STATUS_CFG: Record<string, { text: string; color: string; bg: string }> = {
+  NEU:            { text: "Neu",            color: "#005fa3", bg: "#dbeafe" },
+  BEDARF:         { text: "Wird bestellt",  color: "#92400e", bg: "#fef3c7" },
+  IN_BEARBEITUNG: { text: "In Bearbeitung", color: "#92400e", bg: "#fef3c7" },
+  ABGESCHLOSSEN:  { text: "Abgeschlossen",  color: "#15803d", bg: "#dcfce7" },
+  STORNIERT:      { text: "Storniert",      color: "#6b7280", bg: "#f3f4f6" },
 };
 
-// ── Inline style helpers ──────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const cardStyle: React.CSSProperties = {
-  background:   "var(--card-bg)",
-  padding:      "1.5rem",
-  borderRadius: "12px",
-  border:       "1px solid var(--border)",
-  boxShadow:    "0 4px 12px rgba(0,0,0,0.08)",
-};
-
-const btnOrderStyle: React.CSSProperties = {
-  background:   "var(--primary)",
-  color:        "white",
-  border:       "none",
-  padding:      "0.7rem 1.2rem",
-  borderRadius: "8px",
-  fontWeight:   "bold",
-  cursor:       "pointer",
-  fontFamily:   "'Ubuntu', sans-serif",
-  width:        "100%",
-};
-
-const btnIconStyle: React.CSSProperties = {
-  background:   "var(--bg)",
-  border:       "1px solid var(--border)",
-  color:        "var(--text)",
-  padding:      "0.4rem 0.8rem",
-  borderRadius: "6px",
-  cursor:       "pointer",
-  fontWeight:   600,
-  transition:   "all 0.2s",
-  fontFamily:   "'Ubuntu', sans-serif",
-};
-
-const searchInputStyle: React.CSSProperties = {
-  width:        "100%",
-  padding:      "0.8rem 1.2rem",
-  borderRadius: "10px",
-  border:       "2px solid var(--border)",
-  background:   "var(--bg)",
-  color:        "var(--text)",
-  boxSizing:    "border-box",
-  outline:      "none",
-  transition:   "border-color 0.2s",
-  fontFamily:   "'Ubuntu', sans-serif",
-};
-
-function modalOverlay(onClick?: () => void): React.CSSProperties {
-  return {
-    display:        "flex",
-    position:       "fixed",
-    top: 0, left: 0,
-    width: "100%", height: "100%",
-    background:     "rgba(0,0,0,0.7)",
-    backdropFilter: "blur(4px)",
-    zIndex:         10000,
-    justifyContent: "center",
-    alignItems:     "center",
-  };
+function relativeZeit(date: Date): string {
+  const s = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (s < 60)   return "gerade eben";
+  const m = Math.floor(s / 60);
+  if (m < 60)   return `vor ${m} Minute${m !== 1 ? "n" : ""}`;
+  const h = Math.floor(m / 60);
+  if (h < 24)   return `vor ${h} Stunde${h !== 1 ? "n" : ""}`;
+  const d = Math.floor(h / 24);
+  if (d === 1)  return "gestern";
+  if (d < 7)    return `vor ${d} Tagen`;
+  return date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
 }
 
-const modalContent: React.CSSProperties = {
-  background:   "var(--card-bg)",
-  width:        420,
-  padding:      "2.5rem",
-  borderRadius: "15px",
-  boxShadow:    "0 20px 40px rgba(0,0,0,0.3)",
-  textAlign:    "center",
-  color:        "var(--text)",
-};
+function gruppeStatus(g: GruppeData): string {
+  const ss = g.anfragen.map(a => a.status);
+  if (ss.every(s => s === "ABGESCHLOSSEN" || s === "STORNIERT")) return "ABGESCHLOSSEN";
+  if (ss.some(s => s === "IN_BEARBEITUNG"))                       return "IN_BEARBEITUNG";
+  if (ss.some(s => s === "BEDARF"))                               return "BEDARF";
+  return "NEU";
+}
 
+function buildGruppen(anfragen: AnfrageRow[]): GruppeData[] {
+  const map = new Map<string, GruppeData>();
+  for (const a of anfragen) {
+    const raw = (a.logId ?? "").trim();
+    const key = raw && raw !== "unbekannt"
+      ? raw
+      : (a as { gruppenNr?: string | null }).gruppenNr ?? `datum-${new Date(a.datum).toISOString().slice(0, 10)}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        logId:       raw || null,
+        gruppenNr:   (a as { gruppenNr?: string | null }).gruppenNr ?? null,
+        geraeteName: a.geraeteName ?? null,
+        datum:       new Date(a.datum),
+        anfragen:    [],
+      });
+    }
+    const g = map.get(key)!;
+    if (!g.anfragen.some(x => x.teil === a.teil && x.status === a.status)) {
+      g.anfragen.push(a as AnfrageRow);
+    }
+    if (new Date(a.datum) > g.datum) g.datum = new Date(a.datum);
+  }
+  return Array.from(map.values()).sort((a, b) => b.datum.getTime() - a.datum.getTime());
+}
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function TechnikerPage() {
   const { data: session } = useSession();
-  const user    = session?.user as SessionUser | undefined;
-  const kuerzel = user?.kuerzel ?? "";
-  const { show } = useToast();
+  const user     = session?.user as SessionUser | undefined;
+  const kuerzel  = user?.kuerzel ?? "";
+  const vorname  = user?.name?.split(" ")[0] ?? kuerzel;
   const { on, off } = useSocket();
 
-  // ── Device identification ──────────────────────────────────────────────────
-  const [identMode,      setIdentMode]      = useState<"logid" | "modell">("logid");
-  const [identInput,     setIdentInput]     = useState("");
+  const [showFlow,     setShowFlow]     = useState(false);
+  const [detailGruppe, setDetailGruppe] = useState<GruppeData | null>(null);
+
+  // ── Anfragen ───────────────────────────────────────────────────────────────
+
+  const anfragenQuery = api.anfragen.getByTechniker.useQuery(
+    { kuerzel, showAll: true, limit: 100 },
+    { enabled: !!kuerzel, staleTime: 4_000 },
+  );
+
+  useEffect(() => {
+    if (!kuerzel) return;
+    const refresh = () => anfragenQuery.refetch();
+    on(EVENTS.ANFRAGE_UPDATED, refresh);
+    on(EVENTS.ANFRAGE_NEU,     refresh);
+    const iv = setInterval(refresh, 5_000);
+    return () => { off(EVENTS.ANFRAGE_UPDATED); off(EVENTS.ANFRAGE_NEU); clearInterval(iv); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kuerzel]);
+
+  const alleAnfragen = anfragenQuery.data?.anfragen ?? [];
+  const gruppen      = useMemo(() => buildGruppen(alleAnfragen), [alleAnfragen]);
+
+  // Keep detail modal in sync when live data arrives
+  useEffect(() => {
+    if (!detailGruppe) return;
+    const updated = gruppen.find(g => g.key === detailGruppe.key);
+    if (updated) setDetailGruppe(updated);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gruppen]);
+
+  // ── Stats ──────────────────────────────────────────────────────────────────
+
+  const gesamt        = alleAnfragen.length;
+  const abgeschlossen = alleAnfragen.filter(a => a.status === "ABGESCHLOSSEN").length;
+  const letzteAnfrage = alleAnfragen.length > 0
+    ? new Date(Math.max(...alleAnfragen.map(a => new Date(a.datum).getTime())))
+    : null;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  return (
+    <div style={{ maxWidth: 680, margin: "0 auto", padding: "1.5rem 1rem 3rem" }}>
+
+      {/* ── Begrüßung ── */}
+      <div style={{ marginBottom: "1.75rem" }}>
+        <p style={{ margin: 0, color: "var(--text-dim)", fontSize: "0.875rem" }}>
+          {new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })}
+        </p>
+        <h1 style={{ margin: "0.25rem 0 0.1rem", fontSize: "1.6rem", fontWeight: 800, lineHeight: 1.2 }}>
+          Hallo {vorname || kuerzel || "…"},
+        </h1>
+        <p style={{ margin: 0, color: "var(--text-dim)", fontSize: "1rem" }}>
+          hier ist deine Übersicht.
+        </p>
+      </div>
+
+      {/* ── Aktions-Card ── */}
+      <button
+        onClick={() => setShowFlow(true)}
+        style={{
+          display:        "flex",
+          flexDirection:  "column",
+          alignItems:     "flex-start",
+          width:          "100%",
+          padding:        "1.4rem 1.6rem",
+          background:     CYAN,
+          color:          "white",
+          border:         "none",
+          borderRadius:   16,
+          cursor:         "pointer",
+          marginBottom:   "2rem",
+          textAlign:      "left",
+          boxShadow:      "0 4px 20px rgba(0,139,210,0.30)",
+          fontFamily:     "'Ubuntu', sans-serif",
+          minHeight:      80,
+        }}
+      >
+        <span style={{ fontSize: "1.375rem", fontWeight: 800, lineHeight: 1.2 }}>
+          Ersatzteile anfragen
+        </span>
+        <span style={{ fontSize: "1rem", opacity: 0.9, marginTop: "0.35rem" }}>
+          Tippen oder Gerät scannen
+        </span>
+      </button>
+
+      {/* ── Anfragen-Liste ── */}
+      <section style={{ marginBottom: "2rem" }}>
+        <h2 style={{ margin: "0 0 1rem", fontSize: "1.2rem", fontWeight: 700 }}>
+          Deine Anfragen
+        </h2>
+
+        {anfragenQuery.isLoading && (
+          <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>
+            Laden…
+          </div>
+        )}
+
+        {!anfragenQuery.isLoading && gruppen.length === 0 && (
+          <div style={{
+            padding:      "1.5rem",
+            background:   "var(--card-bg)",
+            borderRadius: 12,
+            border:       "1px solid var(--border)",
+            color:        "var(--text-dim)",
+            textAlign:    "center",
+          }}>
+            Du hast noch keine Anfragen gestellt.
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {gruppen.map(g => (
+            <AnfrageKarte
+              key={g.key}
+              gruppe={g}
+              onClick={() => setDetailGruppe(g)}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* ── Statistik ── */}
+      {gesamt > 0 && (
+        <section style={{
+          padding:      "1.2rem 1.4rem",
+          background:   "var(--card-bg)",
+          borderRadius: 12,
+          border:       "1px solid var(--border)",
+        }}>
+          <h2 style={{ margin: "0 0 0.5rem", fontSize: "1rem", fontWeight: 700 }}>
+            Deine Statistik
+          </h2>
+          <p style={{ margin: "0 0 0.3rem", fontSize: "1rem" }}>
+            Du hast {gesamt} Anfragen gestellt. {abgeschlossen} sind abgeschlossen.
+          </p>
+          {letzteAnfrage && (
+            <p style={{ margin: 0, fontSize: "0.95rem", color: "var(--text-dim)" }}>
+              Deine letzte Anfrage war {relativeZeit(letzteAnfrage)}.
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* ── Modals ── */}
+      {showFlow && (
+        <AnfrageFlow
+          kuerzel={kuerzel}
+          onClose={() => setShowFlow(false)}
+          onSuccess={() => { setShowFlow(false); anfragenQuery.refetch(); }}
+        />
+      )}
+      {detailGruppe && (
+        <AnfrageDetailModal
+          gruppe={detailGruppe}
+          kuerzel={kuerzel}
+          onClose={() => { setDetailGruppe(null); anfragenQuery.refetch(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── AnfrageKarte ──────────────────────────────────────────────────────────────
+
+function ChatBadge({ anfrageId }: { anfrageId: number }) {
+  const { data } = api.chat.getStatsForAnfrage.useQuery(
+    { anfrageId },
+    { refetchInterval: 5_000, staleTime: 3_000 },
+  );
+  const n = data?.ungelesen ?? 0;
+  if (n === 0) return null;
+  return (
+    <span style={{
+      display:      "inline-block",
+      background:   "#ef4444",
+      color:        "white",
+      borderRadius: 20,
+      padding:      "2px 10px",
+      fontSize:     "0.82rem",
+      fontWeight:   800,
+    }}>
+      Neue Nachricht{n !== 1 ? `en (${n})` : " (1)"}
+    </span>
+  );
+}
+
+function AnfrageKarte({ gruppe, onClick }: { gruppe: GruppeData; onClick: () => void }) {
+  const status    = gruppeStatus(gruppe);
+  const cfg       = STATUS_CFG[status] ?? STATUS_CFG.NEU!;
+  const teileAnz  = gruppe.anfragen.length;
+  const hasLogId  = !!(gruppe.logId && gruppe.logId !== "unbekannt");
+  const geraet    = gruppe.geraeteName ?? (hasLogId ? gruppe.logId! : "Unbekanntes Gerät");
+  const firstId   = gruppe.anfragen[0]?.id;
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display:    "block",
+        width:      "100%",
+        padding:    "1rem 1.2rem",
+        background: "var(--card-bg)",
+        border:     "1px solid var(--border)",
+        borderRadius: 12,
+        cursor:     "pointer",
+        textAlign:  "left",
+        boxShadow:  "0 2px 8px rgba(0,0,0,0.05)",
+        fontFamily: "'Ubuntu', sans-serif",
+        color:      "var(--text)",
+        minHeight:  72,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+        <span style={{ fontWeight: 800, fontSize: "1.05rem", lineHeight: 1.3, flex: 1 }}>
+          {geraet}
+        </span>
+        <span style={{
+          background:   cfg.bg,
+          color:        cfg.color,
+          borderRadius: 20,
+          padding:      "2px 10px",
+          fontSize:     "0.82rem",
+          fontWeight:   700,
+          flexShrink:   0,
+        }}>
+          {cfg.text}
+        </span>
+      </div>
+
+      <div style={{ marginTop: "0.3rem", fontSize: "0.9rem", color: "var(--text-dim)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <span>{teileAnz} {teileAnz === 1 ? "Teil" : "Teile"} angefragt</span>
+        <span aria-hidden>·</span>
+        <span>{relativeZeit(new Date(gruppe.datum))}</span>
+      </div>
+
+      {firstId !== undefined && (
+        <div style={{ marginTop: "0.4rem" }}>
+          <ChatBadge anfrageId={firstId} />
+        </div>
+      )}
+    </button>
+  );
+}
+
+// ── AnfrageFlow (Modal) ───────────────────────────────────────────────────────
+
+type FlowStep = "logid" | "teile" | "sending" | "done";
+
+function AnfrageFlow({
+  kuerzel,
+  onClose,
+  onSuccess,
+}: {
+  kuerzel:   string;
+  onClose:   () => void;
+  onSuccess: () => void;
+}) {
+  const { show } = useToast();
+
+  const [step,           setStep]           = useState<FlowStep>("logid");
+  const [logIdInput,     setLogIdInput]     = useState("");
   const [logIdQuery,     setLogIdQuery]     = useState<string | null>(null);
   const [selectedGeraet, setSelectedGeraet] = useState<GeraetInfo | null>(null);
+  const [selectedTeile,  setSelectedTeile]  = useState<Set<string>>(new Set());
+  const [sonderBeschr,   setSonderBeschr]   = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // ── Tastatur / Cart pending ────────────────────────────────────────────────
-  const [showTastatur,    setShowTastatur]    = useState(false);
-  const [pendingCartItem,   setPendingCartItem]   = useState<{ teil: TeilInfo; grading: string | null } | null>(null);
-  const [showSonderModal,   setShowSonderModal]   = useState(false);
-  const [sonderBeschr,      setSonderBeschr]      = useState("");
-  const [sonderKat,         setSonderKat]         = useState("Sonstiges");
-  const [sonderGrading,     setSonderGrading]     = useState<string | null>(null);
-
-  // ── Cart state ─────────────────────────────────────────────────────────────
-  const [cartOpen,          setCartOpen]          = useState(false);
-  const [globalZusatzinfo,  setGlobalZusatzinfo]  = useState("");
-
-  // (Storno + Anfragen-Filter → jetzt in AnfragenBox Komponente)
-
-  // ── tRPC Queries ──────────────────────────────────────────────────────────
-
-  // LogID lookup (on demand)
   const logIdLookup = api.geraeteLookup.byLogId.useQuery(
     { logId: logIdQuery ?? "" },
     { enabled: !!logIdQuery, retry: false, staleTime: 0 },
   );
 
-  // Compatible parts (when device selected)
   const teileQuery = api.kompatibilitaet.getByGeraetMitStandard.useQuery(
     { geraet: selectedGeraet?.bereinigt ?? "" },
     { enabled: !!selectedGeraet, staleTime: 60_000 },
   );
 
-  // Warenkorb
-  const korbQuery = api.warenkorb.getAktiv.useQuery(
-    { techniker: kuerzel },
-    { enabled: !!kuerzel },
-  );
+  const addItemMutation   = api.warenkorb.addItem.useMutation();
+  const addSonderMutation = api.warenkorb.addSonderAnfrage.useMutation();
+  const submitMutation    = api.warenkorb.submitAlle.useMutation();
 
-
-  // ── Handle LogID lookup result ────────────────────────────────────────────
+  // Step 1 result → Step 2
   useEffect(() => {
     if (!logIdLookup.data) return;
     if (logIdLookup.data.gefunden) {
-      selectGeraet({ logId: logIdLookup.data.logId, bereinigt: logIdLookup.data.bereinigt });
+      setSelectedGeraet({ logId: logIdLookup.data.logId, bereinigt: logIdLookup.data.bereinigt });
+      setStep("teile");
     } else {
-      show(`LogID "${logIdQuery}" nicht gefunden`, "error");
+      show(`LogID „${logIdQuery}" nicht gefunden. Bitte erneut versuchen.`, "error");
     }
     setLogIdQuery(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logIdLookup.data]);
 
-  // ── Mutations (Cart) ──────────────────────────────────────────────────────
-
-  const addToCartMutation = api.warenkorb.addItem.useMutation({
-    onSuccess: () => {
-      show("✅ In Warenkorb gelegt", "success");
-      korbQuery.refetch();
-      setCartOpen(true);
-    },
-    onError: (e) => show(`Fehler: ${e.message}`, "error"),
-  });
-
-  const removeFromCartMutation = api.warenkorb.removeItem.useMutation({
-    onSuccess: () => { korbQuery.refetch(); },
-  });
-
-  const submitCartMutation = api.warenkorb.submit.useMutation({
-    onSuccess: (data) => {
-      show(`✅ ${data.anzahl} Teile angefragt! (${data.gruppenNr})`, "success");
-      korbQuery.refetch();
-    },
-    onError: (e) => show(`Fehler: ${e.message}`, "error"),
-  });
-
-  const submitAlleMutation = api.warenkorb.submitAlle.useMutation({
-    onSuccess: (data) => {
-      show(`✅ ${data.anzahl} Teile erfolgreich angefragt!`, "success");
-      korbQuery.refetch();
-      setCartOpen(false);
-      setGlobalZusatzinfo("");
-    },
-    onError: (e) => show(`Fehler: ${e.message}`, "error"),
-  });
-
-  const addSonderMutation = api.warenkorb.addSonderAnfrage.useMutation({
-    onSuccess: () => {
-      show("📦 Sonderanfrage hinzugefügt", "success");
-      setShowSonderModal(false);
-      setSonderBeschr(""); setSonderKat("Sonstiges"); setSonderGrading(null);
-      korbQuery.refetch();
-    },
-    onError: (e) => show(e.message, "error"),
-  });
-
-  // ── Socket: nur Teile-Refresh (Anfragen-Refresh ist in AnfragenBox) ───────
+  // Autofocus on logid step
   useEffect(() => {
-    on(EVENTS.BESTAND_UPDATED, () => { if (selectedGeraet) teileQuery.refetch(); });
-    return () => { off(EVENTS.BESTAND_UPDATED); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [on, off]);
+    if (step === "logid") setTimeout(() => inputRef.current?.focus(), 80);
+  }, [step]);
 
-  // ── Auto-Refresh (5-Sekunden-Fallback wenn Socket kurz getrennt) ──────────
-  // Warenkorb-Auto-Refresh (Anfragen werden von AnfragenBox selbst gepollt)
-  useEffect(() => {
-    const interval = setInterval(() => { korbQuery.refetch(); }, 5_000);
-    return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── Helper functions ──────────────────────────────────────────────────────
-
-  function selectGeraet(geraet: GeraetInfo) {
-    setSelectedGeraet(geraet);
-    setIdentInput("");
-    show(`💻 ${geraet.bereinigt}`, "success");
+  function handleLogIdSubmit() {
+    const clean = logIdInput.trim().replace(/\./g, "");
+    if (!clean || !/^\d{5,}$/.test(clean)) {
+      show("Bitte eine gültige LogID eingeben (nur Ziffern)", "error");
+      return;
+    }
+    setLogIdQuery(clean);
   }
 
-  function handleIdentSubmit() {
-    const val = identInput.trim();
-    if (!val) return;
+  function toggleTeil(teiltyp: string) {
+    setSelectedTeile(prev => {
+      const next = new Set(prev);
+      if (next.has(teiltyp)) next.delete(teiltyp); else next.add(teiltyp);
+      return next;
+    });
+  }
 
-    if (identMode === "logid") {
-      const clean = val.replace(/\./g, "");
-      if (!/^\d+$/.test(clean)) {
-        show("LogID muss aus Ziffern bestehen", "error");
-        return;
+  function resetFlow() {
+    setStep("logid");
+    setLogIdInput("");
+    setLogIdQuery(null);
+    setSelectedGeraet(null);
+    setSelectedTeile(new Set());
+    setSonderBeschr("");
+  }
+
+  async function handleSenden() {
+    if (!selectedGeraet || !kuerzel) return;
+    if (selectedTeile.size === 0 && !sonderBeschr.trim()) {
+      show("Bitte mindestens ein Teil auswählen", "warning");
+      return;
+    }
+    setStep("sending");
+    try {
+      const logId = selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId;
+      const teile = teileQuery.data?.teile ?? [];
+
+      for (const teiltyp of Array.from(selectedTeile)) {
+        const info = teile.find(t => t.teiltyp === teiltyp);
+        await addItemMutation.mutateAsync({
+          techniker:   kuerzel,
+          logId,
+          geraeteName: selectedGeraet.bereinigt,
+          artikelId:   info?.artikelId ?? null,
+          teiltyp,
+        });
       }
-      setLogIdQuery(val);
-    } else {
-      selectGeraet({ logId: "---", bereinigt: val });
+
+      if (sonderBeschr.trim()) {
+        await addSonderMutation.mutateAsync({
+          techniker:       kuerzel,
+          logId,
+          geraeteName:     selectedGeraet.bereinigt,
+          beschreibung:    sonderBeschr.trim(),
+          sonderKategorie: "Sonstiges",
+        });
+      }
+
+      await submitMutation.mutateAsync({ techniker: kuerzel });
+      setStep("done");
+    } catch (e) {
+      show(`Fehler: ${(e as { message?: string }).message ?? "Unbekannt"}`, "error");
+      setStep("teile");
     }
   }
 
-  // Haupt-Handler: Teil in Warenkorb legen (alle 4 Zustände)
-  // artikelId kann null sein — KEIN Fallback auf anderen Artikel!
-  function handleAddToCart(teil: TeilInfo, grading: string | null, zusatzinfo: string) {
-    if (!selectedGeraet || !kuerzel) {
-      show("Bitte zuerst ein Gerät auswählen", "warning");
-      return;
-    }
-
-    // Tastatur → zuerst TastaturModal öffnen
-    if (teil.teiltyp === "Tastatur") {
-      setPendingCartItem({ teil, grading });
-      setShowTastatur(true);
-      return;
-    }
-
-    addToCartMutation.mutate({
-      techniker:   kuerzel,
-      logId:       selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId,
-      geraeteName: selectedGeraet.bereinigt,
-      artikelId:   teil.artikelId,
-      teiltyp:     teil.teiltyp,
-      grading:     grading ?? undefined,   // null → kein Grading → bestmögliches
-      zusatzinfo:  zusatzinfo || undefined,
-    });
-  }
-
-  // Nach Tastatur-Auswahl: in Warenkorb
-  function handleTastaturConfirm(kommentar: string) {
-    setShowTastatur(false);
-    if (!pendingCartItem || !selectedGeraet || !kuerzel) { setPendingCartItem(null); return; }
-
-    const { teil, grading } = pendingCartItem;
-    setPendingCartItem(null);
-
-    addToCartMutation.mutate({
-      techniker:   kuerzel,
-      logId:       selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId,
-      geraeteName: selectedGeraet.bereinigt,
-      artikelId:   teil.artikelId,
-      teiltyp:     teil.teiltyp,
-      grading:     grading ?? undefined,
-      zusatzinfo:  kommentar,
-    });
-  }
-
-  const koerbe            = korbQuery.data ?? [];
-  const alleKorbItems     = koerbe.flatMap((k) => k.items);
-  const totalKorbTeile    = alleKorbItems.length;
-  // Items des aktiven Korbs für das aktuell gewählte Gerät (für Toggle-Prüfung)
-  const aktuellerLogId    = selectedGeraet?.logId === "---" ? "unbekannt" : selectedGeraet?.logId;
-  const aktuelleKorbItems = selectedGeraet
-    ? (koerbe.find((k) => k.logId === aktuellerLogId)?.items ?? [])
-    : [];
-
-  // ── Render ────────────────────────────────────────────────────────────────
+  const teile    = teileQuery.data?.teile ?? [];
+  const canSend  = selectedTeile.size > 0 || sonderBeschr.trim().length > 0;
+  const sendLabel = (() => {
+    const n = selectedTeile.size + (sonderBeschr.trim() ? 1 : 0);
+    if (n === 0) return "Bitte mindestens ein Teil auswählen";
+    return `Anfrage senden (${n} ${n === 1 ? "Teil" : "Teile"})`;
+  })();
 
   return (
-    <>
-      {/* ── Tastatur Modal (für Warenkorb-Flow) ── */}
-      <TastaturModal
-        open={showTastatur}
-        articleName={pendingCartItem?.teil.bezeichnung ?? pendingCartItem?.teil.teiltyp ?? "Tastatur"}
-        onConfirm={handleTastaturConfirm}
-        onClose={() => { setShowTastatur(false); setPendingCartItem(null); }}
-      />
-
-      {/* ── Sonderanfrage Modal ── */}
-      {showSonderModal && selectedGeraet && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-          onClick={() => setShowSonderModal(false)}
-        >
-          <div
-            style={{ background: "var(--card-bg)", borderRadius: 16, boxShadow: "0 24px 60px rgba(0,0,0,0.35)", width: "100%", maxWidth: 480, color: "var(--text)", overflow: "hidden" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: "1rem" }}>📦 Sonstiges Teil anfragen</div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", marginTop: 2 }}>
-                  {selectedGeraet.bereinigt}
-                  {selectedGeraet.logId !== "---" && ` · ${selectedGeraet.logId}`}
-                </div>
-              </div>
-              <button onClick={() => setShowSonderModal(false)} aria-label="Schließen" style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "1.4rem", lineHeight: 1, padding: "8px 10px", minWidth: 44, minHeight: 44 }}>×</button>
-            </div>
-
-            {/* Body */}
-            <div style={{ padding: "1.2rem 1.4rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {/* Beschreibung */}
-              <div>
-                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, marginBottom: 5 }}>
-                  Beschreibung <span style={{ color: "var(--danger)" }}>*</span>
-                </label>
-                <textarea
-                  value={sonderBeschr}
-                  onChange={(e) => setSonderBeschr(e.target.value)}
-                  placeholder='z.B. "Schraube unten rechts am D-Cover" oder "Spezial-Kabel Touchpad"'
-                  rows={3}
-                  style={{ width: "100%", padding: "0.6rem 0.8rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.85rem", outline: "none", resize: "vertical", boxSizing: "border-box" }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = "var(--primary)")}
-                  onBlur={(e)  => (e.currentTarget.style.borderColor = "var(--border)")}
-                />
-                {sonderBeschr.length > 0 && sonderBeschr.trim().length < 5 && (
-                  <div style={{ fontSize: "0.72rem", color: "var(--danger)", marginTop: 3 }}>
-                    Bitte das Teil genauer beschreiben (mind. 5 Zeichen)
-                  </div>
-                )}
-              </div>
-
-              {/* Kategorie */}
-              <div>
-                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, marginBottom: 5 }}>Kategorie (optional)</label>
-                <select
-                  value={sonderKat}
-                  onChange={(e) => setSonderKat(e.target.value)}
-                  style={{ width: "100%", padding: "0.5rem 0.8rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.85rem", outline: "none" }}
-                >
-                  {["Sonstiges", "Schraube", "Kabel", "Stecker", "Aufkleber", "Sonstiges Kleinteil"].map((k) => (
-                    <option key={k} value={k}>{k}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Grading */}
-              <div>
-                <div style={{ fontSize: "0.78rem", fontWeight: 700, marginBottom: 5 }}>
-                  Grading <span style={{ fontWeight: 400, fontStyle: "italic", color: "var(--text-dim)" }}>(optional)</span>
-                </div>
-                <div style={{ display: "flex", gap: 4 }}>
-                  {(["A+", "A", "B", "C"] as const).map((g) => (
-                    <button key={g} onClick={() => setSonderGrading(sonderGrading === g ? null : g)}
-                      style={{ padding: "0.2rem 0.55rem", borderRadius: 5, border: `1px solid ${sonderGrading === g ? "var(--primary)" : "var(--border)"}`, background: sonderGrading === g ? "var(--primary)" : "var(--bg)", color: sonderGrading === g ? "white" : "var(--text)", cursor: "pointer", fontSize: "0.78rem", fontWeight: 700, fontFamily: "'Ubuntu', sans-serif", transition: "all 0.15s" }}>
-                      {g}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ fontSize: "0.62rem", color: "var(--text-dim)", marginTop: 3, fontStyle: "italic" }}>
-                  ⓘ Ohne Auswahl: bestmögliches verfügbar
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div style={{ padding: "0.8rem 1.4rem", borderTop: "1px solid var(--border)", display: "flex", gap: 10 }}>
-              <button
-                onClick={() => setShowSonderModal(false)}
-                style={{ flex: 1, padding: "0.65rem", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text-dim)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontWeight: 600, fontSize: "0.85rem" }}
-              >
-                Abbrechen
-              </button>
-              <button
-                disabled={sonderBeschr.trim().length < 5 || addSonderMutation.isPending}
-                onClick={() => {
-                  if (!kuerzel || !selectedGeraet || sonderBeschr.trim().length < 5) return;
-                  addSonderMutation.mutate({
-                    techniker:       kuerzel,
-                    logId:           selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId,
-                    geraeteName:     selectedGeraet.bereinigt,
-                    beschreibung:    sonderBeschr.trim(),
-                    sonderKategorie: sonderKat,
-                    grading:         sonderGrading as "A+" | "A" | "B" | "C" | null,
-                  });
-                }}
-                style={{ flex: 2, padding: "0.65rem", borderRadius: 8, border: "none", background: sonderBeschr.trim().length >= 5 ? "#f97316" : "var(--border)", color: sonderBeschr.trim().length >= 5 ? "white" : "var(--text-dim)", cursor: sonderBeschr.trim().length >= 5 ? "pointer" : "not-allowed", fontFamily: "'Ubuntu', sans-serif", fontWeight: 700, fontSize: "0.85rem", transition: "all 0.15s" }}
-              >
-                {addSonderMutation.isPending ? "⏳" : "🛒 In Warenkorb"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Storno-Modal ist jetzt in AnfragenBox */}
-
-      {/* ── Main Grid ── */}
-      <main style={{
-        maxWidth:  1450,
-        margin:    "2rem auto",
-        display:   "grid",
-        gridTemplateColumns: "1fr 420px",
-        gap:       "1.5rem",
-        padding:   "0 1.2rem",
-      }} className="techniker-grid">
-
-        {/* ══════════════════════════════ LEFT COLUMN ══════════════════════════ */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-
-          {/* ── Gerät identifizieren ── */}
-          <section style={cardStyle}>
-            <h3 style={{ marginTop: 0, borderBottom: "1px solid var(--border)", paddingBottom: "1rem" }}>
-              Gerät identifizieren
-            </h3>
-
-            {/* Mode selector */}
-            <div style={{ display: "flex", gap: 8, marginBottom: "1rem" }}>
-              {(["logid", "modell"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => { setIdentMode(mode); setIdentInput(""); }}
-                  style={{
-                    ...btnIconStyle,
-                    background:  identMode === mode ? "var(--primary)" : "var(--bg)",
-                    color:       identMode === mode ? "white"          : "var(--text)",
-                    border:      `1px solid ${identMode === mode ? "var(--primary)" : "var(--border)"}`,
-                    padding:     "0.5rem 1.2rem",
-                  }}
-                >
-                  {mode === "logid" ? "📡 LogID" : "🔍 Modell"}
-                </button>
-              ))}
-            </div>
-
-            {/* Input row */}
-            <div style={{ display: "flex", gap: 8, marginBottom: "0.8rem" }}>
-              <div style={{ position: "relative", flex: 1 }}>
-                <input
-                  type="text"
-                  value={identInput}
-                  onChange={(e) => setIdentInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") handleIdentSubmit(); }}
-                  placeholder={identMode === "logid" ? "LogID scannen oder eingeben..." : "Modell oder Hersteller eingeben..."}
-                  inputMode={identMode === "logid" ? "numeric" : "text"}
-                  style={{
-                    ...searchInputStyle,
-                    marginBottom: 0,
-                    fontSize: identMode === "logid" ? "1.3rem" : "1rem",
-                    fontWeight:   identMode === "logid" ? "bold" : "normal",
-                    letterSpacing: identMode === "logid" ? 3 : 0,
-                  }}
-                  autoFocus
-                />
-                {identInput && (
-                  <button
-                    onClick={() => setIdentInput("")}
-                    style={{
-                      position:  "absolute", right: 12, top: "50%",
-                      transform: "translateY(-50%)",
-                      background: "none", border: "none",
-                      color:     "var(--text-dim)", cursor: "pointer",
-                      fontSize:  "1.2rem", padding: "4px",
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={handleIdentSubmit}
-                disabled={!identInput.trim() || logIdLookup.isFetching}
-                style={{
-                  ...btnOrderStyle,
-                  width:  "auto",
-                  padding: "0.8rem 1.5rem",
-                  opacity: (!identInput.trim() || logIdLookup.isFetching) ? 0.6 : 1,
-                }}
-              >
-                {logIdLookup.isFetching ? "⏳" : "Suchen"}
-              </button>
-            </div>
-
-            {/* Selected device badge */}
-            {selectedGeraet && (
-              <div style={{
-                display:      "flex",
-                alignItems:   "center",
-                gap:          10,
-                padding:      "0.7rem 1rem",
-                background:   "var(--primary)",
-                color:        "white",
-                borderRadius: 10,
-                marginBottom: "0.8rem",
-                fontWeight:   "bold",
-              }}>
-                <span>💻</span>
-                <span style={{ flex: 1 }}>{selectedGeraet.bereinigt}</span>
-                {selectedGeraet.logId !== "---" && (
-                  <span style={{ opacity: 0.8, fontSize: "0.85rem" }}>#{selectedGeraet.logId}</span>
-                )}
-                <button
-                  onClick={() => { setSelectedGeraet(null); }}
-                  style={{
-                    background: "none", border: "none", color: "white",
-                    cursor: "pointer", fontSize: "1.2rem", padding: "0 4px",
-                    lineHeight: 1,
-                  }}
-                  title="Gerät abwählen"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-
-          </section>
-
-          {/* ── Ersatzteile Grid ── */}
-          {selectedGeraet && (
-            <section style={cardStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", borderBottom: "1px solid var(--border)", paddingBottom: "1rem" }}>
-                <h3 style={{ margin: 0 }}>Ersatzteile</h3>
-                {teileQuery.data && !teileQuery.data.kompatibilitaetVorhanden && (
-                  <span style={{
-                    padding:      "0.25rem 0.8rem",
-                    background:   "#fef3c7",
-                    color:        "#92400e",
-                    borderRadius: 8,
-                    fontSize:     "0.8rem",
-                    fontWeight:   "bold",
-                  }}>
-                    ⚠️ Keine Kompatibilität hinterlegt
-                  </span>
-                )}
-              </div>
-
-              {teileQuery.isLoading && (
-                <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>
-                  <div style={{
-                    width: 32, height: 32,
-                    border: "3px solid var(--border)",
-                    borderTopColor: "var(--primary)",
-                    borderRadius: "50%",
-                    animation: "spin 0.8s linear infinite",
-                    margin: "0 auto 1rem",
-                  }} />
-                  Teile werden geladen...
-                </div>
-              )}
-
-              {teileQuery.data && (
-                <div style={{
-                  display:             "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))",
-                  gap:                 "0.75rem",
-                }}>
-                  {teileQuery.data.teile.map((teil) => {
-                    const inCartItem = aktuelleKorbItems.find((i) => i.teiltyp === teil.teiltyp);
-                    return (
-                      <TeilKarte
-                        key={teil.teiltyp}
-                        teil={teil}
-                        onCart={handleAddToCart}
-                        onRemove={(itemId) => removeFromCartMutation.mutate({ itemId })}
-                        inCartItemId={inCartItem?.id ?? null}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* ── Sonderanfrage-Button ── */}
-              {selectedGeraet && teileQuery.data && (
-                <div style={{ marginTop: "0.5rem" }}>
-                  <button
-                    onClick={() => setShowSonderModal(true)}
-                    style={{
-                      width: "100%", padding: "0.75rem 1rem", borderRadius: 12,
-                      border: "1.5px dashed #f97316", background: "rgba(249,115,22,0.04)",
-                      color: "#f97316", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif",
-                      fontWeight: 700, fontSize: "0.9rem",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                      transition: "background 0.15s",
-                    }}
-                  >
-                    <span style={{ fontSize: "1.1rem" }}>➕</span>
-                    Teil nicht dabei? Sonstiges anfragen
-                  </button>
-                  <div style={{ fontSize: "0.67rem", color: "var(--text-dim)", textAlign: "center", marginTop: 4 }}>
-                    Eigene Beschreibung eingeben — z.B. "Schraube D-Cover" oder "Spezial-Kabel"
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
-        </div>
-
-        {/* ══════════════════════════════ RIGHT COLUMN ═════════════════════════ */}
-        <aside style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-
-          {/* ── Warenkorb (gruppiert nach logId) ── */}
-          <div style={cardStyle}>
-            {/* Header */}
-            <div
-              style={{
-                display:       "flex",
-                justifyContent:"space-between",
-                alignItems:    "center",
-                marginBottom:  totalKorbTeile > 0 || cartOpen ? "1rem" : 0,
-                borderBottom:  totalKorbTeile > 0 || cartOpen ? "1px solid var(--border)" : "none",
-                paddingBottom: totalKorbTeile > 0 || cartOpen ? "1rem" : 0,
-                cursor:        "pointer",
-              }}
-              onClick={() => setCartOpen(!cartOpen)}
-            >
-              <h3 style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                🛒 Warenkorb
-                {totalKorbTeile > 0 && (
-                  <span style={{
-                    background:     "var(--warning)",
-                    color:          "#000",
-                    borderRadius:   "50%",
-                    width:          22,
-                    height:         22,
-                    display:        "inline-flex",
-                    alignItems:     "center",
-                    justifyContent: "center",
-                    fontSize:       "0.75rem",
-                    fontWeight:     "bold",
-                  }}>
-                    {totalKorbTeile}
-                  </span>
-                )}
-              </h3>
-              <span style={{ color: "var(--text-dim)", fontSize: "1.2rem" }}>
-                {cartOpen ? "▲" : "▼"}
-              </span>
-            </div>
-
-            {(cartOpen || totalKorbTeile > 0) && (
-              <>
-                {koerbe.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "1.5rem 0", color: "var(--text-dim)" }}>
-                    <div style={{ fontSize: "2rem", marginBottom: 8 }}>🛒</div>
-                    <div style={{ fontWeight: 600 }}>Warenkorb ist leer</div>
-                    <div style={{ fontSize: "0.85rem", marginTop: 4 }}>Wähle Ersatzteile auf der linken Seite</div>
-                  </div>
-                ) : (
-                  <>
-                    {/* Gruppen-Karten */}
-                    {koerbe.map((korb) => (
-                      <div
-                        key={korb.id}
-                        style={{
-                          border:       "1px solid var(--border)",
-                          borderRadius: 10,
-                          overflow:     "hidden",
-                          marginBottom: "0.75rem",
-                        }}
-                      >
-                        {/* Gruppen-Header */}
-                        <div style={{
-                          background:     "var(--primary)",
-                          color:          "white",
-                          padding:        "0.55rem 1rem",
-                          display:        "flex",
-                          justifyContent: "space-between",
-                          alignItems:     "center",
-                          gap:            8,
-                        }}>
-                          <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>
-                            🖥️ LogID: <strong>{korb.logId}</strong>
-                          </span>
-                          <span style={{ fontSize: "0.85rem", fontWeight: 700, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
-                            {korb.geraeteName ?? "Gerät"}
-                          </span>
-                        </div>
-
-                        {/* Items (Zebra-Muster) */}
-                        {korb.items.map((item, idx) => {
-                          const isSonder  = !!(item as { istSonderAnfrage?: boolean }).istSonderAnfrage;
-                          const sonderD   = (item as { beschreibung?: string | null }).beschreibung;
-                          const sonderK   = (item as { sonderKategorie?: string | null }).sonderKategorie;
-                          const teilName  = isSonder ? "Sonderanfrage" : (item.artikel?.kategorie ?? item.teiltyp ?? "Unbekannt");
-                          const artName   = isSonder ? (sonderD ?? "—") : (item.artikel?.bezeichnung ?? "—");
-                          const isNeu     = isSonder ? false : (item.artikel?.bestand ?? 0) > 0;
-                          const odd       = idx % 2 === 1;
-                          return (
-                            <div
-                              key={item.id}
-                              style={{
-                                display:    "flex",
-                                alignItems: "center",
-                                gap:        8,
-                                padding:    "0.45rem 0.8rem",
-                                background: odd ? "var(--card-bg)" : "var(--bg)",
-                              }}
-                            >
-                              <span style={{ fontSize: "1.1rem", flexShrink: 0 }}>
-                                {isSonder ? "📦" : (TEIL_ICONS[teilName] ?? "🔧")}
-                              </span>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                {isSonder && (
-                                  <div style={{ fontSize: "0.62rem", fontWeight: 800, color: "#f97316", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                                    Sonderanfrage{sonderK && sonderK !== "Sonstiges" ? ` · ${sonderK}` : ""}
-                                  </div>
-                                )}
-                                <div style={{ fontWeight: 600, fontSize: "0.82rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {artName}
-                                </div>
-                              </div>
-                              {/* Grading badge */}
-                              {item.grading ? (
-                                <span style={{ padding: "0.1rem 0.45rem", borderRadius: 5, background: "var(--border)", color: "var(--text-dim)", fontSize: "0.72rem", fontWeight: 700, flexShrink: 0 }}>
-                                  {item.grading}
-                                </span>
-                              ) : (
-                                <span style={{ padding: "0.1rem 0.45rem", borderRadius: 5, background: "rgba(0,100,210,0.1)", color: "var(--primary)", fontSize: "0.68rem", fontWeight: 600, flexShrink: 0 }}>
-                                  Bestmöglich
-                                </span>
-                              )}
-                              {/* Status prediction */}
-                              <span style={{
-                                padding:     "0.1rem 0.45rem",
-                                borderRadius: 10,
-                                background:  isNeu ? "#dbeafe" : "#ede9fe",
-                                color:       isNeu ? "#1d4ed8" : "#7c3aed",
-                                fontSize:    "0.68rem",
-                                fontWeight:  800,
-                                flexShrink:  0,
-                              }}>
-                                {isNeu ? "NEU" : "BEDARF"}
-                              </span>
-                              {/* Entfernen */}
-                              <button
-                                onClick={() => removeFromCartMutation.mutate({ itemId: item.id })}
-                                style={{
-                                  background: "none",
-                                  border:     "none",
-                                  color:      "var(--danger)",
-                                  cursor:     "pointer",
-                                  fontSize:   "1rem",
-                                  padding:    "0 2px",
-                                  flexShrink: 0,
-                                }}
-                                title="Entfernen"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          );
-                        })}
-
-                        {/* Gruppen-Footer */}
-                        <div style={{
-                          padding:    "0.3rem 1rem",
-                          background: "var(--bg)",
-                          fontSize:   "0.75rem",
-                          color:      "var(--text-dim)",
-                          textAlign:  "right",
-                          borderTop:  "1px solid var(--border)",
-                        }}>
-                          {korb.items.length} {korb.items.length === 1 ? "Teil" : "Teile"}
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Globale Optionen + Submit */}
-                    <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.8rem", marginTop: "0.4rem" }}>
-                      <textarea
-                        value={globalZusatzinfo}
-                        onChange={(e) => setGlobalZusatzinfo(e.target.value)}
-                        placeholder="Kommentar für alle Teile (optional)..."
-                        rows={2}
-                        style={{
-                          ...searchInputStyle,
-                          marginBottom: "0.75rem",
-                          resize:       "vertical",
-                          fontSize:     "0.85rem",
-                          padding:      "0.5rem 0.8rem",
-                        }}
-                      />
-                      <button
-                        onClick={() => submitAlleMutation.mutate({
-                          techniker:  kuerzel,
-                          zusatzinfo: globalZusatzinfo || undefined,
-                        })}
-                        disabled={submitAlleMutation.isPending || totalKorbTeile === 0}
-                        style={{
-                          background:   "#16a34a",
-                          color:        "white",
-                          border:       "none",
-                          padding:      "0.9rem 1.2rem",
-                          borderRadius: "10px",
-                          fontWeight:   "bold",
-                          cursor:       "pointer",
-                          fontFamily:   "'Ubuntu', sans-serif",
-                          width:        "100%",
-                          fontSize:     "1rem",
-                          opacity:      submitAlleMutation.isPending ? 0.7 : 1,
-                          boxShadow:    "0 3px 8px rgba(22,163,74,0.3)",
-                        }}
-                      >
-                        {submitAlleMutation.isPending
-                          ? "⏳ Wird gesendet..."
-                          : `✓ Alle ${totalKorbTeile} Teile anfragen`}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* ── Meine Anfragen — in separate AnfragenBox Komponente ausgelagert ── */}
-          <AnfragenBox kuerzel={kuerzel} />
-        </aside>
-      </main>
-
-      {/* Responsive grid override */}
-      <style>{`
-        @media (max-width: 1100px) {
-          .techniker-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
-    </>
-  );
-}
-
-// ── TeilKarte sub-component ───────────────────────────────────────────────────
-// 4 Zustände:
-//   A — artikelId vorhanden + bestand > 0  → blau  "🛒 In Warenkorb"
-//   B — artikelId vorhanden + bestand = 0  → lila  "📋 Als Bedarf anfragen"
-//   C — artikelId null                     → orange "📋 Trotzdem anfragen"
-//   D — bereits im Warenkorb               → grün  "✓ Im Warenkorb" (disabled)
-
-const MAX_BESTAND = 10;
-
-function TeilKarte({
-  teil,
-  onCart,
-  onRemove,
-  inCartItemId,
-}: {
-  teil:         TeilInfo;
-  onCart:       (t: TeilInfo, grading: string | null, zusatzinfo: string) => void;
-  onRemove:     (itemId: number) => void;
-  inCartItemId: number | null;
-}) {
-  const [grading,    setGrading]    = useState<string | null>(null);
-  const [zusatzinfo, setZusatzinfo] = useState("");
-
-  const hasArtikel  = !!teil.artikelId;
-  const isAvailable = teil.verfuegbar;
-
-  // Zustand bestimmen
-  const zustand: "A" | "B" | "C" | "D" =
-    inCartItemId !== null ? "D" :
-    !hasArtikel           ? "C" :
-    isAvailable           ? "A" : "B";
-
-  const BTN: Record<"A"|"B"|"C"|"D", { bg: string; label: string }> = {
-    A: { bg: "var(--primary)", label: "🛒 In Warenkorb"        },
-    B: { bg: "var(--purple)",  label: "📋 Als Bedarf anfragen"  },
-    C: { bg: "#f97316",        label: "📋 Trotzdem anfragen"    },
-    D: { bg: "transparent",    label: "✓ Im Korb – entfernen"  },
-  };
-
-  const btn = BTN[zustand];
-
-  // Bestandsbalken
-  const pct      = Math.min(100, (teil.bestand / MAX_BESTAND) * 100);
-  const barColor = teil.bestand > 5 ? "#22c55e" : teil.bestand > 0 ? "#f97316" : "#ef4444";
-
-  return (
-    <div style={{
-      border:        "1px solid var(--border)",
-      borderRadius:  12,
-      padding:       "1rem 0.8rem",
-      display:       "flex",
-      flexDirection: "column",
-      gap:           "0.5rem",
-      background:    "var(--card-bg)",
-      boxShadow:     "0 2px 8px rgba(0,0,0,0.06)",
-      transition:    "box-shadow 0.2s",
-    }}>
-      {/* Icon */}
-      <div style={{ fontSize: "1.8rem", textAlign: "center", lineHeight: 1 }}>
-        {TEIL_ICONS[teil.teiltyp] ?? "🔧"}
-      </div>
-
-      {/* Teiltyp name */}
-      <div style={{ fontWeight: 700, fontSize: "0.85rem", textAlign: "center", lineHeight: 1.3 }}>
-        {teil.teiltyp}
-      </div>
-
-      {/* Artikel-Bezeichnung */}
-      <div style={{
-        fontSize:        "0.7rem",
-        color:           "var(--text-dim)",
-        textAlign:       "center",
-        overflow:        "hidden",
-        textOverflow:    "ellipsis",
-        display:         "-webkit-box",
-        WebkitLineClamp: 2,
-        WebkitBoxOrient: "vertical",
-        lineHeight:      1.3,
-        minHeight:       "2.2em",
-      }}>
-        {teil.bezeichnung ?? "(kein spezifischer Artikel)"}
-      </div>
-
-      {/* Bestand-Anzeige */}
-      {zustand === "A" && (
-        <>
-          <div style={{
-            textAlign:  "center",
-            fontWeight: 800,
-            fontSize:   "0.8rem",
-            color:      "#15803d",
-          }}>
-            ✅ {teil.bestand} Stück verfügbar
-          </div>
-          <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 3, transition: "width 0.4s" }} />
-          </div>
-        </>
-      )}
-      {zustand === "B" && (
-        <div style={{ textAlign: "center", fontWeight: 800, fontSize: "0.8rem", color: "#7c3aed" }}>
-          ❌ Nicht auf Lager
-        </div>
-      )}
-      {zustand === "C" && (
-        <div style={{ textAlign: "center", fontWeight: 700, fontSize: "0.75rem", color: "#f97316" }}>
-          ⚠️ Nicht im Lager erfasst
-        </div>
-      )}
-      {zustand === "D" && (
-        <div style={{ textAlign: "center", fontWeight: 800, fontSize: "0.8rem", color: "#0e7490" }}>
-          ✓ Im Korb
-        </div>
-      )}
-
-      {/* Grading-Auswahl (optional) */}
-      {zustand !== "D" && (
-        <div>
-          <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", marginBottom: 3, fontWeight: 600 }}>
-            Grading <span style={{ fontWeight: 400, fontStyle: "italic" }}>(optional)</span>:
-          </div>
-          <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-            {(["A+", "A", "B", "C"] as const).map((g) => (
-              <button
-                key={g}
-                onClick={() => setGrading(grading === g ? null : g)}
-                style={{
-                  padding:      "0.15rem 0.45rem",
-                  borderRadius: 5,
-                  border:       `1px solid ${grading === g ? "var(--primary)" : "var(--border)"}`,
-                  background:   grading === g ? "var(--primary)" : "var(--bg)",
-                  color:        grading === g ? "white" : "var(--text)",
-                  cursor:       "pointer",
-                  fontSize:     "0.72rem",
-                  fontWeight:   700,
-                  fontFamily:   "'Ubuntu', sans-serif",
-                  transition:   "all 0.15s",
-                }}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-          <div style={{ fontSize: "0.62rem", color: "var(--text-dim)", marginTop: 3, fontStyle: "italic" }}>
-            ⓘ Ohne Auswahl: bestmögliches verfügbar
-          </div>
-        </div>
-      )}
-
-      {/* Zusatzinfo (außer bei Tastatur und D) */}
-      {zustand !== "D" && teil.teiltyp !== "Tastatur" && (
-        <input
-          type="text"
-          value={zusatzinfo}
-          onChange={(e) => setZusatzinfo(e.target.value)}
-          placeholder="Zusatzinfo..."
-          style={{
-            padding:      "0.3rem 0.5rem",
-            borderRadius: 6,
-            border:       "1px solid var(--border)",
-            background:   "var(--bg)",
-            color:        "var(--text)",
-            fontSize:     "0.75rem",
-            fontFamily:   "'Ubuntu', sans-serif",
-            outline:      "none",
-            width:        "100%",
-            boxSizing:    "border-box",
-          }}
-          onFocus={(e)  => (e.currentTarget.style.borderColor = "var(--primary)")}
-          onBlur={(e)   => (e.currentTarget.style.borderColor = "var(--border)")}
-        />
-      )}
-      {zustand !== "D" && teil.teiltyp === "Tastatur" && (
-        <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", fontStyle: "italic", textAlign: "center" }}>
-          ⌨️ Tastatur-Auswahl folgt…
-        </div>
-      )}
-
-      {/* Haupt-Button */}
-      <button
-        onClick={() => {
-          if (zustand === "D") { if (inCartItemId) onRemove(inCartItemId); }
-          else                 { onCart(teil, grading, zusatzinfo); }
-        }}
-        title={zustand === "D" ? "Diesen Teiltyp aus dem Korb entfernen" : undefined}
-        style={{
-          background:   zustand === "D" ? "rgba(6,182,212,0.10)" : btn.bg,
-          color:        zustand === "D" ? "#0e7490" : "white",
-          border:       zustand === "D" ? "2px solid #06b6d4" : "none",
-          padding:      "0.6rem",
-          borderRadius: 8,
-          fontWeight:   "bold",
-          cursor:       "pointer",
-          fontFamily:   "'Ubuntu', sans-serif",
-          fontSize:     "0.82rem",
-          minHeight:    44,
-          boxSizing:    "border-box",
-          marginTop:    "auto",
-        }}
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      onClick={step === "done" || step === "sending" ? undefined : onClose}
+    >
+      <div
+        style={{ width: "100%", maxWidth: 680, background: "var(--card-bg)", borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 40px rgba(0,0,0,0.3)", maxHeight: "92vh", overflowY: "auto", color: "var(--text)" }}
+        onClick={e => e.stopPropagation()}
       >
-        {btn.label}
-      </button>
+        {/* Handle */}
+        <div style={{ width: 40, height: 4, background: "var(--border)", borderRadius: 2, margin: "1rem auto 0" }} />
+
+        {/* ── Step 1: LogID ── */}
+        {step === "logid" && (
+          <div style={{ padding: "1.5rem 1.5rem 2rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+              <h2 style={{ margin: 0, fontSize: "1.3rem", fontWeight: 800 }}>Welches Gerät?</h2>
+              <button onClick={onClose} aria-label="Schließen" style={closeBtn}>✕</button>
+            </div>
+            <p style={{ margin: "0 0 1.2rem", color: "var(--text-dim)", fontSize: "1rem" }}>
+              Scanne die LogID oder tippe sie ein.
+            </p>
+            <input
+              ref={inputRef}
+              type="text"
+              inputMode="numeric"
+              value={logIdInput}
+              onChange={e => setLogIdInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleLogIdSubmit(); }}
+              placeholder="z. B. 212560810"
+              style={{
+                width:        "100%",
+                padding:      "1rem 1.2rem",
+                fontSize:     "1.4rem",
+                border:       "2px solid var(--border)",
+                borderRadius: 12,
+                background:   "var(--bg)",
+                color:        "var(--text)",
+                fontFamily:   "'Ubuntu', sans-serif",
+                boxSizing:    "border-box",
+                outline:      "none",
+                marginBottom: "1rem",
+              }}
+              onFocus={e  => (e.currentTarget.style.borderColor = CYAN)}
+              onBlur={e   => (e.currentTarget.style.borderColor = "var(--border)")}
+            />
+            <button
+              onClick={handleLogIdSubmit}
+              disabled={!logIdInput.trim() || logIdLookup.isLoading}
+              style={primaryBtn(canSend || !!logIdInput.trim())}
+            >
+              {logIdLookup.isLoading ? "Wird gesucht…" : "Gerät suchen →"}
+            </button>
+          </div>
+        )}
+
+        {/* ── Step 2: Teile-Auswahl ── */}
+        {step === "teile" && selectedGeraet && (
+          <div style={{ padding: "1.5rem 1.5rem 2rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.25rem" }}>
+              <div>
+                <h2 style={{ margin: "0 0 0.2rem", fontSize: "1.25rem", fontWeight: 800, lineHeight: 1.2 }}>
+                  {selectedGeraet.bereinigt}
+                </h2>
+                {selectedGeraet.logId !== "---" && (
+                  <div style={{ color: "var(--text-dim)", fontSize: "0.85rem" }}>
+                    {selectedGeraet.logId}
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setStep("logid")} style={backBtn}>← Zurück</button>
+            </div>
+
+            <p style={{ margin: "0 0 1rem", fontWeight: 700, fontSize: "1.05rem" }}>
+              Welche Teile brauchst du?
+            </p>
+
+            {teileQuery.isLoading ? (
+              <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>
+                Teile werden geladen…
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "0.6rem", marginBottom: "1.5rem" }}>
+                {teile.map(t => {
+                  const sel = selectedTeile.has(t.teiltyp);
+                  return (
+                    <button
+                      key={t.teiltyp}
+                      onClick={() => toggleTeil(t.teiltyp)}
+                      style={{
+                        padding:        "0.9rem 0.5rem",
+                        borderRadius:   12,
+                        border:         sel ? `2px solid ${CYAN}` : "1.5px solid var(--border)",
+                        background:     sel ? "rgba(0,139,210,0.08)" : "var(--card-bg)",
+                        color:          sel ? "#005fa3" : "var(--text)",
+                        cursor:         "pointer",
+                        fontWeight:     sel ? 800 : 600,
+                        fontFamily:     "'Ubuntu', sans-serif",
+                        fontSize:       "0.92rem",
+                        textAlign:      "center",
+                        minHeight:      56,
+                        lineHeight:     1.25,
+                        display:        "flex",
+                        alignItems:     "center",
+                        justifyContent: "center",
+                        gap:            4,
+                        transition:     "background 0.1s, border-color 0.1s",
+                      }}
+                    >
+                      {sel && "✓ "}
+                      {t.teiltyp}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Freitext-Sonderanfrage */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", fontWeight: 600, marginBottom: "0.4rem", fontSize: "0.95rem" }}>
+                Etwas anderes?
+              </label>
+              <input
+                type="text"
+                value={sonderBeschr}
+                onChange={e => setSonderBeschr(e.target.value)}
+                placeholder="z. B. Schraube D-Cover, Spezial-Kabel…"
+                style={{
+                  width:        "100%",
+                  padding:      "0.8rem 1rem",
+                  borderRadius: 10,
+                  border:       "1.5px solid var(--border)",
+                  background:   "var(--bg)",
+                  color:        "var(--text)",
+                  fontFamily:   "'Ubuntu', sans-serif",
+                  fontSize:     "0.95rem",
+                  boxSizing:    "border-box",
+                  outline:      "none",
+                }}
+                onFocus={e => (e.currentTarget.style.borderColor = CYAN)}
+                onBlur={e  => (e.currentTarget.style.borderColor = "var(--border)")}
+              />
+            </div>
+
+            <button
+              onClick={handleSenden}
+              disabled={!canSend}
+              style={primaryBtn(canSend, GREEN)}
+            >
+              {sendLabel}
+            </button>
+          </div>
+        )}
+
+        {/* ── Step: Sending ── */}
+        {step === "sending" && (
+          <div style={{ padding: "4rem 2rem", textAlign: "center" }}>
+            <div style={{ width: 44, height: 44, border: `4px solid rgba(0,139,210,0.2)`, borderTopColor: CYAN, borderRadius: "50%", animation: "tkSpin 0.7s linear infinite", margin: "0 auto 1rem" }} />
+            <p style={{ color: "var(--text-dim)", fontSize: "1rem", margin: 0 }}>Anfrage wird gesendet…</p>
+            <style>{`@keyframes tkSpin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        )}
+
+        {/* ── Step: Done ── */}
+        {step === "done" && (
+          <div style={{ padding: "3rem 2rem", textAlign: "center" }}>
+            <div style={{ fontSize: "3.5rem", marginBottom: "0.75rem", lineHeight: 1 }}>✅</div>
+            <h2 style={{ margin: "0 0 0.4rem", fontSize: "1.5rem", fontWeight: 800 }}>Danke!</h2>
+            <p style={{ color: "var(--text-dim)", margin: "0 0 0.25rem", fontSize: "1rem" }}>
+              Deine Anfrage wurde gesendet.
+            </p>
+            <p style={{ color: "var(--text-dim)", margin: "0 0 2rem", fontSize: "1rem" }}>
+              Wir kümmern uns darum.
+            </p>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "center" }}>
+              <button onClick={resetFlow} style={secondaryBtn}>
+                Noch eine Anfrage stellen
+              </button>
+              <button onClick={onSuccess} style={primaryBtn(true)}>
+                Zur Übersicht
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+// ── AnfrageDetailModal ────────────────────────────────────────────────────────
+
+function AnfrageDetailModal({
+  gruppe,
+  kuerzel,
+  onClose,
+}: {
+  gruppe:  GruppeData;
+  kuerzel: string;
+  onClose: () => void;
+}) {
+  const { show }             = useToast();
+  const [confirmStorno, setConfirmStorno] = useState(false);
+  const [stornoLoading, setStornoLoading] = useState(false);
+
+  const storniereMutation = api.anfragen.storniere.useMutation();
+
+  const hasLogId      = !!(gruppe.logId && gruppe.logId !== "unbekannt");
+  const geraet        = gruppe.geraeteName ?? (hasLogId ? gruppe.logId! : "Unbekanntes Gerät");
+  const status        = gruppeStatus(gruppe);
+  const cfg           = STATUS_CFG[status] ?? STATUS_CFG.NEU!;
+  const stornoItems   = gruppe.anfragen.filter(a => a.status === "NEU" || a.status === "BEDARF");
+  const kannStornieren = stornoItems.length > 0;
+
+  async function handleStornoConfirm() {
+    setStornoLoading(true);
+    try {
+      for (const a of stornoItems) {
+        await storniereMutation.mutateAsync({ techniker: kuerzel, logId: a.logId, teil: a.teil });
+      }
+      show("Anfrage storniert", "success");
+      onClose();
+    } catch (e) {
+      show(`Fehler: ${(e as { message?: string }).message ?? "Unbekannt"}`, "error");
+    } finally {
+      setStornoLoading(false);
+    }
+  }
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      onClick={onClose}
+    >
+      <div
+        style={{ width: "100%", maxWidth: 680, background: "var(--card-bg)", borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 40px rgba(0,0,0,0.3)", maxHeight: "92vh", overflowY: "auto", color: "var(--text)" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Handle */}
+        <div style={{ width: 40, height: 4, background: "var(--border)", borderRadius: 2, margin: "1rem auto 0" }} />
+
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "1.25rem 1.5rem 0" }}>
+          <div>
+            <h2 style={{ margin: "0 0 0.2rem", fontSize: "1.25rem", fontWeight: 800 }}>{geraet}</h2>
+            {hasLogId && (
+              <div style={{ color: "var(--text-dim)", fontSize: "0.85rem" }}>{gruppe.logId}</div>
+            )}
+          </div>
+          <button onClick={onClose} aria-label="Schließen" style={closeBtn}>✕</button>
+        </div>
+
+        <div style={{ padding: "1rem 1.5rem 2rem" }}>
+
+          {/* Status */}
+          <div style={{ marginBottom: "1.25rem" }}>
+            <span style={{
+              background:   cfg.bg,
+              color:        cfg.color,
+              borderRadius: 20,
+              padding:      "4px 14px",
+              fontSize:     "0.9rem",
+              fontWeight:   700,
+            }}>
+              Status: {cfg.text}
+            </span>
+          </div>
+
+          {/* Teile-Liste */}
+          <div style={{ marginBottom: "1.5rem" }}>
+            <h3 style={{ margin: "0 0 0.6rem", fontSize: "1rem", fontWeight: 700 }}>
+              Du hast diese Teile angefragt:
+            </h3>
+            <ul style={{ margin: 0, padding: "0 0 0 1.2rem", lineHeight: 2 }}>
+              {gruppe.anfragen.map(a => {
+                const aCfg = STATUS_CFG[a.status] ?? STATUS_CFG.NEU!;
+                return (
+                  <li key={a.id} style={{ fontSize: "1rem" }}>
+                    {a.teil}
+                    {" "}
+                    <span style={{
+                      background:   aCfg.bg,
+                      color:        aCfg.color,
+                      borderRadius: 20,
+                      padding:      "1px 8px",
+                      fontSize:     "0.78rem",
+                      fontWeight:   700,
+                    }}>
+                      {aCfg.text}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Nachrichten */}
+          <div style={{ marginBottom: kannStornieren ? "1.5rem" : 0 }}>
+            <h3 style={{ margin: "0 0 0.5rem", fontSize: "1rem", fontWeight: 700 }}>
+              Nachrichten
+            </h3>
+            <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+              <GruppenNachrichten
+                anfrageId={gruppe.anfragen[0]!.id}
+                kuerzel={kuerzel}
+                bezugInfo={geraet}
+              />
+            </div>
+          </div>
+
+          {/* Storno */}
+          {kannStornieren && (
+            <div>
+              <hr style={{ border: 0, borderTop: "1px solid var(--border)", margin: "0 0 1rem" }} />
+              {!confirmStorno ? (
+                <button
+                  onClick={() => setConfirmStorno(true)}
+                  style={{
+                    padding:      "0.8rem 1.4rem",
+                    background:   "transparent",
+                    border:       "1.5px solid #ef4444",
+                    color:        "#ef4444",
+                    borderRadius: 10,
+                    cursor:       "pointer",
+                    fontFamily:   "'Ubuntu', sans-serif",
+                    fontWeight:   700,
+                    minHeight:    56,
+                    fontSize:     "0.95rem",
+                  }}
+                >
+                  Anfrage stornieren
+                </button>
+              ) : (
+                <div style={{ background: "rgba(239,68,68,0.05)", border: "1.5px solid #ef4444", borderRadius: 12, padding: "1rem" }}>
+                  <p style={{ margin: "0 0 0.5rem", fontWeight: 700, fontSize: "0.95rem" }}>
+                    Wirklich stornieren?
+                  </p>
+                  <p style={{ margin: "0 0 1rem", color: "var(--text-dim)", fontSize: "0.9rem" }}>
+                    Diese Aktion kann nicht rückgängig gemacht werden.
+                  </p>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button
+                      onClick={() => setConfirmStorno(false)}
+                      style={{ ...secondaryBtn, flex: 1 }}
+                    >
+                      Abbrechen
+                    </button>
+                    <button
+                      onClick={handleStornoConfirm}
+                      disabled={stornoLoading}
+                      style={{
+                        flex:         2,
+                        padding:      "0.8rem",
+                        background:   "#ef4444",
+                        color:        "white",
+                        border:       "none",
+                        borderRadius: 8,
+                        cursor:       stornoLoading ? "wait" : "pointer",
+                        fontFamily:   "'Ubuntu', sans-serif",
+                        fontWeight:   700,
+                        opacity:      stornoLoading ? 0.7 : 1,
+                        minHeight:    56,
+                        fontSize:     "0.95rem",
+                      }}
+                    >
+                      {stornoLoading ? "Wird storniert…" : "Ja, stornieren"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Shared button styles ──────────────────────────────────────────────────────
+
+function primaryBtn(enabled: boolean, bg = PRIMARY): React.CSSProperties {
+  return {
+    width:        "100%",
+    padding:      "1rem",
+    fontSize:     "1rem",
+    background:   enabled ? bg : "var(--border)",
+    color:        enabled ? "white" : "var(--text-dim)",
+    border:       "none",
+    borderRadius: 12,
+    cursor:       enabled ? "pointer" : "not-allowed",
+    fontWeight:   800,
+    fontFamily:   "'Ubuntu', sans-serif",
+    minHeight:    56,
+    transition:   "background 0.15s",
+  };
+}
+
+const secondaryBtn: React.CSSProperties = {
+  padding:      "0.8rem 1.2rem",
+  background:   "var(--bg)",
+  border:       "1.5px solid var(--border)",
+  borderRadius: 10,
+  cursor:       "pointer",
+  fontFamily:   "'Ubuntu', sans-serif",
+  fontWeight:   700,
+  color:        "var(--text)",
+  minHeight:    56,
+  fontSize:     "0.95rem",
+};
+
+const closeBtn: React.CSSProperties = {
+  background:  "none",
+  border:      "none",
+  cursor:      "pointer",
+  fontSize:    "1.3rem",
+  color:       "var(--text-dim)",
+  padding:     "4px 8px",
+  lineHeight:  1,
+  minHeight:   44,
+  minWidth:    44,
+};
+
+const backBtn: React.CSSProperties = {
+  background:  "none",
+  border:      "none",
+  cursor:      "pointer",
+  color:       "var(--text-dim)",
+  fontSize:    "0.9rem",
+  padding:     "4px 8px",
+  fontFamily:  "'Ubuntu', sans-serif",
+  minHeight:   44,
+};
