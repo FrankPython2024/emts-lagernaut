@@ -108,11 +108,11 @@ export default function TechnikerPage() {
   const { data: session } = useSession();
   const user     = session?.user as SessionUser | undefined;
   const kuerzel  = user?.kuerzel ?? "";
-  const vorname  = user?.name?.split(" ")[0] ?? kuerzel;
   const { on, off } = useSocket();
 
   const [showFlow,     setShowFlow]     = useState(false);
   const [detailGruppe, setDetailGruppe] = useState<GruppeData | null>(null);
+  const [suchTerm,     setSuchTerm]     = useState("");
 
   // ── Anfragen ───────────────────────────────────────────────────────────────
 
@@ -134,6 +134,15 @@ export default function TechnikerPage() {
   const alleAnfragen = anfragenQuery.data?.anfragen ?? [];
   const gruppen      = useMemo(() => buildGruppen(alleAnfragen), [alleAnfragen]);
 
+  const gefilterteGruppen = useMemo(() => {
+    const term = suchTerm.trim().replace(/\./g, "").toLowerCase();
+    if (!term) return gruppen;
+    return gruppen.filter(g =>
+      (g.logId   ?? "").replace(/\./g, "").toLowerCase().includes(term) ||
+      (g.geraeteName ?? "").toLowerCase().includes(term),
+    );
+  }, [gruppen, suchTerm]);
+
   // Keep detail modal in sync when live data arrives
   useEffect(() => {
     if (!detailGruppe) return;
@@ -147,57 +156,60 @@ export default function TechnikerPage() {
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem 1.25rem 3rem" }}>
 
-      {/* ── Begrüßung ── */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <h1 style={{ margin: "0 0 0.1rem", fontSize: "1.6rem", fontWeight: 800, lineHeight: 1.2 }}>
-          Hallo {vorname || kuerzel || "…"},
-        </h1>
-        <p style={{ margin: 0, color: "var(--text-dim)", fontSize: "1rem" }}>
-          hier ist deine Übersicht.
-        </p>
-      </div>
-
-      {/* ── Two-column grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* ── Two-column grid (kein Begrüßungs-Header) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
         {/* ── Left: Aktions-Card ── */}
-        <div>
-          <button
-            onClick={() => setShowFlow(true)}
-            style={{
-              display:       "flex",
-              flexDirection: "column",
-              alignItems:    "flex-start",
-              width:         "100%",
-              padding:       "1.5rem 1.75rem",
-              background:    CYAN,
-              color:         "white",
-              border:        "none",
-              borderRadius:  16,
-              cursor:        "pointer",
-              textAlign:     "left",
-              boxShadow:     "0 4px 20px rgba(0,139,210,0.30)",
-              fontFamily:    "'Ubuntu', sans-serif",
-              minHeight:     100,
-              transition:    "transform 0.15s, box-shadow 0.15s",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,139,210,0.45)"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,139,210,0.30)"; }}
-          >
-            <span style={{ fontSize: "1.375rem", fontWeight: 800, lineHeight: 1.2 }}>
-              Ersatzteile anfragen
-            </span>
-            <span style={{ fontSize: "1rem", opacity: 0.9, marginTop: "0.4rem" }}>
-              Tippen oder Gerät scannen
-            </span>
-          </button>
-        </div>
+        <button
+          onClick={() => setShowFlow(true)}
+          className="block w-full text-left rounded-2xl transition-all duration-200 hover:shadow-xl active:scale-[0.99]"
+          style={{
+            padding:    "2rem 2.25rem",
+            background: `linear-gradient(135deg, ${CYAN} 0%, #0676AD 100%)`,
+            color:      "white",
+            border:     "none",
+            cursor:     "pointer",
+            fontFamily: "'Ubuntu', sans-serif",
+            minHeight:  200,
+          }}
+        >
+          <div style={{ fontSize: "1.75rem", fontWeight: 800, lineHeight: 1.2, marginBottom: "0.75rem" }}>
+            Ersatzteile anfragen
+          </div>
+          <div style={{ fontSize: "1rem", opacity: 0.88, lineHeight: 1.5 }}>
+            LogID scannen oder eintippen —<br />wir kümmern uns sofort.
+          </div>
+        </button>
 
         {/* ── Right: Anfragen-Liste ── */}
         <div>
-          <h2 style={{ margin: "0 0 0.875rem", fontSize: "1.2rem", fontWeight: 700 }}>
+          <h2 style={{ margin: "0 0 0.75rem", fontSize: "1.2rem", fontWeight: 700 }}>
             Deine Anfragen
           </h2>
+
+          {/* Such-Input */}
+          <div style={{ marginBottom: "0.75rem" }}>
+            <input
+              type="text"
+              value={suchTerm}
+              onChange={e => setSuchTerm(e.target.value)}
+              placeholder="LogID oder Modell suchen…"
+              style={{
+                width:        "100%",
+                padding:      "0.7rem 1rem",
+                borderRadius: 12,
+                border:       "1.5px solid var(--border)",
+                background:   "var(--card-bg)",
+                color:        "var(--text)",
+                fontFamily:   "'Ubuntu', sans-serif",
+                fontSize:     "0.95rem",
+                boxSizing:    "border-box",
+                outline:      "none",
+              }}
+              onFocus={e  => (e.currentTarget.style.borderColor = CYAN)}
+              onBlur={e   => (e.currentTarget.style.borderColor = "var(--border)")}
+            />
+          </div>
 
           {anfragenQuery.isLoading && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "3rem 0", color: "var(--text-dim)" }}>
@@ -207,14 +219,14 @@ export default function TechnikerPage() {
             </div>
           )}
 
-          {!anfragenQuery.isLoading && gruppen.length === 0 && (
+          {!anfragenQuery.isLoading && gefilterteGruppen.length === 0 && (
             <div style={{ padding: "1.5rem", background: "var(--card-bg)", borderRadius: 12, border: "1px solid var(--border)", color: "var(--text-dim)", textAlign: "center" }}>
-              Du hast noch keine Anfragen gestellt.
+              {suchTerm.trim() ? "Keine Anfragen gefunden." : "Du hast noch keine Anfragen gestellt."}
             </div>
           )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
-            {gruppen.map(g => (
+            {gefilterteGruppen.map(g => (
               <AnfrageKarte
                 key={g.key}
                 gruppe={g}

@@ -103,31 +103,75 @@ function LiveUhr() {
   );
 }
 
+// ── StatCard ──────────────────────────────────────────────────────────────────
+
+function StatCard({ label, wert, accent }: { label: string; wert: number; accent?: boolean }) {
+  return (
+    <div style={{
+      padding:      "0.875rem 1rem",
+      borderRadius: 12,
+      border:       `1px solid ${accent ? "rgba(0,139,210,0.30)" : "var(--border)"}`,
+      background:   accent ? "rgba(0,139,210,0.07)" : "var(--bg)",
+    }}>
+      <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", marginBottom: "0.2rem", fontWeight: 600 }}>
+        {label}
+      </div>
+      <div style={{
+        fontSize:            "1.75rem",
+        fontWeight:          800,
+        fontVariantNumeric:  "tabular-nums",
+        color:               accent ? "#005fa3" : "var(--text)",
+        lineHeight:          1,
+      }}>
+        {wert}
+      </div>
+    </div>
+  );
+}
+
 // ── ProfilModal ───────────────────────────────────────────────────────────────
 
 function ProfilModal({ kuerzel, name, onClose }: { kuerzel: string; name: string; onClose: () => void }) {
   const anfragenQuery = api.anfragen.getByTechniker.useQuery(
-    { kuerzel, showAll: true, limit: 200 },
+    { kuerzel, showAll: true, limit: 500 },
     { enabled: !!kuerzel, staleTime: 10_000 },
   );
 
-  const alle         = anfragenQuery.data?.anfragen ?? [];
+  const alle = anfragenQuery.data?.anfragen ?? [];
+
+  // Zeit-Grenzen (client-seitig, einmalig beim Render berechnet)
+  const now         = new Date();
+  const heuteStart  = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const gesternStart = new Date(heuteStart); gesternStart.setDate(gesternStart.getDate() - 1);
+  const wochenTag   = heuteStart.getDay() === 0 ? 6 : heuteStart.getDay() - 1; // 0=Mo
+  const wocheStart  = new Date(heuteStart); wocheStart.setDate(wocheStart.getDate() - wochenTag);
+  const monatStart  = new Date(now.getFullYear(), now.getMonth(), 1);
+  const jahrStart   = new Date(now.getFullYear(), 0, 1);
+
+  const zaehleDatum = (von: Date, bis?: Date) =>
+    alle.filter(a => {
+      const d = new Date(a.datum);
+      return d >= von && (!bis || d < bis);
+    }).length;
+
+  const heute        = zaehleDatum(heuteStart);
+  const gestern      = zaehleDatum(gesternStart, heuteStart);
+  const woche        = zaehleDatum(wocheStart);
+  const monat        = zaehleDatum(monatStart);
+  const jahr         = zaehleDatum(jahrStart);
   const gesamt       = alle.length;
   const abgeschlossen = alle.filter(a => a.status === "ABGESCHLOSSEN").length;
   const aktiv        = alle.filter(a => ["NEU", "IN_BEARBEITUNG", "BEDARF"].includes(a.status)).length;
   const storniert    = alle.filter(a => a.status === "STORNIERT").length;
-  const letzte       = gesamt > 0
-    ? new Date(Math.max(...alle.map(a => new Date(a.datum).getTime())))
-    : null;
 
   const btnClose: React.CSSProperties = {
     background: "none", border: "none", cursor: "pointer",
     fontSize: "1.3rem", color: "var(--text-dim)", padding: "4px 8px", lineHeight: 1,
     minHeight: 44, minWidth: 44,
   };
-  const statRow: React.CSSProperties = {
-    display: "flex", justifyContent: "space-between", padding: "0.6rem 0",
-    borderBottom: "1px solid var(--border)", fontSize: "1rem",
+  const statusRow: React.CSSProperties = {
+    display: "flex", justifyContent: "space-between", padding: "0.55rem 0",
+    borderBottom: "1px solid var(--border)", fontSize: "0.95rem",
   };
 
   return (
@@ -137,7 +181,7 @@ function ProfilModal({ kuerzel, name, onClose }: { kuerzel: string; name: string
     >
       <div
         className="modal-enter"
-        style={{ width: "100%", maxWidth: 480, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.25)", color: "var(--text)", overflow: "hidden" }}
+        style={{ width: "100%", maxWidth: 520, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.25)", color: "var(--text)", overflow: "hidden", maxHeight: "90vh", overflowY: "auto" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -146,53 +190,53 @@ function ProfilModal({ kuerzel, name, onClose }: { kuerzel: string; name: string
           <button onClick={onClose} aria-label="Schließen" style={btnClose}>✕</button>
         </div>
 
-        <div style={{ padding: "1.2rem 1.5rem 2rem" }}>
+        <div style={{ padding: "1.25rem 1.5rem 2rem" }}>
           {/* Persönliche Daten */}
-          <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>
+          <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>
             Persönliche Daten
           </h3>
-          <div style={statRow}>
+          <div style={statusRow}>
             <span style={{ color: "var(--text-dim)" }}>Name</span>
             <span style={{ fontWeight: 700 }}>{name || "–"}</span>
           </div>
-          <div style={{ ...statRow, marginBottom: "1.5rem" }}>
+          <div style={{ ...statusRow, borderBottom: "none", marginBottom: "1.5rem" }}>
             <span style={{ color: "var(--text-dim)" }}>Kürzel</span>
             <span style={{ fontWeight: 700 }}>{kuerzel}</span>
           </div>
 
-          {/* Statistiken */}
-          <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>
-            Statistiken
+          {/* Zeitraum-KPIs */}
+          <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>
+            Anfragen
           </h3>
 
           {anfragenQuery.isLoading ? (
             <p style={{ color: "var(--text-dim)", textAlign: "center", padding: "1rem 0" }}>Wird geladen…</p>
           ) : (
             <>
-              <div style={statRow}>
-                <span style={{ color: "var(--text-dim)" }}>Anfragen gesamt</span>
-                <span style={{ fontWeight: 800, fontSize: "1.1rem" }}>{gesamt}</span>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.6rem", marginBottom: "1.25rem" }}>
+                <StatCard label="Heute"        wert={heute}   />
+                <StatCard label="Gestern"      wert={gestern} />
+                <StatCard label="Diese Woche"  wert={woche}   />
+                <StatCard label="Dieser Monat" wert={monat}   />
+                <StatCard label="Dieses Jahr"  wert={jahr}    />
+                <StatCard label="Insgesamt"    wert={gesamt}  accent />
               </div>
-              <div style={statRow}>
-                <span style={{ color: "var(--text-dim)" }}>Abgeschlossen</span>
-                <span style={{ fontWeight: 700, color: "#15803d" }}>{abgeschlossen}</span>
-              </div>
-              <div style={statRow}>
-                <span style={{ color: "var(--text-dim)" }}>Aktiv</span>
-                <span style={{ fontWeight: 700, color: "#005fa3" }}>{aktiv}</span>
-              </div>
-              {storniert > 0 && (
-                <div style={statRow}>
+
+              {/* Status-Aufschlüsselung */}
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
+                <div style={statusRow}>
+                  <span style={{ color: "var(--text-dim)" }}>Abgeschlossen</span>
+                  <span style={{ fontWeight: 700, color: "#15803d", fontVariantNumeric: "tabular-nums" }}>{abgeschlossen}</span>
+                </div>
+                <div style={statusRow}>
+                  <span style={{ color: "var(--text-dim)" }}>Aktiv (Neu / In Bearbeitung)</span>
+                  <span style={{ fontWeight: 700, color: "#005fa3", fontVariantNumeric: "tabular-nums" }}>{aktiv}</span>
+                </div>
+                <div style={{ ...statusRow, borderBottom: "none" }}>
                   <span style={{ color: "var(--text-dim)" }}>Storniert</span>
-                  <span style={{ fontWeight: 700, color: "#6b7280" }}>{storniert}</span>
+                  <span style={{ fontWeight: 700, color: "#6b7280", fontVariantNumeric: "tabular-nums" }}>{storniert}</span>
                 </div>
-              )}
-              {letzte && (
-                <div style={{ ...statRow, borderBottom: "none" }}>
-                  <span style={{ color: "var(--text-dim)" }}>Letzte Anfrage</span>
-                  <span style={{ fontWeight: 600 }}>{relativeZeit(letzte)}</span>
-                </div>
-              )}
+              </div>
             </>
           )}
         </div>
