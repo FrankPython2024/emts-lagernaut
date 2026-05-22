@@ -7,6 +7,11 @@ import { useSocket }      from "@/hooks/useSocket";
 import { EVENTS }         from "@/modules/realtime/events";
 import GruppenNachrichten from "./components/GruppenNachrichten";
 import { type AnfrageRow, type GruppeData } from "./components/constants";
+import {
+  Cpu, Monitor, MonitorSmartphone, Mouse, Square, Keyboard,
+  Volume2, CircleDot, Power, Usb, Network, Wifi,
+  Battery, Box, Plug, type LucideIcon,
+} from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,6 +31,26 @@ const STATUS_CFG: Record<string, { text: string; color: string; bg: string }> = 
   IN_BEARBEITUNG: { text: "In Bearbeitung", color: "#92400e", bg: "#fef3c7" },
   ABGESCHLOSSEN:  { text: "Abgeschlossen",  color: "#15803d", bg: "#dcfce7" },
   STORNIERT:      { text: "Storniert",      color: "#6b7280", bg: "#f3f4f6" },
+};
+
+// Icon-Mapping für die 17 Standard-Teiltypen
+const TEIL_ICON: Record<string, LucideIcon> = {
+  "Mainboard":        Cpu,
+  "Display":          Monitor,
+  "Displaymodul":     MonitorSmartphone,
+  "Touchpad":         Mouse,
+  "Touchpad Buttons": Square,
+  "Tastatur":         Keyboard,
+  "Lautsprecher":     Volume2,
+  "Füße vorne":       CircleDot,
+  "Füße hinten":      CircleDot,
+  "Power Button":     Power,
+  "USB Board":        Usb,
+  "LAN Board":        Network,
+  "WLAN/UMTS Karte":  Wifi,
+  "Akku":             Battery,
+  "D-Cover":          Box,
+  "DC IN":            Plug,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -462,25 +487,21 @@ function AnfrageFlow({
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={step === "done" || step === "sending" ? undefined : onClose}
     >
       <div
-        style={{ width: "100%", maxWidth: 680, background: "var(--card-bg)", borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 40px rgba(0,0,0,0.3)", maxHeight: "92vh", overflowY: "auto", color: "var(--text)" }}
+        style={{ width: "100%", maxWidth: 680, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.3)", maxHeight: "90vh", overflowY: "auto", color: "var(--text)" }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Handle */}
-        <div style={{ width: 40, height: 4, background: "var(--border)", borderRadius: 2, margin: "1rem auto 0" }} />
-
         {/* ── Step 1: LogID ── */}
         {step === "logid" && (
           <div style={{ padding: "1.5rem 1.5rem 2rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
-              <h2 style={{ margin: 0, fontSize: "1.3rem", fontWeight: 800 }}>Welches Gerät?</h2>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.75rem" }}>
               <button onClick={onClose} aria-label="Schließen" style={closeBtn}>✕</button>
             </div>
-            <p style={{ margin: "0 0 1.2rem", color: "var(--text-dim)", fontSize: "1rem" }}>
-              Scanne die LogID oder tippe sie ein.
+            <p style={{ margin: "0 0 1.2rem", fontSize: "1.1rem", fontWeight: 600 }}>
+              Scanne die LogID oder tippe sie ein
             </p>
             <input
               ref={inputRef}
@@ -542,15 +563,16 @@ function AnfrageFlow({
                 Teile werden geladen…
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "0.6rem", marginBottom: "1.5rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "0.6rem", marginBottom: "1.5rem" }}>
                 {teile.map(t => {
-                  const sel = selectedTeile.has(t.teiltyp);
+                  const sel  = selectedTeile.has(t.teiltyp);
+                  const Icon = TEIL_ICON[t.teiltyp] ?? Box;
                   return (
                     <button
                       key={t.teiltyp}
                       onClick={() => toggleTeil(t.teiltyp)}
                       style={{
-                        padding:        "0.9rem 0.5rem",
+                        padding:        "0.9rem 0.5rem 0.75rem",
                         borderRadius:   12,
                         border:         sel ? `2px solid ${CYAN}` : "1.5px solid var(--border)",
                         background:     sel ? "rgba(0,139,210,0.08)" : "var(--card-bg)",
@@ -558,19 +580,34 @@ function AnfrageFlow({
                         cursor:         "pointer",
                         fontWeight:     sel ? 800 : 600,
                         fontFamily:     "'Ubuntu', sans-serif",
-                        fontSize:       "0.92rem",
+                        fontSize:       "0.88rem",
                         textAlign:      "center",
-                        minHeight:      56,
+                        minHeight:      100,
                         lineHeight:     1.25,
                         display:        "flex",
+                        flexDirection:  "column",
                         alignItems:     "center",
                         justifyContent: "center",
-                        gap:            4,
+                        gap:            8,
                         transition:     "background 0.1s, border-color 0.1s",
+                        position:       "relative",
                       }}
                     >
-                      {sel && "✓ "}
-                      {t.teiltyp}
+                      <Icon
+                        size={28}
+                        style={{ color: sel ? "#005fa3" : "var(--text-dim)", flexShrink: 0 }}
+                      />
+                      <span>{t.teiltyp}</span>
+                      {sel && (
+                        <span style={{
+                          position:   "absolute",
+                          top:        6,
+                          right:      8,
+                          fontSize:   "0.75rem",
+                          fontWeight: 900,
+                          color:      CYAN,
+                        }}>✓</span>
+                      )}
                     </button>
                   );
                 })}
@@ -690,16 +727,13 @@ function AnfrageDetailModal({
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={onClose}
     >
       <div
-        style={{ width: "100%", maxWidth: 680, background: "var(--card-bg)", borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 40px rgba(0,0,0,0.3)", maxHeight: "92vh", overflowY: "auto", color: "var(--text)" }}
+        style={{ width: "100%", maxWidth: 680, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.3)", maxHeight: "90vh", overflowY: "auto", color: "var(--text)" }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Handle */}
-        <div style={{ width: 40, height: 4, background: "var(--border)", borderRadius: 2, margin: "1rem auto 0" }} />
-
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "1.25rem 1.5rem 0" }}>
           <div>
