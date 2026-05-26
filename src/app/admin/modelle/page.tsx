@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useDebounce } from "use-debounce";
+import { useDebounce } from "@/hooks/useDebounce";
 import { Check } from "lucide-react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
@@ -53,7 +53,7 @@ function TeilSucheSection({
 }) {
   const [open,     setOpen]     = useState(gewaehlt !== null);
   const [query,    setQuery]    = useState(gewaehlt === null ? modellKeyword : "");
-  const [debQuery] = useDebounce(query, 300);
+  const debQuery = useDebounce(query, 300);
 
   const suche = api.kompatibilitaet.sucheArtikelFuerTeil.useQuery(
     { query: debQuery, teiltyp, limit: 10 },
@@ -300,10 +300,10 @@ function ZusaetzlicheTeileForModell({ modellId }: { modellId: number }) {
   return (
     <div className="space-y-3">
       <div>
-        <h4 className="font-bold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+        <h4 className="font-semibold text-lg text-[#1a1a1a] dark:text-[#e4e6eb]">
           Zusätzliche Teile für dieses Modell
         </h4>
-        <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
           Die Standard-Teile sind immer verfügbar. Hier wählst du zusätzlich modell-spezifische Teile.
         </p>
       </div>
@@ -421,7 +421,7 @@ function DetailModal({
               return (
                 <tr key={teil} className={`hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] ${!artikel ? "opacity-50" : ""}`}>
                   <td className="px-4 py-2.5 font-medium text-[#1a1a1a] dark:text-[#e4e6eb]">{teil}</td>
-                  <td className="px-4 py-2.5 text-[#1a1a1a] dark:text-[#e4e6eb] max-w-[200px] truncate">
+                  <td className="px-4 py-2.5 text-[#1a1a1a] dark:text-[#e4e6eb] whitespace-normal break-words">
                     {artikel ? artikel.bezeichnung : (
                       <span className="text-[#65676b] dark:text-[#b0b3b8] italic text-xs">— Nicht verknüpft</span>
                     )}
@@ -441,8 +441,8 @@ function DetailModal({
         </table>
       </div>
 
-      {/* Modell-spezifische Custom-Teiltypen */}
-      <div className="border-t border-[#ced4da] dark:border-[#3e4042] pt-4">
+      {/* Modell-spezifische Custom-Teiltypen — klar abgesetzt */}
+      <div className="border-t-2 border-[#ced4da] dark:border-[#3e4042] mt-8 pt-6">
         <ZusaetzlicheTeileForModell modellId={modellId} />
       </div>
 
@@ -616,7 +616,7 @@ function ModelleListePageInner() {
   const [hersteller,   setHersteller]   = useState("");
   const [ohneKomp,     setOhneKomp]     = useState(false);
   const [page,         setPage]         = useState(1);
-  const [debouncedSearch] = useDebounce(search, 300);
+  const debouncedSearch = useDebounce(search, 300);
 
   // Modal-States
   const [verknuepfenId,    setVerknuepfenId]    = useState<number | null>(null);
@@ -824,7 +824,7 @@ function ModelleListePageInner() {
         open={detailId !== null}
         onClose={() => setDetailId(null)}
         title={selectedModell ? `${selectedModell.hersteller} ${selectedModell.modell}` : "Details"}
-        width="max-w-2xl"
+        width="max-w-6xl"
       >
         {detailId !== null && (
           <DetailModal

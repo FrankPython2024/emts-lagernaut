@@ -36,10 +36,10 @@ export function Modal({ open, onClose, title, children, width = "max-w-lg" }: Mo
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
-          className={`relative w-full ${width} bg-white dark:bg-[#242526] rounded-2xl shadow-2xl border border-[#ced4da] dark:border-[#3e4042] mx-4`}
+          className={`relative w-full ${width} bg-white dark:bg-[#242526] rounded-2xl shadow-2xl border border-[#ced4da] dark:border-[#3e4042] mx-4 flex flex-col max-h-[90vh]`}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-[#ced4da] dark:border-[#3e4042]">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-[#ced4da] dark:border-[#3e4042] flex-shrink-0">
             <h3 id="modal-title" className="text-lg font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{title}</h3>
             <button
               onClick={onClose}
@@ -49,7 +49,7 @@ export function Modal({ open, onClose, title, children, width = "max-w-lg" }: Mo
               ×
             </button>
           </div>
-          <div className="px-6 py-5">{children}</div>
+          <div className="px-6 py-5 overflow-y-auto flex-1">{children}</div>
         </div>
       </div>
     </FocusTrap>
