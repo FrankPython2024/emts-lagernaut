@@ -22,6 +22,7 @@ import { dashboardRouter }         from "./dashboard";
 import { userPreferencesRouter }  from "./userPreferences";
 import { standortRouter }         from "./standort";
 import { teiltypenRouter }        from "./teiltypen";
+import { rollenRouter }           from "./rollen";
 
 export const appRouter = createTRPCRouter({
   lager:           lagerRouter,
@@ -47,6 +48,7 @@ export const appRouter = createTRPCRouter({
   userPreferences:  userPreferencesRouter,
   standort:         standortRouter,
   teiltypen:        teiltypenRouter,
+  rollen:           rollenRouter,
 });
 
 export type AppRouter = typeof appRouter;

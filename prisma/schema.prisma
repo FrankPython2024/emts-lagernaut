@@ -33,6 +33,45 @@ enum UserRolle {
   BETRACHTER
 }
 
+// ── RBAC (Phase 1+2 — Fundament, noch keine User-Verknüpfung) ────────────────
+
+model Rolle {
+  id           Int               @id @default(autoincrement())
+  name         String            @unique @db.VarChar(50)
+  bezeichnung  String            @db.VarChar(100)
+  beschreibung String?           @db.VarChar(255)
+  istSystem    Boolean           @default(false)
+  aktiv        Boolean           @default(true)
+  erstelltAm   DateTime          @default(now())
+  permissions  RollePermission[]
+
+  @@index([aktiv])
+}
+
+model Permission {
+  id           Int               @id @default(autoincrement())
+  key          String            @unique @db.VarChar(50)
+  bezeichnung  String            @db.VarChar(100)
+  kategorie    String            @db.VarChar(50)
+  beschreibung String?           @db.VarChar(255)
+  rollen       RollePermission[]
+
+  @@index([kategorie])
+}
+
+model RollePermission {
+  id           Int @id @default(autoincrement())
+  rolleId      Int
+  permissionId Int
+
+  rolle      Rolle      @relation(fields: [rolleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([rolleId, permissionId])
+  @@index([rolleId])
+  @@index([permissionId])
+}
+
 // ── Multi-Standort ────────────────────────────────────────────────────────────
 
 model Standort {
