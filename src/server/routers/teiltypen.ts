@@ -5,6 +5,9 @@ import {
   getAlleTeiltypen,
   erstelleTeiltyp,
   aktualisiereTeiltyp,
+  getTeiltypenForModell,
+  getModellTeiltypIds,
+  setzeModellTeiltypen,
 } from "@/modules/teiltypen/service";
 
 export const teiltypenRouter = createTRPCRouter({
@@ -43,4 +46,23 @@ export const teiltypenRouter = createTRPCRouter({
         aktiv:      input.aktiv,
       }),
     ),
+
+  // Modell-spezifische Liste: Standards + Custom-Teiltypen dieses Modells.
+  // Wird vom Techniker-Portal pro Gerät geladen.
+  fuerModell: protectedProcedure
+    .input(z.object({ modellId: z.number().int().positive() }))
+    .query(({ input }) => getTeiltypenForModell(input.modellId)),
+
+  // Nur die Custom-IDs eines Modells (für Admin-UI-Auswahl)
+  modellTeiltypIds: adminProcedure
+    .input(z.object({ modellId: z.number().int().positive() }))
+    .query(({ input }) => getModellTeiltypIds(input.modellId)),
+
+  // Custom-Teiltyp-Verknüpfungen eines Modells komplett ersetzen — nur Admin.
+  setzeFuerModell: adminProcedure
+    .input(z.object({
+      modellId:   z.number().int().positive(),
+      teiltypIds: z.array(z.number().int().positive()).max(50),
+    }))
+    .mutation(({ input }) => setzeModellTeiltypen(input.modellId, input.teiltypIds)),
 });

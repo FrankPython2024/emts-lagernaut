@@ -359,12 +359,34 @@ export async function getByGeraetMitStandard(args: {
     ? { standortId: { in: args.standortIds } }
     : undefined;
 
-  // Aktive Teiltypen aus DB (mit Fallback auf hartkodierte Liste falls Tabelle leer)
-  const aktiveTeiltypen = await prisma.teiltyp.findMany({
-    where:   { aktiv: true },
-    orderBy: { sortierung: "asc" },
-    select:  { name: true },
+  // Teiltyp-Liste laden: Standards + (falls Modell identifizierbar) modell-spezifische Custom-Teile.
+  // Auflösung: GeraeteModell-Reihe wird gesucht, deren "hersteller modell" (lowercased)
+  // dem args.geraet entspricht. Bei Match → modell-spezifische Liste; sonst → globale Standards.
+  const alleModelle = await prisma.geraeteModell.findMany({
+    where:  { aktiv: true },
+    select: { id: true, hersteller: true, modell: true },
   });
+  const passendesModell = alleModelle.find(
+    (m) => `${m.hersteller} ${m.modell}`.toLowerCase() === geraetLow,
+  );
+
+  const aktiveTeiltypen = passendesModell
+    ? await prisma.teiltyp.findMany({
+        where: {
+          aktiv: true,
+          OR: [
+            { istStandard: true },
+            { modellTeiltypen: { some: { modellId: passendesModell.id } } },
+          ],
+        },
+        orderBy: { sortierung: "asc" },
+        select:  { name: true },
+      })
+    : await prisma.teiltyp.findMany({
+        where:   { aktiv: true, istStandard: true },
+        orderBy: { sortierung: "asc" },
+        select:  { name: true },
+      });
 
   const treffer = matchingGeraete.length > 0
     ? await prisma.kompatibilitaet.findMany({
