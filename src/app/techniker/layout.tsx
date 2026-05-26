@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, createContext, useContext } from "react";
 import { useSession }   from "next-auth/react";
+import FocusTrap        from "focus-trap-react";
 import { ToastProvider } from "@/components/ui/Toast";
 import { LogoutButton }  from "@/components/ui/LogoutButton";
 import { api }           from "@/trpc/react";
@@ -131,19 +132,30 @@ function ProfilModal({ kuerzel, name, onClose }: { kuerzel: string; name: string
     borderBottom: "1px solid var(--border)", fontSize: "0.95rem",
   };
 
+  // Escape schließt
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
   return (
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={onClose}
     >
+      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true, returnFocusOnDeactivate: true }}>
       <div
         className="modal-enter"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profil-modal-title"
         style={{ width: "100%", maxWidth: 520, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.25)", color: "var(--text)", overflow: "hidden", maxHeight: "90vh", overflowY: "auto" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
-          <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800 }}>Profil und Statistiken</h2>
+          <h2 id="profil-modal-title" style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800 }}>Profil und Statistiken</h2>
           <button onClick={onClose} aria-label="Schließen" style={btnClose}>✕</button>
         </div>
 
@@ -198,6 +210,7 @@ function ProfilModal({ kuerzel, name, onClose }: { kuerzel: string; name: string
           )}
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }

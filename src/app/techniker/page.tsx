@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useSession }     from "next-auth/react";
+import FocusTrap          from "focus-trap-react";
 import { api }            from "@/trpc/react";
 import { useToast }       from "@/components/ui/Toast";
 import { useSocket }      from "@/hooks/useSocket";
@@ -33,7 +34,7 @@ const STATUS_CFG: Record<string, { text: string; color: string; bg: string }> = 
   STORNIERT:      { text: "Storniert",      color: "#6b7280", bg: "#f3f4f6" },
 };
 
-// Icon-Mapping für die 17 Standard-Teiltypen
+// Icon-Mapping für die 17 Standard-Teiltypen (Keys 1:1 zu STANDARD_TEILTYPEN)
 const TEIL_ICON: Record<string, LucideIcon> = {
   "Mainboard":        Cpu,
   "Display":          Monitor,
@@ -47,9 +48,10 @@ const TEIL_ICON: Record<string, LucideIcon> = {
   "Power Button":     Power,
   "USB Board":        Usb,
   "LAN Board":        Network,
-  "WLAN/UMTS Karte":  Wifi,
+  "WLAN Karte":       Wifi,
+  "UMTS Karte":       Wifi,
   "Akku":             Battery,
-  "D-Cover":          Box,
+  "D Cover":          Box,
   "DC IN":            Plug,
 };
 
@@ -469,6 +471,19 @@ function AnfrageFlow({
     if (step === "logid") setTimeout(() => inputRef.current?.focus(), 80);
   }, [step]);
 
+  // Escape schließt — aber nicht während Sending/Done und nicht wenn das
+  // verschachtelte Tastatur-Modal offen ist (dort hat dessen eigener Handler Vorrang)
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (tastaturModalOffen)              return;
+      if (step === "sending" || step === "done") return;
+      onClose();
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose, step, tastaturModalOffen]);
+
   function handleLogIdSubmit() {
     const clean = logIdInput.trim().replace(/\./g, "");
     if (!clean || !/^\d{5,}$/.test(clean)) {
@@ -555,11 +570,23 @@ function AnfrageFlow({
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={step === "done" || step === "sending" ? undefined : onClose}
     >
+      <FocusTrap
+        active={!tastaturModalOffen}
+        focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true, returnFocusOnDeactivate: true }}
+      >
       <div
         className="modal-enter"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="anfrage-flow-title"
         style={{ width: "100%", maxWidth: 680, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.3)", maxHeight: "90vh", overflowY: "auto", color: "var(--text)" }}
         onClick={e => e.stopPropagation()}
       >
+        {/* visually-hidden default title for screen-readers — wird pro Step ggf. überschrieben */}
+        <h2 id="anfrage-flow-title" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", margin: -1, padding: 0, border: 0 }}>
+          Ersatzteile anfragen
+        </h2>
+
         {/* ── Step 1: LogID ── */}
         {step === "logid" && (
           <div key="logid" className="step-enter" style={{ padding: "1.5rem 1.5rem 2rem" }}>
@@ -827,6 +854,8 @@ function AnfrageFlow({
         )}
       </div>
 
+      </FocusTrap>
+
       {/* Tastatur-Auswahl Sub-Modal */}
       {tastaturModalOffen && (
         <TastenAuswahlModal
@@ -999,6 +1028,15 @@ function TastenAuswahlModal({
 
   const canConfirm = modus === "komplett" || gewaehlt.size > 0;
 
+  // Escape schließt — eigene Behandlung, FocusTrap macht nur Tab-Trap.
+  // Damit die äußere AnfrageFlow nicht parallel auf Esc reagiert, pausiert
+  // diese ihren Handler über `tastaturModalOffen`.
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
   const modusBtn = (active: boolean): React.CSSProperties => ({
     flex:         1,
     padding:      "0.8rem",
@@ -1018,14 +1056,18 @@ function TastenAuswahlModal({
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={onClose}
     >
+      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true, returnFocusOnDeactivate: true }}>
       <div
         className="modal-enter"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tastatur-modal-title"
         style={{ width: "100%", maxWidth: 1280, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.35)", color: "var(--text)", maxHeight: "90vh", overflowY: "auto" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
-          <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800 }}>⌨️ Tastatur</h2>
+          <h2 id="tastatur-modal-title" style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800 }}>⌨️ Tastatur</h2>
           <button onClick={onClose} aria-label="Schließen" style={closeBtn}>✕</button>
         </div>
 
@@ -1066,6 +1108,7 @@ function TastenAuswahlModal({
           </div>
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }
@@ -1086,6 +1129,13 @@ function AnfrageDetailModal({
   const [stornoLoading, setStornoLoading] = useState(false);
 
   const storniereMutation = api.anfragen.storniere.useMutation();
+
+  // Escape schließt
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
 
   const hasLogId      = !!(gruppe.logId && gruppe.logId !== "unbekannt");
   const geraet        = gruppe.geraeteName ?? (hasLogId ? gruppe.logId! : "Unbekanntes Gerät");
@@ -1114,15 +1164,19 @@ function AnfrageDetailModal({
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={onClose}
     >
+      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true, returnFocusOnDeactivate: true }}>
       <div
         className="modal-enter"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="anfrage-detail-title"
         style={{ width: "100%", maxWidth: 680, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.3)", maxHeight: "90vh", overflowY: "auto", color: "var(--text)" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "1.25rem 1.5rem 0" }}>
           <div>
-            <h2 style={{ margin: "0 0 0.2rem", fontSize: "1.25rem", fontWeight: 800 }}>{geraet}</h2>
+            <h2 id="anfrage-detail-title" style={{ margin: "0 0 0.2rem", fontSize: "1.25rem", fontWeight: 800 }}>{geraet}</h2>
             {hasLogId && (
               <div style={{ color: "var(--text-dim)", fontSize: "0.85rem" }}>{gruppe.logId}</div>
             )}
@@ -1252,6 +1306,7 @@ function AnfrageDetailModal({
           )}
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }
