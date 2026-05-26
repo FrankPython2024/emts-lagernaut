@@ -2,7 +2,7 @@
 import { useState, useEffect, createContext, useContext } from "react";
 import { useSession }   from "next-auth/react";
 import FocusTrap        from "focus-trap-react";
-import { ToastProvider } from "@/components/ui/Toast";
+import { ToastProvider, useToast } from "@/components/ui/Toast";
 import { LogoutButton }  from "@/components/ui/LogoutButton";
 import { api }           from "@/trpc/react";
 import { useSocket }     from "@/hooks/useSocket";
@@ -82,6 +82,156 @@ function StatCard({ label, wert, accent }: { label: string; wert: number; accent
         lineHeight:          1,
       }}>
         {wert}
+      </div>
+    </div>
+  );
+}
+
+// ── PasswortSektion ───────────────────────────────────────────────────────────
+
+const pwInputStyle: React.CSSProperties = {
+  width:        "100%",
+  padding:      "0.75rem 1rem",
+  borderRadius: 8,
+  border:       "1px solid var(--border)",
+  background:   "var(--card-bg)",
+  color:        "var(--text)",
+  fontSize:     "1rem",
+  minHeight:    48,
+  fontFamily:   "'Ubuntu', sans-serif",
+  outline:      "none",
+  boxSizing:    "border-box",
+};
+
+function PasswortSektion() {
+  const [pwAkt,  setPwAkt]  = useState("");
+  const [pwNeu,  setPwNeu]  = useState("");
+  const [pwNeu2, setPwNeu2] = useState("");
+  const [erfolg, setErfolg] = useState(false);
+  const { show: toast } = useToast();
+
+  const changePassword = api.benutzer.changePassword.useMutation({
+    onSuccess: () => {
+      setPwAkt(""); setPwNeu(""); setPwNeu2("");
+      setErfolg(true);
+      setTimeout(() => setErfolg(false), 3_000);
+      toast("Passwort erfolgreich geändert", "success");
+    },
+    onError: (err) => {
+      toast(err.message || "Passwort konnte nicht geändert werden", "error");
+    },
+  });
+
+  function handleSubmit() {
+    if (pwNeu !== pwNeu2) {
+      toast("Die neuen Passwörter stimmen nicht überein", "error");
+      return;
+    }
+    if (pwNeu.length < 8) {
+      toast("Neues Passwort muss mindestens 8 Zeichen lang sein", "error");
+      return;
+    }
+    changePassword.mutate({ aktuellesPasswort: pwAkt, neuesPasswort: pwNeu });
+  }
+
+  const mismatch  = !!pwNeu2 && pwNeu !== pwNeu2;
+  const canSubmit = !!pwAkt && !!pwNeu && !!pwNeu2 && !mismatch && !changePassword.isPending;
+
+  return (
+    <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1.25rem", marginTop: "1.5rem" }}>
+      <h3 style={{
+        margin:         "0 0 1rem",
+        fontSize:       "0.8rem",
+        fontWeight:     700,
+        textTransform:  "uppercase",
+        letterSpacing:  "0.06em",
+        color:          "var(--text-dim)",
+      }}>
+        Passwort ändern
+      </h3>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <label style={{ display: "block" }}>
+          <span style={{ display: "block", fontSize: "0.9rem", marginBottom: "0.3rem", color: "var(--text)" }}>
+            Aktuelles Passwort
+          </span>
+          <input
+            type="password"
+            value={pwAkt}
+            onChange={e => setPwAkt(e.target.value)}
+            autoComplete="current-password"
+            style={pwInputStyle}
+          />
+        </label>
+
+        <label style={{ display: "block" }}>
+          <span style={{ display: "block", fontSize: "0.9rem", marginBottom: "0.3rem", color: "var(--text)" }}>
+            Neues Passwort{" "}
+            <span style={{ color: "var(--text-dim)", fontWeight: 400 }}>(min. 8 Zeichen)</span>
+          </span>
+          <input
+            type="password"
+            value={pwNeu}
+            onChange={e => setPwNeu(e.target.value)}
+            autoComplete="new-password"
+            style={pwInputStyle}
+          />
+        </label>
+
+        <label style={{ display: "block" }}>
+          <span style={{ display: "block", fontSize: "0.9rem", marginBottom: "0.3rem", color: "var(--text)" }}>
+            Neues Passwort bestätigen
+          </span>
+          <input
+            type="password"
+            value={pwNeu2}
+            onChange={e => setPwNeu2(e.target.value)}
+            autoComplete="new-password"
+            style={{
+              ...pwInputStyle,
+              borderColor: mismatch ? "#ef4444" : "var(--border)",
+            }}
+          />
+          {mismatch && (
+            <span style={{ display: "block", fontSize: "0.82rem", color: "#ef4444", marginTop: "0.3rem" }}>
+              Passwörter stimmen nicht überein
+            </span>
+          )}
+        </label>
+
+        <button
+          onClick={handleSubmit}
+          disabled={!canSubmit}
+          style={{
+            minHeight:    56,
+            padding:      "0.85rem 1.5rem",
+            borderRadius: 12,
+            background:   canSubmit ? "var(--primary)" : "var(--border)",
+            color:        canSubmit ? "white" : "var(--text-dim)",
+            fontWeight:   700,
+            fontSize:     "0.98rem",
+            fontFamily:   "'Ubuntu', sans-serif",
+            cursor:       canSubmit ? "pointer" : "not-allowed",
+            border:       "none",
+            marginTop:    "0.4rem",
+            transition:   "background 0.15s",
+          }}
+        >
+          {changePassword.isPending ? "⏳ Speichere…" : "💾 Passwort ändern"}
+        </button>
+
+        {erfolg && (
+          <div style={{
+            padding:      "0.75rem 1rem",
+            borderRadius: 10,
+            background:   "rgba(34,197,94,0.12)",
+            color:        "#15803d",
+            fontSize:     "0.92rem",
+            fontWeight:   600,
+          }}>
+            ✓ Passwort erfolgreich geändert
+          </div>
+        )}
       </div>
     </div>
   );
@@ -215,6 +365,8 @@ function ProfilModal({ kuerzel, name, onClose }: { kuerzel: string; name: string
               </div>
             </>
           )}
+
+          <PasswortSektion />
         </div>
       </div>
       </FocusTrap>
