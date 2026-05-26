@@ -309,6 +309,14 @@ export default function TechnikerPage() {
           initialLogId={flowInitialLogId}
           onClose={() => { setShowFlow(false); setFlowInitialLogId(null); }}
           onSuccess={() => { setShowFlow(false); setFlowInitialLogId(null); anfragenQuery.refetch(); }}
+          onOpenGruppe={(g) => {
+            setShowFlow(false);
+            setFlowInitialLogId(null);
+            // Aktuellen Snapshot der Gruppe aus der Anfragen-Liste nehmen (wenn vorhanden),
+            // sonst die übergebene Gruppe direkt verwenden.
+            const aktuell = gruppen.find(x => x.key === g.key);
+            setDetailGruppe(aktuell ?? g);
+          }}
         />
       )}
       {detailGruppe && (
@@ -422,11 +430,13 @@ function AnfrageFlow({
   initialLogId,
   onClose,
   onSuccess,
+  onOpenGruppe,
 }: {
   kuerzel:      string;
   initialLogId: string | null;
   onClose:      () => void;
   onSuccess:    () => void;
+  onOpenGruppe: (g: GruppeData) => void;
 }) {
   const { show } = useToast();
 
@@ -439,6 +449,8 @@ function AnfrageFlow({
   const [sonderBeschr,       setSonderBeschr]       = useState("");
   const [tastaturModalOffen, setTastaturModalOffen] = useState(false);
   const [tastaturBeschr,     setTastaturBeschr]     = useState("");
+  const [pruefeOffene,       setPruefeOffene]       = useState(false);
+  const [zeigeOffene,        setZeigeOffene]        = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const logIdLookup = api.geraeteLookup.byLogId.useQuery(
@@ -455,12 +467,19 @@ function AnfrageFlow({
   const addSonderMutation    = api.warenkorb.addSonderAnfrage.useMutation();
   const submitMutation       = api.warenkorb.submitAlle.useMutation();
 
-  // Step 1 result → Step 2
+  // Check auf offene Anfragen für dieselbe LogID (wird nach erfolgreichem
+  // Geräte-Lookup aktiviert, blockiert kurzzeitig den Sprung in Step "teile")
+  const offeneCheck = api.anfragen.offeneFuerLogId.useQuery(
+    { kuerzel, logId: selectedGeraet?.logId ?? "" },
+    { enabled: pruefeOffene && !!selectedGeraet && !!kuerzel, staleTime: 0 },
+  );
+
+  // Step 1 result → Offene-Check anstoßen, dann ggf. Step 2
   useEffect(() => {
     if (!logIdLookup.data) return;
     if (logIdLookup.data.gefunden) {
       setSelectedGeraet({ logId: logIdLookup.data.logId, bereinigt: logIdLookup.data.bereinigt });
-      setStep("teile");
+      setPruefeOffene(true);
     } else {
       show(`LogID „${logIdQuery}" nicht gefunden. Bitte erneut versuchen.`, "error");
     }
@@ -468,23 +487,36 @@ function AnfrageFlow({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logIdLookup.data]);
 
+  // Offene-Check abgeschlossen → entweder Hinweis-Modal oder direkt Step 2
+  useEffect(() => {
+    if (!pruefeOffene || !offeneCheck.data) return;
+    if (offeneCheck.data.gruppen.length > 0) {
+      setZeigeOffene(true);
+    } else {
+      setStep("teile");
+    }
+    setPruefeOffene(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pruefeOffene, offeneCheck.data]);
+
   // Autofocus on logid step
   useEffect(() => {
     if (step === "logid") setTimeout(() => inputRef.current?.focus(), 80);
   }, [step]);
 
-  // Escape schließt — aber nicht während Sending/Done und nicht wenn das
-  // verschachtelte Tastatur-Modal offen ist (dort hat dessen eigener Handler Vorrang)
+  // Escape schließt — aber nicht während Sending/Done und nicht wenn ein
+  // verschachteltes Modal (Tastatur, Offene-Hinweis) offen ist (dort hat
+  // dessen eigener Handler Vorrang)
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (tastaturModalOffen)              return;
+      if (tastaturModalOffen || zeigeOffene) return;
       if (step === "sending" || step === "done") return;
       onClose();
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [onClose, step, tastaturModalOffen]);
+  }, [onClose, step, tastaturModalOffen, zeigeOffene]);
 
   function handleLogIdSubmit() {
     const clean = logIdInput.trim().replace(/\./g, "");
@@ -513,6 +545,8 @@ function AnfrageFlow({
     setSonderBeschr("");
     setTastaturBeschr("");
     setTastaturModalOffen(false);
+    setPruefeOffene(false);
+    setZeigeOffene(false);
   }
 
   async function handleSenden() {
@@ -581,7 +615,7 @@ function AnfrageFlow({
       onClick={step === "done" || step === "sending" ? undefined : onClose}
     >
       <FocusTrap
-        active={!tastaturModalOffen}
+        active={!tastaturModalOffen && !zeigeOffene}
         focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true, returnFocusOnDeactivate: true }}
       >
       <div
@@ -883,6 +917,39 @@ function AnfrageFlow({
           }}
         />
       )}
+
+      {/* Hinweis-Modal bei bereits offenen Anfragen für die LogID */}
+      {zeigeOffene && offeneCheck.data && offeneCheck.data.gruppen.length > 0 && selectedGeraet && (
+        <OffeneAnfragenHinweisModal
+          gruppen={offeneCheck.data.gruppen as OffeneGruppe[]}
+          geraetName={selectedGeraet.bereinigt}
+          logIdFormatiert={selectedGeraet.logId === "---" ? "" : selectedGeraet.logId.replace(/(\d{3})(?=\d)/g, "$1.")}
+          onOeffneAnfrage={(g) => {
+            // Backend-Gruppe → GruppeData für AnfrageDetailModal
+            const gruppeData: GruppeData = {
+              key:         g.gruppenNr,
+              logId:       selectedGeraet.logId === "---" ? null : selectedGeraet.logId,
+              gruppenNr:   g.gruppenNr.startsWith("single-") ? null : g.gruppenNr,
+              geraeteName: selectedGeraet.bereinigt,
+              datum:       new Date(g.datum),
+              anfragen:    g.anfragen.map(a => ({
+                ...a,
+                datum: new Date(a.datum),
+              })) as AnfrageRow[],
+            };
+            setZeigeOffene(false);
+            onOpenGruppe(gruppeData);
+          }}
+          onTrotzdemNeu={() => {
+            setZeigeOffene(false);
+            setStep("teile");
+          }}
+          onAbbrechen={() => {
+            setZeigeOffene(false);
+            onClose();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1119,6 +1186,136 @@ function TastenAuswahlModal({
               style={primaryBtn(canConfirm, CYAN)}
             >
               Übernehmen
+            </button>
+          </div>
+        </div>
+      </div>
+      </FocusTrap>
+    </div>
+  );
+}
+
+// ── OffeneAnfragenHinweisModal ────────────────────────────────────────────────
+
+type OffeneGruppe = {
+  gruppenNr: string;
+  datum:     Date;
+  teile:     string[];
+  status:    string;
+  // anfragen-Felder werden via onOeffnen weitergegeben, hier nicht streng typisiert
+  anfragen:  Array<{ id: number; teil: string; status: string; logId: string; geraet: string; geraeteName: string | null; datum: Date; techniker: string }>;
+};
+
+function OffeneAnfragenHinweisModal({
+  gruppen,
+  geraetName,
+  logIdFormatiert,
+  onOeffneAnfrage,
+  onTrotzdemNeu,
+  onAbbrechen,
+}: {
+  gruppen:         OffeneGruppe[];
+  geraetName:      string;
+  logIdFormatiert: string;
+  onOeffneAnfrage: (g: OffeneGruppe) => void;
+  onTrotzdemNeu:   () => void;
+  onAbbrechen:     () => void;
+}) {
+  // Escape schließt
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onAbbrechen(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onAbbrechen]);
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
+      onClick={onAbbrechen}
+    >
+      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true, returnFocusOnDeactivate: true }}>
+      <div
+        className="modal-enter"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="offene-modal-title"
+        style={{ width: "100%", maxWidth: 640, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.35)", color: "var(--text)", maxHeight: "90vh", overflowY: "auto" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "1.25rem 1.5rem 0.75rem" }}>
+          <div>
+            <h2 id="offene-modal-title" style={{ margin: "0 0 0.3rem", fontSize: "1.2rem", fontWeight: 800 }}>
+              Du hast schon offene Anfragen
+            </h2>
+            <p style={{ margin: 0, color: "var(--text-dim)", fontSize: "0.92rem", lineHeight: 1.4 }}>
+              Für <strong style={{ color: "var(--text)" }}>{geraetName}</strong>{" "}
+              ({logIdFormatiert}) sind noch nicht alle erledigt:
+            </p>
+          </div>
+          <button onClick={onAbbrechen} aria-label="Schließen" style={closeBtn}>✕</button>
+        </div>
+
+        <div style={{ padding: "0.5rem 1.5rem 1.25rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "1rem" }}>
+            {gruppen.map(g => {
+              const cfg = STATUS_CFG[g.status] ?? STATUS_CFG.NEU!;
+              return (
+                <button
+                  key={g.gruppenNr}
+                  onClick={() => onOeffneAnfrage(g)}
+                  className="active:scale-[0.99] transition-all"
+                  style={{
+                    width:        "100%",
+                    textAlign:    "left",
+                    padding:      "0.9rem 1rem",
+                    background:   "var(--bg)",
+                    border:       "1.5px solid var(--border)",
+                    borderRadius: 14,
+                    cursor:       "pointer",
+                    fontFamily:   "'Ubuntu', sans-serif",
+                    color:        "var(--text)",
+                    minHeight:    72,
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = CYAN)}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = "var(--border)")}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: "0.3rem" }}>
+                    <span style={{ fontWeight: 700, fontSize: "0.98rem" }}>
+                      {g.anfragen.length} {g.anfragen.length === 1 ? "Teil" : "Teile"} · {relativeZeit(new Date(g.datum))}
+                    </span>
+                    <span style={{
+                      background:   cfg.bg,
+                      color:        cfg.color,
+                      borderRadius: 20,
+                      padding:      "3px 11px",
+                      fontSize:     "0.78rem",
+                      fontWeight:   700,
+                      flexShrink:   0,
+                    }}>
+                      {cfg.text}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "0.86rem", color: "var(--text-dim)", lineHeight: 1.4 }}>
+                    {g.teile.join(", ")}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ display: "flex", gap: "0.6rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border)" }}>
+            <button
+              onClick={onAbbrechen}
+              style={{ ...secondaryBtn, flex: 1 }}
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={onTrotzdemNeu}
+              style={{ ...primaryBtn(true, CYAN), flex: 2, width: "auto" }}
+            >
+              Trotzdem neue Anfrage
             </button>
           </div>
         </div>

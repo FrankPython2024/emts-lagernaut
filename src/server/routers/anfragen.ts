@@ -79,6 +79,63 @@ export const anfragenRouter = createTRPCRouter({
       });
     }),
 
+  // Offene Anfragen (NEU/BEDARF/IN_BEARBEITUNG) eines Technikers für eine LogID.
+  // Wird beim Erstellen einer neuen Anfrage geprüft → freundlicher Hinweis
+  // statt unbeabsichtigter Doppelbestellung. Blockiert nicht — legitime
+  // Mehrfach-Anfragen bleiben über "Trotzdem neu" möglich.
+  offeneFuerLogId: protectedProcedure
+    .input(z.object({
+      kuerzel: z.string().min(1).max(50),
+      logId:   z.string().min(1).max(100),
+    }))
+    .query(async ({ input, ctx }) => {
+      const user = ctx.session.user as SessionUser;
+      if (user.rolle !== "ADMIN" && user.kuerzel.toUpperCase() !== input.kuerzel.toUpperCase()) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Nur eigene Anfragen abrufbar." });
+      }
+
+      const standortIds = getZugaenglicheStandortIds(ctx);
+      const cleanLogId  = input.logId.replace(/\./g, "").trim();
+
+      const anfragen = await ctx.prisma.anfrage.findMany({
+        where: {
+          techniker: input.kuerzel.toUpperCase().trim(),
+          logId:     cleanLogId,
+          status:    { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] },
+          ...(standortIds && standortIds.length > 0 && {
+            OR: [
+              { artikel: { standortId: { in: standortIds } } },
+              { artikelId: null },
+            ],
+          }),
+        },
+        orderBy: { datum: "desc" },
+        include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true } } },
+      });
+
+      // Gruppieren nach gruppenNr (gleiche Submission) bzw. Einzel-Anfrage fallback
+      type AnfrageItem = typeof anfragen[number];
+      const map = new Map<string, AnfrageItem[]>();
+      for (const a of anfragen) {
+        const key = a.gruppenNr ?? `single-${a.id}`;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push(a);
+      }
+
+      const gruppen = Array.from(map.entries()).map(([gruppenNr, items]) => ({
+        gruppenNr,
+        datum:    items[0]!.datum,
+        anfragen: items,
+        teile:    items.map(i => i.teil),
+        // Gruppen-Status: schlechtester gewinnt (BEDARF > IN_BEARBEITUNG > NEU)
+        status:   items.find(i => i.status === AnfrageStatus.BEDARF)?.status
+                ?? items.find(i => i.status === AnfrageStatus.IN_BEARBEITUNG)?.status
+                ?? items[0]!.status,
+      }));
+
+      return { gruppen };
+    }),
+
   // Anfrage stornieren — Techniker: nur eigene, nur NEU/BEDARF.
   // Per ID (bevorzugt, eindeutig) oder per logId+teil (Legacy).
   storniere: protectedProcedure
