@@ -100,7 +100,7 @@ function buildGruppen(anfragen: AnfrageRow[]): GruppeData[] {
       });
     }
     const g = map.get(key)!;
-    if (!g.anfragen.some(x => x.teil === a.teil && x.status === a.status)) {
+    if (!g.anfragen.some(x => x.id === a.id)) {
       g.anfragen.push(a as AnfrageRow);
     }
     if (new Date(a.datum) > g.datum) g.datum = new Date(a.datum);
