@@ -115,9 +115,23 @@ export default function TechnikerPage() {
   const kuerzel  = user?.kuerzel ?? "";
   const { on, off } = useSocket();
 
-  const [showFlow,     setShowFlow]     = useState(false);
-  const [detailGruppe, setDetailGruppe] = useState<GruppeData | null>(null);
-  const [suchTerm,     setSuchTerm]     = useState("");
+  const [showFlow,         setShowFlow]         = useState(false);
+  const [flowInitialLogId, setFlowInitialLogId] = useState<string | null>(null);
+  const [cardLogId,        setCardLogId]        = useState("");
+  const [detailGruppe,     setDetailGruppe]     = useState<GruppeData | null>(null);
+  const [suchTerm,         setSuchTerm]         = useState("");
+
+  function startFlow(logId: string | null) {
+    setFlowInitialLogId(logId);
+    setShowFlow(true);
+  }
+
+  function handleCardLogIdSubmit() {
+    const clean = cardLogId.replace(/\D/g, "");
+    if (clean.length < 5) return;
+    startFlow(clean);
+    setCardLogId("");
+  }
 
   // ── Anfragen ───────────────────────────────────────────────────────────────
 
@@ -164,27 +178,90 @@ export default function TechnikerPage() {
       {/* ── Two-column grid (kein Begrüßungs-Header) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
-        {/* ── Left: Aktions-Card ── */}
-        <button
-          onClick={() => setShowFlow(true)}
-          className="block w-full text-left rounded-2xl transition-all duration-200 hover:shadow-xl active:scale-[0.99]"
+        {/* ── Left: Aktions-Card mit eingebettetem LogID-Input ── */}
+        <div
+          className="rounded-2xl"
           style={{
-            padding:    "2rem 2.25rem",
+            padding:    "1.75rem 2.25rem 2rem",
             background: `linear-gradient(135deg, ${CYAN} 0%, #0676AD 100%)`,
             color:      "white",
-            border:     "none",
-            cursor:     "pointer",
             fontFamily: "'Ubuntu', sans-serif",
-            minHeight:  200,
+            boxShadow:  "0 4px 14px rgba(0,0,0,0.12)",
           }}
         >
-          <div style={{ fontSize: "1.75rem", fontWeight: 800, lineHeight: 1.2, marginBottom: "0.75rem" }}>
+          <div style={{ fontSize: "1.75rem", fontWeight: 800, lineHeight: 1.2, marginBottom: "0.5rem" }}>
             Ersatzteile anfragen
           </div>
-          <div style={{ fontSize: "1rem", opacity: 0.88, lineHeight: 1.5 }}>
+          <div style={{ fontSize: "1rem", opacity: 0.88, lineHeight: 1.5, marginBottom: "1.1rem" }}>
             LogID scannen oder eintippen
           </div>
-        </button>
+
+          <input
+            type="text"
+            inputMode="numeric"
+            value={cardLogId}
+            onChange={e => setCardLogId(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") handleCardLogIdSubmit(); }}
+            placeholder="z. B. 212.560.810"
+            autoFocus
+            style={{
+              width:        "100%",
+              padding:      "1rem 1.2rem",
+              fontSize:     "1.2rem",
+              borderRadius: 12,
+              border:       "none",
+              background:   "rgba(255,255,255,0.96)",
+              color:        "#1a1a1a",
+              fontFamily:   "'Ubuntu', sans-serif",
+              boxSizing:    "border-box",
+              outline:      "none",
+              minHeight:    56,
+              marginBottom: "0.75rem",
+            }}
+          />
+          <button
+            onClick={handleCardLogIdSubmit}
+            disabled={cardLogId.replace(/\D/g, "").length < 5}
+            className="active:scale-[0.99] transition-transform"
+            style={{
+              width:        "100%",
+              padding:      "0.95rem 1rem",
+              fontSize:     "1.05rem",
+              fontWeight:   700,
+              borderRadius: 12,
+              border:       "none",
+              background:   "white",
+              color:        CYAN,
+              cursor:       cardLogId.replace(/\D/g, "").length < 5 ? "not-allowed" : "pointer",
+              opacity:      cardLogId.replace(/\D/g, "").length < 5 ? 0.6 : 1,
+              fontFamily:   "'Ubuntu', sans-serif",
+              minHeight:    56,
+              marginBottom: "0.75rem",
+            }}
+          >
+            Gerät suchen →
+          </button>
+
+          <button
+            onClick={() => startFlow(null)}
+            className="active:scale-[0.99] transition-transform"
+            style={{
+              width:        "100%",
+              padding:      "0.7rem 1rem",
+              fontSize:     "0.92rem",
+              fontWeight:   600,
+              borderRadius: 10,
+              border:       "1.5px solid rgba(255,255,255,0.5)",
+              background:   "transparent",
+              color:        "white",
+              cursor:       "pointer",
+              fontFamily:   "'Ubuntu', sans-serif",
+              minHeight:    44,
+            }}
+          >
+            Ohne LogID weiter
+          </button>
+        </div>
 
         {/* ── Right: Anfragen-Liste ── */}
         <div>
@@ -247,8 +324,9 @@ export default function TechnikerPage() {
       {showFlow && (
         <AnfrageFlow
           kuerzel={kuerzel}
-          onClose={() => setShowFlow(false)}
-          onSuccess={() => { setShowFlow(false); anfragenQuery.refetch(); }}
+          initialLogId={flowInitialLogId}
+          onClose={() => { setShowFlow(false); setFlowInitialLogId(null); }}
+          onSuccess={() => { setShowFlow(false); setFlowInitialLogId(null); anfragenQuery.refetch(); }}
         />
       )}
       {detailGruppe && (
@@ -357,20 +435,23 @@ type FlowStep = "logid" | "teile" | "sending" | "done";
 
 function AnfrageFlow({
   kuerzel,
+  initialLogId,
   onClose,
   onSuccess,
 }: {
-  kuerzel:   string;
-  onClose:   () => void;
-  onSuccess: () => void;
+  kuerzel:      string;
+  initialLogId: string | null;
+  onClose:      () => void;
+  onSuccess:    () => void;
 }) {
   const { show } = useToast();
 
   const [step,               setStep]               = useState<FlowStep>("logid");
-  const [logIdInput,         setLogIdInput]         = useState("");
-  const [logIdQuery,         setLogIdQuery]         = useState<string | null>(null);
+  const [logIdInput,         setLogIdInput]         = useState(initialLogId ?? "");
+  const [logIdQuery,         setLogIdQuery]         = useState<string | null>(initialLogId);
   const [selectedGeraet,     setSelectedGeraet]     = useState<GeraetInfo | null>(null);
   const [selectedTeile,      setSelectedTeile]      = useState<Set<string>>(new Set());
+  const [anmerkungen,        setAnmerkungen]        = useState<Record<string, string>>({});
   const [sonderBeschr,       setSonderBeschr]       = useState("");
   const [tastaturModalOffen, setTastaturModalOffen] = useState(false);
   const [tastaturBeschr,     setTastaturBeschr]     = useState("");
@@ -431,6 +512,7 @@ function AnfrageFlow({
     setLogIdQuery(null);
     setSelectedGeraet(null);
     setSelectedTeile(new Set());
+    setAnmerkungen({});
     setSonderBeschr("");
     setTastaturBeschr("");
     setTastaturModalOffen(false);
@@ -448,14 +530,17 @@ function AnfrageFlow({
       const teile = teileQuery.data?.teile ?? [];
 
       for (const teiltyp of Array.from(selectedTeile)) {
-        const info = teile.find(t => t.teiltyp === teiltyp);
+        const info        = teile.find(t => t.teiltyp === teiltyp);
+        const tastaturInf = teiltyp === "Tastatur" && tastaturBeschr ? tastaturBeschr : null;
+        const anmerkung   = anmerkungen[teiltyp]?.trim() || null;
+        const zusatzinfo  = [tastaturInf, anmerkung].filter(Boolean).join(" — ") || undefined;
         await addItemMutation.mutateAsync({
           techniker:   kuerzel,
           logId,
           geraeteName: selectedGeraet.bereinigt,
           artikelId:   info?.artikelId ?? null,
           teiltyp,
-          zusatzinfo:  teiltyp === "Tastatur" && tastaturBeschr ? tastaturBeschr : undefined,
+          zusatzinfo,
         });
       }
 
@@ -624,6 +709,75 @@ function AnfrageFlow({
               </div>
             )}
 
+            {/* Anmerkungen pro ausgewähltem Teil */}
+            {selectedTeile.size > 0 && (
+              <div style={{ marginBottom: "1.5rem" }}>
+                <h3 style={{ margin: "0 0 0.6rem", fontSize: "1rem", fontWeight: 700 }}>
+                  Anmerkungen zu deinen Teilen
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                  {Array.from(selectedTeile).map(teiltyp => {
+                    const info = teile.find(t => t.teiltyp === teiltyp);
+                    const tastaturHint = teiltyp === "Tastatur" && tastaturBeschr ? tastaturBeschr : null;
+                    return (
+                      <div
+                        key={teiltyp}
+                        style={{
+                          padding:      "0.75rem 0.9rem",
+                          borderRadius: 12,
+                          border:       "1.5px solid var(--border)",
+                          background:   "var(--bg)",
+                        }}
+                      >
+                        <label style={{
+                          display:       "flex",
+                          alignItems:    "baseline",
+                          gap:           "0.4rem",
+                          fontWeight:    700,
+                          fontSize:      "0.92rem",
+                          marginBottom:  "0.4rem",
+                          flexWrap:      "wrap",
+                          color:         "var(--text)",
+                        }}>
+                          <span>{teiltyp}</span>
+                          {info?.bezeichnung && (
+                            <span style={{ fontWeight: 500, fontSize: "0.78rem", color: "var(--text-dim)" }}>
+                              ({info.bezeichnung})
+                            </span>
+                          )}
+                          {tastaturHint && (
+                            <span style={{ fontWeight: 600, fontSize: "0.78rem", color: "#005fa3" }}>
+                              — {tastaturHint}
+                            </span>
+                          )}
+                        </label>
+                        <input
+                          type="text"
+                          value={anmerkungen[teiltyp] ?? ""}
+                          onChange={e => setAnmerkungen(a => ({ ...a, [teiltyp]: e.target.value }))}
+                          placeholder="Optional: Defekt, Symptome, Besonderheiten"
+                          style={{
+                            width:        "100%",
+                            padding:      "0.65rem 0.85rem",
+                            borderRadius: 10,
+                            border:       "1.5px solid var(--border)",
+                            background:   "var(--card-bg)",
+                            color:        "var(--text)",
+                            fontFamily:   "'Ubuntu', sans-serif",
+                            fontSize:     "0.92rem",
+                            boxSizing:    "border-box",
+                            outline:      "none",
+                          }}
+                          onFocus={e => (e.currentTarget.style.borderColor = CYAN)}
+                          onBlur={e  => (e.currentTarget.style.borderColor = "var(--border)")}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Freitext-Sonderanfrage */}
             <div style={{ marginBottom: "1.5rem" }}>
               <label style={{ display: "block", fontWeight: 600, marginBottom: "0.4rem", fontSize: "0.95rem" }}>
@@ -711,20 +865,54 @@ function AnfrageFlow({
 
 // ── TastenAuswahlModal ────────────────────────────────────────────────────────
 
-const KEYBOARD_ROWS: string[][] = [
+const HAUPT_ROWS: string[][] = [
   ["Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12"],
   ["^°","1","2","3","4","5","6","7","8","9","0","ß?","´`","Backspace"],
   ["Tab","Q","W","E","R","T","Z","U","I","O","P","Ü","+*","Enter"],
   ["Caps","A","S","D","F","G","H","J","K","L","Ö","Ä","#'"],
-  ["Shift","<>","Y","X","C","V","B","N","M",",;",".:","–_","Shift"],
-  ["Strg","Fn","Win","Alt","Space","AltGr","Menu","Strg"],
+  ["Shift-L","<>","Y","X","C","V","B","N","M",",;",".:","-_","Shift-R"],
+  ["Strg-L","Fn","Win","Alt","Space","AltGr","Menu","Strg-R"],
+];
+
+const NAV_ROWS: string[][] = [
+  [],
+  ["Ins","Home","PgUp"],
+  ["Entf","End","PgDn"],
+  [],
+  ["·","↑","·"],
+  ["←","↓","→"],
+];
+
+const NUMPAD_ROWS: string[][] = [
+  [],
+  ["NumLk","Num/","Num*","Num-"],
+  ["Num7","Num8","Num9","Num+"],
+  ["Num4","Num5","Num6"],
+  ["Num1","Num2","Num3","NumEnter"],
+  ["Num0","Num,","·"],
 ];
 
 const KEY_W: Record<string, number> = {
-  Backspace: 2, Tab: 1.5, Enter: 2, Caps: 1.75,
-  Shift: 2.25, Strg: 1.4, Alt: 1.4, AltGr: 1.4,
-  Win: 1.4, Fn: 1.25, Menu: 1.4, Space: 6,
+  Backspace: 2,   Tab: 1.5,   Enter: 2,   Caps: 1.75,
+  "Shift-L": 2.25, "Shift-R": 2.25,
+  "Strg-L": 1.4,   "Strg-R": 1.4,
+  Alt: 1.4,       AltGr: 1.4, Win: 1.4,   Fn: 1.25, Menu: 1.4,
+  Space: 6,
 };
+
+const KEY_LABEL: Record<string, string> = {
+  "Shift-L": "Shift", "Shift-R": "Shift",
+  "Strg-L": "Strg",   "Strg-R": "Strg",
+  NumLk:    "Num",
+  "Num/":   "/",  "Num*":   "*",  "Num-":   "−",  "Num+":   "+",
+  Num0: "0", Num1: "1", Num2: "2", Num3: "3", Num4: "4",
+  Num5: "5", Num6: "6", Num7: "7", Num8: "8", Num9: "9",
+  "Num,":   ",", NumEnter: "↵",
+};
+
+const KEY_UNIT = 2.2; // rem pro Einheits-Breite
+const KEY_GAP  = 0.25; // rem
+const ROW_H    = 2.5; // rem (auch Spacer-Höhe)
 
 function TastenKomponente({
   gewaehlt,
@@ -734,53 +922,71 @@ function TastenKomponente({
   setGewaehlt: (s: Set<string>) => void;
 }) {
   function toggle(key: string) {
+    if (key === "·") return; // Layout-Spacer, nicht klickbar
     const n = new Set(gewaehlt);
     if (n.has(key)) n.delete(key); else n.add(key);
     setGewaehlt(n);
   }
 
-  return (
-    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", borderRadius: 12, background: "var(--bg)", padding: "0.75rem" }}>
-      <div style={{ minWidth: 700, display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-        {KEYBOARD_ROWS.map((row, ri) => (
-          <div key={ri} style={{ display: "flex", gap: "0.25rem", justifyContent: "center" }}>
-            {row.map((key, ki) => {
-              const sel = gewaehlt.has(key);
-              const w   = KEY_W[key] ?? 1;
-              return (
-                <button
-                  key={`${key}-${ki}`}
-                  onClick={() => toggle(key)}
-                  className="active:scale-95"
-                  style={{
-                    width:        `${w * 2.5}rem`,
-                    minHeight:    "2.75rem",
-                    borderRadius: 6,
-                    border:       sel ? `2px solid ${CYAN}` : "1px solid var(--border)",
-                    background:   sel ? CYAN : "var(--card-bg)",
-                    color:        sel ? "white" : "var(--text)",
-                    cursor:       "pointer",
-                    fontSize:     "0.75rem",
-                    fontWeight:   sel ? 700 : 500,
-                    fontFamily:   "'Ubuntu', sans-serif",
-                    transition:   "background 0.1s, border-color 0.1s",
-                    flexShrink:   0,
-                    overflow:     "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace:   "nowrap",
-                    padding:      "0 2px",
-                  }}
-                >
-                  {key}
-                </button>
-              );
-            })}
-          </div>
+  function renderTaste(key: string, ki: number) {
+    if (key === "·") {
+      return <div key={`sp-${ki}`} style={{ width: `${KEY_UNIT}rem`, flexShrink: 0 }} />;
+    }
+    const sel = gewaehlt.has(key);
+    const w   = KEY_W[key] ?? 1;
+    const lbl = KEY_LABEL[key] ?? key;
+    return (
+      <button
+        key={`${key}-${ki}`}
+        onClick={() => toggle(key)}
+        className="active:scale-95"
+        style={{
+          width:        `${w * KEY_UNIT}rem`,
+          minHeight:    `${ROW_H}rem`,
+          borderRadius: 6,
+          border:       sel ? `2px solid ${CYAN}` : "1px solid var(--border)",
+          background:   sel ? CYAN : "var(--card-bg)",
+          color:        sel ? "white" : "var(--text)",
+          cursor:       "pointer",
+          fontSize:     "0.72rem",
+          fontWeight:   sel ? 700 : 500,
+          fontFamily:   "'Ubuntu', sans-serif",
+          transition:   "background 0.1s, border-color 0.1s",
+          flexShrink:   0,
+          overflow:     "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace:   "nowrap",
+          padding:      "0 2px",
+        }}
+      >
+        {lbl}
+      </button>
+    );
+  }
+
+  function renderBlock(rows: string[][]) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: `${KEY_GAP}rem` }}>
+        {rows.map((row, ri) => (
+          row.length === 0 ? (
+            <div key={`empty-${ri}`} style={{ height: `${ROW_H}rem` }} />
+          ) : (
+            <div key={ri} style={{ display: "flex", gap: `${KEY_GAP}rem`, justifyContent: "flex-start" }}>
+              {row.map((key, ki) => renderTaste(key, ki))}
+            </div>
+          )
         ))}
       </div>
-      <p style={{ textAlign: "center", fontSize: "0.7rem", color: "var(--text-dim)", marginTop: "0.5rem" }}>
-        ← Tastatur seitlich scrollen (mobil)
-      </p>
+    );
+  }
+
+  return (
+    <div style={{ borderRadius: 12, background: "var(--bg)", padding: "1rem" }}>
+      <div style={{ display: "flex", gap: "1.25rem", justifyContent: "center", alignItems: "flex-start", flexWrap: "nowrap" }}>
+        {renderBlock(HAUPT_ROWS)}
+        {renderBlock(NAV_ROWS)}
+        {renderBlock(NUMPAD_ROWS)}
+      </div>
     </div>
   );
 }
@@ -834,7 +1040,7 @@ function TastenAuswahlModal({
     >
       <div
         className="modal-enter"
-        style={{ width: "100%", maxWidth: 760, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.35)", color: "var(--text)", maxHeight: "90vh", overflowY: "auto" }}
+        style={{ width: "100%", maxWidth: 1280, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.35)", color: "var(--text)", maxHeight: "90vh", overflowY: "auto" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
