@@ -1,6 +1,7 @@
 import { KorbStatus } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
+import { normalizeLogId } from "@/lib/format/logId";
 import { erstelleAnfrage } from "@/modules/anfragen/service";
 
 // ── Shared include ──────────────────────────────────────────────────────────
@@ -43,7 +44,7 @@ export async function addItem(data: {
   zusatzinfo?:  string;
 }) {
   const techniker = data.techniker.toUpperCase().trim();
-  const logId     = data.logId.trim();
+  const logId     = normalizeLogId(data.logId);
 
   if (data.artikelId) {
     const artikel = await prisma.artikel.findUnique({
@@ -144,10 +145,10 @@ export async function addItemsBulk(data: {
   }
 
   const korbIds = await prisma.$transaction(async (tx) => {
-    // Items nach logId gruppieren — pro logId ein Korb
+    // Items nach logId gruppieren — pro logId ein Korb (normalisiert auf Punkt-Format)
     const byLogId = new Map<string, typeof data.items>();
     for (const item of data.items) {
-      const key = item.logId.trim();
+      const key = normalizeLogId(item.logId);
       if (!byLogId.has(key)) byLogId.set(key, []);
       byLogId.get(key)!.push(item);
     }
@@ -220,7 +221,7 @@ export async function addSonderItem(data: {
   grading?:        string | null;
 }) {
   const techniker = data.techniker.toUpperCase().trim();
-  const logId     = data.logId.trim();
+  const logId     = normalizeLogId(data.logId);
 
   const korbId = await prisma.$transaction(async (tx) => {
     let korb = await tx.warenkorb.findFirst({

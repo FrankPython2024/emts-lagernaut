@@ -1,6 +1,7 @@
 import { AnfrageStatus, BuchungsTyp, type Anfrage } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
+import { normalizeLogId } from "@/lib/format/logId";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { sendeSystemNachricht } from "@/modules/nachrichten/service";
 import { emitToAdmins, emitToAll, emitToUser } from "@/modules/realtime/socket";
@@ -57,7 +58,7 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
   const anfrage = await prisma.anfrage.create({
     data: {
       techniker:        data.techniker.toUpperCase().trim(),
-      logId:            data.logId.trim(),
+      logId:            normalizeLogId(data.logId),
       geraeteName:      data.geraeteName,
       geraet:           data.geraet.toUpperCase().trim(),
       artikelId:        data.artikelId,
@@ -110,7 +111,7 @@ export async function storniereAnfrage(
     : await prisma.anfrage.findFirst({
         where: {
           techniker,
-          logId:  data.logId.trim(),
+          logId:  normalizeLogId(data.logId),
           teil:   data.teil.trim(),
           status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] },
         },
