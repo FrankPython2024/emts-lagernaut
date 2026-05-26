@@ -345,13 +345,26 @@ export type GeraetMitStandardResult = {
  * Wird in LogID-Suche und Techniker-Portal verwendet.
  * kompatibilitaetVorhanden=true → Badge "Keine Kompatibilität" wird ausgeblendet
  */
-export async function getByGeraetMitStandard(geraet: string): Promise<GeraetMitStandardResult> {
-  const geraetLow       = geraet.trim().toLowerCase();
+export async function getByGeraetMitStandard(args: {
+  geraet:       string;
+  standortIds?: number[];
+}): Promise<GeraetMitStandardResult> {
+  const geraetLow       = args.geraet.trim().toLowerCase();
   const matchingGeraete = await findMatchingGeraete(geraetLow);
+
+  // Standort-Filter (Techniker = eigener Standort, Admin = ohne Filter).
+  // Artikel ohne passenden Standort fallen aus der Verknüpfung raus — das Teil
+  // erscheint dann als "nicht erfasst" (Zustand C) statt fremden Bestand zu zeigen.
+  const artikelFilter = args.standortIds && args.standortIds.length > 0
+    ? { standortId: { in: args.standortIds } }
+    : undefined;
 
   const treffer = matchingGeraete.length > 0
     ? await prisma.kompatibilitaet.findMany({
-        where:   { geraet: { in: matchingGeraete } },
+        where: {
+          geraet: { in: matchingGeraete },
+          ...(artikelFilter && { artikel: artikelFilter }),
+        },
         include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true } } },
       })
     : [];

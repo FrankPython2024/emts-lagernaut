@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 import {
   sucheKompatibel,
   getByGeraet,
@@ -55,7 +56,13 @@ export const kompatibilitaetRouter = createTRPCRouter({
   // Teile für Gerät mit Standard-Fallback — Techniker-Portal + LogID-Suche
   getByGeraetMitStandard: protectedProcedure
     .input(z.object({ geraet: z.string().min(1) }))
-    .query(({ input }) => getByGeraetMitStandard(input.geraet)),
+    .query(({ input, ctx }) => {
+      const standortIds = getZugaenglicheStandortIds(ctx);
+      return getByGeraetMitStandard({
+        geraet:      input.geraet,
+        standortIds: standortIds ?? undefined,
+      });
+    }),
 
   // ─── Modell-Verknüpfung (Admin) ────────────────────────────────────────────
 

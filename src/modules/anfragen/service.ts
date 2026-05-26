@@ -334,10 +334,11 @@ export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
 // ── Queries ───────────────────────────────────────────────────────────────────
 
 export async function getAnfragenByTechniker(data: {
-  techniker: string;
-  showAll:   boolean;
-  limit?:    number;
-  offset?:   number;
+  techniker:    string;
+  showAll:      boolean;
+  limit?:       number;
+  offset?:      number;
+  standortIds?: number[];
 }) {
   const limit  = data.limit  ?? 20;
   const offset = data.offset ?? 0;
@@ -346,6 +347,15 @@ export async function getAnfragenByTechniker(data: {
     techniker: data.techniker.toUpperCase().trim(),
     ...(!data.showAll && {
       status: { notIn: [AnfrageStatus.ABGESCHLOSSEN, AnfrageStatus.STORNIERT] as AnfrageStatus[] },
+    }),
+    // Standort-Filter (Techniker = nur eigener Standort, Admin = ohne Filter).
+    // Anfragen ohne Artikel (BEDARF/Sonderanfrage) bleiben sichtbar — sie sind
+    // (noch) nicht standort-zugeordnet.
+    ...(data.standortIds && data.standortIds.length > 0 && {
+      OR: [
+        { artikel: { standortId: { in: data.standortIds } } },
+        { artikelId: null },
+      ],
     }),
   };
 

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AnfrageStatus, BuchungsTyp } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
-import { standortWhere } from "@/lib/auth/standortFilter";
+import { standortWhere, getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 import {
   erstelleAnfrage,
   storniereAnfrage,
@@ -69,7 +69,14 @@ export const anfragenRouter = createTRPCRouter({
       if (user.rolle !== "ADMIN" && user.kuerzel.toUpperCase() !== input.kuerzel.toUpperCase()) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Nur eigene Anfragen abrufbar." });
       }
-      return getAnfragenByTechniker({ techniker: input.kuerzel, showAll: input.showAll, limit: input.limit, offset: input.offset });
+      const standortIds = getZugaenglicheStandortIds(ctx);
+      return getAnfragenByTechniker({
+        techniker:   input.kuerzel,
+        showAll:     input.showAll,
+        limit:       input.limit,
+        offset:      input.offset,
+        standortIds: standortIds ?? undefined,
+      });
     }),
 
   // Anfrage stornieren — Techniker: nur eigene, nur NEU/BEDARF
