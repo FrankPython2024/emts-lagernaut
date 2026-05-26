@@ -103,6 +103,111 @@ export async function addItem(data: {
 }
 
 /**
+ * Mehrere Items in einer Transaktion hinzufügen.
+ *
+ * Atomar: entweder alle Items werden geschrieben oder keiner. Verhindert den
+ * Edge-Case dass bei Crash zwischen mehreren `addItem`-Calls ein halb-befüllter
+ * Korb zurückbleibt, der bei der nächsten Anfrage zum selben Gerät mit-versendet
+ * wird.
+ *
+ * Items werden pro logId in den jeweils aktiven Korb geschrieben. Doppel-Teiltyp-
+ * Check pro Korb (gleiche Safety-Net-Regel wie `addItem`).
+ */
+export async function addItemsBulk(data: {
+  techniker:   string;
+  geraeteName?: string;
+  items: Array<{
+    logId:      string;
+    artikelId:  number | null;
+    teiltyp?:   string;
+    grading?:   string;
+    zusatzinfo?: string;
+  }>;
+}) {
+  if (data.items.length === 0) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Keine Items zum Hinzufügen." });
+  }
+
+  const techniker = data.techniker.toUpperCase().trim();
+  const SONDERFALL_TEILTYPEN = ["Sonstiges", "Spezielle Anfrage"];
+
+  // Artikel-IDs einmalig validieren (vor der Transaktion, kein Lock nötig)
+  const artikelIds = Array.from(new Set(data.items.map(i => i.artikelId).filter((id): id is number => !!id)));
+  if (artikelIds.length > 0) {
+    const found = await prisma.artikel.findMany({
+      where:  { id: { in: artikelIds } },
+      select: { id: true },
+    });
+    if (found.length !== artikelIds.length) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Mindestens ein Artikel nicht gefunden." });
+    }
+  }
+
+  const korbIds = await prisma.$transaction(async (tx) => {
+    // Items nach logId gruppieren — pro logId ein Korb
+    const byLogId = new Map<string, typeof data.items>();
+    for (const item of data.items) {
+      const key = item.logId.trim();
+      if (!byLogId.has(key)) byLogId.set(key, []);
+      byLogId.get(key)!.push(item);
+    }
+
+    const erstellteKorbIds: number[] = [];
+
+    for (const [logId, items] of byLogId) {
+      let korb = await tx.warenkorb.findFirst({
+        where: { techniker, logId, status: KorbStatus.AKTIV },
+      });
+      if (!korb) {
+        korb = await tx.warenkorb.create({
+          data: { techniker, logId, geraeteName: data.geraeteName, status: KorbStatus.AKTIV },
+        });
+      }
+
+      // Doppel-Teiltyp-Check: bestehende + neue Items zusammen
+      const bestehend = await tx.warenkorbItem.findMany({
+        where:  { korbId: korb.id },
+        select: { teiltyp: true },
+      });
+      const teiltypen = new Map<string, number>();
+      for (const b of bestehend) {
+        if (b.teiltyp && !SONDERFALL_TEILTYPEN.includes(b.teiltyp)) {
+          teiltypen.set(b.teiltyp, (teiltypen.get(b.teiltyp) ?? 0) + 1);
+        }
+      }
+      for (const i of items) {
+        if (i.teiltyp && !SONDERFALL_TEILTYPEN.includes(i.teiltyp)) {
+          const next = (teiltypen.get(i.teiltyp) ?? 0) + 1;
+          if (next > 1) {
+            throw new TRPCError({
+              code:    "CONFLICT",
+              message: `${i.teiltyp} ist bereits in der Anfrage`,
+            });
+          }
+          teiltypen.set(i.teiltyp, next);
+        }
+      }
+
+      await tx.warenkorbItem.createMany({
+        data: items.map(i => ({
+          korbId:     korb!.id,
+          artikelId:  i.artikelId,
+          teiltyp:    i.teiltyp,
+          grading:    i.grading ?? null,
+          zusatzinfo: i.zusatzinfo,
+        })),
+      });
+
+      erstellteKorbIds.push(korb.id);
+    }
+
+    return erstellteKorbIds;
+  });
+
+  return { count: data.items.length, korbIds };
+}
+
+/**
  * Sonderanfrage-Item hinzufügen (kein Lagerartikel verknüpft).
  * Immer mit istSonderAnfrage = true und artikelId = null.
  */

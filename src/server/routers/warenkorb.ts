@@ -4,6 +4,7 @@ import { createTRPCRouter, protectedProcedure } from "@/server/trpc";
 import {
   getAktiv,
   addItem,
+  addItemsBulk,
   addSonderItem,
   removeItem,
   submit,
@@ -44,6 +45,25 @@ export const warenkorbRouter = createTRPCRouter({
     .mutation(({ input, ctx }) => {
       assertOwner(ctx.session.user, input.techniker);
       return addItem(input);
+    }),
+
+  // Mehrere Items in einer Transaktion (atomar) — verhindert halb-befüllten
+  // Warenkorb wenn der Client zwischen N addItem-Calls crasht
+  addItemsBulk: protectedProcedure
+    .input(z.object({
+      techniker:    z.string().min(1).max(50),
+      geraeteName:  z.string().max(255).optional(),
+      items: z.array(z.object({
+        logId:      z.string().min(1).max(100),
+        artikelId:  z.number().int().positive().nullable(),
+        teiltyp:    z.string().max(100).optional(),
+        grading:    z.string().max(10).optional(),
+        zusatzinfo: z.string().max(500).optional(),
+      })).min(1).max(50),
+    }))
+    .mutation(({ input, ctx }) => {
+      assertOwner(ctx.session.user, input.techniker);
+      return addItemsBulk(input);
     }),
 
   // Sonderanfrage hinzufügen (eigene Beschreibung, kein Lagerartikel)

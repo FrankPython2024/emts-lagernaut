@@ -140,16 +140,16 @@ export default function TechnikerPage() {
 
   const anfragenQuery = api.anfragen.getByTechniker.useQuery(
     { kuerzel, showAll: true, limit: 100 },
-    { enabled: !!kuerzel, staleTime: 4_000 },
+    { enabled: !!kuerzel, staleTime: 60_000 },
   );
 
+  // Socket-Events sind die alleinige Update-Quelle — kein setInterval-Polling mehr
   useEffect(() => {
     if (!kuerzel) return;
     const refresh = () => anfragenQuery.refetch();
     on(EVENTS.ANFRAGE_UPDATED, refresh);
     on(EVENTS.ANFRAGE_NEU,     refresh);
-    const iv = setInterval(refresh, 5_000);
-    return () => { off(EVENTS.ANFRAGE_UPDATED); off(EVENTS.ANFRAGE_NEU); clearInterval(iv); };
+    return () => { off(EVENTS.ANFRAGE_UPDATED); off(EVENTS.ANFRAGE_NEU); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kuerzel]);
 
@@ -324,12 +324,14 @@ export default function TechnikerPage() {
 
 // ── AnfrageKarte ──────────────────────────────────────────────────────────────
 
-function ChatBadge({ anfrageId }: { anfrageId: number }) {
-  const { data } = api.chat.getStatsForAnfrage.useQuery(
-    { anfrageId },
-    { refetchInterval: 5_000, staleTime: 3_000 },
+function ChatBadge({ anfrageIds }: { anfrageIds: number[] }) {
+  // Stats für ALLE Anfragen der Gruppe holen — sonst zeigt der Badge nur
+  // ungelesene Nachrichten zur ersten Anfrage und verpasst Chats zu den anderen.
+  const { data } = api.chat.getStatsBatch.useQuery(
+    { anfrageIds },
+    { enabled: anfrageIds.length > 0, refetchInterval: 5_000, staleTime: 3_000 },
   );
-  const n = data?.ungelesen ?? 0;
+  const n = (data ?? []).reduce((sum, s) => sum + (s.ungelesen ?? 0), 0);
   if (n === 0) return null;
   return (
     <span style={{
@@ -353,9 +355,9 @@ function AnfrageKarte({ gruppe, onClick }: { gruppe: GruppeData; onClick: () => 
   const status   = gruppeStatus(gruppe);
   const cfg      = STATUS_CFG[status] ?? STATUS_CFG.NEU!;
   const teileAnz = gruppe.anfragen.length;
-  const hasLogId = !!(gruppe.logId && gruppe.logId !== "unbekannt");
-  const geraet   = gruppe.geraeteName ?? (hasLogId ? gruppe.logId! : "Unbekanntes Gerät");
-  const firstId  = gruppe.anfragen[0]?.id;
+  const hasLogId   = !!(gruppe.logId && gruppe.logId !== "unbekannt");
+  const geraet     = gruppe.geraeteName ?? (hasLogId ? gruppe.logId! : "Unbekanntes Gerät");
+  const anfrageIds = gruppe.anfragen.map(a => a.id);
 
   return (
     <button
@@ -402,9 +404,9 @@ function AnfrageKarte({ gruppe, onClick }: { gruppe: GruppeData; onClick: () => 
         <span>{relativeZeit(new Date(gruppe.datum))}</span>
       </div>
 
-      {firstId !== undefined && (
+      {anfrageIds.length > 0 && (
         <div style={{ marginTop: "0.5rem" }}>
-          <ChatBadge anfrageId={firstId} />
+          <ChatBadge anfrageIds={anfrageIds} />
         </div>
       )}
     </button>
@@ -449,9 +451,9 @@ function AnfrageFlow({
     { enabled: !!selectedGeraet, staleTime: 60_000 },
   );
 
-  const addItemMutation   = api.warenkorb.addItem.useMutation();
-  const addSonderMutation = api.warenkorb.addSonderAnfrage.useMutation();
-  const submitMutation    = api.warenkorb.submitAlle.useMutation();
+  const addItemsBulkMutation = api.warenkorb.addItemsBulk.useMutation();
+  const addSonderMutation    = api.warenkorb.addSonderAnfrage.useMutation();
+  const submitMutation       = api.warenkorb.submitAlle.useMutation();
 
   // Step 1 result → Step 2
   useEffect(() => {
@@ -524,18 +526,26 @@ function AnfrageFlow({
       const logId = selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId;
       const teile = teileQuery.data?.teile ?? [];
 
-      for (const teiltyp of Array.from(selectedTeile)) {
+      // Alle Standard-Teile in einer einzigen Transaktion — entweder alle oder keiner.
+      // Verhindert halb-befüllten Korb wenn Client zwischen N Calls crasht.
+      const items = Array.from(selectedTeile).map(teiltyp => {
         const info        = teile.find(t => t.teiltyp === teiltyp);
         const tastaturInf = teiltyp === "Tastatur" && tastaturBeschr ? tastaturBeschr : null;
         const anmerkung   = anmerkungen[teiltyp]?.trim() || null;
         const zusatzinfo  = [tastaturInf, anmerkung].filter(Boolean).join(" — ") || undefined;
-        await addItemMutation.mutateAsync({
-          techniker:   kuerzel,
+        return {
           logId,
-          geraeteName: selectedGeraet.bereinigt,
-          artikelId:   info?.artikelId ?? null,
+          artikelId: info?.artikelId ?? null,
           teiltyp,
           zusatzinfo,
+        };
+      });
+
+      if (items.length > 0) {
+        await addItemsBulkMutation.mutateAsync({
+          techniker:   kuerzel,
+          geraeteName: selectedGeraet.bereinigt,
+          items,
         });
       }
 
@@ -725,7 +735,12 @@ function AnfrageFlow({
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
                   {Array.from(selectedTeile).map(teiltyp => {
                     const info = teile.find(t => t.teiltyp === teiltyp);
-                    const tastaturHint = teiltyp === "Tastatur" && tastaturBeschr ? tastaturBeschr : null;
+                    // Bei "komplett" steht das Label schon auf der Teile-Card —
+                    // hier nur die Einzeltasten-Liste anzeigen (verhindert Doppel-Info).
+                    const tastaturHint = teiltyp === "Tastatur"
+                      && tastaturBeschr.startsWith("Einzeltasten:")
+                      ? tastaturBeschr
+                      : null;
                     return (
                       <div
                         key={teiltyp}
