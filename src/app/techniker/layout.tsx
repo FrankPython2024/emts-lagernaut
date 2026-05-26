@@ -144,12 +144,19 @@ function ProfilModal({ kuerzel, name, onClose }: { kuerzel: string; name: string
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={onClose}
     >
-      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true, returnFocusOnDeactivate: true }}>
+      <FocusTrap focusTrapOptions={{
+        escapeDeactivates:       false,
+        allowOutsideClick:       true,
+        returnFocusOnDeactivate: true,
+        fallbackFocus:           "[aria-labelledby='profil-modal-title']",
+        initialFocus:            false,
+      }}>
       <div
         className="modal-enter"
         role="dialog"
         aria-modal="true"
         aria-labelledby="profil-modal-title"
+        tabIndex={-1}
         style={{ width: "100%", maxWidth: 520, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.25)", color: "var(--text)", overflow: "hidden", maxHeight: "90vh", overflowY: "auto" }}
         onClick={e => e.stopPropagation()}
       >

@@ -616,13 +616,20 @@ function AnfrageFlow({
     >
       <FocusTrap
         active={!tastaturModalOffen && !zeigeOffene}
-        focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true, returnFocusOnDeactivate: true }}
+        focusTrapOptions={{
+          escapeDeactivates:       false,
+          allowOutsideClick:       true,
+          returnFocusOnDeactivate: true,
+          fallbackFocus:           "[aria-labelledby='anfrage-flow-title']",
+          initialFocus:            false,
+        }}
       >
       <div
         className="modal-enter"
         role="dialog"
         aria-modal="true"
         aria-labelledby="anfrage-flow-title"
+        tabIndex={-1}
         style={{ width: "100%", maxWidth: 680, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.3)", maxHeight: "90vh", overflowY: "auto", color: "var(--text)" }}
         onClick={e => e.stopPropagation()}
       >
@@ -1138,12 +1145,19 @@ function TastenAuswahlModal({
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={onClose}
     >
-      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true, returnFocusOnDeactivate: true }}>
+      <FocusTrap focusTrapOptions={{
+        escapeDeactivates:       false,
+        allowOutsideClick:       true,
+        returnFocusOnDeactivate: true,
+        fallbackFocus:           "[aria-labelledby='tastatur-modal-title']",
+        initialFocus:            false,
+      }}>
       <div
         className="modal-enter"
         role="dialog"
         aria-modal="true"
         aria-labelledby="tastatur-modal-title"
+        tabIndex={-1}
         style={{ width: "100%", maxWidth: 1280, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.35)", color: "var(--text)", maxHeight: "90vh", overflowY: "auto" }}
         onClick={e => e.stopPropagation()}
       >
@@ -1233,12 +1247,19 @@ function OffeneAnfragenHinweisModal({
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={onAbbrechen}
     >
-      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true, returnFocusOnDeactivate: true }}>
+      <FocusTrap focusTrapOptions={{
+        escapeDeactivates:       false,
+        allowOutsideClick:       true,
+        returnFocusOnDeactivate: true,
+        fallbackFocus:           "[aria-labelledby='offene-modal-title']",
+        initialFocus:            false,
+      }}>
       <div
         className="modal-enter"
         role="dialog"
         aria-modal="true"
         aria-labelledby="offene-modal-title"
+        tabIndex={-1}
         style={{ width: "100%", maxWidth: 640, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.35)", color: "var(--text)", maxHeight: "90vh", overflowY: "auto" }}
         onClick={e => e.stopPropagation()}
       >
@@ -1376,12 +1397,19 @@ function AnfrageDetailModal({
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={onClose}
     >
-      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true, returnFocusOnDeactivate: true }}>
+      <FocusTrap focusTrapOptions={{
+        escapeDeactivates:       false,
+        allowOutsideClick:       true,
+        returnFocusOnDeactivate: true,
+        fallbackFocus:           "[aria-labelledby='anfrage-detail-title']",
+        initialFocus:            false,
+      }}>
       <div
         className="modal-enter"
         role="dialog"
         aria-modal="true"
         aria-labelledby="anfrage-detail-title"
+        tabIndex={-1}
         style={{ width: "100%", maxWidth: 680, background: "var(--card-bg)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.3)", maxHeight: "90vh", overflowY: "auto", color: "var(--text)" }}
         onClick={e => e.stopPropagation()}
       >
