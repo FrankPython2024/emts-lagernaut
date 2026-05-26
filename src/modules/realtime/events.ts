@@ -9,6 +9,7 @@ export const EVENTS = {
   ANFRAGE_UPDATED:      "anfrage:updated",
   ANFRAGE_UEBERNOMMEN:  "anfrage:uebernommen",
   ANFRAGE_FREIGEGEBEN:  "anfrage:freigegeben",
+  ANFRAGE_GELOESCHT:    "anfrage:geloescht",
 
   // Techniker Präsenz
   TECHNIKER_ONLINE:  "techniker:online",

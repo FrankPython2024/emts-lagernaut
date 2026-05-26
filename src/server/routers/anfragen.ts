@@ -250,6 +250,50 @@ export const anfragenRouter = createTRPCRouter({
       return getAnfragenGruppiert({ ...input, standortId: sId });
     }),
 
+  // Anfragen löschen — nur ADMIN. Cascade auf Chat-Nachrichten (Nachricht.logId
+  // = "chat:{anfrageId}"). Buchungen werden NICHT angefasst (heilige Regel:
+  // Bestand-Historie). Transaktional: alles oder nichts.
+  loeschen: adminProcedure
+    .input(z.object({
+      ids:       z.array(z.number().int().positive()).max(100).default([]),
+      gruppenNr: z.string().max(100).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // IDs ermitteln: entweder direkt oder über gruppenNr
+      let allIds = input.ids;
+      if (input.gruppenNr) {
+        const gruppenAnfragen = await ctx.prisma.anfrage.findMany({
+          where:  { gruppenNr: input.gruppenNr },
+          select: { id: true },
+        });
+        allIds = gruppenAnfragen.map(a => a.id);
+      }
+
+      if (allIds.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Keine Anfragen zum Löschen." });
+      }
+
+      const result = await ctx.prisma.$transaction(async (tx) => {
+        const chatKeys = allIds.map(id => `chat:${id}`);
+        const deletedNachrichten = await tx.nachricht.deleteMany({
+          where: { logId: { in: chatKeys } },
+        });
+        const deletedAnfragen = await tx.anfrage.deleteMany({
+          where: { id: { in: allIds } },
+        });
+        return {
+          anfragen:    deletedAnfragen.count,
+          nachrichten: deletedNachrichten.count,
+          ids:         allIds,
+        };
+      });
+
+      // Andere Admin-UIs live informieren
+      emitToAdmins(EVENTS.ANFRAGE_GELOESCHT, { ids: result.ids });
+
+      return result;
+    }),
+
   // ── Lock-System ────────────────────────────────────────────────────────────
 
   // Gruppe in Bearbeitung nehmen (atomic)

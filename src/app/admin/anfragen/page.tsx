@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useMemo, Suspense } from "react";
 import { AnfrageStatus, type Anfrage } from "@prisma/client";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { Trash2 } from "lucide-react";
 import { api } from "@/trpc/react";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS }    from "@/modules/realtime/events";
@@ -345,9 +346,11 @@ function AnfragenPageInner() {
         show(`🔓 ${durch} hat Anfragen freigegeben${vorBearbeiter ? ` (war: ${vorBearbeiter})` : ""}`, "info");
       }
     });
+    on(EVENTS.ANFRAGE_GELOESCHT, () => { refetch(); });
     return () => {
       off(EVENTS.ANFRAGE_UEBERNOMMEN);
       off(EVENTS.ANFRAGE_FREIGEGEBEN);
+      off(EVENTS.ANFRAGE_GELOESCHT);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ersteller]);
@@ -390,6 +393,35 @@ function AnfragenPageInner() {
     },
     onError: (e) => show(e.message, "error"),
   });
+
+  // ── Löschen ─────────────────────────────────────────────────────────────────
+  type DeleteCandidate =
+    | { type: "single"; id: number; label: string }
+    | { type: "gruppe"; gruppenNr: string; anzahl: number; label: string };
+  const [deleteCandidate, setDeleteCandidate] = useState<DeleteCandidate | null>(null);
+
+  const loeschen = api.anfragen.loeschen.useMutation({
+    onSuccess: (r) => {
+      show(
+        r.anfragen === 1
+          ? "Anfrage gelöscht"
+          : `${r.anfragen} Anfragen gelöscht`,
+        "success",
+      );
+      setDeleteCandidate(null);
+      refetch();
+    },
+    onError: (e) => { show(e.message, "error"); setDeleteCandidate(null); },
+  });
+
+  async function handleDeleteConfirm() {
+    if (!deleteCandidate) return;
+    if (deleteCandidate.type === "gruppe") {
+      await loeschen.mutateAsync({ ids: [], gruppenNr: deleteCandidate.gruppenNr });
+    } else {
+      await loeschen.mutateAsync({ ids: [deleteCandidate.id] });
+    }
+  }
 
   // Öffnet AuslagerModal für eine einzelne Anfrage (AUSGANG oder DIREKT je nach Bestand)
   function handleErledigen(anfrageId: number, gruppenLabel: string) {
@@ -590,6 +622,23 @@ function AnfragenPageInner() {
                   >
                     {isBusy ? "…" : "✅ Alle erledigen"}
                   </button>
+
+                  {/* Gruppe löschen (Admin) */}
+                  {gruppe.gruppenNr && (
+                    <button
+                      onClick={() => setDeleteCandidate({
+                        type:      "gruppe",
+                        gruppenNr: gruppe.gruppenNr!,
+                        anzahl:    anfragenTyped.length,
+                        label:     gruppe.geraeteName ?? gruppe.logId,
+                      })}
+                      aria-label="Komplette Gruppe löschen"
+                      title="Komplette Gruppe löschen"
+                      className="flex items-center justify-center px-3 py-2.5 bg-[#fa3e3e]/10 text-[#fa3e3e] hover:bg-[#fa3e3e]/20 rounded-lg transition-colors min-h-[44px] min-w-[44px]"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -675,6 +724,20 @@ function AnfragenPageInner() {
                             ✕
                           </button>
                         )}
+
+                        {/* Anfrage löschen (Admin) */}
+                        <button
+                          onClick={() => setDeleteCandidate({
+                            type:  "single",
+                            id:    a.id,
+                            label: a.beschreibung ?? a.teil,
+                          })}
+                          aria-label="Anfrage löschen"
+                          title="Anfrage löschen"
+                          className="flex items-center justify-center px-2 py-2 bg-[#fa3e3e]/10 text-[#fa3e3e] rounded hover:bg-[#fa3e3e]/20 transition-colors min-h-[44px] min-w-[44px]"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   );
@@ -692,6 +755,69 @@ function AnfragenPageInner() {
 
       {/* ── Modals ── */}
       {tagesModal && <TagesuebersichtModal onClose={() => setTagesModal(false)} />}
+
+      {/* Löschen-Bestätigung */}
+      {deleteCandidate && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="loeschen-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => !loeschen.isPending && setDeleteCandidate(null)}
+        >
+          <div
+            className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 pt-6 pb-4 text-center space-y-3">
+              <div className="text-4xl">🗑️</div>
+              <h2 id="loeschen-modal-title" className="font-black text-lg text-[#1a1a1a] dark:text-[#e4e6eb]">
+                {deleteCandidate.type === "gruppe"
+                  ? "Komplette Gruppe löschen?"
+                  : "Anfrage löschen?"}
+              </h2>
+              <div className="px-4 py-3 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl text-sm">
+                {deleteCandidate.type === "gruppe" ? (
+                  <>
+                    <div className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                      Gruppe {deleteCandidate.gruppenNr}
+                    </div>
+                    <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+                      {deleteCandidate.label} · {deleteCandidate.anzahl} {deleteCandidate.anzahl === 1 ? "Anfrage" : "Anfragen"}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-[#1a1a1a] dark:text-[#e4e6eb]">{deleteCandidate.label}</div>
+                )}
+              </div>
+              <div className="flex items-start gap-2 px-3 py-2.5 bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 rounded-lg text-left">
+                <span className="text-[#fa3e3e] flex-shrink-0">⚠️</span>
+                <span className="text-xs text-[#1a1a1a] dark:text-[#e4e6eb]">
+                  {deleteCandidate.type === "gruppe"
+                    ? "Alle Anfragen dieser Gruppe und zugehörige Chat-Nachrichten werden unwiderruflich gelöscht. Buchungen bleiben erhalten."
+                    : "Diese Anfrage und ihre Chat-Nachrichten werden unwiderruflich gelöscht. Buchungen bleiben erhalten."}
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                onClick={() => setDeleteCandidate(null)}
+                disabled={loeschen.isPending}
+                className="flex-1 py-2 text-sm text-[#65676b] font-semibold border border-[#ced4da] dark:border-[#3e4042] rounded-lg hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[44px] disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={loeschen.isPending}
+                className="flex-1 py-2 bg-[#fa3e3e] text-white text-sm font-bold rounded-lg hover:bg-red-600 disabled:opacity-50 transition-colors min-h-[44px]"
+              >
+                {loeschen.isPending ? "Lösche…" : "Endgültig löschen"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {freigebenDialog && (
         <FreigebenDialog
