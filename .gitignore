@@ -32,3 +32,6 @@ npm-debug.log*
 
 # Prisma
 prisma/migrations/**/migration_lock.toml
+
+# Backups
+*.bak
