@@ -95,12 +95,19 @@ export const anfragenRouter = createTRPCRouter({
       }
 
       const standortIds = getZugaenglicheStandortIds(ctx);
+
+      // Daten-Inkonsistenz: Anfragen liegen in der DB teils mit Punkten
+      // (z.B. "212.757.577"), teils ohne. Wir matchen beide Varianten —
+      // langfristig sollte eine Migration auf ein einheitliches Format folgen.
       const cleanLogId  = input.logId.replace(/\./g, "").trim();
+      const parts       = cleanLogId.match(/.{1,3}/g) ?? [];
+      const dottedLogId = parts.length === 3 ? parts.join(".") : cleanLogId;
+      const logIdVarianten = Array.from(new Set([cleanLogId, dottedLogId]));
 
       const anfragen = await ctx.prisma.anfrage.findMany({
         where: {
           techniker: input.kuerzel.toUpperCase().trim(),
-          logId:     cleanLogId,
+          logId:     { in: logIdVarianten },
           status:    { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] },
           ...(standortIds && standortIds.length > 0 && {
             OR: [
