@@ -275,7 +275,7 @@ export default function AnfragenBox({ kuerzel }: Props) {
                 Abbrechen
               </button>
               <button
-                onClick={() => storniereMutation.mutate({ techniker: stornoItem.techniker, logId: stornoItem.logId, teil: stornoItem.teil })}
+                onClick={() => storniereMutation.mutate({ id: stornoItem.id, techniker: stornoItem.techniker })}
                 disabled={storniereMutation.isPending}
                 style={{ ...BTN, background: "var(--danger)", color: "white", border: "none", opacity: storniereMutation.isPending ? 0.7 : 1 }}
               >

@@ -86,27 +86,48 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
 
 /**
  * Anfrage stornieren — Techniker: nur eigene, nur NEU/BEDARF.
+ *
+ * Bevorzugte Variante: per `id` — eindeutig auch wenn mehrere Anfragen mit
+ * gleichem Teil existieren (z.B. historische Wiederanfragen).
+ * Legacy-Variante: per `logId + teil` — bleibt für Stresstest + AnfragenBox erhalten.
  */
-export async function storniereAnfrage(data: {
-  techniker: string;
-  logId:     string;
-  teil:      string;
-}): Promise<void> {
-  const anfrage = await prisma.anfrage.findFirst({
-    where: {
-      techniker: data.techniker.toUpperCase().trim(),
-      logId:     data.logId.trim(),
-      teil:      data.teil.trim(),
-      status:    { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] },
-    },
-    select: { id: true, status: true, artikelId: true },
-  });
+export async function storniereAnfrage(
+  data:
+    | { id: number;     techniker: string }
+    | { techniker: string; logId: string; teil: string }
+): Promise<void> {
+  const techniker = data.techniker.toUpperCase().trim();
+
+  const anfrage = "id" in data
+    ? await prisma.anfrage.findFirst({
+        where: {
+          id:        data.id,
+          techniker,
+          status:    { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] },
+        },
+        select: { id: true, status: true, artikelId: true },
+      })
+    : await prisma.anfrage.findFirst({
+        where: {
+          techniker,
+          logId:  data.logId.trim(),
+          teil:   data.teil.trim(),
+          status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] },
+        },
+        select: { id: true, status: true, artikelId: true },
+      });
 
   if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Keine stornierbare Anfrage gefunden (nur NEU oder BEDARF möglich)." });
 
   await prisma.anfrage.update({ where: { id: anfrage.id }, data: { status: AnfrageStatus.STORNIERT } });
   meilisearchSync.anfrage(anfrage.id);
   if (anfrage.artikelId) await syncBestandAusHistorie(anfrage.artikelId);
+
+  // Realtime + Cache (F-BE4): Admin- + Techniker-UI live aktualisieren
+  const payload = { id: anfrage.id, status: AnfrageStatus.STORNIERT };
+  emitToAdmins(EVENTS.ANFRAGE_UPDATED, payload);
+  emitToUser(techniker, EVENTS.ANFRAGE_UPDATED, payload);
+  invalidateTechnikerCache(techniker).catch(() => {});
 }
 
 // ── Lock-System ───────────────────────────────────────────────────────────────

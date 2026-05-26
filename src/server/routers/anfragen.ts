@@ -79,13 +79,20 @@ export const anfragenRouter = createTRPCRouter({
       });
     }),
 
-  // Anfrage stornieren — Techniker: nur eigene, nur NEU/BEDARF
+  // Anfrage stornieren — Techniker: nur eigene, nur NEU/BEDARF.
+  // Per ID (bevorzugt, eindeutig) oder per logId+teil (Legacy).
   storniere: protectedProcedure
-    .input(z.object({
-      techniker: z.string().min(1).max(50),
-      logId:     z.string().min(1).max(100),
-      teil:      z.string().min(1).max(255),
-    }))
+    .input(z.union([
+      z.object({
+        id:        z.number().int().positive(),
+        techniker: z.string().min(1).max(50),
+      }),
+      z.object({
+        techniker: z.string().min(1).max(50),
+        logId:     z.string().min(1).max(100),
+        teil:      z.string().min(1).max(255),
+      }),
+    ]))
     .mutation(({ input, ctx }) => {
       const user = ctx.session.user as SessionUser;
       if (user.rolle !== "ADMIN" && user.kuerzel.toUpperCase() !== input.techniker.toUpperCase()) {

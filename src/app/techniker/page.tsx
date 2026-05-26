@@ -75,6 +75,7 @@ function relativeZeit(date: Date): string {
 
 function gruppeStatus(g: GruppeData): string {
   const ss = g.anfragen.map(a => a.status);
+  if (ss.every(s => s === "STORNIERT"))                           return "STORNIERT";
   if (ss.every(s => s === "ABGESCHLOSSEN" || s === "STORNIERT")) return "ABGESCHLOSSEN";
   if (ss.some(s => s === "IN_BEARBEITUNG"))                       return "IN_BEARBEITUNG";
   if (ss.some(s => s === "BEDARF"))                               return "BEDARF";
@@ -1097,7 +1098,7 @@ function AnfrageDetailModal({
     setStornoLoading(true);
     try {
       for (const a of stornoItems) {
-        await storniereMutation.mutateAsync({ techniker: kuerzel, logId: a.logId, teil: a.teil });
+        await storniereMutation.mutateAsync({ id: a.id, techniker: kuerzel });
       }
       show("Anfrage storniert", "success");
       onClose();
