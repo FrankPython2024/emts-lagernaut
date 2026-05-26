@@ -328,7 +328,7 @@ export function TastaturModal({ open, articleName, onConfirm, onClose }: Tastatu
               Klicke auf die betroffenen Tasten. Ausgewählte Tasten werden blau markiert.
             </p>
 
-            {/* Keyboard container */}
+            {/* Keyboard container — Desktop-only, immer vollständig sichtbar */}
             <div
               style={{
                 background: "linear-gradient(160deg, #c8c8c8 0%, #b8b8b8 100%)",
@@ -338,8 +338,6 @@ export function TastaturModal({ open, articleName, onConfirm, onClose }: Tastatu
                 display: "inline-flex",
                 marginBottom: 14,
                 position: "relative",
-                maxWidth: "100%",
-                overflowX: "auto",
               }}
             >
               {/* EMTS Label + LED */}
