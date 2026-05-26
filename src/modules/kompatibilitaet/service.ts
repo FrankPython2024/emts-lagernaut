@@ -359,6 +359,13 @@ export async function getByGeraetMitStandard(args: {
     ? { standortId: { in: args.standortIds } }
     : undefined;
 
+  // Aktive Teiltypen aus DB (mit Fallback auf hartkodierte Liste falls Tabelle leer)
+  const aktiveTeiltypen = await prisma.teiltyp.findMany({
+    where:   { aktiv: true },
+    orderBy: { sortierung: "asc" },
+    select:  { name: true },
+  });
+
   const treffer = matchingGeraete.length > 0
     ? await prisma.kompatibilitaet.findMany({
         where: {
@@ -368,6 +375,11 @@ export async function getByGeraetMitStandard(args: {
         include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true } } },
       })
     : [];
+
+  // Fallback auf hartkodierte Liste falls Teiltyp-Tabelle leer (z.B. vor Seed)
+  const standardListe = aktiveTeiltypen.length > 0
+    ? aktiveTeiltypen.map(t => t.name)
+    : STANDARD_TEILE_LOOKUP;
 
   // Map: teiltyp → artikel — bei Duplikaten (geraet mit/ohne Prefix) gewinnt höherer Bestand.
   // Schützt vor dem Fall wo Generator-Einträge (bestand=0) Einlager-Einträge (bestand>0) maskieren.
@@ -381,10 +393,10 @@ export async function getByGeraetMitStandard(args: {
 
   const kompatibilitaetVorhanden = treffer.length > 0;
 
-  // Immer alle 13 Standard-Teile — verknüpfte mit Bestandsdaten, andere als "nicht erfasst"
+  // Alle aktiven Teiltypen — verknüpfte mit Bestandsdaten, andere als "nicht erfasst"
   return {
     kompatibilitaetVorhanden,
-    teile: STANDARD_TEILE_LOOKUP.map((teiltyp) => {
+    teile: standardListe.map((teiltyp) => {
       const artikel = verknuepftMap.get(teiltyp);
       if (artikel) {
         return {

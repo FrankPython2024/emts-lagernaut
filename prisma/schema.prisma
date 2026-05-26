@@ -177,6 +177,18 @@ model Lagerplatz {
   @@map("lagerplatz")
 }
 
+model Teiltyp {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  icon        String? // Lucide-Icon-Name (z.B. "Wifi", "Battery")
+  istStandard Boolean  @default(false)
+  sortierung  Int      @default(0)
+  aktiv       Boolean  @default(true)
+  erstelltAm  DateTime @default(now())
+
+  @@index([aktiv, sortierung])
+}
+
 model GeraeteLookup {
   id          Int      @id @default(autoincrement())
   logId       String   @unique

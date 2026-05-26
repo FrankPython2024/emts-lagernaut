@@ -8,11 +8,8 @@ import { useSocket }      from "@/hooks/useSocket";
 import { EVENTS }         from "@/modules/realtime/events";
 import GruppenNachrichten from "./components/GruppenNachrichten";
 import { type AnfrageRow, type GruppeData } from "./components/constants";
-import {
-  Cpu, Monitor, MonitorSmartphone, Mouse, Square, Keyboard,
-  Volume2, CircleDot, Power, Usb, Network, Wifi,
-  Battery, Box, Plug, Loader2, MessageCircle, type LucideIcon,
-} from "lucide-react";
+import { Loader2, MessageCircle } from "lucide-react";
+import { getLucideIcon } from "@/lib/icons/getLucideIcon";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -34,26 +31,8 @@ const STATUS_CFG: Record<string, { text: string; color: string; bg: string }> = 
   STORNIERT:      { text: "Storniert",      color: "#6b7280", bg: "#f3f4f6" },
 };
 
-// Icon-Mapping für die 17 Standard-Teiltypen (Keys 1:1 zu STANDARD_TEILTYPEN)
-const TEIL_ICON: Record<string, LucideIcon> = {
-  "Mainboard":        Cpu,
-  "Display":          Monitor,
-  "Displaymodul":     MonitorSmartphone,
-  "Touchpad":         Mouse,
-  "Touchpad Buttons": Square,
-  "Tastatur":         Keyboard,
-  "Lautsprecher":     Volume2,
-  "Füße vorne":       CircleDot,
-  "Füße hinten":      CircleDot,
-  "Power Button":     Power,
-  "USB Board":        Usb,
-  "LAN Board":        Network,
-  "WLAN Karte":       Wifi,
-  "UMTS Karte":       Wifi,
-  "Akku":             Battery,
-  "D Cover":          Box,
-  "DC IN":            Plug,
-};
+// Icon-Mapping wird zur Laufzeit aus der Teiltyp-Tabelle aufgebaut
+// (api.teiltypen.list → name → icon-Name → LucideIcon via getLucideIcon).
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -467,6 +446,14 @@ function AnfrageFlow({
   const addSonderMutation    = api.warenkorb.addSonderAnfrage.useMutation();
   const submitMutation       = api.warenkorb.submitAlle.useMutation();
 
+  // Teiltypen-Icons aus DB — Map: teiltyp-name → Lucide-Icon-Name
+  const teiltypenListe = api.teiltypen.list.useQuery({ nurAktive: true }, { staleTime: 5 * 60_000 });
+  const iconMap = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const t of teiltypenListe.data ?? []) m.set(t.name, t.icon);
+    return m;
+  }, [teiltypenListe.data]);
+
   // Check auf offene Anfragen für dieselbe LogID (wird nach erfolgreichem
   // Geräte-Lookup aktiviert, blockiert kurzzeitig den Sprung in Step "teile")
   const offeneCheck = api.anfragen.offeneFuerLogId.useQuery(
@@ -711,7 +698,7 @@ function AnfrageFlow({
                 {teile.map(t => {
                   const isTastatur = t.teiltyp === "Tastatur";
                   const sel  = selectedTeile.has(t.teiltyp);
-                  const Icon = TEIL_ICON[t.teiltyp] ?? Box;
+                  const Icon = getLucideIcon(iconMap.get(t.teiltyp));
                   return (
                     <button
                       key={t.teiltyp}
