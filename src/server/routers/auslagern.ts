@@ -231,7 +231,7 @@ export const auslagernRouter = createTRPCRouter({
           const notizTeile = [
             `Anfrage #${anfrageId}`,
             anfrage.gruppenNr        ? `Gruppe: ${anfrage.gruppenNr}` : null,
-            buchungsTyp === "DIREKT" ? "DIREKT (Techniker hat selbst ausgebaut)" : null,
+            buchungsTyp === "DIREKT" ? "DIREKT" : null,
             input.notiz,
           ].filter(Boolean).join(" | ");
 

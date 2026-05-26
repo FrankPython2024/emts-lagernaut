@@ -4,6 +4,7 @@ import { BuchungsTyp, type Buchung } from "@prisma/client";
 import { useDebounce } from "use-debounce";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { useStandortFilter } from "@/lib/standort/standortContext";
@@ -26,6 +27,34 @@ function formatDatum(d: Date | string) {
     day: "2-digit", month: "2-digit", year: "2-digit",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+/**
+ * Notiz mit klickbarer Gruppen-Nr rendern.
+ * Format: "Anfrage #N | Gruppe: YYYY-MM-DD-KUERZEL-NNN | …".
+ * Die Gruppen-Nr wird als Link nach /admin/anfragen?gruppe=… umgesetzt;
+ * die Anfragen-Seite scrollt dann zur Gruppen-Karte und highlightet sie.
+ */
+function renderNotiz(notiz: string | null) {
+  if (!notiz) return "–";
+  const match = notiz.match(/Gruppe:\s*([\dA-Z-]+)/);
+  if (!match) return notiz;
+  const gruppenNr = match[1]!;
+  const idx       = notiz.indexOf(gruppenNr);
+  const vor       = notiz.slice(0, idx);
+  const nach      = notiz.slice(idx + gruppenNr.length);
+  return (
+    <>
+      {vor}
+      <Link
+        href={`/admin/anfragen?gruppe=${encodeURIComponent(gruppenNr)}`}
+        className="font-mono text-[#0064d2] hover:text-[#004a9d] dark:text-[#45bdff] dark:hover:text-[#7dd0ff] underline underline-offset-2 hover:bg-[#0064d2]/10 dark:hover:bg-[#45bdff]/10 rounded px-1 py-0.5 transition-colors"
+      >
+        {gruppenNr}
+      </Link>
+      {nach}
+    </>
+  );
 }
 
 // ── Bearbeiten Modal ──────────────────────────────────────────────────────────
@@ -388,7 +417,7 @@ function BuchungenPageInner() {
                     <span className={`px-2 py-0.5 rounded text-xs font-bold ${TYP_FARBE[b.typ]}`}>{b.typ}</span>
                   </td>
                   <td className="px-4 py-3 text-center font-black">{b.menge}</td>
-                  <td className="px-4 py-3 text-[#65676b] dark:text-[#b0b3b8] text-xs">{b.notiz ?? "–"}</td>
+                  <td className="px-4 py-3 text-[#65676b] dark:text-[#b0b3b8] text-xs">{renderNotiz(b.notiz)}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1">
                       <button

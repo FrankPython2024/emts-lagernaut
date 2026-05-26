@@ -230,6 +230,7 @@ function AnfragenPageInner() {
 
   const searchParams = useSearchParams();
   const highlightId  = searchParams?.get("highlight") ?? null;
+  const gruppeParam  = searchParams?.get("gruppe") ?? null;
 
   function statusHighlightClass(status: string): string {
     if (status === "NEU" || status === "BEDARF") return "anfrage-neu";
@@ -307,6 +308,18 @@ function AnfragenPageInner() {
       setTimeout(() => el.classList.remove("row-highlight"), 3000);
     }
   }, [highlightId, data]);
+
+  // ── Deep-Link aus Buchungen: ?gruppe=<gruppenNr> → zur Gruppen-Karte scrollen
+  useEffect(() => {
+    if (!gruppeParam || !data) return;
+    // Gruppen-Wrapper hat id="gruppe-${gruppenKey}", gruppenKey ist primär gruppenNr
+    const el = document.getElementById(`gruppe-${gruppeParam}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("row-highlight");
+      setTimeout(() => el.classList.remove("row-highlight"), 3000);
+    }
+  }, [gruppeParam, data]);
 
   // ── Socket: Chat-Badge ────────────────────────────────────────────────────
   useEffect(() => {
@@ -481,7 +494,7 @@ function AnfragenPageInner() {
             : "bg-[#f0f2f5] dark:bg-[#18191a] border-[#ced4da] dark:border-[#3e4042]";
 
           return (
-            <div key={gi} className={`bg-white dark:bg-[#242526] rounded-xl border shadow-sm overflow-hidden ${isLockedByOther ? "border-amber-200 dark:border-amber-800" : "border-[#ced4da] dark:border-[#3e4042]"} ${statusHighlightClass(gruppe.gruppenStatus)}`}>
+            <div key={gi} id={`gruppe-${gruppenKey}`} className={`bg-white dark:bg-[#242526] rounded-xl border shadow-sm overflow-hidden ${isLockedByOther ? "border-amber-200 dark:border-amber-800" : "border-[#ced4da] dark:border-[#3e4042]"} ${statusHighlightClass(gruppe.gruppenStatus)}`}>
               {/* ── Gruppen-Header ── */}
               <div className={`flex items-start justify-between gap-3 px-5 py-4 border-b flex-wrap gap-y-2 ${headerCls}`}>
                 <div className="flex items-start gap-4 flex-wrap min-w-0">
