@@ -32,49 +32,6 @@ function relativeZeit(date: Date): string {
   return date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
 }
 
-// ── NachrichtToast ────────────────────────────────────────────────────────────
-
-type ToastData = { id: number; betreff: string; inhalt: string; vonKuerzel: string };
-
-function NachrichtToast({ data, onClose }: { data: ToastData; onClose: () => void }) {
-  return (
-    <div style={{
-      position:     "fixed",
-      top:          80,
-      left:         "50%",
-      transform:    "translateX(-50%)",
-      width:        430,
-      maxWidth:     "95vw",
-      zIndex:       10002,
-      background:   "var(--card-bg)",
-      borderLeft:   "6px solid var(--primary)",
-      borderRadius: 14,
-      boxShadow:    "0 16px 48px rgba(0,0,0,0.28)",
-      padding:      "1.2rem 1.5rem",
-      color:        "var(--text)",
-    }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
-        <strong style={{ fontSize: "0.95rem", display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: "1.2rem" }}>📬</span>
-          Neue Chat-Nachricht
-        </strong>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)", fontSize: "1.3rem", lineHeight: 1, padding: "0 2px" }}>×</button>
-      </div>
-      <hr style={{ border: 0, borderTop: "1px solid var(--border)", margin: "8px 0" }} />
-      <div style={{ fontWeight: 800, fontSize: "0.9rem", marginBottom: 5, color: "var(--primary)" }}>{data.betreff}</div>
-      <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", marginBottom: 14, lineHeight: 1.5 }}>
-        {data.inhalt.substring(0, 100)}{data.inhalt.length > 100 ? "…" : ""}
-      </div>
-      <button
-        onClick={onClose}
-        style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", padding: "0.5rem 1.1rem", borderRadius: 8, cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontWeight: 600, fontSize: "0.85rem" }}
-      >
-        × Schließen
-      </button>
-    </div>
-  );
-}
-
 // ── LiveUhr ───────────────────────────────────────────────────────────────────
 
 function LiveUhr() {
@@ -377,8 +334,8 @@ function TechnikerHeader() {
 
 export default function TechnikerLayout({ children }: { children: React.ReactNode }) {
   const [fontSize, _setFontSize]  = useState<FontSize>("medium");
-  const [nachrichtToast, setNachrichtToast] = useState<ToastData | null>(null);
   const { on, off } = useSocket();
+  const utils = api.useUtils();
 
   function setFontSize(s: FontSize) {
     _setFontSize(s);
@@ -397,11 +354,12 @@ export default function TechnikerLayout({ children }: { children: React.ReactNod
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Socket: neuer Chat → Toast
+  // Socket: neuer Chat → Badge-Query invalidieren (kein Toast — der Badge in
+  // der Anfragen-Liste reicht als Hinweis)
   useEffect(() => {
-    const handler = (data: unknown) => {
-      const d = data as ToastData;
-      setNachrichtToast(d);
+    const handler = () => {
+      utils.chat.getStatsForAnfrage.invalidate();
+      utils.chat.getUngelesenCount.invalidate();
     };
     on(EVENTS.CHAT_NEU,      handler);
     on(EVENTS.NACHRICHT_NEU, handler);
@@ -409,7 +367,7 @@ export default function TechnikerLayout({ children }: { children: React.ReactNod
       off(EVENTS.CHAT_NEU);
       off(EVENTS.NACHRICHT_NEU);
     };
-  }, [on, off]);
+  }, [on, off, utils]);
 
   return (
     <FontCtx.Provider value={{ fontSize, setFontSize }}>
@@ -417,13 +375,6 @@ export default function TechnikerLayout({ children }: { children: React.ReactNod
         <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
           <TechnikerHeader />
           {children}
-
-          {nachrichtToast && (
-            <NachrichtToast
-              data={nachrichtToast}
-              onClose={() => setNachrichtToast(null)}
-            />
-          )}
         </div>
       </ToastProvider>
     </FontCtx.Provider>

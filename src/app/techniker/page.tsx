@@ -236,30 +236,9 @@ export default function TechnikerPage() {
               opacity:      cardLogId.replace(/\D/g, "").length < 5 ? 0.6 : 1,
               fontFamily:   "'Ubuntu', sans-serif",
               minHeight:    56,
-              marginBottom: "0.75rem",
             }}
           >
             Gerät suchen →
-          </button>
-
-          <button
-            onClick={() => startFlow(null)}
-            className="active:scale-[0.99] transition-transform"
-            style={{
-              width:        "100%",
-              padding:      "0.7rem 1rem",
-              fontSize:     "0.92rem",
-              fontWeight:   600,
-              borderRadius: 10,
-              border:       "1.5px solid rgba(255,255,255,0.5)",
-              background:   "transparent",
-              color:        "white",
-              cursor:       "pointer",
-              fontFamily:   "'Ubuntu', sans-serif",
-              minHeight:    44,
-            }}
-          >
-            Ohne LogID weiter
           </button>
         </div>
 
