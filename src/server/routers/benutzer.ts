@@ -91,6 +91,69 @@ export const benutzerRouter = createTRPCRouter({
       return { erfolg: true, kuerzel: result.kuerzel };
     }),
 
+  // ── Standort-Zugriff pro User ────────────────────────────────────────────
+
+  // Liest aktuellen Standort-Zugriff: alleStandorte-Wildcard, Hauptstandort,
+  // zusätzliche Standorte (M:N).
+  getStandortAccess: adminProcedure
+    .input(z.object({ userId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const user = await prisma.user.findUnique({
+        where:   { id: input.userId },
+        include: { standortAccess: { select: { standortId: true } } },
+      });
+      if (!user) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Benutzer nicht gefunden." });
+      }
+      return {
+        alleStandorte:           user.alleStandorte,
+        hauptstandortId:         user.standortId ?? null,
+        zusaetzlicheStandortIds: user.standortAccess.map(a => a.standortId),
+      };
+    }),
+
+  // Setzt Standort-Zugriff atomar: alleStandorte-Flag + zusätzliche Standorte.
+  // Hauptstandort (user.standortId) wird hier NICHT verändert; das passiert über update().
+  // Hinweis: Änderung wird beim Ziel-User erst nach Re-Login wirksam (Session-Cache).
+  setzeStandortAccess: adminProcedure
+    .input(z.object({
+      userId:                  z.number().int().positive(),
+      alleStandorte:           z.boolean(),
+      zusaetzlicheStandortIds: z.array(z.number().int().positive()).max(50),
+    }))
+    .mutation(async ({ input }) => {
+      return prisma.$transaction(async (tx) => {
+        // Wildcard-Flag setzen
+        await tx.user.update({
+          where: { id: input.userId },
+          data:  { alleStandorte: input.alleStandorte },
+        });
+
+        // Alte Access-Einträge wegwerfen
+        await tx.userStandortAccess.deleteMany({ where: { userId: input.userId } });
+
+        // Bei alleStandorte=true sind zusätzliche Einträge redundant — überspringen
+        if (!input.alleStandorte && input.zusaetzlicheStandortIds.length > 0) {
+          // Hauptstandort filtern (würde Unique [userId, standortId] verletzen).
+          const haupt = await tx.user.findUnique({
+            where:  { id: input.userId },
+            select: { standortId: true },
+          });
+          const zusaetzliche = input.zusaetzlicheStandortIds.filter(
+            sid => sid !== haupt?.standortId,
+          );
+          if (zusaetzliche.length > 0) {
+            await tx.userStandortAccess.createMany({
+              data:           zusaetzliche.map(sid => ({ userId: input.userId, standortId: sid })),
+              skipDuplicates: true,
+            });
+          }
+        }
+
+        return { aktualisiert: true };
+      });
+    }),
+
   // Eigenes Passwort ändern — jeder eingeloggte User
   changePassword: protectedProcedure
     .input(z.object({

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 
 export const standortRouter = createTRPCRouter({
 
@@ -7,6 +8,21 @@ export const standortRouter = createTRPCRouter({
     .query(async ({ ctx }) => {
       return ctx.prisma.standort.findMany({
         where:   { aktiv: true },
+        orderBy: { name: "asc" },
+        select:  { id: true, name: true, kurzname: true, aktiv: true },
+      });
+    }),
+
+  // Für den Sidebar-Switcher: nur Standorte die der User tatsächlich sehen darf.
+  // null aus getZugaenglicheStandortIds = Wildcard ⇒ alle aktiven Standorte.
+  zugaengliche: protectedProcedure
+    .query(async ({ ctx }) => {
+      const ids   = getZugaenglicheStandortIds(ctx);
+      const where = ids === null
+        ? { aktiv: true }
+        : { aktiv: true, id: { in: ids } };
+      return ctx.prisma.standort.findMany({
+        where,
         orderBy: { name: "asc" },
         select:  { id: true, name: true, kurzname: true, aktiv: true },
       });

@@ -37,6 +37,23 @@ export default function BenutzerDetailPage() {
     onError:   (e) => show(e.message, "error"),
   });
 
+  // ── Standort-Zugriff ──────────────────────────────────────────────────────
+  const accessQ      = api.benutzer.getStandortAccess.useQuery({ userId });
+  const alleStandorteQ = api.standort.list.useQuery();
+  const setzeAccess  = api.benutzer.setzeStandortAccess.useMutation({
+    onSuccess: () => { show("✅ Standort-Zugriff aktualisiert", "success"); accessQ.refetch(); },
+    onError:   (e) => show(e.message, "error"),
+  });
+  const [alleAktiv,    setAlleAktiv]    = useState(false);
+  const [zusaetzlich,  setZusaetzlich]  = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (accessQ.data) {
+      setAlleAktiv(accessQ.data.alleStandorte);
+      setZusaetzlich(new Set(accessQ.data.zusaetzlicheStandortIds));
+    }
+  }, [accessQ.data]);
+
   if (isLoading) return <PageLoader />;
   if (!user) return <div className="text-[#fa3e3e]">Benutzer nicht gefunden.</div>;
 
@@ -78,6 +95,95 @@ export default function BenutzerDetailPage() {
           className="px-6 py-2.5 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50">
           {update.isPending ? "..." : "Speichern"}
         </button>
+      </div>
+
+      {/* Standort-Zugriff */}
+      <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-6 shadow-sm space-y-4">
+        <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] border-b border-[#ced4da] dark:border-[#3e4042] pb-3">
+          Standort-Zugriff
+        </h2>
+
+        {accessQ.isLoading ? (
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Lade…</p>
+        ) : (
+          <>
+            <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+              Hauptstandort:{" "}
+              <strong className="text-[#1a1a1a] dark:text-[#e4e6eb]">
+                {alleStandorteQ.data?.find(s => s.id === accessQ.data?.hauptstandortId)?.name
+                 ?? (accessQ.data?.hauptstandortId == null ? "—" : `#${accessQ.data.hauptstandortId}`)}
+              </strong>
+            </p>
+
+            <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
+              <input
+                type="checkbox"
+                checked={alleAktiv}
+                onChange={(e) => setAlleAktiv(e.target.checked)}
+                className="w-4 h-4 accent-[#0064d2]"
+              />
+              <span className="text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                Zugriff auf <em>alle</em> Standorte (Wildcard)
+              </span>
+            </label>
+
+            {!alleAktiv && (
+              <div>
+                <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-2 uppercase font-bold">
+                  Zusätzliche Standorte (Hauptstandort automatisch enthalten)
+                </p>
+                <div className="space-y-1">
+                  {(alleStandorteQ.data ?? [])
+                    .filter(s => s.aktiv && s.id !== accessQ.data?.hauptstandortId)
+                    .map(s => {
+                      const checked = zusaetzlich.has(s.id);
+                      return (
+                        <label key={s.id} className="flex items-center gap-2 cursor-pointer py-1.5 min-h-[44px]">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              setZusaetzlich(prev => {
+                                const next = new Set(prev);
+                                if (next.has(s.id)) next.delete(s.id);
+                                else next.add(s.id);
+                                return next;
+                              });
+                            }}
+                            className="w-4 h-4 accent-[#0064d2]"
+                          />
+                          <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                            {s.name} <span className="text-[#65676b] dark:text-[#b0b3b8]">({s.kurzname})</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  {alleStandorteQ.data?.filter(s => s.aktiv && s.id !== accessQ.data?.hauptstandortId).length === 0 && (
+                    <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Keine weiteren Standorte verfügbar.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() =>
+                setzeAccess.mutate({
+                  userId,
+                  alleStandorte:           alleAktiv,
+                  zusaetzlicheStandortIds: alleAktiv ? [] : Array.from(zusaetzlich),
+                })
+              }
+              disabled={setzeAccess.isPending}
+              className="px-6 py-2.5 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 min-h-[44px]"
+            >
+              {setzeAccess.isPending ? "..." : "Standort-Zugriff speichern"}
+            </button>
+
+            <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] italic">
+              Hinweis: Änderungen wirken erst nach Re-Login beim betroffenen Benutzer.
+            </p>
+          </>
+        )}
       </div>
 
       {/* Passwort */}

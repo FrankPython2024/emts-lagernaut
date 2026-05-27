@@ -21,9 +21,28 @@ model User {
   dashboardConfig Json?
   standortId      Int?
   standort        Standort? @relation(fields: [standortId], references: [id])
+  // Wildcard: true = Zugriff auf alle Standorte (gesetzt für ADMIN-User per Migration).
+  // Bei false: Zugriff via standortId (Haupt) + UserStandortAccess (zusätzliche).
+  alleStandorte   Boolean   @default(false)
+  standortAccess  UserStandortAccess[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  @@index([standortId])
+}
+
+// Zusätzliche Standorte pro User (M:N). Hauptstandort steckt in User.standortId.
+model UserStandortAccess {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  standortId Int
+  erstelltAm DateTime @default(now())
+
+  user     User     @relation(fields: [userId],     references: [id], onDelete: Cascade)
+  standort Standort @relation(fields: [standortId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, standortId])
+  @@index([userId])
   @@index([standortId])
 }
 
@@ -86,6 +105,7 @@ model Standort {
   lagerplaetze Lagerplatz[]
   users        User[]
   artikel      Artikel[]
+  userAccess   UserStandortAccess[]
 }
 
 model Artikel {

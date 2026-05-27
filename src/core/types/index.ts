@@ -57,7 +57,12 @@ export type SessionUser = {
   kuerzel:     string;
   email:       string;
   rolle:       UserRolle;
-  standortId?: number | null; // null = Admin (alle Standorte), Zahl = Techniker-Standort
+  standortId?: number | null; // Hauptstandort (null = nicht zugewiesen / Admin)
+  // Standort-Zugriff: wird beim Login aus DB geladen und in JWT geschrieben.
+  // alleStandorte=true ⇒ getZugaenglicheStandortIds() liefert null (Wildcard).
+  // Sonst Vereinigung aus standortId + standortIds (zusätzliche aus UserStandortAccess).
+  alleStandorte?: boolean;
+  standortIds?:   number[];
 };
 
 // Buchungs-Abschluss für Label/Beleg

@@ -4,30 +4,37 @@ import type { SessionUser } from "@/core/types";
 /**
  * Standort-IDs, auf die der aktuelle User Zugriff hat.
  *
- * - Techniker (standortId gesetzt): nur eigener Standort.
- *   filterStandortId wird ignoriert (Sicherheit — kein Override möglich).
- * - Admin (standortId = null): alle Standorte.
- *   Kann via filterStandortId freiwillig auf einen einschränken.
+ * Quelle: Session (in NextAuth-Callback aus DB geladen).
+ *   - alleStandorte=true ⇒ Wildcard, Rückgabe null (keine Einschränkung).
+ *   - sonst: standortIds (= Hauptstandort + UserStandortAccess-Einträge).
  *
- * Rückgabe null = keine Einschränkung (Admin sieht alles).
+ * filterStandortId (Sidebar-Dropdown) darf nur greifen wenn er in der
+ * Access-Liste enthalten ist — sonst ignorieren (Sicherheit).
+ *
+ * Hinweis: Access-Änderungen werden erst nach Re-Login wirksam (JWT-Cache).
  */
 export function getZugaenglicheStandortIds(
-  ctx:             TRPCContext,
+  ctx:               TRPCContext,
   filterStandortId?: number | null,
 ): number[] | null {
-  const user          = ctx.session?.user as SessionUser | undefined;
-  const userStandortId = user?.standortId;
+  const user = ctx.session?.user as SessionUser | undefined;
+  if (!user) return [];
 
-  if (userStandortId != null) {
-    return [userStandortId]; // Techniker — fest, kein Override
+  // Wildcard
+  if (user.alleStandorte) {
+    return filterStandortId != null ? [filterStandortId] : null;
   }
 
-  // Admin
-  if (filterStandortId != null) {
+  // Explizite Liste aus Session
+  const accessible = user.standortIds && user.standortIds.length > 0
+    ? user.standortIds
+    : (user.standortId != null ? [user.standortId] : []);
+
+  if (filterStandortId != null && accessible.includes(filterStandortId)) {
     return [filterStandortId];
   }
 
-  return null; // keine Einschränkung
+  return accessible;
 }
 
 /**
@@ -50,14 +57,14 @@ export function standortWhere(
 /**
  * Standort-ID für neue Datensätze bestimmen.
  *
- * - Techniker: zwingend eigener Standort (ignoriert inputStandortId)
- * - Admin: aus inputStandortId oder Default 1 (Sömmerda)
+ * - User mit alleStandorte=true (typisch ADMIN): inputStandortId, sonst 1 (Sömmerda)
+ * - sonst: Hauptstandort (user.standortId) zwingend
  */
 export function resolveStandortId(
   ctx:              TRPCContext,
   inputStandortId?: number | null,
 ): number {
-  const user           = ctx.session?.user as SessionUser | undefined;
-  const userStandortId = user?.standortId;
-  return userStandortId ?? inputStandortId ?? 1;
+  const user = ctx.session?.user as SessionUser | undefined;
+  if (user?.alleStandorte) return inputStandortId ?? 1;
+  return user?.standortId ?? inputStandortId ?? 1;
 }
