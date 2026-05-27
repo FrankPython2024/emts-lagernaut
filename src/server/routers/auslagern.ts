@@ -16,6 +16,8 @@ import type { SessionUser } from "@/core/types";
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
 import { assertKeinBestandEffekt } from "@/lib/buchungen/typeGuards";
 import { getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
+import { emitToBackoffice, emitToUser, emitToAll } from "@/modules/realtime/socket";
+import { EVENTS } from "@/modules/realtime/events";
 
 // ── Grading aus letzter EINGANG-Buchung extrahieren ───────────────────────────
 
@@ -312,6 +314,36 @@ export const auslagernRouter = createTRPCRouter({
         meilisearchSync.anfrage(item.anfrageId);
         meilisearchSync.artikel(item.artikelId);
         meilisearchSync.buchung(item.buchungId);
+      }
+
+      // Realtime: stats-relevante Events emitten, damit Backoffice (ADMIN +
+      // BETRACHTER) Statistik/Dashboard live aktualisiert. Anfragen/Buchungen
+      // werden hier per Prisma direkt geschrieben (nicht über setzeStatus()/
+      // bucheLager()), daher müssen die Events hier emittet werden.
+      for (const item of txResult.ausgabe) {
+        emitToBackoffice(EVENTS.ANFRAGE_UPDATED, {
+          id:     item.anfrageId,
+          status: AnfrageStatus.ABGESCHLOSSEN,
+        });
+        // Techniker live informieren (eigene Anfrage abgeschlossen)
+        emitToUser(item.techniker, EVENTS.ANFRAGE_UPDATED, {
+          id:     item.anfrageId,
+          status: AnfrageStatus.ABGESCHLOSSEN,
+        });
+        emitToBackoffice(EVENTS.BUCHUNG_ERSTELLT, {
+          artikelId:    item.artikelId,
+          bezeichnung:  item.artikel,
+          typ:          item.buchungsTyp,
+          menge:        item.menge,
+          neuerBestand: item.neuerBestand,
+        });
+        // BESTAND_UPDATED nur bei AUSGANG — DIREKT lässt Bestand unverändert (heilige Regel)
+        if (item.buchungsTyp === "AUSGANG") {
+          emitToAll(EVENTS.BESTAND_UPDATED, {
+            artikelId: item.artikelId,
+            bestand:   item.neuerBestand,
+          });
+        }
       }
 
       return txResult;
