@@ -4,7 +4,7 @@ import { prisma } from "@/core/db/prisma";
 import { normalizeLogId } from "@/lib/format/logId";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { sendeSystemNachricht } from "@/modules/nachrichten/service";
-import { emitToAdmins, emitToAll, emitToUser } from "@/modules/realtime/socket";
+import { emitToAdmins, emitToAll, emitToUser, emitToBackoffice } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
 import { invalidateTechnikerCache } from "@/modules/statistik/service";
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
@@ -77,7 +77,7 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
 
   meilisearchSync.anfrage(anfrage.id);
   invalidateTechnikerCache(anfrage.techniker).catch(() => {});
-  emitToAdmins(EVENTS.ANFRAGE_NEU, {
+  emitToBackoffice(EVENTS.ANFRAGE_NEU, {
     id: anfrage.id, techniker: anfrage.techniker, logId: anfrage.logId,
     geraeteName: anfrage.geraeteName, teil: anfrage.teil, status: anfrage.status,
   });
@@ -124,9 +124,9 @@ export async function storniereAnfrage(
   meilisearchSync.anfrage(anfrage.id);
   if (anfrage.artikelId) await syncBestandAusHistorie(anfrage.artikelId);
 
-  // Realtime + Cache (F-BE4): Admin- + Techniker-UI live aktualisieren
+  // Realtime + Cache (F-BE4): Backoffice (ADMIN+BETRACHTER) + Techniker-UI live aktualisieren
   const payload = { id: anfrage.id, status: AnfrageStatus.STORNIERT };
-  emitToAdmins(EVENTS.ANFRAGE_UPDATED, payload);
+  emitToBackoffice(EVENTS.ANFRAGE_UPDATED, payload);
   emitToUser(techniker, EVENTS.ANFRAGE_UPDATED, payload);
   invalidateTechnikerCache(techniker).catch(() => {});
 }

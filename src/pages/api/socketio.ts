@@ -53,6 +53,10 @@ export default function handler(
     console.log(`[Socket.io] + ${kuerzel} (${rolle}) — ${socket.id}`);
 
     socket.join(`user:${kuerzel}`);
+    // Backoffice = alle Non-Techniker (ADMIN + BETRACHTER + zukünftige Rollen).
+    // Wird für statistik-relevante Events genutzt (ANFRAGE_NEU/UPDATED/…),
+    // damit Live-Updates auch read-only Rollen erreichen.
+    if (rolle !== "TECHNIKER") socket.join("backoffice");
     if (rolle === "ADMIN")     socket.join("admins");
     if (rolle === "TECHNIKER") {
       socket.join("techniker");

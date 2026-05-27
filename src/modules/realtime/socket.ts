@@ -42,6 +42,12 @@ export function emitToAdmins(event: string, data: unknown): void {
   global.io?.to("admins").emit(event, data);
 }
 
+// Backoffice = alle Non-Techniker (ADMIN + BETRACHTER + …). Für statistik-
+// relevante Events damit auch read-only Rollen Live-Updates kriegen.
+export function emitToBackoffice(event: string, data: unknown): void {
+  global.io?.to("backoffice").emit(event, data);
+}
+
 export function emitToTechniker(event: string, data: unknown): void {
   global.io?.to("techniker").emit(event, data);
 }

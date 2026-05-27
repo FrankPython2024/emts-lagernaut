@@ -1,11 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter }           from "next/navigation";
 import { PageHeader }         from "@/components/ui/PageHeader";
 import { DashboardGrid }      from "@/components/dashboard/DashboardGrid";
 import { useDashboardConfig } from "@/lib/dashboard/useDashboardConfig";
 import { useSocket }          from "@/hooks/useSocket";
 import { EVENTS }             from "@/modules/realtime/events";
 import { api }                from "@/trpc/react";
+import { usePermissions }     from "@/hooks/usePermissions";
+import { NAV_SECTIONS }       from "@/app/admin/layout";
 
 // ── Socket.io → tRPC Cache-Invalidierung ─────────────────────────────────────
 
@@ -148,6 +151,45 @@ function DashboardContent() {
   );
 }
 
+// User ohne DASHBOARD_VIEW (z.B. BETRACHTER) auf seinen ersten erlaubten
+// Menüpunkt umleiten. Nur in /admin/page.tsx, NICHT im Layout (Loop-Risiko).
+function firstAllowedHref(has: (key: string) => boolean): string | null {
+  for (const group of NAV_SECTIONS) {
+    for (const item of group.items) {
+      if (item.href === "/admin") continue;
+      if (has(item.permission)) return item.href;
+    }
+  }
+  return null;
+}
+
 export default function DashboardPage() {
+  const router = useRouter();
+  const { has, isLoading } = usePermissions();
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (has("DASHBOARD_VIEW")) return;
+    const target = firstAllowedHref(has);
+    if (target) router.replace(target);
+  }, [has, isLoading, router]);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <PageHeader title="Dashboard" subtitle="Lade Berechtigungen…" />
+        <DashboardLoadingSkeleton />
+      </div>
+    );
+  }
+
+  if (!has("DASHBOARD_VIEW")) {
+    return (
+      <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
+        Weiterleitung…
+      </div>
+    );
+  }
+
   return <DashboardContent />;
 }

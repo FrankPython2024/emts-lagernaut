@@ -10,7 +10,7 @@ import { AnfrageStatus, BuchungsTyp, type Buchung } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { sendeSystemNachricht } from "@/modules/nachrichten/service";
-import { emitToAdmins, emitToAll } from "@/modules/realtime/socket";
+import { emitToAdmins, emitToAll, emitToBackoffice } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
 
@@ -116,7 +116,7 @@ export async function bucheLager(data: BucheLagerData): Promise<Buchung> {
     where:  { id: data.artikelId },
     select: { bestand: true },
   });
-  emitToAdmins(EVENTS.BUCHUNG_ERSTELLT, {
+  emitToBackoffice(EVENTS.BUCHUNG_ERSTELLT, {
     artikelId:   data.artikelId,
     bezeichnung: artikel.bezeichnung,
     typ:         data.typ,

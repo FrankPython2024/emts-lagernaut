@@ -20,7 +20,7 @@ import {
 } from "@/modules/anfragen/service";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { naechsteBelegNr } from "@/core/infra/belegnr";
-import { emitToAdmins, emitToUser, emitToAll } from "@/modules/realtime/socket";
+import { emitToAdmins, emitToUser, emitToAll, emitToBackoffice } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
 import type { SessionUser } from "@/core/types";
 
@@ -292,7 +292,7 @@ export const anfragenRouter = createTRPCRouter({
       });
 
       // Andere Admin-UIs live informieren
-      emitToAdmins(EVENTS.ANFRAGE_GELOESCHT, { ids: result.ids });
+      emitToBackoffice(EVENTS.ANFRAGE_GELOESCHT, { ids: result.ids });
 
       return result;
     }),

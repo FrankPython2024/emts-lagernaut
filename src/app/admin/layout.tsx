@@ -16,7 +16,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 type NavItem = { href: string; label: string; icon: string; permission: string };
 type NavSection = { title: string; items: NavItem[] };
 
-const NAV_SECTIONS: NavSection[] = [
+export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Übersicht",
     items: [
