@@ -1,9 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnfrageStatus } from "@prisma/client";
 import { api } from "@/trpc/react";
 import { StatCard } from "@/components/ui/StatCard";
 import { useStandortFilter } from "@/lib/standort/standortContext";
+import { useSocket } from "@/hooks/useSocket";
+import { EVENTS } from "@/modules/realtime/events";
 
 // ── Typen & Konstanten ────────────────────────────────────────────────────────
 
@@ -611,6 +613,24 @@ export default function StatistikenPage() {
 
   const tage     = TAGE_MAP[filter];
   const hatTech  = kuerzel !== "";
+
+  // Live-Updates: bei relevanten Events den kompletten statistik-Sub-Router
+  // invalidieren. React Query batcht das Refetching der aktiven Queries.
+  const utils      = api.useUtils();
+  const { on, off } = useSocket();
+  useEffect(() => {
+    const refresh = () => { void utils.statistik.invalidate(); };
+    on(EVENTS.ANFRAGE_NEU,        refresh);
+    on(EVENTS.ANFRAGE_UPDATED,    refresh);
+    on(EVENTS.ANFRAGE_GELOESCHT,  refresh);
+    on(EVENTS.BUCHUNG_ERSTELLT,   refresh);
+    return () => {
+      off(EVENTS.ANFRAGE_NEU);
+      off(EVENTS.ANFRAGE_UPDATED);
+      off(EVENTS.ANFRAGE_GELOESCHT);
+      off(EVENTS.BUCHUNG_ERSTELLT);
+    };
+  }, [on, off, utils]);
 
   // ── Queries Übersicht (Alle) ───────────────────────────────────────────────
   const kpi         = api.statistik.getKpiOverview.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
