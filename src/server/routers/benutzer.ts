@@ -6,6 +6,8 @@ import {
   getAllUsers,
   updateUser,
   deactivateUser,
+  aktiviereDeaktiviere,
+  loescheUser,
   resetPassword,
   resetPasswordToDefault,
   changePassword,
@@ -63,12 +65,42 @@ export const benutzerRouter = createTRPCRouter({
       return updateUser(id, data);
     }),
 
-  // Benutzer deaktivieren — Admin (kein Hard-Delete)
+  // Benutzer deaktivieren — Admin (Legacy, kein Reaktivieren)
   deactivate: adminProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(({ input }) =>
-      deactivateUser(input.id),
-    ),
+    .mutation(({ ctx, input }) => {
+      const me = ctx.session.user as SessionUser;
+      if (me.id === input.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Du kannst dich nicht selbst deaktivieren." });
+      }
+      return deactivateUser(input.id);
+    }),
+
+  // Bidirektionaler Toggle (Soft-Delete in/out). Schützt vor Selbst-Lockout.
+  aktiviereDeaktiviere: adminProcedure
+    .input(z.object({
+      id:    z.number().int().positive(),
+      aktiv: z.boolean(),
+    }))
+    .mutation(({ ctx, input }) => {
+      const me = ctx.session.user as SessionUser;
+      if (me.id === input.id && !input.aktiv) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Du kannst dich nicht selbst deaktivieren." });
+      }
+      return aktiviereDeaktiviere(input.id, input.aktiv);
+    }),
+
+  // Hart löschen — Admin, nur wenn keine Anfragen/Buchungen verknüpft.
+  // CASCADE räumt UserStandortAccess automatisch weg.
+  loeschen: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ ctx, input }) => {
+      const me = ctx.session.user as SessionUser;
+      if (me.id === input.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Du kannst dich nicht selbst löschen." });
+      }
+      return loescheUser(input.id);
+    }),
 
   // Passwort zurücksetzen — Admin (freies Passwort)
   resetPassword: adminProcedure

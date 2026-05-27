@@ -24,7 +24,14 @@ export const authOptions: NextAuthOptions = {
           include: { standortAccess: { select: { standortId: true } } },
         });
 
-        if (!user || !user.aktiv) return null;
+        if (!user) return null;
+
+        // Inaktive User: explizit melden statt „falsche Credentials" — sonst
+        // wundern sich Admins warum ein korrektes Passwort nicht funktioniert.
+        // NextAuth-CredentialsProvider propagiert Error.message als ?error=…
+        if (!user.aktiv) {
+          throw new Error("Account ist deaktiviert. Wende dich an einen Administrator.");
+        }
 
         const valid = await bcrypt.compare(credentials.password, user.password);
         if (!valid) return null;

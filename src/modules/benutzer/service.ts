@@ -114,13 +114,51 @@ export async function updateUser(
 
 /**
  * Benutzer deaktivieren (kein Hard-Delete — Buchungshistorie bleibt erhalten).
+ * Legacy-Wrapper; nutzt aktiviereDeaktiviere(id, false).
  */
 export async function deactivateUser(id: number): Promise<void> {
-  const user = await prisma.user.findUnique({ where: { id } });
+  await aktiviereDeaktiviere(id, false);
+}
+
+/**
+ * Bidirektionaler Soft-Toggle: aktiv = true ⇒ reaktivieren, false ⇒ deaktivieren.
+ */
+export async function aktiviereDeaktiviere(id: number, aktiv: boolean): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true } });
   if (!user) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Benutzer nicht gefunden." });
   }
-  await prisma.user.update({ where: { id }, data: { aktiv: false } });
+  await prisma.user.update({ where: { id }, data: { aktiv } });
+}
+
+/**
+ * User unwiderruflich löschen — nur wenn keine Anfragen/Buchungen verknüpft sind.
+ * CASCADE räumt UserStandortAccess automatisch weg.
+ * Historische Daten sind heilig: bei verknüpften Datensätzen wird BAD_REQUEST geworfen.
+ */
+export async function loescheUser(id: number): Promise<{ geloescht: string }> {
+  const user = await prisma.user.findUnique({
+    where:  { id },
+    select: { kuerzel: true, name: true },
+  });
+  if (!user) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Benutzer nicht gefunden." });
+  }
+
+  const [anfragenCount, buchungenCount] = await Promise.all([
+    prisma.anfrage.count({ where: { techniker:   user.kuerzel } }),
+    prisma.buchung.count({ where: { mitarbeiter: user.kuerzel } }),
+  ]);
+
+  if (anfragenCount > 0 || buchungenCount > 0) {
+    throw new TRPCError({
+      code:    "BAD_REQUEST",
+      message: `User hat ${anfragenCount} Anfragen / ${buchungenCount} Buchungen — bitte deaktivieren statt löschen.`,
+    });
+  }
+
+  await prisma.user.delete({ where: { id } });
+  return { geloescht: user.name };
 }
 
 /**
