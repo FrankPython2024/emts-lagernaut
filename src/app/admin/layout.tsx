@@ -266,9 +266,12 @@ function SocketNotifications() {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen,  setMobileOpen]  = useState(false);
   const [searchOpen,  setSearchOpen]  = useState(false);
+  const { has } = usePermissions();
+  const sucheErlaubt = has("SUCHE_GLOBAL");
 
-  // Globaler Ctrl+K / Cmd+K Shortcut
+  // Globaler Ctrl+K / Cmd+K Shortcut — nur wenn User SUCHE_GLOBAL hat
   useEffect(() => {
+    if (!sucheErlaubt) return;
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
@@ -277,25 +280,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, []);
+  }, [sucheErlaubt]);
 
   return (
     <ToastProvider>
       <StandortProvider>
       <SocketNotifications />
-      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+      {sucheErlaubt && <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />}
 
       <div className="flex h-screen bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden">
         {/* Desktop Sidebar */}
         <div className="hidden lg:flex flex-col w-64 flex-shrink-0">
-          <Sidebar collapsed={false} onSearch={() => setSearchOpen(true)} />
+          <Sidebar collapsed={false} onSearch={sucheErlaubt ? () => setSearchOpen(true) : undefined} />
         </div>
 
         {/* Mobile Overlay */}
         {mobileOpen && (
           <div className="fixed inset-0 z-50 flex lg:hidden">
             <div className="w-64 flex-shrink-0 flex flex-col shadow-2xl">
-              <Sidebar collapsed={false} onClose={() => setMobileOpen(false)} onSearch={() => { setMobileOpen(false); setSearchOpen(true); }} />
+              <Sidebar
+                collapsed={false}
+                onClose={() => setMobileOpen(false)}
+                onSearch={sucheErlaubt ? () => { setMobileOpen(false); setSearchOpen(true); } : undefined}
+              />
             </div>
             <div className="flex-1 bg-black/50" onClick={() => setMobileOpen(false)} />
           </div>
@@ -320,15 +327,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               />
               <span className="font-black text-gray-900 dark:text-white text-sm">Lagernaut</span>
             </div>
-            {/* Mobile Suche */}
-            <button
-              onClick={() => setSearchOpen(true)}
-              aria-label="Globale Suche öffnen"
-              title="Globale Suche (Strg+K)"
-              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-lg"
-            >
-              🔍
-            </button>
+            {/* Mobile Suche — nur wenn SUCHE_GLOBAL */}
+            {sucheErlaubt && (
+              <button
+                onClick={() => setSearchOpen(true)}
+                aria-label="Globale Suche öffnen"
+                title="Globale Suche (Strg+K)"
+                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-lg"
+              >
+                🔍
+              </button>
+            )}
           </div>
 
           {/* Page Content */}

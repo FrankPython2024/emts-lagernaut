@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure } from "@/server/trpc";
+import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { meilisearch } from "@/core/infra/meilisearch";
 import type { SessionUser } from "@/core/types";
 import { getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 
 export const searchRouter = createTRPCRouter({
 
-  global: protectedProcedure
+  global: permissionProcedure("SUCHE_GLOBAL")
     .input(z.object({
       query:      z.string().min(1).max(100),
       limit:      z.number().int().min(1).max(20).default(5),

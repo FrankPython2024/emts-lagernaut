@@ -16,6 +16,7 @@ const PERMISSIONS = [
   { key: "DASHBOARD_VIEW",      kategorie: "Dashboard",   bezeichnung: "Admin-Dashboard sehen" },
   { key: "STATISTIK_VIEW",      kategorie: "Dashboard",   bezeichnung: "Statistiken einsehen" },
   { key: "AKTIVITAETSLOG_VIEW", kategorie: "Dashboard",   bezeichnung: "Aktivitäts-Log einsehen" },
+  { key: "SUCHE_GLOBAL",        kategorie: "Dashboard",   bezeichnung: "Globale Suche (Strg+K) nutzen" },
 
   // Anfragen
   { key: "ANFRAGE_VIEW_ALL",    kategorie: "Anfragen",    bezeichnung: "Alle Anfragen sehen" },
