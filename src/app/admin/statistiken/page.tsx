@@ -65,7 +65,13 @@ function HBarChart({ items, showBedarf }: {
           : 0;
         return (
           <div key={item.label} className="flex items-center gap-3">
-            <div className="w-28 text-xs text-[#65676b] dark:text-[#b0b3b8] truncate text-right flex-shrink-0">{item.label}</div>
+            <div
+              className="w-28 text-xs text-[#65676b] dark:text-[#b0b3b8] truncate text-right flex-shrink-0"
+              title={item.label}
+              aria-label={item.label}
+            >
+              {item.label}
+            </div>
             <div className="flex-1 bg-[#f0f2f5] dark:bg-[#18191a] rounded-full h-5 overflow-hidden relative">
               <div className="h-full bg-[#0064d2] dark:bg-[#45bdff] rounded-full flex items-center justify-end pr-2 transition-all duration-700"
                 style={{ width: `${pct}%` }}>
