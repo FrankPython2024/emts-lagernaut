@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { createTRPCRouter, protectedProcedure, adminProcedure, permissionProcedure } from "@/server/trpc";
+
+// Read-Procedure für Gerätemodelle (BETRACHTER bekommt MODELL_VIEW).
+const modellReadProcedure = permissionProcedure("MODELL_VIEW");
 import { resolveStandortId, getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 import {
   legeModellAn,
@@ -15,8 +18,8 @@ import { meilisearchSync } from "@/core/infra/meilisearchSync";
 
 export const geraeteRouter = createTRPCRouter({
 
-  // Alle Gerätemodelle mit Kompatibilitäts-Anzahl — Admin-Tabelle
-  getAllWithKompCount: adminProcedure
+  // Alle Gerätemodelle mit Kompatibilitäts-Anzahl — MODELL_VIEW
+  getAllWithKompCount: modellReadProcedure
     .input(z.object({
       search:     z.string().optional(),
       hersteller: z.string().optional(),
@@ -30,8 +33,8 @@ export const geraeteRouter = createTRPCRouter({
       return getAlleModelleWithKompCount({ ...input, standortIds: ids ?? undefined });
     }),
 
-  // Alle Hersteller für Filter-Dropdown
-  getHersteller: adminProcedure
+  // Alle Hersteller für Filter-Dropdown — MODELL_VIEW
+  getHersteller: modellReadProcedure
     .query(() => getHersteller()),
 
   // Alle Gerätemodelle auflisten

@@ -4,6 +4,7 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { authOptions } from "@/core/auth/config";
 import { prisma } from "@/core/db/prisma";
+import { getMeinePermissions, hasPermission } from "@/modules/rollen/service";
 import type { Session } from "next-auth";
 import type { SessionUser } from "@/core/types";
 
@@ -50,3 +51,36 @@ export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   }
   return next({ ctx });
 });
+
+// Procedure die eine spezifische Permission erfordert.
+// SYSTEM_ADMIN-Wildcard wird automatisch akzeptiert (siehe hasPermission).
+//
+// Beispiel:
+//   getStats: permissionProcedure("STATISTIK_VIEW").query(...)
+export function permissionProcedure(requiredPermission: string) {
+  return protectedProcedure.use(async ({ ctx, next }) => {
+    const user        = ctx.session.user as SessionUser;
+    const permissions = await getMeinePermissions(user.rolle);
+
+    if (!hasPermission(permissions, requiredPermission)) {
+      throw new TRPCError({
+        code:    "FORBIDDEN",
+        message: `Berechtigung fehlt: ${requiredPermission}`,
+      });
+    }
+
+    return next({ ctx: { ...ctx, permissions } });
+  });
+}
+
+// Inline-Check ohne neue Procedure. Sinnvoll wenn ein bestehender
+// adminProcedure intern feingranular prüfen soll.
+export async function requirePermission(user: SessionUser, key: string): Promise<void> {
+  const permissions = await getMeinePermissions(user.rolle);
+  if (!hasPermission(permissions, key)) {
+    throw new TRPCError({
+      code:    "FORBIDDEN",
+      message: `Berechtigung fehlt: ${key}`,
+    });
+  }
+}

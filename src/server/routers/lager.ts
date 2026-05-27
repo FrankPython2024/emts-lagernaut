@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { createTRPCRouter, protectedProcedure, adminProcedure, permissionProcedure } from "@/server/trpc";
+
+// Read-Procedure für Artikel (BETRACHTER bekommt ARTIKEL_VIEW).
+const artikelReadProcedure = permissionProcedure("ARTIKEL_VIEW");
 import { standortWhere, resolveStandortId } from "@/lib/auth/standortFilter";
 import type { SessionUser } from "@/core/types";
 import {
@@ -29,8 +32,8 @@ export const lagerRouter = createTRPCRouter({
       return sucheArtikel(input.query, sId);
     }),
 
-  // Suche mit Lagerplatz — nur Admin
-  searchAdmin: adminProcedure
+  // Suche mit Lagerplatz — ARTIKEL_VIEW (BETRACHTER read-only)
+  searchAdmin: artikelReadProcedure
     .input(z.object({
       query:      z.string().min(1).max(200),
       limit:      z.number().int().min(1).max(50).default(20),
@@ -42,8 +45,8 @@ export const lagerRouter = createTRPCRouter({
       return sucheArtikelAdmin({ ...input, standortId: sId ?? null });
     }),
 
-  // Alle Artikel mit Filter + Pagination — Admin
-  getAll: adminProcedure
+  // Alle Artikel mit Filter + Pagination — ARTIKEL_VIEW
+  getAll: artikelReadProcedure
     .input(z.object({
       search:     z.string().optional(),
       kategorie:  z.string().optional(),
@@ -67,8 +70,8 @@ export const lagerRouter = createTRPCRouter({
       getArtikelById(input.id),
     ),
 
-  // Artikel per ID — mit Lagerplatz (nur Admin)
-  getByIdAdmin: adminProcedure
+  // Artikel per ID — mit Lagerplatz — ARTIKEL_VIEW
+  getByIdAdmin: artikelReadProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(({ input }) =>
       getArtikelMitLagerplatz(input.id),
@@ -78,8 +81,8 @@ export const lagerRouter = createTRPCRouter({
   getKategorien: protectedProcedure
     .query(() => getKategorien()),
 
-  // Alle Lagerplätze (für Filter-Dropdown)
-  getLagerplaetze: adminProcedure
+  // Alle Lagerplätze (für Filter-Dropdown) — ARTIKEL_VIEW
+  getLagerplaetze: artikelReadProcedure
     .query(() => getLagerplaetze()),
 
   // Neuen Artikel anlegen — Admin

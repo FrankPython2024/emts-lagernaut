@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { BuchungsTyp } from "@prisma/client";
-import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { createTRPCRouter, protectedProcedure, adminProcedure, permissionProcedure } from "@/server/trpc";
+
+// Read-Procedure für Buchungs-Historie (BETRACHTER bekommt BUCHUNG_VIEW).
+const buchungReadProcedure = permissionProcedure("BUCHUNG_VIEW");
 import { standortWhere } from "@/lib/auth/standortFilter";
 import {
   bucheLager,
@@ -70,8 +73,8 @@ export const buchungenRouter = createTRPCRouter({
       return { neuerBestand };
     }),
 
-  // Buchungshistorie mit Filter
-  getAll: protectedProcedure
+  // Buchungshistorie mit Filter — BUCHUNG_VIEW (admin-seitige Tabelle)
+  getAll: buchungReadProcedure
     .input(z.object({
       artikelId:  z.number().int().positive().optional(),
       typ:        z.nativeEnum(BuchungsTyp).optional(),
@@ -87,8 +90,8 @@ export const buchungenRouter = createTRPCRouter({
       return getBuchungsListe({ limit: 50, offset: 0, ...input, standortId: sId });
     }),
 
-  // Buchungen für einen Artikel
-  getByArtikel: protectedProcedure
+  // Buchungen für einen Artikel — BUCHUNG_VIEW (Artikel-Detail in /admin)
+  getByArtikel: buchungReadProcedure
     .input(z.object({
       artikelId: z.number().int().positive(),
       limit:     z.number().int().min(1).max(100).default(20),

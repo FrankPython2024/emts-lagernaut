@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, adminProcedure } from "@/server/trpc";
+import { createTRPCRouter, adminProcedure, permissionProcedure } from "@/server/trpc";
+
+// Read-Procedure für Lagerplatz (BETRACHTER bekommt LAGERPLATZ_VIEW).
+const lagerplatzReadProcedure = permissionProcedure("LAGERPLATZ_VIEW");
 import { extractSerie } from "@/lib/lager/serien";
 import { prisma as _prisma } from "@/core/db/prisma";
 import { standortWhere } from "@/lib/auth/standortFilter";
@@ -130,7 +133,7 @@ export const lagerplatzRouter = createTRPCRouter({
 
   // ── Lesende Endpoints ──────────────────────────────────────────────────────
 
-  list: adminProcedure
+  list: lagerplatzReadProcedure
     .input(z.object({ standortId: z.number().int().positive().nullish() }).optional())
     .query(({ ctx, input }) =>
       ctx.prisma.lagerplatz.findMany({
@@ -141,7 +144,7 @@ export const lagerplatzRouter = createTRPCRouter({
     ),
 
   // Leichtgewichtige Übersicht für Grid-Anzeige (kein Artikel-Load)
-  uebersicht: adminProcedure
+  uebersicht: lagerplatzReadProcedure
     .input(z.object({ standortId: z.number().int().positive().nullish() }).optional())
     .query(({ ctx, input }) =>
       ctx.prisma.lagerplatz.findMany({
@@ -152,7 +155,7 @@ export const lagerplatzRouter = createTRPCRouter({
     ),
 
   // Detail für Modal — lädt Artikel + Grading nur bei Klick
-  platzDetail: adminProcedure
+  platzDetail: lagerplatzReadProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const platz = await ctx.prisma.lagerplatz.findUnique({
@@ -190,7 +193,7 @@ export const lagerplatzRouter = createTRPCRouter({
       return { platz, artikel: artikelMitGrading };
     }),
 
-  listByReihe: adminProcedure.query(async ({ ctx }) => {
+  listByReihe: lagerplatzReadProcedure.query(async ({ ctx }) => {
     const alle = await ctx.prisma.lagerplatz.findMany({
       include: { modell: { select: { id: true, modell: true, hersteller: true } } },
       orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
@@ -204,7 +207,7 @@ export const lagerplatzRouter = createTRPCRouter({
     return grouped;
   }),
 
-  byCode: adminProcedure
+  byCode: lagerplatzReadProcedure
     .input(z.object({ code: z.string() }))
     .query(({ ctx, input }) =>
       ctx.prisma.lagerplatz.findUnique({
@@ -213,7 +216,7 @@ export const lagerplatzRouter = createTRPCRouter({
       })
     ),
 
-  byModellId: adminProcedure
+  byModellId: lagerplatzReadProcedure
     .input(z.object({ modellId: z.number() }))
     .query(({ ctx, input }) =>
       ctx.prisma.lagerplatz.findUnique({
@@ -221,7 +224,7 @@ export const lagerplatzRouter = createTRPCRouter({
       })
     ),
 
-  free: adminProcedure
+  free: lagerplatzReadProcedure
     .input(z.object({
       hersteller: z.string().optional(),
       standortId: z.number().int().positive().nullish(),
@@ -239,7 +242,7 @@ export const lagerplatzRouter = createTRPCRouter({
 
   // ── Vorschlag (nach ModellId) ──────────────────────────────────────────────
 
-  vorschlag: adminProcedure
+  vorschlag: lagerplatzReadProcedure
     .input(z.object({
       modellId:   z.number().int().positive(),
       standortId: z.number().int().positive().nullish(),
@@ -293,7 +296,7 @@ export const lagerplatzRouter = createTRPCRouter({
 
   // ── Vorschlag (nach Gerätename — für Wizard vor execute) ──────────────────
 
-  vorschlagByName: adminProcedure
+  vorschlagByName: lagerplatzReadProcedure
     .input(z.object({
       geraetName: z.string().min(1),
       standortId: z.number().int().positive().nullish(),
@@ -603,7 +606,7 @@ export const lagerplatzRouter = createTRPCRouter({
     }),
 
   // Liest die Regal-Konfiguration eines Standorts aus bestehenden Plätzen
-  getRegalKonfig: adminProcedure
+  getRegalKonfig: lagerplatzReadProcedure
     .input(z.object({ standortId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const plaetze = await ctx.prisma.lagerplatz.findMany({

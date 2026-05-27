@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { createTRPCRouter, protectedProcedure, permissionProcedure } from "@/server/trpc";
+
+// Alle Admin-Statistik-Endpoints sind read-only und sollen für BETRACHTER
+// (STATISTIK_VIEW) sichtbar sein. ADMIN bekommt es via SYSTEM_ADMIN-Wildcard.
+const statistikProcedure = permissionProcedure("STATISTIK_VIEW");
 import { getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 import {
   getLiveStats,
@@ -46,37 +50,37 @@ export const statistikRouter = createTRPCRouter({
     .query(({ input, ctx }) => getLiveStats(resolveStatStandortId(ctx, input))),
 
   // Meistgefragte Geräte — Admin
-  getMeistgefragteGeraete: adminProcedure
+  getMeistgefragteGeraete: statistikProcedure
     .input(TageSchema)
     .query(({ input, ctx }) => getMeistgefragteGeraete(input.tage, resolveStatStandortId(ctx, input))),
 
   // Meistgefragte Teile — Admin
-  getMeistgefragteTeile: adminProcedure
+  getMeistgefragteTeile: statistikProcedure
     .input(TageSchema)
     .query(({ input, ctx }) => getMeistgefragteTeile(input.tage, resolveStatStandortId(ctx, input))),
 
   // Anfragen nach Status — Admin
-  getAnfragenNachStatus: adminProcedure
+  getAnfragenNachStatus: statistikProcedure
     .input(z.object({ standortId: z.number().int().positive().nullish() }).optional())
     .query(({ input, ctx }) => getAnfragenNachStatus(resolveStatStandortId(ctx, input))),
 
   // Buchungsverlauf täglich — Admin
-  getBuchungenVerlauf: adminProcedure
+  getBuchungenVerlauf: statistikProcedure
     .input(TageSchema)
     .query(({ input, ctx }) => getBuchungenVerlauf(input.tage, resolveStatStandortId(ctx, input))),
 
   // KPI-Übersicht — Admin (tage statt Date-Objekte)
-  getKpiOverview: adminProcedure
+  getKpiOverview: statistikProcedure
     .input(TageSchema)
     .query(({ input, ctx }) => getKpiOverview(input.tage, resolveStatStandortId(ctx, input))),
 
   // Techniker-Statistik — Admin
-  getTechnikerStats: adminProcedure
+  getTechnikerStats: statistikProcedure
     .input(TageSchema)
     .query(({ input, ctx }) => getTechnikerStats(input.tage, resolveStatStandortId(ctx, input))),
 
   // Monatsbericht — Admin
-  getMonatsbericht: adminProcedure
+  getMonatsbericht: statistikProcedure
     .input(z.object({
       monat:      z.number().int().min(1).max(12),
       jahr:       z.number().int().min(2020).max(2100),
@@ -87,7 +91,7 @@ export const statistikRouter = createTRPCRouter({
   // ── Techniker-Statistik (Anfragen-basiert) ────────────────────────────────
 
   // Anfragen-Verlauf täglich (optional nach Techniker gefiltert)
-  getAnfragenVerlauf: adminProcedure
+  getAnfragenVerlauf: statistikProcedure
     .input(z.object({
       tage:       z.number().int().min(1).max(365).default(30),
       kuerzel:    z.string().optional(),
@@ -96,7 +100,7 @@ export const statistikRouter = createTRPCRouter({
     .query(({ input, ctx }) => getAnfragenVerlauf(input.tage, input.kuerzel, resolveStatStandortId(ctx, input))),
 
   // Techniker-KPIs (6 Kennzahlen, nur für einen Techniker)
-  getTechnikerKpis: adminProcedure
+  getTechnikerKpis: statistikProcedure
     .input(z.object({
       kuerzel: z.string().min(1),
       tage:    z.number().int().min(1).max(365).default(30),
@@ -104,7 +108,7 @@ export const statistikRouter = createTRPCRouter({
     .query(({ input }) => getTechnikerKpis(input.kuerzel, input.tage)),
 
   // Top Teile eines Technikers mit Bedarf-Anteil
-  getTechnikerTeile: adminProcedure
+  getTechnikerTeile: statistikProcedure
     .input(z.object({
       kuerzel: z.string().min(1),
       tage:    z.number().int().min(1).max(365).default(30),
@@ -112,7 +116,7 @@ export const statistikRouter = createTRPCRouter({
     .query(({ input }) => getTechnikerTeile(input.kuerzel, input.tage)),
 
   // Top Geräte eines Technikers
-  getTechnikerGeraete: adminProcedure
+  getTechnikerGeraete: statistikProcedure
     .input(z.object({
       kuerzel: z.string().min(1),
       tage:    z.number().int().min(1).max(365).default(30),
@@ -120,7 +124,7 @@ export const statistikRouter = createTRPCRouter({
     .query(({ input }) => getTechnikerGeraete(input.kuerzel, input.tage)),
 
   // Wochentag-Verteilung
-  getTechnikerWochentage: adminProcedure
+  getTechnikerWochentage: statistikProcedure
     .input(z.object({
       kuerzel: z.string().min(1),
       tage:    z.number().int().min(1).max(365).default(90),
@@ -128,7 +132,7 @@ export const statistikRouter = createTRPCRouter({
     .query(({ input }) => getTechnikerWochentage(input.kuerzel, input.tage)),
 
   // Tageszeit-Verteilung
-  getTechnikerTageszeiten: adminProcedure
+  getTechnikerTageszeiten: statistikProcedure
     .input(z.object({
       kuerzel: z.string().min(1),
       tage:    z.number().int().min(1).max(365).default(90),
@@ -136,7 +140,7 @@ export const statistikRouter = createTRPCRouter({
     .query(({ input }) => getTechnikerTageszeiten(input.kuerzel, input.tage)),
 
   // Letzte Anfragen (paginiert)
-  getTechnikerLetzteAnfragen: adminProcedure
+  getTechnikerLetzteAnfragen: statistikProcedure
     .input(z.object({
       kuerzel: z.string().min(1),
       tage:    z.number().int().min(1).max(365).default(30),
@@ -148,14 +152,14 @@ export const statistikRouter = createTRPCRouter({
     ),
 
   // Team-Vergleich: alle Techniker mit mehreren Metriken
-  getTechnikerTeamVergleich: adminProcedure
+  getTechnikerTeamVergleich: statistikProcedure
     .input(TageSchema)
     .query(({ input, ctx }) => getTechnikerTeamVergleich(input.tage, resolveStatStandortId(ctx, input))),
 
   // ── Jahres-Archiv ─────────────────────────────────────────────────────────
 
   // 12-Monats-Übersicht für ein Jahr (Redis-gecacht)
-  getTechnikerJahresArchiv: adminProcedure
+  getTechnikerJahresArchiv: statistikProcedure
     .input(z.object({
       kuerzel: z.string().min(1),
       jahr:    z.number().int().min(2020).max(2100),
@@ -163,12 +167,12 @@ export const statistikRouter = createTRPCRouter({
     .query(({ input }) => getTechnikerJahresArchiv(input.kuerzel, input.jahr)),
 
   // Verfügbare Jahre für den Jahr-Selector
-  getTechnikerVerfuegbareJahre: adminProcedure
+  getTechnikerVerfuegbareJahre: statistikProcedure
     .input(z.object({ kuerzel: z.string().min(1) }))
     .query(({ input }) => getTechnikerVerfuegbareJahre(input.kuerzel)),
 
   // Monats-Detail mit Top Teile/Geräte + alle Anfragen (Redis-gecacht)
-  getTechnikerMonatsDetail: adminProcedure
+  getTechnikerMonatsDetail: statistikProcedure
     .input(z.object({
       kuerzel: z.string().min(1),
       monat:   z.number().int().min(1).max(12),
@@ -177,7 +181,7 @@ export const statistikRouter = createTRPCRouter({
     .query(({ input }) => getTechnikerMonatsDetail(input.kuerzel, input.monat, input.jahr)),
 
   // Alle Techniker kompakt für Chefetage-Überblick
-  getAllTechnikerJahresOverview: adminProcedure
+  getAllTechnikerJahresOverview: statistikProcedure
     .input(z.object({ jahr: z.number().int().min(2020).max(2100) }))
     .query(({ input }) => getAllTechnikerJahresOverview(input.jahr)),
 

@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { AnfrageStatus, BuchungsTyp } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
+import { createTRPCRouter, protectedProcedure, adminProcedure, permissionProcedure } from "@/server/trpc";
+
+// Reads: alle Anfragen lesen (Listen, Gruppen). BETRACHTER bekommt das via ANFRAGE_VIEW_ALL.
+const anfragenReadProcedure = permissionProcedure("ANFRAGE_VIEW_ALL");
 import { standortWhere, getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 import {
   erstelleAnfrage,
@@ -39,8 +42,8 @@ export const anfragenRouter = createTRPCRouter({
     }))
     .mutation(({ input }) => erstelleAnfrage(input)),
 
-  // Alle Anfragen — Admin mit Filter
-  getAll: adminProcedure
+  // Alle Anfragen — read mit Filter (ANFRAGE_VIEW_ALL)
+  getAll: anfragenReadProcedure
     .input(z.object({
       status:     z.nativeEnum(AnfrageStatus).optional(),
       techniker:  z.string().optional(),
@@ -235,8 +238,8 @@ export const anfragenRouter = createTRPCRouter({
       return { ...aktualisiert, belegNr, restBestand, artikel: artikelInfo };
     }),
 
-  // Gruppenansicht — Admin
-  getGruppiert: adminProcedure
+  // Gruppenansicht — read (ANFRAGE_VIEW_ALL)
+  getGruppiert: anfragenReadProcedure
     .input(z.object({
       status:     z.nativeEnum(AnfrageStatus).optional(),
       techniker:  z.string().optional(),
