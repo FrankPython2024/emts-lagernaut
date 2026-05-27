@@ -12,6 +12,7 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 import { StandortProvider } from "@/lib/standort/standortContext";
 import { StandortSwitcher } from "@/components/StandortSwitcher";
 import { usePermissions } from "@/hooks/usePermissions";
+import { MeinProfilModal } from "@/app/admin/_components/MeinProfilModal";
 
 type NavItem = { href: string; label: string; icon: string; permission: string };
 type NavSection = { title: string; items: NavItem[] };
@@ -60,7 +61,7 @@ export const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose?: () => void; onSearch?: () => void }) {
+function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boolean; onClose?: () => void; onSearch?: () => void; onProfile?: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { has, isLoading: permsLoading } = usePermissions();
@@ -207,19 +208,26 @@ function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose
           <span>{dark ? "Hellmodus" : "Dunkelmodus"}</span>
         </button>
 
-        {/* User-Card */}
+        {/* User-Card — Klick auf Avatar/Name öffnet Mein Profil */}
         {user && (
-          <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-100/60 dark:bg-gray-800/60 mt-1">
-            <div
-              className="w-8 h-8 rounded-full text-white text-xs font-black flex items-center justify-center flex-shrink-0"
-              style={{ background: "#008BD2" }}
+          <div className="flex items-center gap-1 px-1 py-1 rounded-lg bg-gray-100/60 dark:bg-gray-800/60 mt-1">
+            <button
+              onClick={onProfile}
+              aria-label="Mein Profil öffnen"
+              title="Mein Profil"
+              className="flex-1 flex items-center gap-3 px-2 py-1 rounded-lg hover:bg-gray-200/60 dark:hover:bg-gray-700/60 transition-colors text-left min-w-0"
             >
-              {user.kuerzel?.slice(0, 2).toUpperCase() ?? "??"}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-gray-900 dark:text-white truncate">{user.name}</div>
-              <div className="text-[10px] text-gray-500 dark:text-gray-400">{user.rolle}</div>
-            </div>
+              <div
+                className="w-8 h-8 rounded-full text-white text-xs font-black flex items-center justify-center flex-shrink-0"
+                style={{ background: "#008BD2" }}
+              >
+                {user.kuerzel?.slice(0, 2).toUpperCase() ?? "??"}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold text-gray-900 dark:text-white truncate">{user.name}</div>
+                <div className="text-[10px] text-gray-500 dark:text-gray-400">{user.rolle}</div>
+              </div>
+            </button>
             <LogoutButton
               className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 text-sm transition-colors p-1 rounded min-w-[32px] min-h-[32px] flex items-center justify-center"
               title="Abmelden"
@@ -266,6 +274,7 @@ function SocketNotifications() {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen,  setMobileOpen]  = useState(false);
   const [searchOpen,  setSearchOpen]  = useState(false);
+  const [profilOffen, setProfilOffen] = useState(false);
   const { has } = usePermissions();
   const sucheErlaubt = has("SUCHE_GLOBAL");
 
@@ -287,11 +296,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <StandortProvider>
       <SocketNotifications />
       {sucheErlaubt && <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />}
+      {profilOffen && <MeinProfilModal onClose={() => setProfilOffen(false)} />}
 
       <div className="flex h-screen bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden">
         {/* Desktop Sidebar */}
         <div className="hidden lg:flex flex-col w-64 flex-shrink-0">
-          <Sidebar collapsed={false} onSearch={sucheErlaubt ? () => setSearchOpen(true) : undefined} />
+          <Sidebar
+            collapsed={false}
+            onSearch={sucheErlaubt ? () => setSearchOpen(true) : undefined}
+            onProfile={() => setProfilOffen(true)}
+          />
         </div>
 
         {/* Mobile Overlay */}
@@ -302,6 +316,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 collapsed={false}
                 onClose={() => setMobileOpen(false)}
                 onSearch={sucheErlaubt ? () => { setMobileOpen(false); setSearchOpen(true); } : undefined}
+                onProfile={() => { setMobileOpen(false); setProfilOffen(true); }}
               />
             </div>
             <div className="flex-1 bg-black/50" onClick={() => setMobileOpen(false)} />
