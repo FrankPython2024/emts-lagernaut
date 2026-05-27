@@ -70,6 +70,19 @@ export async function loescheRolle(id: number) {
   return { geloescht: rolle.name };
 }
 
+export async function getMeinePermissions(rolleName: string): Promise<string[]> {
+  const rolle = await prisma.rolle.findUnique({
+    where:   { name: rolleName },
+    include: { permissions: { include: { permission: true } } },
+  });
+  if (!rolle || !rolle.aktiv) return [];
+  return rolle.permissions.map(rp => rp.permission.key);
+}
+
+export function hasPermission(permissions: string[], key: string): boolean {
+  return permissions.includes("SYSTEM_ADMIN") || permissions.includes(key);
+}
+
 export async function setzeRollePermissions(rolleId: number, permissionIds: number[]) {
   return prisma.$transaction(async (tx) => {
     await tx.rollePermission.deleteMany({ where: { rolleId } });

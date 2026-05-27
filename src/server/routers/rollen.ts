@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { createTRPCRouter, adminProcedure } from "@/server/trpc";
+import { createTRPCRouter, adminProcedure, protectedProcedure } from "@/server/trpc";
+import type { SessionUser } from "@/core/types";
 import {
   listRollen,
   getRolle,
@@ -8,9 +9,16 @@ import {
   aktualisiereRolle,
   loescheRolle,
   setzeRollePermissions,
+  getMeinePermissions,
 } from "@/modules/rollen/service";
 
 export const rollenRouter = createTRPCRouter({
+
+  // Permissions des eingeloggten Users (für Sidebar-Filter & has()-Checks im FE)
+  meinePermissions: protectedProcedure.query(({ ctx }) => {
+    const user = ctx.session.user as SessionUser;
+    return getMeinePermissions(user.rolle);
+  }),
 
   // Alle Rollen inkl. Permissions + Counts
   list: adminProcedure.query(() => listRollen()),

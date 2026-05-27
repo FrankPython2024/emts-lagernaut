@@ -11,47 +11,51 @@ import { FontSizeToggle } from "@/components/FontSizeToggle";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { StandortProvider } from "@/lib/standort/standortContext";
 import { StandortSwitcher } from "@/components/StandortSwitcher";
+import { usePermissions } from "@/hooks/usePermissions";
 
-const NAV_SECTIONS = [
+type NavItem = { href: string; label: string; icon: string; permission: string };
+type NavSection = { title: string; items: NavItem[] };
+
+const NAV_SECTIONS: NavSection[] = [
   {
     title: "Übersicht",
     items: [
-      { href: "/admin",        label: "Dashboard",  icon: "📊" },
+      { href: "/admin",        label: "Dashboard",  icon: "📊", permission: "DASHBOARD_VIEW" },
     ],
   },
   {
     title: "Betrieb",
     items: [
-      { href: "/admin/anfragen",    label: "Anfragen",        icon: "🔔" },
-      { href: "/admin/einlagern",   label: "Teile einlagern", icon: "📦" },
-      { href: "/admin/buchungen",   label: "Buchungen",       icon: "📋" },
+      { href: "/admin/anfragen",    label: "Anfragen",        icon: "🔔", permission: "ANFRAGE_VIEW_ALL" },
+      { href: "/admin/einlagern",   label: "Teile einlagern", icon: "📦", permission: "ARTIKEL_EINLAGERN" },
+      { href: "/admin/buchungen",   label: "Buchungen",       icon: "📋", permission: "BUCHUNG_VIEW" },
     ],
   },
   {
     title: "Stammdaten",
     items: [
-      { href: "/admin/artikel",      label: "Artikel",      icon: "🗃️" },
-      { href: "/admin/modelle",      label: "Modelle",      icon: "💻" },
-      { href: "/admin/teiltypen",    label: "Teiltypen",    icon: "🧩" },
-      { href: "/admin/lagerplaetze", label: "Lagerplätze",  icon: "🗄️" },
+      { href: "/admin/artikel",      label: "Artikel",      icon: "🗃️", permission: "ARTIKEL_VIEW" },
+      { href: "/admin/modelle",      label: "Modelle",      icon: "💻", permission: "MODELL_VIEW" },
+      { href: "/admin/teiltypen",    label: "Teiltypen",    icon: "🧩", permission: "TEILTYP_EDIT" },
+      { href: "/admin/lagerplaetze", label: "Lagerplätze",  icon: "🗄️", permission: "LAGERPLATZ_VIEW" },
     ],
   },
   {
     title: "Analyse",
     items: [
-      { href: "/admin/statistiken",    label: "Statistiken",    icon: "📈" },
-      { href: "/admin/geraete-lookup", label: "LogID Suche",    icon: "🔍" },
-      { href: "/admin/geraete-import", label: "Geräte Import",  icon: "📥" },
+      { href: "/admin/statistiken",    label: "Statistiken",    icon: "📈", permission: "STATISTIK_VIEW" },
+      { href: "/admin/geraete-lookup", label: "LogID Suche",    icon: "🔍", permission: "ARTIKEL_VIEW" },
+      { href: "/admin/geraete-import", label: "Geräte Import",  icon: "📥", permission: "MODELL_EDIT" },
     ],
   },
   {
     title: "System",
     items: [
-      { href: "/admin/benutzer",           label: "Benutzer",   icon: "👥" },
-      { href: "/admin/rollen",             label: "Rollen",     icon: "🛡️" },
-      { href: "/admin/standorte",          label: "Standorte",  icon: "🏭" },
-      { href: "/admin/system",             label: "System",     icon: "⚙️" },
-      { href: "/admin/system/stresstest",  label: "Benchmark",  icon: "🔬" },
+      { href: "/admin/benutzer",           label: "Benutzer",   icon: "👥", permission: "USER_VIEW" },
+      { href: "/admin/rollen",             label: "Rollen",     icon: "🛡️", permission: "ROLLE_EDIT" },
+      { href: "/admin/standorte",          label: "Standorte",  icon: "🏭", permission: "STANDORT_EDIT" },
+      { href: "/admin/system",             label: "System",     icon: "⚙️", permission: "SYSTEM_ADMIN" },
+      { href: "/admin/system/stresstest",  label: "Benchmark",  icon: "🔬", permission: "STRESSTEST_RUN" },
     ],
   },
 ];
@@ -59,6 +63,7 @@ const NAV_SECTIONS = [
 function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose?: () => void; onSearch?: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { has, isLoading: permsLoading } = usePermissions();
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -111,39 +116,59 @@ function Sidebar({ collapsed, onClose, onSearch }: { collapsed: boolean; onClose
 
       {/* ── Navigation ───────────────────────────────────────────────────── */}
       <nav className="flex-1 px-3 py-3 overflow-y-auto sidebar-scroll">
-        {NAV_SECTIONS.map((section) => (
-          <div key={section.title} className="mb-1">
-            {/* Sektion-Header */}
-            <div className="px-3 pt-6 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 select-none first:pt-2">
-              {section.title}
-            </div>
-
-            {/* Items */}
-            {section.items.map(({ href, label, icon }) => {
-              const active = href === "/admin"
-                ? pathname === href
-                : (pathname ?? "").startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={onClose}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg mb-0.5 text-sm transition-all min-h-[44px] ${
-                    active
-                      ? "bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 font-semibold"
-                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white font-medium"
-                  }`}
-                  style={active ? { borderLeft: "3px solid #008BD2", paddingLeft: "0.625rem" } : undefined}
-                >
-                  <span className={`text-base w-5 text-center flex-shrink-0 ${active ? "text-cyan-600 dark:text-cyan-400" : "text-gray-400 dark:text-gray-500"}`}>
-                    {icon}
-                  </span>
-                  {label}
-                </Link>
-              );
-            })}
+        {permsLoading ? (
+          // Skelett, damit kein Flash von „kein Menü" entsteht
+          <div className="px-3 py-2 space-y-2 animate-pulse">
+            {Array.from({ length: 5 }).map((_, gi) => (
+              <div key={gi} className="mb-4">
+                <div className="h-3 w-24 bg-gray-200 dark:bg-gray-800 rounded mb-2" />
+                <div className="space-y-1.5">
+                  <div className="h-9 w-full bg-gray-100 dark:bg-gray-800/60 rounded" />
+                  <div className="h-9 w-full bg-gray-100 dark:bg-gray-800/60 rounded" />
+                  <div className="h-9 w-2/3 bg-gray-100 dark:bg-gray-800/60 rounded" />
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        ) : (
+          NAV_SECTIONS.map((section) => {
+            const sichtbare = section.items.filter(it => has(it.permission));
+            if (sichtbare.length === 0) return null;
+            return (
+              <div key={section.title} className="mb-1">
+                {/* Sektion-Header */}
+                <div className="px-3 pt-6 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 select-none first:pt-2">
+                  {section.title}
+                </div>
+
+                {/* Items */}
+                {sichtbare.map(({ href, label, icon }) => {
+                  const active = href === "/admin"
+                    ? pathname === href
+                    : (pathname ?? "").startsWith(href);
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={onClose}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg mb-0.5 text-sm transition-all min-h-[44px] ${
+                        active
+                          ? "bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 font-semibold"
+                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white font-medium"
+                      }`}
+                      style={active ? { borderLeft: "3px solid #008BD2", paddingLeft: "0.625rem" } : undefined}
+                    >
+                      <span className={`text-base w-5 text-center flex-shrink-0 ${active ? "text-cyan-600 dark:text-cyan-400" : "text-gray-400 dark:text-gray-500"}`}>
+                        {icon}
+                      </span>
+                      {label}
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          })
+        )}
       </nav>
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
