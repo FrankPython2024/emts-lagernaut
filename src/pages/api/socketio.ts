@@ -36,8 +36,9 @@ export default function handler(
     addTrailingSlash:  false,
     cors:              { origin: "*", methods: ["GET", "POST"] },
     transports:        ["websocket", "polling"],
-    pingInterval:      10_000,
-    pingTimeout:       5_000,
+    pingInterval:      25_000,
+    pingTimeout:       20_000,
+    perMessageDeflate: false,
   });
 
   io.on("connection", (socket) => {

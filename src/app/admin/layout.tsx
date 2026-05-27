@@ -316,3 +316,5 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </ToastProvider>
   );
 }
+
+export const dynamic = 'force-dynamic';

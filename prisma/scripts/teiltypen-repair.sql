@@ -1,3 +1,5 @@
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- ============================================================
 -- Lagernaut v2 — Teiltypen-Reparatur
 -- Fügt fehlende Standard-Artikel + Kompatibilitaet-Eintraege
@@ -62,7 +64,7 @@ SELECT COUNT(*) AS modelle_unter_17
 DROP PROCEDURE IF EXISTS repair_teiltyp;
 
 DELIMITER $$
-CREATE PROCEDURE repair_teiltyp(IN teiltyp_name VARCHAR(100))
+CREATE PROCEDURE repair_teiltyp(IN teiltyp_name VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci)
 BEGIN
   -- Für jedes aktive Modell das diesen Teiltyp noch nicht hat:
   -- Artikel anlegen (idempotent via INSERT IGNORE)

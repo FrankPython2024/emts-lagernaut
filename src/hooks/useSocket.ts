@@ -9,7 +9,7 @@ import { EVENTS } from "@/modules/realtime/events";
 let globalSocket: Socket | null = null;
 
 export function useSocket() {
-  const { data: session } = useSession();
+  const { data: session } = useSession() ?? { data: null };
   const user = session?.user as SessionUser | undefined;
   const [connected, setConnected] = useState(false);
   const listenersRef = useRef<Map<string, (data: unknown) => void>>(new Map());
@@ -24,7 +24,7 @@ export function useSocket() {
         auth:                { kuerzel: user.kuerzel, rolle: user.rolle },
         reconnectionAttempts: 5,
         reconnectionDelay:    1_000,
-        transports:          ["websocket", "polling"],
+        transports:          ["polling", "websocket"],
       });
     }
 
