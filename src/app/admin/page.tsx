@@ -8,7 +8,6 @@ import { useSocket }          from "@/hooks/useSocket";
 import { EVENTS }             from "@/modules/realtime/events";
 import { api }                from "@/trpc/react";
 import { usePermissions }     from "@/hooks/usePermissions";
-import { NAV_SECTIONS }       from "@/app/admin/layout";
 
 // ── Socket.io → tRPC Cache-Invalidierung ─────────────────────────────────────
 
@@ -151,14 +150,28 @@ function DashboardContent() {
   );
 }
 
-// User ohne DASHBOARD_VIEW (z.B. BETRACHTER) auf seinen ersten erlaubten
-// Menüpunkt umleiten. Nur in /admin/page.tsx, NICHT im Layout (Loop-Risiko).
+// Landing-Page-Priorität: bewusst entkoppelt von der Sidebar-Reihenfolge.
+// Bestimmt was ein User nach Login zuerst sieht (Use-Case-orientiert),
+// während die Sidebar nach Hierarchie sortiert bleibt.
+//   1) ADMIN          → Dashboard
+//   2) BETRACHTER     → Statistiken (Analyse-Fokus)
+//   3) sonst absteigend nach Wichtigkeit der ersten Read-Permission
+const LANDING_PAGES: ReadonlyArray<{ permission: string; href: string }> = [
+  { permission: "DASHBOARD_VIEW",   href: "/admin"               },
+  { permission: "STATISTIK_VIEW",   href: "/admin/statistiken"   },
+  { permission: "ANFRAGE_VIEW_ALL", href: "/admin/anfragen"      },
+  { permission: "ARTIKEL_VIEW",     href: "/admin/artikel"       },
+  { permission: "MODELL_VIEW",      href: "/admin/modelle"       },
+  { permission: "LAGERPLATZ_VIEW",  href: "/admin/lagerplaetze"  },
+  { permission: "BUCHUNG_VIEW",     href: "/admin/buchungen"     },
+];
+
+// User ohne DASHBOARD_VIEW (z.B. BETRACHTER) auf seine erste passende
+// Landing-Page umleiten. Nur in /admin/page.tsx, NICHT im Layout (Loop-Risiko).
 function firstAllowedHref(has: (key: string) => boolean): string | null {
-  for (const group of NAV_SECTIONS) {
-    for (const item of group.items) {
-      if (item.href === "/admin") continue;
-      if (has(item.permission)) return item.href;
-    }
+  for (const lp of LANDING_PAGES) {
+    if (lp.href === "/admin") continue;
+    if (has(lp.permission)) return lp.href;
   }
   return null;
 }
