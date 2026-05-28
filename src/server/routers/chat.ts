@@ -119,13 +119,27 @@ export const chatRouter = createTRPCRouter({
       return getStatsForAnfrage(input.anfrageId, empfKuerzel);
     }),
 
-  // Batch-Stats für mehrere Anfragen → Admin Anfragen-Liste
+  // Batch-Stats für mehrere Anfragen → Admin Anfragen-Liste + Techniker-Karten
   getStatsBatch: protectedProcedure
     .input(z.object({ anfrageIds: z.array(z.number().int().positive()).max(200) }))
     .query(async ({ ctx, input }) => {
       const user        = ctx.session.user as SessionUser;
       const empfKuerzel = user.rolle === "ADMIN" ? ADMIN_EMPF : user.kuerzel;
-      return getStatsBatch(input.anfrageIds, empfKuerzel);
+
+      // Ownership: Techniker dürfen nur Stats eigener Anfragen sehen — sonst
+      // gäbe getStatsBatch (anders als getStatsForAnfrage) den letzten
+      // Nachrichten-Inhalt fremder Anfragen für beliebige IDs preis.
+      // Admin sieht alles; Nicht-Admin auf eigene Anfragen einschränken.
+      let anfrageIds = input.anfrageIds;
+      if (user.rolle !== "ADMIN" && anfrageIds.length > 0) {
+        const eigene = await prisma.anfrage.findMany({
+          where:  { id: { in: anfrageIds }, techniker: user.kuerzel.toUpperCase() },
+          select: { id: true },
+        });
+        anfrageIds = eigene.map(a => a.id);
+      }
+
+      return getStatsBatch(anfrageIds, empfKuerzel);
     }),
 
 });
