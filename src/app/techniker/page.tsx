@@ -402,7 +402,7 @@ function AnfrageKarte({ gruppe, onClick }: { gruppe: GruppeData; onClick: () => 
 
 // ── AnfrageFlow (Modal) ───────────────────────────────────────────────────────
 
-type FlowStep = "logid" | "teile" | "sending" | "done";
+type FlowStep = "logid" | "pruefen" | "teile" | "sending" | "done";
 
 function AnfrageFlow({
   kuerzel,
@@ -419,7 +419,9 @@ function AnfrageFlow({
 }) {
   const { show } = useToast();
 
-  const [step,               setStep]               = useState<FlowStep>("logid");
+  // Card-Scan startet direkt im neutralen Lade-Step — verhindert das kurze
+  // Aufblitzen der LogID-Such-UI (Bug 2), während Lookup + Offene-Check laufen.
+  const [step,               setStep]               = useState<FlowStep>(initialLogId ? "pruefen" : "logid");
   const [logIdInput,         setLogIdInput]         = useState(initialLogId ?? "");
   const [logIdQuery,         setLogIdQuery]         = useState<string | null>(initialLogId);
   const [selectedGeraet,     setSelectedGeraet]     = useState<GeraetInfo | null>(null);
@@ -461,30 +463,48 @@ function AnfrageFlow({
     { enabled: pruefeOffene && !!selectedGeraet && !!kuerzel, staleTime: 0 },
   );
 
-  // Step 1 result → Offene-Check anstoßen, dann ggf. Step 2
+  // Step 1 result → Offene-Check anstoßen, dann ggf. Step 2.
+  // Gate auf `!isFetching`: bei wiederholtem Lookup derselben LogID liefert
+  // React-Query (staleTime:0) zuerst den stale Cache-Wert und refetcht im
+  // Hintergrund — wir warten auf das frische Ergebnis, bevor wir reagieren.
   useEffect(() => {
-    if (!logIdLookup.data) return;
-    if (logIdLookup.data.gefunden) {
-      setSelectedGeraet({ logId: logIdLookup.data.logId, bereinigt: logIdLookup.data.bereinigt });
-      setPruefeOffene(true);
-    } else {
-      show(`LogID „${logIdQuery}" nicht gefunden. Bitte erneut versuchen.`, "error");
+    if (!logIdQuery || logIdLookup.isFetching) return;
+    if (logIdLookup.isSuccess && logIdLookup.data) {
+      if (logIdLookup.data.gefunden) {
+        setSelectedGeraet({ logId: logIdLookup.data.logId, bereinigt: logIdLookup.data.bereinigt });
+        setPruefeOffene(true);
+      } else {
+        show(`LogID „${logIdQuery}" nicht gefunden. Bitte erneut versuchen.`, "error");
+        setStep("logid");
+      }
+      setLogIdQuery(null);
+    } else if (logIdLookup.isError) {
+      show("Fehler bei der Geräte-Suche. Bitte erneut versuchen.", "error");
+      setStep("logid");
+      setLogIdQuery(null);
     }
-    setLogIdQuery(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logIdLookup.data]);
+  }, [logIdQuery, logIdLookup.isFetching, logIdLookup.isSuccess, logIdLookup.isError, logIdLookup.data]);
 
-  // Offene-Check abgeschlossen → entweder Hinweis-Modal oder direkt Step 2
+  // Offene-Check abgeschlossen → entweder Hinweis-Modal oder direkt Step 2.
+  // Gate auf `!isFetching` (statt nur auf `data`): sonst greift der stale
+  // Cache-Wert eines früheren Checks derselben LogID (vor Anlage der Anfrage)
+  // und der Hinweis würde nie erscheinen (Bug 1). Bei Fehler: fail-open → Teile.
   useEffect(() => {
-    if (!pruefeOffene || !offeneCheck.data) return;
-    if (offeneCheck.data.gruppen.length > 0) {
-      setZeigeOffene(true);
-    } else {
+    if (!pruefeOffene || offeneCheck.isFetching) return;
+    if (offeneCheck.isSuccess && offeneCheck.data) {
+      if (offeneCheck.data.gruppen.length > 0) {
+        setZeigeOffene(true);
+      } else {
+        setStep("teile");
+      }
+      setPruefeOffene(false);
+    } else if (offeneCheck.isError) {
       setStep("teile");
+      setPruefeOffene(false);
     }
-    setPruefeOffene(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pruefeOffene, offeneCheck.data]);
+  }, [pruefeOffene, offeneCheck.isFetching, offeneCheck.isSuccess, offeneCheck.isError, offeneCheck.data]);
 
   // Autofocus on logid step
   useEffect(() => {
@@ -511,6 +531,11 @@ function AnfrageFlow({
       show("Bitte eine gültige LogID eingeben (nur Ziffern)", "error");
       return;
     }
+    // Sauberer Übergang: voriges Gerät verwerfen, in neutralen Lade-Step gehen,
+    // dann Lookup auslösen. Kein Zwischen-Render der Such-UI mehr (Bug 2).
+    setSelectedGeraet(null);
+    setZeigeOffene(false);
+    setStep("pruefen");
     setLogIdQuery(clean);
   }
 
@@ -660,11 +685,20 @@ function AnfrageFlow({
             />
             <button
               onClick={handleLogIdSubmit}
-              disabled={!logIdInput.trim() || logIdLookup.isLoading}
+              disabled={!logIdInput.trim()}
               style={primaryBtn(canSend || !!logIdInput.trim())}
             >
-              {logIdLookup.isLoading ? "Wird gesucht…" : "Gerät suchen →"}
+              Gerät suchen →
             </button>
+          </div>
+        )}
+
+        {/* ── Step: Prüfen (neutraler Lade-Zustand zwischen LogID und Teile) ── */}
+        {step === "pruefen" && (
+          <div key="pruefen" className="step-enter" style={{ padding: "4rem 2rem", textAlign: "center" }}>
+            <div style={{ width: 44, height: 44, border: `4px solid rgba(0,139,210,0.2)`, borderTopColor: CYAN, borderRadius: "50%", animation: "tkSpin 0.7s linear infinite", margin: "0 auto 1rem" }} />
+            <p style={{ color: "var(--text-dim)", fontSize: "1rem", margin: 0 }}>Gerät wird gesucht…</p>
+            <style>{`@keyframes tkSpin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
 
