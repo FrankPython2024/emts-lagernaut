@@ -125,7 +125,7 @@ async function handleMeilisearchJob(job: { id?: string | undefined; name: string
       const m = await prisma.geraeteModell.findUnique({
         where:  { id: modellId },
         select: { id: true, hersteller: true, modell: true, aktiv: true,
-                  lagerplatz: { select: { code: true } } },
+                  belegung: { select: { lagerplatz: { select: { code: true } } } } },
       });
       if (!m) {
         await meilisearch.index("modelle").deleteDocument(modellId);
@@ -137,7 +137,7 @@ async function handleMeilisearchJob(job: { id?: string | undefined; name: string
       })).map(l => l.logId);
       await meilisearch.index("modelle").addDocuments([{
         id: m.id, hersteller: m.hersteller, modell: m.modell, aktiv: m.aktiv,
-        lagerplatz: m.lagerplatz?.code ?? null, logIds, anzahlLogIds: logIds.length,
+        lagerplatz: m.belegung?.lagerplatz?.code ?? null, logIds, anzahlLogIds: logIds.length,
       }], { primaryKey: "id" });
       break;
     }

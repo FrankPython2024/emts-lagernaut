@@ -752,7 +752,7 @@ function StepGeraet({
 // ── Step 2 (NEU): Lagerplatz ──────────────────────────────────────────────────
 
 function PlatzKarte({
-  code, reihe, ebene, fach, hersteller, grund, istEmpfehlung, empfehlungLabel,
+  code, reihe, ebene, fach, hersteller, grund, istEmpfehlung, empfehlungLabel, belegt,
 }: {
   code:              string;
   reihe:             number;
@@ -762,7 +762,9 @@ function PlatzKarte({
   grund?:            string;
   istEmpfehlung?:    boolean;
   empfehlungLabel?:  string;
+  belegt?:           number;
 }) {
+  const MAX = 4;
   return (
     <div style={{
       border:       `2px solid ${istEmpfehlung ? "var(--afb-green)" : "var(--border)"}`,
@@ -783,6 +785,9 @@ function PlatzKarte({
         Reihe {reihe} · Ebene {ebene} · Fach {fach}
         {hersteller && (
           <> · <span style={{ color: "var(--afb-blue)", fontWeight: 700 }}>{hersteller}-Bereich</span></>
+        )}
+        {typeof belegt === "number" && (
+          <> · <span style={{ fontWeight: 700, color: "var(--text)" }}>{belegt}/{MAX} belegt</span></>
         )}
       </div>
       {grund && (
@@ -893,7 +898,7 @@ function LagerplatzBrowser({
                         onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg)")}
                       >
                         {p.code}
-                        <div style={{ fontSize: "0.72rem", fontWeight: 400, color: "var(--text-dim)", marginTop: 2 }}>E{p.ebene}·F{p.fach}</div>
+                        <div style={{ fontSize: "0.72rem", fontWeight: 400, color: "var(--text-dim)", marginTop: 2 }}>E{p.ebene}·F{p.fach} · {p.belegt}/4</div>
                       </button>
                     ))}
                   </div>
@@ -1022,6 +1027,7 @@ function StepLagerplatz({
                   fach={d.vorschlaege[0].fach}
                   hersteller={d.vorschlaege[0].hersteller}
                   grund={d.vorschlaege[0].grund}
+                  belegt={d.vorschlaege[0].belegt}
                   istEmpfehlung
                 />
                 <button
@@ -1037,7 +1043,7 @@ function StepLagerplatz({
             {d.vorschlaege.length > 1 && (
               <div style={{ marginTop: "1.2rem" }}>
                 <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-dim)", marginBottom: 8 }}>
-                  Andere freie Plätze:
+                  Andere passende Plätze:
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {d.vorschlaege.slice(1).map((p) => (
@@ -1045,13 +1051,13 @@ function StepLagerplatz({
                       key={p.id}
                       onClick={() => onWeiter(p.id)}
                       style={{ padding: "0.7rem 1rem", borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.9rem", fontWeight: 700, minHeight: 62, minWidth: 90, textAlign: "center", transition: "border-color 0.15s" }}
-                      aria-label={`Lagerplatz ${p.code.replace(/-/g, " ")}, Reihe ${p.reihe}, Ebene ${p.ebene}, Fach ${p.fach}${p.hersteller ? `, ${p.hersteller}-Bereich` : ""}`}
+                      aria-label={`Lagerplatz ${p.code.replace(/-/g, " ")}, Reihe ${p.reihe}, Ebene ${p.ebene}, Fach ${p.fach}${p.hersteller ? `, ${p.hersteller}-Bereich` : ""}, ${p.belegt} von 4 belegt`}
                       onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--afb-navy)")}
                       onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
                     >
                       {p.code}
                       <div style={{ fontSize: "0.72rem", fontWeight: 400, color: "var(--text-dim)", marginTop: 2 }}>
-                        R{p.reihe}·E{p.ebene}·F{p.fach}
+                        R{p.reihe}·E{p.ebene}·F{p.fach} · {p.belegt}/4
                       </div>
                     </button>
                   ))}

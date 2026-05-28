@@ -167,22 +167,26 @@ export const dashboardRouter = createTRPCRouter({
       where: lF,
       select: {
         code: true, regal: true, reihe: true, ebene: true, fach: true,
-        hersteller: true, modellId: true,
-        modell: { select: { modell: true, hersteller: true } },
+        hersteller: true,
+        belegungen: { select: { modell: { select: { modell: true, hersteller: true } } } },
       },
       orderBy: [{ regal: "asc" }, { reihe: "asc" }, { ebene: "asc" }, { fach: "asc" }],
     });
-    const belegt = plaetze.filter(p => p.modellId !== null).length;
+    const belegt = plaetze.filter(p => p.belegungen.length > 0).length;
     return {
       total:  plaetze.length,
       belegt,
       frei:   plaetze.length - belegt,
-      plaetze: plaetze.map(p => ({
-        code: p.code, regal: p.regal, reihe: p.reihe, ebene: p.ebene, fach: p.fach,
-        belegt: p.modellId !== null,
-        modell: p.modell ? `${p.modell.hersteller} ${p.modell.modell}` : null,
-        hersteller: p.hersteller,
-      })),
+      plaetze: plaetze.map(p => {
+        const namen = p.belegungen.map(b => `${b.modell.hersteller} ${b.modell.modell}`);
+        return {
+          code: p.code, regal: p.regal, reihe: p.reihe, ebene: p.ebene, fach: p.fach,
+          belegt: p.belegungen.length > 0,
+          anzahl: p.belegungen.length,
+          modell: namen.length === 0 ? null : namen.length === 1 ? namen[0]! : `${namen.length} Modelle`,
+          hersteller: p.hersteller,
+        };
+      }),
     };
   }),
 
@@ -250,7 +254,7 @@ export const dashboardRouter = createTRPCRouter({
       prisma.geraeteModell.count({ where: { aktiv: true } }),
       prisma.technikerSession.count({ where: { online: true } }),
       prisma.lagerplatz.count({ where: lF }),
-      prisma.lagerplatz.count({ where: { ...lF, modellId: { not: null } } }),
+      prisma.lagerplatz.count({ where: { ...lF, belegungen: { some: {} } } }),
     ]);
     return {
       modelle,

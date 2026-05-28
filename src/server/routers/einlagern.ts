@@ -11,6 +11,7 @@ import {
   lagerplatzVorschlaegeMulti,
 } from "@/modules/einlagern/service";
 import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
+import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
 
 const EinlagerItemSchema = z.object({
   teiltyp:    z.string().min(1).max(100),
@@ -56,12 +57,30 @@ export const einlagernRouter = createTRPCRouter({
       if (input.gewaehlterLagerplatzId) {
         const platz = await ctx.prisma.lagerplatz.findUnique({
           where:  { id: input.gewaehlterLagerplatzId },
-          select: { standortId: true, code: true },
+          select: {
+            standortId: true,
+            code:       true,
+            belegungen: { include: { modell: { select: { id: true, hersteller: true } } } },
+          },
         });
         if (!platz) {
           throw new TRPCError({ code: "NOT_FOUND", message: `Lagerplatz #${input.gewaehlterLagerplatzId} nicht gefunden` });
         }
         standortId = platz.standortId;
+
+        // Früh-Validierung (race-sichere Endprüfung passiert nochmal in execute()):
+        // Kapazität max 4 + Hersteller-Reinheit.
+        const zielHersteller = normalisiereHersteller(input.geraetName.split(" ")[0] ?? "");
+        const fachHerst = platz.belegungen[0]?.modell.hersteller ?? null;
+        if (fachHerst && zielHersteller && fachHerst !== zielHersteller) {
+          throw new TRPCError({
+            code:    "BAD_REQUEST",
+            message: `Fach ${platz.code} enthält ${fachHerst}-Modelle, ${zielHersteller} ist nicht erlaubt.`,
+          });
+        }
+        if (platz.belegungen.length >= 4) {
+          throw new TRPCError({ code: "CONFLICT", message: `Fach ${platz.code} ist voll (max 4 Modelle).` });
+        }
       } else {
         standortId = input.standortId ?? resolveStandortId(ctx);
       }

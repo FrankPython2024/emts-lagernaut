@@ -10,6 +10,9 @@ import { standortWhere } from "@/lib/auth/standortFilter";
 
 type PrismaInstance = typeof _prisma;
 
+// Geschäftsregel: 1 Fach = mehrere Modelle DESSELBEN Herstellers, max 4 (= 4 Boxen).
+const MAX_MODELLE_PRO_FACH = 4;
+
 // ── Lokale Typen ──────────────────────────────────────────────────────────────
 
 type ArtikelMitGrading = {
@@ -21,6 +24,20 @@ type ArtikelMitGrading = {
   letzteBuchung:  Date | null;
 };
 
+// Kandidat = Fach mit Restkapazität (leer ODER teilbelegt mit gleichem Hersteller)
+type KandidatPlatz = {
+  id:               number;
+  code:             string;
+  regal:            number;
+  reihe:            number;
+  ebene:            number;
+  fach:             number;
+  hersteller:       string | null; // Fach-Region-Hinweis
+  belegt:           number;        // Anzahl Modelle aktuell im Fach
+  modellHersteller: string | null; // Hersteller der Belegung (null = leer)
+  modelle:          string[];      // Modellnamen im Fach
+};
+
 type ScoredPlatz = {
   id:         number;
   code:       string;
@@ -29,21 +46,35 @@ type ScoredPlatz = {
   ebene:      number;
   fach:       number;
   hersteller: string | null;
+  belegt:     number;
+  frei:       number;
   score:      number;
   grund:      string;
 };
 
-type FreierPlatz = {
-  id:         number;
-  code:       string;
-  regal:      number;
-  reihe:      number;
-  ebene:      number;
-  fach:       number;
-  hersteller: string | null;
-};
+// ── Kapazität / Hersteller-Reinheit (für Mutations, in $transaction nutzen) ─────
 
-// ── Shared Score-Berechnung ────────────────────────────────────────────────────
+async function fachKapazitaet(
+  tx:           Pick<PrismaInstance, "lagerplatzBelegung">,
+  lagerplatzId: number,
+): Promise<{ belegt: number; frei: number; voll: boolean }> {
+  const belegt = await tx.lagerplatzBelegung.count({ where: { lagerplatzId } });
+  return { belegt, frei: MAX_MODELLE_PRO_FACH - belegt, voll: belegt >= MAX_MODELLE_PRO_FACH };
+}
+
+// Hersteller der aktuellen Belegung eines Fachs — null = Fach leer (alle erlaubt)
+async function fachHersteller(
+  tx:           Pick<PrismaInstance, "lagerplatzBelegung">,
+  lagerplatzId: number,
+): Promise<string | null> {
+  const erste = await tx.lagerplatzBelegung.findFirst({
+    where:   { lagerplatzId },
+    include: { modell: { select: { hersteller: true } } },
+  });
+  return erste?.modell.hersteller ?? null;
+}
+
+// ── Shared: Kandidaten laden + scoren ──────────────────────────────────────────
 
 async function ladeGeschwister(
   prisma:      PrismaInstance,
@@ -53,39 +84,82 @@ async function ladeGeschwister(
 ): Promise<{ regal: number; fach: number; ebene: number; serie: string | null }[]> {
   if (!familie || !hersteller) return [];
 
-  const naheVerwandte = await prisma.lagerplatz.findMany({
+  const naheVerwandte = await prisma.lagerplatzBelegung.findMany({
     where: {
-      modellId: { not: null },
-      ...(standortId != null ? { standortId } : {}),
+      ...(standortId != null ? { lagerplatz: { standortId } } : {}),
       modell: {
         aktiv: true,
         hersteller,
         modell: { contains: familie },
       },
     },
-    include: { modell: { select: { modell: true } } },
+    include: {
+      modell:     { select: { modell: true } },
+      lagerplatz: { select: { regal: true, fach: true, ebene: true } },
+    },
   });
 
-  return naheVerwandte.map((p) => ({
-    regal:  p.regal,
-    fach:   p.fach,
-    ebene:  p.ebene,
-    serie:  extractSerie(p.modell?.modell ?? "").serie,
+  return naheVerwandte.map((b) => ({
+    regal:  b.lagerplatz.regal,
+    fach:   b.lagerplatz.fach,
+    ebene:  b.lagerplatz.ebene,
+    serie:  extractSerie(b.modell.modell).serie,
   }));
 }
 
+// Lädt alle Fächer mit Restkapazität für einen Ziel-Hersteller:
+// - leere Fächer (belegt < 4, jeder Hersteller erlaubt)
+// - teilbelegte Fächer NUR wenn gleicher Hersteller (Reinheit) UND belegt < 4
+async function ladeKandidaten(
+  prisma:        PrismaInstance,
+  standortWo:    Record<string, unknown>,
+  zielHersteller: string,
+): Promise<KandidatPlatz[]> {
+  const faecher = await prisma.lagerplatz.findMany({
+    where:   standortWo,
+    include: { belegungen: { include: { modell: { select: { hersteller: true, modell: true } } } } },
+    orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
+  });
+
+  const kandidaten: KandidatPlatz[] = [];
+  for (const f of faecher) {
+    const belegt = f.belegungen.length;
+    if (belegt >= MAX_MODELLE_PRO_FACH) continue; // voll
+    const modellHersteller = belegt > 0 ? (f.belegungen[0]!.modell.hersteller) : null;
+    // Hersteller-Reinheit: teilbelegtes Fach nur bei passendem Hersteller
+    if (belegt > 0 && modellHersteller !== zielHersteller) continue;
+    kandidaten.push({
+      id:               f.id,
+      code:             f.code,
+      regal:            f.regal,
+      reihe:            f.reihe,
+      ebene:            f.ebene,
+      fach:             f.fach,
+      hersteller:       f.hersteller,
+      belegt,
+      modellHersteller,
+      modelle:          f.belegungen.map((b) => b.modell.modell),
+    });
+  }
+  return kandidaten;
+}
+
 function scoreFreiePlaetze(
-  freie:       FreierPlatz[],
+  kandidaten:  KandidatPlatz[],
   hersteller:  string,
   familie:     string | null,
   serie:       string | null,
   geschwister: { regal: number; fach: number; ebene: number; serie: string | null }[],
 ): (ScoredPlatz & { istEmpfehlung: boolean })[] {
-  const scored: ScoredPlatz[] = freie.map((p) => {
+  const scored: ScoredPlatz[] = kandidaten.map((p) => {
     let score = 0;
     const gruende: string[] = [];
 
-    if (p.hersteller === hersteller) {
+    if (p.belegt > 0 && p.modellHersteller === hersteller) {
+      // Konsolidierung: teilbelegtes Fach gleicher Hersteller stark bevorzugen
+      score += 150;
+      gruende.push(`${p.belegt} verwandte${p.belegt === 1 ? "s" : ""} ${hersteller}-Modell${p.belegt === 1 ? "" : "e"} hier`);
+    } else if (p.hersteller === hersteller) {
       score += 100;
       gruende.push(`bevorzugte ${hersteller}-Region`);
     } else if (hersteller === "Fujitsu" || p.hersteller === null) {
@@ -118,12 +192,15 @@ function scoreFreiePlaetze(
       ebene:      p.ebene,
       fach:       p.fach,
       hersteller: p.hersteller,
+      belegt:     p.belegt,
+      frei:       MAX_MODELLE_PRO_FACH - p.belegt,
       score,
       grund:      gruende.join(", "),
     };
   });
 
-  scored.sort((a, b) => b.score - a.score);
+  // Tiebreaker: höherer Score, dann weniger frei (volle Fächer zuerst füllen)
+  scored.sort((a, b) => b.score - a.score || a.frei - b.frei);
   return scored.slice(0, 5).map((p, i) => ({ ...p, istEmpfehlung: i === 0 }));
 }
 
@@ -138,7 +215,7 @@ export const lagerplatzRouter = createTRPCRouter({
     .query(({ ctx, input }) =>
       ctx.prisma.lagerplatz.findMany({
         where:   standortWhere(ctx, input?.standortId),
-        include: { modell: { select: { id: true, modell: true, hersteller: true } } },
+        include: { belegungen: { include: { modell: { select: { id: true, modell: true, hersteller: true } } } } },
         orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
       })
     ),
@@ -149,53 +226,69 @@ export const lagerplatzRouter = createTRPCRouter({
     .query(({ ctx, input }) =>
       ctx.prisma.lagerplatz.findMany({
         where:   standortWhere(ctx, input?.standortId),
-        include: { modell: { select: { id: true, modell: true, hersteller: true } } },
+        include: { belegungen: { include: { modell: { select: { id: true, modell: true, hersteller: true } } } } },
         orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
       })
     ),
 
-  // Detail für Modal — lädt Artikel + Grading nur bei Klick
+  // Detail für Modal — alle Belegungen des Fachs + Artikel/Grading je Modell
   platzDetail: lagerplatzReadProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const platz = await ctx.prisma.lagerplatz.findUnique({
         where:   { id: input.id },
-        include: { modell: true },
+        include: { belegungen: { include: { modell: true }, orderBy: { erstelltAm: "asc" } } },
       });
-      if (!platz?.modell) return { platz, artikel: [] as ArtikelMitGrading[] };
+      if (!platz) return { platz: null, belegungen: [] };
 
-      const sauber    = platz.modell.modell;
-      const mitPrefix = `${platz.modell.hersteller} ${sauber}`;
+      const belegungen = await Promise.all(
+        platz.belegungen.map(async (b) => {
+          const sauber    = b.modell.modell;
+          const mitPrefix = `${b.modell.hersteller} ${sauber}`;
 
-      const artikel = await ctx.prisma.artikel.findMany({
-        where: {
-          OR: [
-            { bezeichnung: { startsWith: sauber } },
-            { bezeichnung: { startsWith: mitPrefix } },
-          ],
-        },
-        select:  { id: true, bezeichnung: true, kategorie: true, bestand: true },
-        orderBy: { kategorie: "asc" },
-      });
-
-      const artikelMitGrading: ArtikelMitGrading[] = await Promise.all(
-        artikel.map(async (a) => {
-          const letzteBuchung = await ctx.prisma.buchung.findFirst({
-            where:   { artikelId: a.id, typ: "EINGANG" },
-            orderBy: { datum: "desc" },
-            select:  { notiz: true, datum: true },
+          const artikel = await ctx.prisma.artikel.findMany({
+            where: {
+              OR: [
+                { bezeichnung: { startsWith: sauber } },
+                { bezeichnung: { startsWith: mitPrefix } },
+              ],
+            },
+            select:  { id: true, bezeichnung: true, kategorie: true, bestand: true },
+            orderBy: { kategorie: "asc" },
           });
-          const m = letzteBuchung?.notiz?.match(/Grading:\s*(A\+|A|B|C)/i);
-          return { ...a, grading: m?.[1] ?? null, letzteBuchung: letzteBuchung?.datum ?? null };
+
+          const artikelMitGrading: ArtikelMitGrading[] = await Promise.all(
+            artikel.map(async (a) => {
+              const letzteBuchung = await ctx.prisma.buchung.findFirst({
+                where:   { artikelId: a.id, typ: "EINGANG" },
+                orderBy: { datum: "desc" },
+                select:  { notiz: true, datum: true },
+              });
+              const m = letzteBuchung?.notiz?.match(/Grading:\s*(A\+|A|B|C)/i);
+              return { ...a, grading: m?.[1] ?? null, letzteBuchung: letzteBuchung?.datum ?? null };
+            }),
+          );
+
+          return {
+            modellId:   b.modellId,
+            modellName: b.modell.modell,
+            hersteller: b.modell.hersteller,
+            erstelltAm: b.erstelltAm,
+            artikel:    artikelMitGrading,
+          };
         }),
       );
 
-      return { platz, artikel: artikelMitGrading };
+      const { id, code, regal, reihe, ebene, fach, hersteller } = platz;
+      return {
+        platz:      { id, code, regal, reihe, ebene, fach, hersteller, belegt: belegungen.length },
+        belegungen,
+      };
     }),
 
   listByReihe: lagerplatzReadProcedure.query(async ({ ctx }) => {
     const alle = await ctx.prisma.lagerplatz.findMany({
-      include: { modell: { select: { id: true, modell: true, hersteller: true } } },
+      include: { belegungen: { include: { modell: { select: { id: true, modell: true, hersteller: true } } } } },
       orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
     });
 
@@ -212,33 +305,58 @@ export const lagerplatzRouter = createTRPCRouter({
     .query(({ ctx, input }) =>
       ctx.prisma.lagerplatz.findUnique({
         where:   { code: input.code },
-        include: { modell: true },
+        include: { belegungen: { include: { modell: true } } },
       })
     ),
 
+  // Fach eines Modells (über Belegung) — null wenn nicht zugewiesen
   byModellId: lagerplatzReadProcedure
     .input(z.object({ modellId: z.number() }))
-    .query(({ ctx, input }) =>
-      ctx.prisma.lagerplatz.findUnique({
-        where: { modellId: input.modellId },
-      })
-    ),
+    .query(async ({ ctx, input }) => {
+      const belegung = await ctx.prisma.lagerplatzBelegung.findUnique({
+        where:   { modellId: input.modellId },
+        include: { lagerplatz: true },
+      });
+      return belegung?.lagerplatz ?? null;
+    }),
 
+  // Fächer mit Restkapazität (belegt < 4). Optional hersteller-gefiltert:
+  // leere Fächer immer, teilbelegte nur bei gleichem Hersteller (Reinheit).
   free: lagerplatzReadProcedure
     .input(z.object({
       hersteller: z.string().optional(),
       standortId: z.number().int().positive().nullish(),
     }))
-    .query(({ ctx, input }) =>
-      ctx.prisma.lagerplatz.findMany({
-        where: {
-          ...standortWhere(ctx, input.standortId),
-          modellId: null,
-          ...(input.hersteller ? { hersteller: input.hersteller } : {}),
-        },
+    .query(async ({ ctx, input }) => {
+      const faecher = await ctx.prisma.lagerplatz.findMany({
+        where:   standortWhere(ctx, input.standortId),
+        include: { belegungen: { include: { modell: { select: { hersteller: true, modell: true } } } } },
         orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
-      })
-    ),
+      });
+
+      return faecher
+        .map((f) => {
+          const belegt = f.belegungen.length;
+          const modellHersteller = belegt > 0 ? f.belegungen[0]!.modell.hersteller : null;
+          return {
+            id:               f.id,
+            code:             f.code,
+            regal:            f.regal,
+            reihe:            f.reihe,
+            ebene:            f.ebene,
+            fach:             f.fach,
+            hersteller:       f.hersteller,
+            belegt,
+            frei:             MAX_MODELLE_PRO_FACH - belegt,
+            modellHersteller,
+            modelle:          f.belegungen.map((b) => b.modell.modell),
+          };
+        })
+        .filter((f) =>
+          f.frei > 0 &&
+          (input.hersteller ? (f.belegt === 0 || f.modellHersteller === input.hersteller) : true),
+        );
+    }),
 
   // ── Vorschlag (nach ModellId) ──────────────────────────────────────────────
 
@@ -253,28 +371,25 @@ export const lagerplatzRouter = createTRPCRouter({
 
       const modell = await ctx.prisma.geraeteModell.findUnique({
         where:   { id: input.modellId },
-        include: { lagerplatz: true },
+        include: { belegung: { include: { lagerplatz: true } } },
       });
       if (!modell) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden" });
       }
 
-      if (modell.lagerplatz) {
+      if (modell.belegung) {
         return {
           bereitsZugewiesen: true  as const,
-          platz:             modell.lagerplatz,
+          platz:             modell.belegung.lagerplatz,
           modellId:          modell.id,
           vorschlaege:       [] as (ScoredPlatz & { istEmpfehlung: boolean })[],
           voll:              false,
         };
       }
 
-      const freie = await ctx.prisma.lagerplatz.findMany({
-        where:   { ...sId, modellId: null },
-        orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
-      });
+      const kandidaten = await ladeKandidaten(ctx.prisma as PrismaInstance, sId, modell.hersteller);
 
-      if (freie.length === 0) {
+      if (kandidaten.length === 0) {
         return {
           bereitsZugewiesen: false as const,
           modellId:          modell.id,
@@ -290,7 +405,7 @@ export const lagerplatzRouter = createTRPCRouter({
         bereitsZugewiesen: false as const,
         modellId:          modell.id,
         voll:              false,
-        vorschlaege:       scoreFreiePlaetze(freie, modell.hersteller, familie, serie, geschwister),
+        vorschlaege:       scoreFreiePlaetze(kandidaten, modell.hersteller, familie, serie, geschwister),
       };
     }),
 
@@ -309,26 +424,23 @@ export const lagerplatzRouter = createTRPCRouter({
       const modell = hersteller
         ? await ctx.prisma.geraeteModell.findFirst({
             where:   { modell: input.geraetName, aktiv: true },
-            include: { lagerplatz: true },
+            include: { belegung: { include: { lagerplatz: true } } },
           })
         : null;
 
-      if (modell?.lagerplatz) {
+      if (modell?.belegung) {
         return {
           bereitsZugewiesen: true  as const,
-          platz:             modell.lagerplatz,
+          platz:             modell.belegung.lagerplatz,
           modellId:          modell.id,
           vorschlaege:       [] as (ScoredPlatz & { istEmpfehlung: boolean })[],
           voll:              false,
         };
       }
 
-      const freie = await ctx.prisma.lagerplatz.findMany({
-        where:   { ...sId, modellId: null },
-        orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
-      });
+      const kandidaten = await ladeKandidaten(ctx.prisma as PrismaInstance, sId, hersteller);
 
-      if (freie.length === 0) {
+      if (kandidaten.length === 0) {
         return {
           bereitsZugewiesen: false as const,
           modellId:          modell?.id ?? null,
@@ -344,7 +456,7 @@ export const lagerplatzRouter = createTRPCRouter({
         bereitsZugewiesen: false as const,
         modellId:          modell?.id ?? null,
         voll:              false,
-        vorschlaege:       scoreFreiePlaetze(freie, hersteller, familie, serie, geschwister),
+        vorschlaege:       scoreFreiePlaetze(kandidaten, hersteller, familie, serie, geschwister),
       };
     }),
 
@@ -361,13 +473,10 @@ export const lagerplatzRouter = createTRPCRouter({
         if (!platz) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Lagerplatz nicht gefunden" });
         }
-        if (platz.modellId !== null) {
-          throw new TRPCError({ code: "CONFLICT", message: `Lagerplatz ${platz.code} ist bereits belegt` });
-        }
 
         const modell = await tx.geraeteModell.findUnique({
           where:   { id: input.modellId },
-          include: { lagerplatz: true },
+          include: { belegung: { include: { lagerplatz: true } } },
         });
         if (!modell) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden" });
@@ -375,28 +484,41 @@ export const lagerplatzRouter = createTRPCRouter({
         if (!modell.aktiv) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Inaktives Modell kann keinen Lagerplatz erhalten" });
         }
-        if (modell.lagerplatz) {
+        if (modell.belegung) {
           throw new TRPCError({
             code:    "CONFLICT",
-            message: `Modell hat bereits Lagerplatz ${modell.lagerplatz.code}. Nutze "umziehen".`,
+            message: `Modell hat bereits Lagerplatz ${modell.belegung.lagerplatz.code}. Nutze "umziehen".`,
           });
         }
 
-        const ergebnis = await tx.lagerplatz.update({
-          where:   { id: input.lagerplatzId },
-          data:    { modellId: input.modellId },
-          include: { modell: { select: { id: true, modell: true, hersteller: true } } },
-        });
+        // Kapazität (max 4 Modelle pro Fach)
+        const kap = await fachKapazitaet(tx, input.lagerplatzId);
+        if (kap.voll) {
+          throw new TRPCError({ code: "CONFLICT", message: `Fach ${platz.code} ist voll (max ${MAX_MODELLE_PRO_FACH} Modelle).` });
+        }
+
+        // Hersteller-Reinheit
+        const fachHerst = await fachHersteller(tx, input.lagerplatzId);
+        if (fachHerst && modell.hersteller !== fachHerst) {
+          throw new TRPCError({
+            code:    "BAD_REQUEST",
+            message: `Fach ${platz.code} enthält ${fachHerst}-Modelle, ${modell.hersteller} ist nicht erlaubt.`,
+          });
+        }
+
+        await tx.lagerplatzBelegung.create({ data: { lagerplatzId: input.lagerplatzId, modellId: input.modellId } });
 
         // Artikel.lagerplatz synchronisieren
-        if (ergebnis.modell) {
-          const n = ergebnis.modell.modell;
-          await tx.artikel.updateMany({
-            where: { OR: [{ bezeichnung: n }, { bezeichnung: { startsWith: `${n} ` } }] },
-            data:  { lagerplatz: ergebnis.code },
-          });
-        }
-        return ergebnis;
+        const n = modell.modell;
+        await tx.artikel.updateMany({
+          where: { OR: [{ bezeichnung: n }, { bezeichnung: { startsWith: `${n} ` } }] },
+          data:  { lagerplatz: platz.code },
+        });
+
+        return tx.lagerplatz.findUnique({
+          where:   { id: input.lagerplatzId },
+          include: { belegungen: { include: { modell: { select: { id: true, modell: true, hersteller: true } } } } },
+        });
       });
     }),
 
@@ -423,29 +545,46 @@ export const lagerplatzRouter = createTRPCRouter({
         if (!platz) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Lagerplatz nicht gefunden" });
         }
-        if (platz.modellId !== null && platz.modellId !== modell.id) {
-          throw new TRPCError({ code: "CONFLICT", message: `${platz.code} ist bereits belegt (Race-Condition)` });
+
+        // Schon in genau diesem Fach? → idempotent
+        const bestehend = await tx.lagerplatzBelegung.findUnique({ where: { modellId: modell.id } });
+        if (bestehend && bestehend.lagerplatzId === input.lagerplatzId) {
+          return tx.lagerplatz.findUnique({
+            where:   { id: input.lagerplatzId },
+            include: { belegungen: { include: { modell: { select: { id: true, modell: true, hersteller: true } } } } },
+          });
         }
 
-        // Alten Platz freigeben falls vorhanden
-        const alterPlatz = await tx.lagerplatz.findUnique({ where: { modellId: modell.id } });
-        if (alterPlatz) {
-          await tx.lagerplatz.update({ where: { id: alterPlatz.id }, data: { modellId: null } });
+        // Kapazität + Hersteller-Reinheit prüfen
+        const kap = await fachKapazitaet(tx, input.lagerplatzId);
+        if (kap.voll) {
+          throw new TRPCError({ code: "CONFLICT", message: `Fach ${platz.code} ist voll (max ${MAX_MODELLE_PRO_FACH} Modelle).` });
+        }
+        const fachHerst = await fachHersteller(tx, input.lagerplatzId);
+        if (fachHerst && modell.hersteller !== fachHerst) {
+          throw new TRPCError({
+            code:    "BAD_REQUEST",
+            message: `Fach ${platz.code} enthält ${fachHerst}-Modelle, ${modell.hersteller} ist nicht erlaubt.`,
+          });
         }
 
-        const ergebnis = await tx.lagerplatz.update({
-          where:   { id: input.lagerplatzId },
-          data:    { modellId: modell.id },
-          include: { modell: { select: { id: true, modell: true, hersteller: true } } },
-        });
+        // Belegung verschieben (alte löschen, neue anlegen)
+        if (bestehend) {
+          await tx.lagerplatzBelegung.delete({ where: { id: bestehend.id } });
+        }
+        await tx.lagerplatzBelegung.create({ data: { lagerplatzId: input.lagerplatzId, modellId: modell.id } });
 
         // Artikel.lagerplatz synchronisieren
         const n = modell.modell;
         await tx.artikel.updateMany({
           where: { OR: [{ bezeichnung: n }, { bezeichnung: { startsWith: `${n} ` } }] },
-          data:  { lagerplatz: ergebnis.code },
+          data:  { lagerplatz: platz.code },
         });
-        return ergebnis;
+
+        return tx.lagerplatz.findUnique({
+          where:   { id: input.lagerplatzId },
+          include: { belegungen: { include: { modell: { select: { id: true, modell: true, hersteller: true } } } } },
+        });
       });
     }),
 
@@ -460,7 +599,7 @@ export const lagerplatzRouter = createTRPCRouter({
       return ctx.prisma.$transaction(async (tx) => {
         const modell = await tx.geraeteModell.findUnique({
           where:   { id: input.modellId },
-          include: { lagerplatz: true },
+          include: { belegung: { include: { lagerplatz: true } } },
         });
         if (!modell) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden" });
@@ -468,7 +607,7 @@ export const lagerplatzRouter = createTRPCRouter({
         if (!modell.aktiv) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Inaktives Modell kann nicht umgezogen werden" });
         }
-        if (!modell.lagerplatz) {
+        if (!modell.belegung) {
           throw new TRPCError({
             code:    "BAD_REQUEST",
             message: 'Modell hat noch keinen Lagerplatz. Nutze "zuweisen".',
@@ -479,62 +618,68 @@ export const lagerplatzRouter = createTRPCRouter({
         if (!neuerPlatz) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Neuer Lagerplatz nicht gefunden" });
         }
-        if (neuerPlatz.modellId !== null && neuerPlatz.modellId !== input.modellId) {
-          throw new TRPCError({ code: "CONFLICT", message: `${neuerPlatz.code} ist bereits belegt` });
-        }
 
-        const alterCode  = modell.lagerplatz.code;
+        const alterCode  = modell.belegung.lagerplatz.code;
         const modellName = modell.modell;
 
-        await tx.lagerplatz.update({
-          where: { id: modell.lagerplatz.id },
-          data:  { modellId: null },
-        });
-        const result = await tx.lagerplatz.update({
-          where:   { id: input.neuerLagerplatzId },
-          data:    { modellId: input.modellId },
-          include: { modell: true },
-        });
+        // Wenn Ziel == aktuelles Fach: nichts zu tun
+        if (modell.belegung.lagerplatzId !== input.neuerLagerplatzId) {
+          // Kapazität + Hersteller-Reinheit im Ziel-Fach
+          const kap = await fachKapazitaet(tx, input.neuerLagerplatzId);
+          if (kap.voll) {
+            throw new TRPCError({ code: "CONFLICT", message: `Fach ${neuerPlatz.code} ist voll (max ${MAX_MODELLE_PRO_FACH} Modelle).` });
+          }
+          const fachHerst = await fachHersteller(tx, input.neuerLagerplatzId);
+          if (fachHerst && modell.hersteller !== fachHerst) {
+            throw new TRPCError({
+              code:    "BAD_REQUEST",
+              message: `Fach ${neuerPlatz.code} enthält ${fachHerst}-Modelle, ${modell.hersteller} ist nicht erlaubt.`,
+            });
+          }
 
-        // Artikel.lagerplatz auf neuen Code aktualisieren
-        await tx.artikel.updateMany({
-          where: { OR: [{ bezeichnung: modellName }, { bezeichnung: { startsWith: `${modellName} ` } }] },
-          data:  { lagerplatz: neuerPlatz.code },
+          await tx.lagerplatzBelegung.update({
+            where: { id: modell.belegung.id },
+            data:  { lagerplatzId: input.neuerLagerplatzId },
+          });
+
+          // Artikel.lagerplatz auf neuen Code aktualisieren
+          await tx.artikel.updateMany({
+            where: { OR: [{ bezeichnung: modellName }, { bezeichnung: { startsWith: `${modellName} ` } }] },
+            data:  { lagerplatz: neuerPlatz.code },
+          });
+        }
+
+        const result = await tx.lagerplatz.findUnique({
+          where:   { id: input.neuerLagerplatzId },
+          include: { belegungen: { include: { modell: { select: { id: true, modell: true, hersteller: true } } } } },
         });
 
         return { result, von: alterCode, nach: neuerPlatz.code };
       });
     }),
 
-  // ── Lösen ──────────────────────────────────────────────────────────────────
+  // ── Lösen (eine Modell-Belegung aus dem Fach entfernen) ─────────────────────
 
   loesen: adminProcedure
-    .input(z.object({ lagerplatzId: z.number().int().positive() }))
+    .input(z.object({ modellId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const platz = await ctx.prisma.lagerplatz.findUnique({
-        where:   { id: input.lagerplatzId },
-        include: { modell: { select: { modell: true } } },
-      });
-      if (!platz) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Lagerplatz nicht gefunden" });
-      }
-      if (!platz.modellId) return platz; // bereits frei — idempotent
-
       return ctx.prisma.$transaction(async (tx) => {
-        const ergebnis = await tx.lagerplatz.update({
-          where: { id: input.lagerplatzId },
-          data:  { modellId: null },
+        const belegung = await tx.lagerplatzBelegung.findUnique({
+          where:   { modellId: input.modellId },
+          include: { modell: { select: { modell: true } } },
         });
+        if (!belegung) return { geloest: false as const }; // bereits frei — idempotent
+
+        await tx.lagerplatzBelegung.delete({ where: { id: belegung.id } });
 
         // Artikel.lagerplatz leeren
-        if (platz.modell) {
-          const n = platz.modell.modell;
-          await tx.artikel.updateMany({
-            where: { OR: [{ bezeichnung: n }, { bezeichnung: { startsWith: `${n} ` } }] },
-            data:  { lagerplatz: null },
-          });
-        }
-        return ergebnis;
+        const n = belegung.modell.modell;
+        await tx.artikel.updateMany({
+          where: { OR: [{ bezeichnung: n }, { bezeichnung: { startsWith: `${n} ` } }] },
+          data:  { lagerplatz: null },
+        });
+
+        return { geloest: true as const };
       });
     }),
 
@@ -564,8 +709,8 @@ export const lagerplatzRouter = createTRPCRouter({
       }
 
       if (input.ueberschreiben && existing > 0) {
-        const belegt = await ctx.prisma.lagerplatz.count({
-          where: { standortId: input.standortId, modellId: { not: null } },
+        const belegt = await ctx.prisma.lagerplatzBelegung.count({
+          where: { lagerplatz: { standortId: input.standortId } },
         });
         if (belegt > 0) {
           throw new TRPCError({

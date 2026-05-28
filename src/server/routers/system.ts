@@ -110,11 +110,8 @@ async function resetAllData() {
     const buchungen          = await tx.buchung.deleteMany();     // vor Artikel!
     const komps              = await tx.kompatibilitaet.deleteMany(); // vor Artikel!
     const artikel            = await tx.artikel.deleteMany();
-    // Lagerplatz-Belegungen zurücksetzen (Hüllen bleiben erhalten)
-    const lagerplatzReset    = await tx.lagerplatz.updateMany({
-      where: { modellId: { not: null } },
-      data:  { modellId: null },
-    });
+    // Lagerplatz-Belegungen zurücksetzen (Fach-Hüllen bleiben erhalten)
+    const lagerplatzReset    = await tx.lagerplatzBelegung.deleteMany();
     // Jetzt sind keine FK-Verweise mehr — Modelle und Lookup können weg
     const modelle            = await tx.geraeteModell.deleteMany();
     const lookup             = await tx.geraeteLookup.deleteMany();
@@ -222,7 +219,7 @@ export const systemRouter = createTRPCRouter({
         prisma.nachricht.count(),
         prisma.geraeteModell.count(),
         prisma.geraeteLookup.count(),
-        prisma.lagerplatz.count({ where: { modellId: { not: null } } }),
+        prisma.lagerplatz.count({ where: { belegungen: { some: {} } } }),
       ]);
       return { artikel, buchungen, anfragen, komps, koerbe, nachrichten,
                modelle, lookup, belegteLagerplaetze };

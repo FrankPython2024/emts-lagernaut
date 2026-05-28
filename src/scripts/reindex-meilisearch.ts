@@ -102,7 +102,7 @@ async function reindexModelle(): Promise<number> {
   const rows = await prisma.geraeteModell.findMany({
     select: {
       id: true, hersteller: true, modell: true, aktiv: true,
-      lagerplatz: { select: { code: true } },
+      belegung: { select: { lagerplatz: { select: { code: true } } } },
     },
   });
 
@@ -123,7 +123,7 @@ async function reindexModelle(): Promise<number> {
       hersteller:   m.hersteller,
       modell:       m.modell,
       aktiv:        m.aktiv,
-      lagerplatz:   m.lagerplatz?.code ?? null,
+      lagerplatz:   m.belegung?.lagerplatz?.code ?? null,
       logIds,
       anzahlLogIds: logIds.length,
     };

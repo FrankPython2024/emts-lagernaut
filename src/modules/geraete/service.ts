@@ -153,7 +153,7 @@ export async function getAlleModelleWithKompCount(input?: {
   }
   if (input?.standortIds?.length) {
     const sId = input.standortIds.length === 1 ? input.standortIds[0] : { in: input.standortIds };
-    where.lagerplatz = { standortId: sId };
+    where.belegung = { lagerplatz: { standortId: sId } };
   }
 
   const [alleModelle, total, kompCounts] = await Promise.all([
@@ -217,10 +217,7 @@ export async function setzeModellAktiv(id: number, aktiv: boolean) {
 
     // Bei Deaktivierung: Lagerplatz-Belegung aufheben (Phantom-Belegung verhindern)
     if (!aktiv) {
-      await tx.lagerplatz.updateMany({
-        where: { modellId: id },
-        data:  { modellId: null },
-      });
+      await tx.lagerplatzBelegung.deleteMany({ where: { modellId: id } });
     }
 
     return result;

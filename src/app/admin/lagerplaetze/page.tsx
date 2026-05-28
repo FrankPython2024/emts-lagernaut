@@ -33,6 +33,10 @@ function gradingFarbe(g?: string | null): string {
 
 // ── ETL Detail-Modal ──────────────────────────────────────────────────────────
 
+const MAX_MODELLE_PRO_FACH = 4;
+
+type EtlBelegung = { modell: { id: number; modell: string; hersteller: string } };
+
 type EtlPlatz = {
   id:         number;
   code:       string;
@@ -41,26 +45,42 @@ type EtlPlatz = {
   ebene:      number;
   fach:       number;
   hersteller: string | null;
-  modellId:   number | null;
-  modell:     { id: number; modell: string; hersteller: string } | null;
+  belegungen: EtlBelegung[];
 };
 
-function EtlDetailModal({ platz, onClose }: { platz: EtlPlatz; onClose: () => void }) {
+function EtlDetailModal({ platz, onClose, onChanged }: { platz: EtlPlatz; onClose: () => void; onChanged: () => void }) {
+  const { show } = useToast();
   const detailQ = api.lagerplatz.platzDetail.useQuery(
     { id: platz.id },
     { staleTime: 0 },
   );
   const d = detailQ.data;
 
+  const loesen = api.lagerplatz.loesen.useMutation({
+    onSuccess: () => {
+      show("Modell aus Fach entfernt", "success");
+      detailQ.refetch();
+      onChanged();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
+  const belegungen = d?.belegungen ?? [];
+
   return (
     <Modal open onClose={onClose} title={platz.code}>
       <div style={{ minWidth: 300, maxWidth: 480 }}>
-        {/* Klartext-Lage */}
+        {/* Klartext-Lage + Kapazität */}
         <div style={{ marginBottom: "1rem", padding: "0.6rem 0.8rem", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--border)", fontSize: "0.85rem", color: "var(--text-dim)" }}>
           Reihe {platz.reihe} · Ebene {platz.ebene} · Fach {platz.fach}
           {platz.hersteller && (
             <span style={{ marginLeft: 8, fontWeight: 700, color: herstellerFarbe(platz.hersteller).textColor }}>
               {platz.hersteller}-Bereich
+            </span>
+          )}
+          {d?.platz && (
+            <span style={{ marginLeft: 8, fontWeight: 700, color: "var(--text)" }}>
+              · {d.platz.belegt}/{MAX_MODELLE_PRO_FACH} belegt
             </span>
           )}
         </div>
@@ -72,7 +92,7 @@ function EtlDetailModal({ platz, onClose }: { platz: EtlPlatz; onClose: () => vo
           </div>
         )}
 
-        {d && !d.platz?.modellId && (
+        {d && belegungen.length === 0 && (
           <div style={{ textAlign: "center", padding: "2rem 1rem" }}>
             <div style={{ fontSize: "2rem", marginBottom: 8 }}>📭</div>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Dieser Platz ist leer</div>
@@ -82,46 +102,50 @@ function EtlDetailModal({ platz, onClose }: { platz: EtlPlatz; onClose: () => vo
           </div>
         )}
 
-        {d?.platz?.modell && (
-          <>
-            <div style={{ marginBottom: "1rem", padding: "0.8rem", borderRadius: 10, border: `2px solid ${herstellerFarbe(d.platz.modell.hersteller).border}`, background: herstellerFarbe(d.platz.modell.hersteller).bg }}>
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-dim)", marginBottom: 2 }}>Modell</div>
-              <div style={{ fontWeight: 800, fontSize: "1rem", color: "var(--text)" }}>{d.platz.modell.modell}</div>
-              <div style={{ fontSize: "0.8rem", color: herstellerFarbe(d.platz.modell.hersteller).textColor, fontWeight: 600 }}>{d.platz.modell.hersteller}</div>
-            </div>
-
-            <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-dim)", marginBottom: 8 }}>
-              Teile auf diesem Platz ({d.artikel.length})
-            </div>
-
-            {d.artikel.length === 0 ? (
-              <div style={{ fontSize: "0.85rem", color: "var(--text-dim)", padding: "0.5rem" }}>Keine Artikel gefunden.</div>
-            ) : (
-              <div style={{ maxHeight: 280, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-                {d.artikel.map((a) => (
-                  <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.5rem 0.7rem", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--border)" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {a.kategorie}
-                      </div>
-                    </div>
-                    {a.grading ? (
-                      <span style={{ background: gradingFarbe(a.grading), color: "#fff", fontWeight: 800, fontSize: "0.75rem", padding: "0.15rem 0.5rem", borderRadius: 5, flexShrink: 0 }}>
-                        {a.grading}
-                      </span>
-                    ) : (
-                      <span style={{ background: "var(--border)", color: "var(--text-dim)", fontWeight: 700, fontSize: "0.75rem", padding: "0.15rem 0.5rem", borderRadius: 5, flexShrink: 0 }}>
-                        —
-                      </span>
-                    )}
-                    <span style={{ fontSize: "0.8rem", color: a.bestand > 0 ? "var(--afb-green)" : "var(--text-dim)", fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
-                      {a.bestand} Stk
-                    </span>
+        {belegungen.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: 420, overflowY: "auto" }}>
+            {belegungen.map((b) => (
+              <div key={b.modellId} style={{ border: `2px solid ${herstellerFarbe(b.hersteller).border}`, borderRadius: 10, background: herstellerFarbe(b.hersteller).bg, padding: "0.8rem" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-dim)" }}>Modell</div>
+                    <div style={{ fontWeight: 800, fontSize: "1rem", color: "var(--text)", wordBreak: "break-word" }}>{b.modellName}</div>
+                    <div style={{ fontSize: "0.8rem", color: herstellerFarbe(b.hersteller).textColor, fontWeight: 600 }}>{b.hersteller}</div>
                   </div>
-                ))}
+                  <button
+                    onClick={() => {
+                      if (confirm(`Modell „${b.modellName}" aus Fach ${platz.code} entfernen?`)) loesen.mutate({ modellId: b.modellId });
+                    }}
+                    disabled={loesen.isPending}
+                    aria-label={`Modell ${b.modellName} aus Fach entfernen`}
+                    style={{ flexShrink: 0, minHeight: 36, padding: "0.3rem 0.7rem", borderRadius: 8, border: "1px solid var(--afb-red, #fa3e3e)", background: "transparent", color: "var(--afb-red, #fa3e3e)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontWeight: 700, fontSize: "0.78rem" }}
+                  >
+                    Entfernen
+                  </button>
+                </div>
+
+                {b.artikel.length === 0 ? (
+                  <div style={{ fontSize: "0.82rem", color: "var(--text-dim)" }}>Keine Artikel gefunden.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {b.artikel.map((a) => (
+                      <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.4rem 0.6rem", borderRadius: 8, background: "var(--card-bg)", border: "1px solid var(--border)" }}>
+                        <div style={{ flex: 1, minWidth: 0, fontSize: "0.82rem", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {a.kategorie}
+                        </div>
+                        {a.grading ? (
+                          <span style={{ background: gradingFarbe(a.grading), color: "#fff", fontWeight: 800, fontSize: "0.72rem", padding: "0.12rem 0.45rem", borderRadius: 5, flexShrink: 0 }}>{a.grading}</span>
+                        ) : (
+                          <span style={{ background: "var(--border)", color: "var(--text-dim)", fontWeight: 700, fontSize: "0.72rem", padding: "0.12rem 0.45rem", borderRadius: 5, flexShrink: 0 }}>—</span>
+                        )}
+                        <span style={{ fontSize: "0.78rem", color: a.bestand > 0 ? "var(--afb-green)" : "var(--text-dim)", fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>{a.bestand} Stk</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </>
+            ))}
+          </div>
         )}
 
         <div style={{ marginTop: "1.2rem" }}>
@@ -164,7 +188,7 @@ function EtlReihe({ reihe, plaetze, onKlick }: {
           <span style={{ color: herstellerText }}>{hersteller}</span> Reihe {reihe}
         </span>
         <span style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>
-          Regal {regal} · {plaetze.filter((p) => p.modellId).length}/{plaetze.length} belegt
+          Regal {regal} · {plaetze.filter((p) => p.belegungen.length > 0).length}/{plaetze.length} belegt
         </span>
         <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
       </div>
@@ -192,18 +216,25 @@ function EtlReihe({ reihe, plaetze, onKlick }: {
           {ebenen.map((ebene) => {
             const p = platzMap.get(`${ebene}-${fach}`);
             if (!p) return <div key={ebene} />;
-            const belegt = !!p.modellId;
-            const farbe  = belegt ? herstellerFarbe(p.hersteller) : { bg: "transparent", border: "var(--border)", textColor: "var(--text-dim)" };
-            const kurzName = p.modell?.modell
-              ? (p.modell.modell.length > 14 ? p.modell.modell.slice(0, 13) + "…" : p.modell.modell)
+            const anzahl = p.belegungen.length;
+            const belegt = anzahl > 0;
+            // Fach-Hersteller = Region-Hinweis ODER Hersteller der Belegung
+            const fachHerst = p.hersteller ?? p.belegungen[0]?.modell.hersteller ?? null;
+            const farbe  = belegt ? herstellerFarbe(fachHerst) : { bg: "transparent", border: "var(--border)", textColor: "var(--text-dim)" };
+            const erstesModell = p.belegungen[0]?.modell.modell ?? "";
+            const kurzName = anzahl === 1
+              ? (erstesModell.length > 14 ? erstesModell.slice(0, 13) + "…" : erstesModell)
+              : anzahl > 1
+              ? `${anzahl} Modelle`
               : "";
+            const modellListe = p.belegungen.map((b) => b.modell.modell).join(", ");
 
             return (
               <button
                 key={ebene}
                 onClick={() => onKlick(p)}
-                title={belegt ? `${p.code} — ${p.modell?.modell ?? ""}` : `${p.code} — leer`}
-                aria-label={`Lagerplatz ${p.code}${belegt ? `, Modell: ${p.modell?.modell}` : ", leer"}`}
+                title={belegt ? `${p.code} — ${modellListe} (${anzahl}/${MAX_MODELLE_PRO_FACH})` : `${p.code} — leer`}
+                aria-label={`Lagerplatz ${p.code}${belegt ? `, ${anzahl} von ${MAX_MODELLE_PRO_FACH} belegt: ${modellListe}` : ", leer"}`}
                 style={{
                   minHeight:    62,
                   padding:      "0.4rem 0.3rem",
@@ -229,6 +260,11 @@ function EtlReihe({ reihe, plaetze, onKlick }: {
                 {kurzName && (
                   <span style={{ fontSize: "0.6rem", color: "var(--text)", lineHeight: 1.2, wordBreak: "break-word", width: "100%" }}>
                     {kurzName}
+                  </span>
+                )}
+                {belegt && (
+                  <span style={{ fontSize: "0.58rem", fontWeight: 800, color: farbe.textColor, lineHeight: 1 }}>
+                    {anzahl}/{MAX_MODELLE_PRO_FACH}
                   </span>
                 )}
                 {!belegt && (
@@ -294,19 +330,21 @@ export default function LagerplaetzePage() {
 
   // ── ETL-Grid Filter ────────────────────────────────────────────────────────
   const allEtl  = (etlQ.data ?? []) as EtlPlatz[];
-  const etlBelegt = allEtl.filter((p) => p.modellId).length;
+  const etlBelegt = allEtl.filter((p) => p.belegungen.length > 0).length;
 
   const etlPlaetze = allEtl.filter((p) => {
-    if (etlFilter === "frei")   return !p.modellId;
-    if (etlFilter === "belegt") return !!p.modellId;
+    if (etlFilter === "frei")   return p.belegungen.length === 0;
+    if (etlFilter === "belegt") return p.belegungen.length > 0;
     if (etlFilter === "Dell" || etlFilter === "HP" || etlFilter === "Lenovo" || etlFilter === "Fujitsu") {
-      return p.hersteller === etlFilter;
+      // Region-Hinweis ODER Hersteller der Belegung
+      const herst = p.hersteller ?? p.belegungen[0]?.modell.hersteller ?? null;
+      return herst === etlFilter;
     }
     return true;
   }).filter((p) => {
     if (!etlSuche) return true;
     const s = etlSuche.toUpperCase();
-    return p.code.includes(s) || p.modell?.modell.toUpperCase().includes(s);
+    return p.code.includes(s) || p.belegungen.some((b) => b.modell.modell.toUpperCase().includes(s));
   });
 
   // Gruppiert nach Reihe
@@ -515,7 +553,7 @@ export default function LagerplaetzePage() {
 
       {/* ── ETL Detail-Modal ── */}
       {selectedPlatz && (
-        <EtlDetailModal platz={selectedPlatz} onClose={() => setSelectedPlatz(null)} />
+        <EtlDetailModal platz={selectedPlatz} onClose={() => setSelectedPlatz(null)} onChanged={() => etlQ.refetch()} />
       )}
 
       {/* ── Legacy Verschieben-Modal ── */}

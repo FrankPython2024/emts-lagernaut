@@ -188,35 +188,48 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     }
   }
 
-  // Lagerplatz zuweisen (1 Modell = 1 Lagerplatz)
+  // Lagerplatz zuweisen — mehrere Modelle pro Fach (gleicher Hersteller, max 4).
   let etlLagerplatzCode: string | undefined;
   if (modellId) {
-    if (input.gewaehlterLagerplatzId) {
-      const bestehender = await prisma.lagerplatz.findUnique({ where: { modellId } });
+    const mId = modellId;
 
-      if (bestehender) {
-        if (bestehender.id === input.gewaehlterLagerplatzId) {
-          etlLagerplatzCode = bestehender.code;
-        } else {
-          // Anderer Platz bereits zugewiesen → behalte ihn (kein Überschreiben ohne Umzug-Flow)
-          etlLagerplatzCode = bestehender.code;
-          console.log(`[Einlagern] Modell hat bereits Lagerplatz ${bestehender.code}`);
+    // Modell bereits einem Fach zugewiesen? → behalten (kein Umzug ohne Umzug-Flow)
+    const bestehende = await prisma.lagerplatzBelegung.findUnique({
+      where:   { modellId: mId },
+      include: { lagerplatz: { select: { code: true } } },
+    });
+
+    if (bestehende) {
+      etlLagerplatzCode = bestehende.lagerplatz.code;
+      console.log(`[Einlagern] Modell hat bereits Lagerplatz ${etlLagerplatzCode}`);
+    } else if (input.gewaehlterLagerplatzId) {
+      const platzId = input.gewaehlterLagerplatzId;
+      // Transaktional: Kapazität + Hersteller-Reinheit prüfen, dann Belegung anlegen
+      etlLagerplatzCode = await prisma.$transaction(async (tx) => {
+        const platz = await tx.lagerplatz.findUnique({ where: { id: platzId } });
+        if (!platz) return undefined;
+
+        const belegt = await tx.lagerplatzBelegung.count({ where: { lagerplatzId: platzId } });
+        if (belegt >= 4) {
+          throw new TRPCError({ code: "CONFLICT", message: `Fach ${platz.code} ist voll (max 4 Modelle).` });
         }
-      } else {
-        const platz = await prisma.lagerplatz.findUnique({ where: { id: input.gewaehlterLagerplatzId } });
-        if (platz?.modellId && platz.modellId !== modellId) {
-          throw new TRPCError({ code: "CONFLICT", message: `Lagerplatz ${platz.code} ist bereits von einem anderen Modell belegt` });
+
+        const erste = await tx.lagerplatzBelegung.findFirst({
+          where:   { lagerplatzId: platzId },
+          include: { modell: { select: { hersteller: true } } },
+        });
+        const fachHerst = erste?.modell.hersteller ?? null;
+        if (fachHerst && hersteller !== fachHerst) {
+          throw new TRPCError({
+            code:    "BAD_REQUEST",
+            message: `Fach ${platz.code} enthält ${fachHerst}-Modelle, ${hersteller} ist nicht erlaubt.`,
+          });
         }
-        if (platz) {
-          await prisma.lagerplatz.update({ where: { id: platz.id }, data: { modellId } });
-          etlLagerplatzCode = platz.code;
-          console.log(`[Einlagern] Lagerplatz ${platz.code} → Modell #${modellId} zugewiesen`);
-        }
-      }
-    } else {
-      // Kein Platz gewählt — evtl. bereits zugewiesen aus früherer Einlagerung
-      const bestehender = await prisma.lagerplatz.findUnique({ where: { modellId } });
-      if (bestehender) etlLagerplatzCode = bestehender.code;
+
+        await tx.lagerplatzBelegung.create({ data: { lagerplatzId: platzId, modellId: mId } });
+        console.log(`[Einlagern] Lagerplatz ${platz.code} → Modell #${mId} (Fach ${belegt + 1}/4)`);
+        return platz.code;
+      });
     }
   }
 
