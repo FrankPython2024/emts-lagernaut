@@ -36,28 +36,32 @@ function ModellPoolModal({
   const { show } = useToast();
   const teiltyp = artikel.kategorie;
 
-  const alleModelle = api.modell.list.useQuery({ aktiv: true });
-  const verknuepft  = api.kompatibilitaet.getVerknuepfteGeraete.useQuery({ artikelId: artikel.id, teiltyp });
+  const gruppenQuery = api.modell.list.useQuery({ aktiv: true });
+  const verknuepft   = api.kompatibilitaet.getVerknuepfteGeraete.useQuery({ artikelId: artikel.id, teiltyp });
 
-  const [suchtext,    setSuchtext]    = useState("");
-  const [ausgewaehlt, setAusgewaehlt] = useState<Set<string>>(new Set());
-  const [initialized, setInitialized] = useState(false);
+  const [suchtext,         setSuchtext]         = useState("");
+  const [ausgewaehltBasis, setAusgewaehltBasis] = useState<Set<string>>(new Set());
+  const [initialized,      setInitialized]      = useState(false);
 
-  // Initial-State aus bereits verknüpften Modellen
-  useEffect(() => {
-    if (verknuepft.data && !initialized) {
-      setAusgewaehlt(new Set(verknuepft.data));
-      setInitialized(true);
-    }
-  }, [verknuepft.data, initialized]);
-
+  const gruppen = gruppenQuery.data ?? [];
   const bereits = useMemo(() => new Set(verknuepft.data ?? []), [verknuepft.data]);
 
+  // Initial-State: alle Gruppen vorauswählen, die mind. eine verknüpfte Variante haben
+  useEffect(() => {
+    if (verknuepft.data && gruppenQuery.data && !initialized) {
+      const initial = new Set<string>();
+      for (const g of gruppenQuery.data) {
+        if (g.varianten.some((v) => bereits.has(v))) initial.add(g.basisName);
+      }
+      setAusgewaehltBasis(initial);
+      setInitialized(true);
+    }
+  }, [verknuepft.data, gruppenQuery.data, bereits, initialized]);
+
   const gefiltert = useMemo(() => {
-    const q    = suchtext.trim().toLowerCase();
-    const list = alleModelle.data ?? [];
-    return q ? list.filter((g) => g.name.toLowerCase().includes(q)) : list;
-  }, [alleModelle.data, suchtext]);
+    const q = suchtext.trim().toLowerCase();
+    return q ? gruppen.filter((g) => g.basisName.toLowerCase().includes(q)) : gruppen;
+  }, [gruppen, suchtext]);
 
   const setBulk = api.kompatibilitaet.setVerknuepfungBulk.useMutation({
     onSuccess: (r) => {
@@ -68,21 +72,33 @@ function ModellPoolModal({
     onError: (e) => show(e.message, "error"),
   });
 
-  function toggle(name: string) {
-    setAusgewaehlt((prev) => {
-      const n = new Set(prev);
-      if (n.has(name)) n.delete(name); else n.add(name);
-      return n;
+  function toggleBasis(basisName: string) {
+    setAusgewaehltBasis((prev) => {
+      const next = new Set(prev);
+      if (next.has(basisName)) next.delete(basisName); else next.add(basisName);
+      return next;
     });
   }
 
+  function gruppenStatus(g: { varianten: string[] }): "voll" | "teilweise" | "leer" {
+    const n = g.varianten.filter((v) => bereits.has(v)).length;
+    if (n === 0) return "leer";
+    if (n === g.varianten.length) return "voll";
+    return "teilweise";
+  }
+
   function handleSave() {
-    const hinzugefuegt = [...ausgewaehlt].filter((g) => !bereits.has(g));
-    const entfernt     = [...bereits].filter((g) => !ausgewaehlt.has(g));
+    // Alle Varianten der ausgewählten Basis-Gruppen expandieren
+    const gewuenscht = new Set<string>();
+    for (const g of gruppen) {
+      if (ausgewaehltBasis.has(g.basisName)) for (const v of g.varianten) gewuenscht.add(v);
+    }
+    const hinzugefuegt = [...gewuenscht].filter((v) => !bereits.has(v));
+    const entfernt     = [...bereits].filter((v) => !gewuenscht.has(v));
     setBulk.mutate({ artikelId: artikel.id, teiltyp, geraete: hinzugefuegt, entfernen: entfernt });
   }
 
-  const laedt = alleModelle.isLoading || verknuepft.isLoading;
+  const laedt = gruppenQuery.isLoading || verknuepft.isLoading;
 
   return (
     <Modal open onClose={onClose} title={`Modelle verknüpfen — ${teiltyp}`} width="max-w-xl">
@@ -96,13 +112,13 @@ function ModellPoolModal({
           autoFocus
           value={suchtext}
           onChange={(e) => setSuchtext(e.target.value)}
-          placeholder="🔍 Modell suchen…"
+          placeholder="🔍 Basis-Modell suchen…"
           className={`${INPUT_CLS} w-full`}
-          aria-label="Modell suchen"
+          aria-label="Basis-Modell suchen"
         />
 
         <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-          {ausgewaehlt.size} ausgewählt · {bereits.size} bereits verknüpft · {gefiltert.length} angezeigt
+          {ausgewaehltBasis.size} ausgewählt · {gefiltert.length} Basis-Modelle
         </div>
 
         <div className="max-h-96 overflow-y-auto space-y-1 pr-0.5 border-t border-[#ced4da] dark:border-[#3e4042] pt-2">
@@ -116,23 +132,27 @@ function ModellPoolModal({
             </p>
           ) : (
             gefiltert.map((g) => {
-              const sel = ausgewaehlt.has(g.name);
-              const war = bereits.has(g.name);
+              const sel    = ausgewaehltBasis.has(g.basisName);
+              const status = gruppenStatus(g);
               return (
                 <label
-                  key={g.id}
+                  key={g.basisName}
                   className="flex items-center gap-3 px-3 rounded-lg cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a]"
                   style={{ minHeight: 44 }}
                 >
                   <input
                     type="checkbox"
                     checked={sel}
-                    onChange={() => toggle(g.name)}
+                    onChange={() => toggleBasis(g.basisName)}
                     className="w-4 h-4 accent-[#0064d2] flex-shrink-0"
                   />
-                  <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-                    {g.name}
-                    {war && <span className="ml-2 text-xs font-semibold text-[#008bd2]">aktiv</span>}
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-medium text-[#1a1a1a] dark:text-[#e4e6eb]">{g.basisName}</span>
+                    <span className="block text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                      {g.anzahl} {g.anzahl === 1 ? "Variante" : "Varianten"}
+                      {status === "voll"      && <span className="ml-2 font-semibold text-[#00a400]">· vollständig verknüpft</span>}
+                      {status === "teilweise" && <span className="ml-2 font-semibold text-[#f7b928]">· teilweise verknüpft</span>}
+                    </span>
                   </span>
                 </label>
               );
@@ -154,7 +174,7 @@ function ModellPoolModal({
             disabled={setBulk.isPending || laedt}
             className="flex-1 py-2.5 rounded-xl bg-[#0064d2] text-white font-bold hover:bg-blue-700 disabled:opacity-50"
           >
-            {setBulk.isPending ? "Speichere…" : `Speichern (${ausgewaehlt.size} Modelle)`}
+            {setBulk.isPending ? "Speichere…" : `Speichern (${ausgewaehltBasis.size} Modelle)`}
           </button>
         </div>
       </div>

@@ -3,22 +3,25 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, adminProcedure } from "@/server/trpc";
 import { getOrCreateModell } from "@/lib/geraete/getOrCreateModell";
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
+import { gruppiereNachBasis } from "@/lib/format/basisModell";
 
 export const modellRouter = createTRPCRouter({
 
   /**
-   * Alle Modelle als { id, name } — name = "Hersteller Modell" (= Kompatibilitaet.geraet).
-   * Für Multi-Select-Listen (z.B. Pool-Verknüpfung). Default: nur aktive.
+   * Modelle nach Basis-Modell gruppiert — { basisName, varianten[], anzahl }.
+   * `varianten` = volle "Hersteller Modell"-Strings (= Kompatibilitaet.geraet),
+   * für Expansion beim Bulk-Speichern. Default: nur aktive.
+   * Gruppierung ist reine UI-Schicht; das Datenmodell bleibt MTM-basiert.
    */
   list: adminProcedure
     .input(z.object({ aktiv: z.boolean().optional() }).optional())
     .query(async ({ ctx, input }) => {
       const rows = await ctx.prisma.geraeteModell.findMany({
         where:   input?.aktiv === undefined ? {} : { aktiv: input.aktiv },
-        orderBy: [{ hersteller: "asc" }, { modell: "asc" }],
         select:  { id: true, hersteller: true, modell: true },
       });
-      return rows.map((r) => ({ id: r.id, name: `${r.hersteller} ${r.modell}` }));
+      const flat = rows.map((r) => ({ id: r.id, name: `${r.hersteller} ${r.modell}` }));
+      return gruppiereNachBasis(flat);
     }),
 
   /**
