@@ -169,7 +169,7 @@ function StatusBadge({ status }: { status: AnfrageStatus }) {
 // ── Team-Vergleich Grid ───────────────────────────────────────────────────────
 
 function TeamVergleich({ data }: {
-  data: { techniker: string; volumen: number; erledigungsrate: number; avgWartezeitH: number; bedarfQuote: number }[];
+  data: { techniker: string; volumen: number; erledigungsrate: number; bedarfQuote: number }[];
 }) {
   if (!data.length) return <Empty />;
   const maxVol = Math.max(...data.map((d) => d.volumen), 1);
@@ -203,12 +203,6 @@ function TeamVergleich({ data }: {
                 {t.bedarfQuote}%
               </span>
             </div>
-            {t.avgWartezeitH > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-[#65676b] dark:text-[#b0b3b8]">Ø Wartezeit</span>
-                <span className="font-bold text-[#65676b] dark:text-[#b0b3b8]">{t.avgWartezeitH}h</span>
-              </div>
-            )}
           </div>
         </div>
       ))}
@@ -283,7 +277,7 @@ function MonatsBalkenChart({
 type MonatsDetailData = {
   kuerzel: string; monat: number; jahr: number;
   gesamt: number; erledigt: number; bedarf: number; storniert: number;
-  erledigungsrate: number; avgWartezeitH: number | null;
+  erledigungsrate: number;
   topTeile:   { teil: string; anzahl: number }[];
   topGeraete: { geraet: string; name: string; anzahl: number }[];
   anfragen:   { id: number; datum: Date | string; teil: string; geraeteName: string | null; geraet: string; logId: string; status: AnfrageStatus }[];
@@ -324,12 +318,6 @@ function MonatsDetailModal({ data, onClose }: { data: MonatsDetailData; onClose:
               <div className="text-2xl font-black text-[#fa3e3e]">{data.storniert}</div>
               <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Storniert</div>
             </div>
-            {data.avgWartezeitH !== null && (
-              <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
-                <div className="text-2xl font-black text-[#8e44ad]">{data.avgWartezeitH}h</div>
-                <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Ø Wartezeit</div>
-              </div>
-            )}
           </div>
 
           {/* Top Teile + Top Geräte */}
@@ -502,8 +490,7 @@ function JahresArchivSektion({ kuerzel }: { kuerzel: string }) {
                   <th className="text-center py-2 px-3">Anfragen</th>
                   <th className="text-center py-2 px-3">Erledigt</th>
                   <th className="text-center py-2 px-3">Bedarf</th>
-                  <th className="text-center py-2 px-3">Rate</th>
-                  <th className="text-center py-2 pl-3">Ø Warte</th>
+                  <th className="text-center py-2 pl-3">Rate</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
@@ -525,11 +512,8 @@ function JahresArchivSektion({ kuerzel }: { kuerzel: string }) {
                       <td className="text-center py-2 px-3">{m.gesamt ?? <span className="text-[#65676b]">—</span>}</td>
                       <td className="text-center py-2 px-3 text-[#00a400]">{m.erledigt ?? <span className="text-[#65676b]">—</span>}</td>
                       <td className="text-center py-2 px-3 text-[#f7b928]">{m.bedarf ?? <span className="text-[#65676b]">—</span>}</td>
-                      <td className={`text-center py-2 px-3 font-bold ${rateColor(m.erledigungsrate)}`}>
+                      <td className={`text-center py-2 pl-3 font-bold ${rateColor(m.erledigungsrate)}`}>
                         {m.erledigungsrate !== null ? `${m.erledigungsrate}%` : <span className="text-[#65676b]">—</span>}
-                      </td>
-                      <td className="text-center py-2 pl-3 text-[#65676b] dark:text-[#b0b3b8]">
-                        {m.avgWartezeitH !== null ? `${m.avgWartezeitH}h` : <span>—</span>}
                       </td>
                     </tr>
                   );
@@ -801,19 +785,17 @@ export default function StatistikenPage() {
 
           {/* Persönliche KPIs */}
           {techKpis.isLoading ? (
-            <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
-              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} />)}
+            <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} />)}
             </div>
           ) : techKpis.data ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
               <StatCard title="Gesamt"        value={techKpis.data.gesamt}          icon="🔔" color="primary" />
               <StatCard title="Erledigungsrate" value={`${techKpis.data.erledigungsrate}%`} icon="✅" color="success"
                 sub={`${techKpis.data.abgeschlossen} erledigt`} />
               <StatCard title="Bedarf-Quote"  value={`${techKpis.data.bedarfQuote}%`}      icon="⏳" color="warning"
                 sub={techKpis.data.bedarfQuote <= 20 ? "Gut" : techKpis.data.bedarfQuote <= 40 ? "OK" : "Hoch"} />
               <StatCard title="Storniert"     value={techKpis.data.storniert}       icon="❌" color="danger" />
-              <StatCard title="Ø Wartezeit"   value={`${techKpis.data.avgWartezeitH}h`}     icon="⏱️" color="purple"
-                sub="bis Abschluss" />
               <StatCard title="Aktivste Woche" value={techKpis.data.aktivsteWoche}  icon="📅" color="primary"
                 sub={`${techKpis.data.aktivsteWocheAnzahl} Anfragen`} />
             </div>

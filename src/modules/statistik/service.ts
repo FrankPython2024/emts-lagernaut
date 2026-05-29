@@ -249,7 +249,7 @@ export async function getTechnikerKpis(kuerzel: string, tage: number) {
 
   const alleAnfragen = await prisma.anfrage.findMany({
     where,
-    select: { datum: true, status: true, createdAt: true, updatedAt: true },
+    select: { datum: true, status: true },
   });
 
   const gesamt       = alleAnfragen.length;
@@ -257,14 +257,6 @@ export async function getTechnikerKpis(kuerzel: string, tage: number) {
   const bedarf        = alleAnfragen.filter((a) => a.status === AnfrageStatus.BEDARF).length;
   const storniert     = alleAnfragen.filter((a) => a.status === AnfrageStatus.STORNIERT).length;
   const offen         = alleAnfragen.filter((a) => a.status === AnfrageStatus.NEU).length;
-
-  const erledigte     = alleAnfragen.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN);
-  const avgWartezeitH = erledigte.length > 0
-    ? Math.round(
-        erledigte.reduce((s, a) => s + (a.updatedAt.getTime() - a.createdAt.getTime()), 0)
-        / erledigte.length / 3_600_000,
-      )
-    : 0;
 
   // Aktivste Woche
   const wochenMap = new Map<string, number>();
@@ -287,7 +279,6 @@ export async function getTechnikerKpis(kuerzel: string, tage: number) {
     offen,
     erledigungsrate: gesamt > 0 ? Math.round((abgeschlossen / gesamt) * 100) : 0,
     bedarfQuote:     gesamt > 0 ? Math.round((bedarf / gesamt) * 100) : 0,
-    avgWartezeitH,
     aktivsteWoche,
     aktivsteWocheAnzahl: maxWocheN,
   };
@@ -415,22 +406,17 @@ export async function getTechnikerTeamVergleich(tage: number, standortId?: numbe
 
   const alle = await prisma.anfrage.findMany({
     where:  { ...aF(standortId), datum: { gte: von, lte: bis } },
-    select: { techniker: true, status: true, createdAt: true, updatedAt: true },
+    select: { techniker: true, status: true },
   });
 
   const map = new Map<string, {
     gesamt: number; abgeschlossen: number; bedarf: number;
-    wartezeitSumMs: number; erledigte: number;
   }>();
 
   for (const a of alle) {
-    const e = map.get(a.techniker) ?? { gesamt: 0, abgeschlossen: 0, bedarf: 0, wartezeitSumMs: 0, erledigte: 0 };
+    const e = map.get(a.techniker) ?? { gesamt: 0, abgeschlossen: 0, bedarf: 0 };
     e.gesamt++;
-    if (a.status === AnfrageStatus.ABGESCHLOSSEN) {
-      e.abgeschlossen++;
-      e.erledigte++;
-      e.wartezeitSumMs += a.updatedAt.getTime() - a.createdAt.getTime();
-    }
+    if (a.status === AnfrageStatus.ABGESCHLOSSEN) e.abgeschlossen++;
     if (a.status === AnfrageStatus.BEDARF) e.bedarf++;
     map.set(a.techniker, e);
   }
@@ -440,7 +426,6 @@ export async function getTechnikerTeamVergleich(tage: number, standortId?: numbe
       techniker,
       volumen:        s.gesamt,
       erledigungsrate: s.gesamt > 0 ? Math.round((s.abgeschlossen / s.gesamt) * 100) : 0,
-      avgWartezeitH:   s.erledigte > 0 ? Math.round(s.wartezeitSumMs / s.erledigte / 3_600_000) : 0,
       bedarfQuote:     s.gesamt > 0 ? Math.round((s.bedarf / s.gesamt) * 100) : 0,
     }))
     .sort((a, b) => b.volumen - a.volumen);
@@ -486,19 +471,6 @@ export async function getMonatsbericht(monat: number, jahr: number, standortId?:
 
 // ── Jahres-Archiv Funktionen ────────────────────────────────────────────────
 
-/** Hilfsfunktion: Durchschnittliche Wartezeit in Stunden (1 Dezimalstelle). */
-function avgWartezeit(
-  anfragen: { status: AnfrageStatus; createdAt: Date; updatedAt: Date }[],
-): number | null {
-  const erledigte = anfragen.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN);
-  if (!erledigte.length) return null;
-  const sumMs = erledigte.reduce(
-    (s, a) => s + (a.updatedAt.getTime() - a.createdAt.getTime()),
-    0,
-  );
-  return Math.round((sumMs / erledigte.length / 3_600_000) * 10) / 10;
-}
-
 /** Cache-Key Helpers */
 const cacheKeyJahr   = (k: string, j: number) => `stats:techniker:${k}:jahr:${j}`;
 const cacheKeyMonat  = (k: string, j: number, m: number) => `stats:techniker:${k}:monat:${j}-${m}`;
@@ -541,12 +513,12 @@ async function _buildJahresArchiv(kuerzel: string, jahr: number) {
 
   const anfragen = await prisma.anfrage.findMany({
     where:  { techniker: kuerzel, datum: { gte: von, lt: bis } },
-    select: { datum: true, status: true, createdAt: true, updatedAt: true },
+    select: { datum: true, status: true },
   });
 
   const monate = Array.from({ length: 12 }, (_, i) => {
     const ma = anfragen.filter((a) => new Date(a.datum).getMonth() === i);
-    if (!ma.length) return { monat: i + 1, gesamt: null, erledigt: null, bedarf: null, storniert: null, erledigungsrate: null, avgWartezeitH: null };
+    if (!ma.length) return { monat: i + 1, gesamt: null, erledigt: null, bedarf: null, storniert: null, erledigungsrate: null };
     const gesamt    = ma.length;
     const erledigt  = ma.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN).length;
     const bedarf    = ma.filter((a) => a.status === AnfrageStatus.BEDARF).length;
@@ -558,7 +530,6 @@ async function _buildJahresArchiv(kuerzel: string, jahr: number) {
       bedarf,
       storniert,
       erledigungsrate: Math.round((erledigt / gesamt) * 100),
-      avgWartezeitH:   avgWartezeit(ma),
     };
   });
 
@@ -651,7 +622,6 @@ async function _buildMonatsDetail(kuerzel: string, monat: number, jahr: number) 
   return {
     kuerzel, monat, jahr, gesamt, erledigt, bedarf, storniert,
     erledigungsrate: gesamt > 0 ? Math.round((erledigt / gesamt) * 100) : 0,
-    avgWartezeitH:   avgWartezeit(anfragen),
     topTeile, topGeraete,
     anfragen,
   };
