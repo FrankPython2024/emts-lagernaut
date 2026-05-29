@@ -4,8 +4,24 @@ import { prisma }              from "@/core/db/prisma";
 import { bucheLager }          from "@/modules/buchungen/service";
 import { naechsteBelegNr }     from "@/core/infra/belegnr";
 import { STANDARD_TEILE }      from "./constants";
+import { VERSCHIEDENES_TEILTYP, verschiedenesKompatTeiltyp } from "@/lib/constants/teiltypen";
 import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
 import { getOrCreateModell }   from "@/lib/geraete/getOrCreateModell";
+
+/**
+ * Effektiver teiltyp-Schlüssel für Bezeichnung + Kompatibilitaet.
+ * Verschiedenes: pro Freitext eindeutig ("Verschiedenes — <Freitext>"),
+ * damit unique(geraet, teiltyp) nicht kollidiert. Sonst: der Teiltyp selbst.
+ * Wirft bei Verschiedenes ohne ausreichenden Freitext.
+ */
+function teiltypKeyFuer(teiltyp: string, verschiedenesText?: string): string {
+  if (teiltyp !== VERSCHIEDENES_TEILTYP) return teiltyp;
+  const freitext = (verschiedenesText ?? "").trim();
+  if (freitext.length < 2) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Verschiedenes braucht einen Freitext (mind. 2 Zeichen)." });
+  }
+  return verschiedenesKompatTeiltyp(freitext);
+}
 
 // ── Gerät suchen ──────────────────────────────────────────────────────────────
 
@@ -53,7 +69,7 @@ export async function geraetSuchen(query: string): Promise<GeraetSuchenResult> {
 
 // ── Preview ───────────────────────────────────────────────────────────────────
 
-export type PreviewItem = { teiltyp: string; menge: number; grading: string };
+export type PreviewItem = { teiltyp: string; menge: number; grading: string; verschiedenesText?: string };
 
 export type PreviewResult = {
   teiltyp:          string;
@@ -70,12 +86,16 @@ export type PreviewResult = {
 export async function preview(items: PreviewItem[], geraetName: string): Promise<PreviewResult[]> {
   return Promise.all(
     items.map(async (item): Promise<PreviewResult> => {
-      // Artikel-Bezeichnung: EXAKT "<Gerät> <Teiltyp>"
-      const artikelBezeichnung = `${geraetName} ${item.teiltyp}`;
+      // Verschiedenes: pro Freitext eindeutiger teiltyp-Schlüssel; Freitext wird
+      // in die Bezeichnung gebacken. Kategorie bleibt "Verschiedenes".
+      const teiltypKey = teiltypKeyFuer(item.teiltyp, item.verschiedenesText);
+
+      // Artikel-Bezeichnung: EXAKT "<Gerät> <Teiltyp-Schlüssel>"
+      const artikelBezeichnung = `${geraetName} ${teiltypKey}`;
 
       // 1. Exakter Kompatibilitaets-Treffer für dieses Gerät + Teiltyp
       const komp = await prisma.kompatibilitaet.findFirst({
-        where:   { geraet: geraetName, teiltyp: item.teiltyp },
+        where:   { geraet: geraetName, teiltyp: teiltypKey },
         include: { artikel: true },
       });
       if (komp) {
@@ -130,11 +150,12 @@ export async function preview(items: PreviewItem[], geraetName: string): Promise
 // ── Execute ───────────────────────────────────────────────────────────────────
 
 export type ExecuteItem = {
-  teiltyp:     string;
-  menge:       number;
-  grading:     string;
-  notiz?:      string;
-  lagerplatz?: string;
+  teiltyp:           string;
+  menge:             number;
+  grading:           string;
+  notiz?:            string;
+  lagerplatz?:       string;
+  verschiedenesText?: string;
 };
 
 export type ExecuteInput = {
@@ -247,30 +268,36 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
   for (const item of input.items) {
     let istNeu = false;
 
+    // Verschiedenes: pro Freitext eindeutiger teiltyp-Schlüssel; Freitext wird
+    // in die Bezeichnung gebacken. Die Kategorie bleibt der Teiltyp selbst
+    // ("Verschiedenes"), sodass mehrere Freitexte als eigene Artikel koexistieren.
+    const teiltypKey = teiltypKeyFuer(item.teiltyp, item.verschiedenesText);
+    const kategorie  = item.teiltyp;
+
     // Artikel-Bezeichnung: kanonische Form mit Prefix (= Artikel-Generator-Ausgabe)
-    const artikelBezeichnung    = `${geraetVoll} ${item.teiltyp}`;
+    const artikelBezeichnung    = `${geraetVoll} ${teiltypKey}`;
     // Backward-Compat: alte Einträge ohne Prefix ("EliteBook 840 G5 Tastatur")
     const artikelBezeichnungAlt = geraetVoll !== sauberModellName
-      ? `${sauberModellName} ${item.teiltyp}`
+      ? `${sauberModellName} ${teiltypKey}`
       : null;
     console.log(`[Einlagern] Artikel: "${artikelBezeichnung}"`);
 
     // 1. Exakter Artikel via Kompatibilitaet (canonical + alt für Backward-Compat)
     let artikel = await prisma.artikel.findFirst({
-      where: { kompatibel: { some: { geraet: { in: geraetNamen }, teiltyp: item.teiltyp } } },
+      where: { kompatibel: { some: { geraet: { in: geraetNamen }, teiltyp: teiltypKey } } },
     });
 
     // 2. Artikel per kanonischer Bezeichnung — KEIN Kategorie-Fallback!
     if (!artikel) {
       artikel = await prisma.artikel.findFirst({
-        where: { bezeichnung: artikelBezeichnung, kategorie: item.teiltyp, standortId: sId },
+        where: { bezeichnung: artikelBezeichnung, kategorie, standortId: sId },
       });
     }
 
     // 2b. Backward-Compat: alte Bezeichnung mit Hersteller-Prefix
     if (!artikel && artikelBezeichnungAlt) {
       artikel = await prisma.artikel.findFirst({
-        where: { bezeichnung: artikelBezeichnungAlt, kategorie: item.teiltyp, standortId: sId },
+        where: { bezeichnung: artikelBezeichnungAlt, kategorie, standortId: sId },
       });
     }
 
@@ -282,7 +309,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
       artikel = await prisma.artikel.create({
         data: {
           bezeichnung: artikelBezeichnung,
-          kategorie:   item.teiltyp,
+          kategorie,
           bestand:     0,
           lagerplatz:  lagerplatzFuerArtikel,
           standortId:  sId,
@@ -316,13 +343,14 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     // 5. Beleg-Nummer
     const belegNr = await naechsteBelegNr("EL");
 
-    // 6. Kompatibilitaet: kanonische Form mit Prefix (= Artikel-Generator-Key)
+    // 6. Kompatibilitaet: kanonische Form mit Prefix (= Artikel-Generator-Key).
+    //    Verschiedenes nutzt den pro-Variante eindeutigen teiltypKey.
     await prisma.kompatibilitaet.upsert({
-      where:  { geraet_teiltyp: { geraet: geraetVoll, teiltyp: item.teiltyp } },
-      create: { geraet: geraetVoll, teiltyp: item.teiltyp, artikelId: artikel.id },
+      where:  { geraet_teiltyp: { geraet: geraetVoll, teiltyp: teiltypKey } },
+      create: { geraet: geraetVoll, teiltyp: teiltypKey, artikelId: artikel.id },
       update: { artikelId: artikel.id },
     });
-    console.log(`[Einlagern] Verknüpft: "${geraetVoll}" + "${item.teiltyp}" → Artikel #${artikel.id}`);
+    console.log(`[Einlagern] Verknüpft: "${geraetVoll}" + "${teiltypKey}" → Artikel #${artikel.id}`);
 
     results.push({
       teiltyp:       item.teiltyp,

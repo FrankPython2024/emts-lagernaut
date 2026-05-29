@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
-import { STANDARD_TEILNAMEN } from "@/lib/constants/teiltypen";
+import { STANDARD_TEILNAMEN, VERSCHIEDENES_TEILTYP } from "@/lib/constants/teiltypen";
 
 /**
  * Effiziente Fuzzy-Suche: findet passende Geräte-Strings per DB-Filter,
@@ -398,10 +398,13 @@ export async function getByGeraetMitStandard(args: {
       })
     : [];
 
-  // Fallback auf hartkodierte Liste falls Teiltyp-Tabelle leer (z.B. vor Seed)
-  const standardListe = aktiveTeiltypen.length > 0
+  // Fallback auf hartkodierte Liste falls Teiltyp-Tabelle leer (z.B. vor Seed).
+  // "Verschiedenes" wird als generischer Slot ausgeschlossen — es gibt keinen
+  // generischen Verschiedenes-Artikel, nur Freitext-Varianten (siehe unten).
+  const standardListe = (aktiveTeiltypen.length > 0
     ? aktiveTeiltypen.map(t => t.name)
-    : STANDARD_TEILE_LOOKUP;
+    : STANDARD_TEILE_LOOKUP
+  ).filter((name) => name !== VERSCHIEDENES_TEILTYP);
 
   // Map: teiltyp → artikel — bei Duplikaten (geraet mit/ohne Prefix) gewinnt höherer Bestand.
   // Schützt vor dem Fall wo Generator-Einträge (bestand=0) Einlager-Einträge (bestand>0) maskieren.
@@ -416,28 +419,44 @@ export async function getByGeraetMitStandard(args: {
   const kompatibilitaetVorhanden = treffer.length > 0;
 
   // Alle aktiven Teiltypen — verknüpfte mit Bestandsdaten, andere als "nicht erfasst"
-  return {
-    kompatibilitaetVorhanden,
-    teile: standardListe.map((teiltyp) => {
-      const artikel = verknuepftMap.get(teiltyp);
-      if (artikel) {
-        return {
-          teiltyp,
-          artikelId:   artikel.id,
-          bezeichnung: artikel.bezeichnung,
-          kategorie:   artikel.kategorie,
-          bestand:     artikel.bestand,
-          verfuegbar:  artikel.bestand > 0,
-        };
-      }
+  const standardTeile: TeilMitBestand[] = standardListe.map((teiltyp) => {
+    const artikel = verknuepftMap.get(teiltyp);
+    if (artikel) {
       return {
         teiltyp,
-        artikelId:   null,
-        bezeichnung: null,
-        kategorie:   teiltyp,
-        bestand:     0,
-        verfuegbar:  false,
+        artikelId:   artikel.id,
+        bezeichnung: artikel.bezeichnung,
+        kategorie:   artikel.kategorie,
+        bestand:     artikel.bestand,
+        verfuegbar:  artikel.bestand > 0,
       };
-    }),
+    }
+    return {
+      teiltyp,
+      artikelId:   null,
+      bezeichnung: null,
+      kategorie:   teiltyp,
+      bestand:     0,
+      verfuegbar:  false,
+    };
+  });
+
+  // Verschiedenes-Varianten: eigener Artikel pro Freitext (Kategorie
+  // "Verschiedenes"). Anders als Standard-Slots erscheinen sie NUR mit Bestand
+  // (keine generischen Leer-Slots), jeweils mit dem Freitext im teiltyp/bezeichnung.
+  const verschiedenesVarianten: TeilMitBestand[] = [...verknuepftMap.entries()]
+    .filter(([, a]) => a.kategorie === VERSCHIEDENES_TEILTYP && a.bestand > 0)
+    .map(([teiltyp, a]) => ({
+      teiltyp,
+      artikelId:   a.id,
+      bezeichnung: a.bezeichnung,
+      kategorie:   a.kategorie,
+      bestand:     a.bestand,
+      verfuegbar:  true,
+    }));
+
+  return {
+    kompatibilitaetVorhanden,
+    teile: [...standardTeile, ...verschiedenesVarianten],
   };
 }

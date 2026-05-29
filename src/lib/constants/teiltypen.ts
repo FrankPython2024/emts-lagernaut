@@ -23,6 +23,10 @@ export const STANDARD_TEILTYPEN = [
   { name: "WLAN Karte",       label: "WLAN-Karte",      icon: "📡",  pflicht: true,  beschreibung: "WLAN-Modul" },
   { name: "UMTS Karte",       label: "UMTS-Karte",      icon: "📶",  pflicht: false, beschreibung: "Mobilfunk-Modul" },
   { name: "Akku",             label: "Akku",            icon: "🔋",  pflicht: true,  beschreibung: "Hauptakku / Batterie" },
+  { name: "BIOS Batterie",    label: "BIOS-Batterie",   icon: "🪙",  pflicht: false, beschreibung: "Knopfzelle / CMOS-Batterie" },
+  { name: "B Cover",          label: "B-Cover",         icon: "🖼️",  pflicht: false, beschreibung: "Display-Rückseite / Deckel" },
+  { name: "C Cover",          label: "C-Cover",         icon: "🔲",  pflicht: false, beschreibung: "Handauflage / Tastatur-Deck" },
+  { name: "CPU Lüfter",       label: "CPU-Lüfter",      icon: "🌀",  pflicht: false, beschreibung: "Prozessor-Lüfter" },
   { name: "D Cover",          label: "D-Cover",         icon: "🧱",  pflicht: true,  beschreibung: "Unterseite / Bodenabdeckung" },
   { name: "DC IN",            label: "DC-IN",           icon: "⚡",  pflicht: false, beschreibung: "Lade-Buchse / Power-Jack" },
 ] as const;
@@ -35,3 +39,18 @@ export const PFLICHT_TEILTYPEN = STANDARD_TEILTYPEN.filter((t) => t.pflicht);
 
 // Für Service-Layer: reines String-Array der Namen
 export const STANDARD_TEILNAMEN = STANDARD_TEILTYPEN.map((t) => t.name);
+
+// ── Verschiedenes (Sammel-Kategorie mit Freitext) ────────────────────────────
+//
+// Sonderfall: KEIN normaler Standard-Teiltyp (bewusst NICHT in STANDARD_TEILTYPEN,
+// damit Auto-Verknüpfung & getModalData nicht darauf greifen). Pro Freitext
+// entsteht ein eigener Artikel; der Freitext wird in die Artikel-Bezeichnung
+// gebacken (kein eigenes DB-Feld). Die Kompatibilitaet-Verknüpfung nutzt einen
+// pro-Variante eindeutigen teiltyp-String, damit das unique(geraet, teiltyp)
+// nicht kollidiert.
+export const VERSCHIEDENES_TEILTYP = "Verschiedenes";
+
+/** Eindeutiger Kompatibilitaet-/Bezeichnungs-Suffix-Teiltyp pro Freitext-Variante. */
+export function verschiedenesKompatTeiltyp(freitext: string): string {
+  return `${VERSCHIEDENES_TEILTYP} — ${freitext.trim()}`;
+}

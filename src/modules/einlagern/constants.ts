@@ -2,16 +2,28 @@
 // STANDARD_TEILE wird aus der zentralen Quelle abgeleitet.
 // Quelle der Wahrheit: src/lib/constants/teiltypen.ts
 
-import { STANDARD_TEILTYPEN } from "@/lib/constants/teiltypen";
+import { STANDARD_TEILTYPEN, VERSCHIEDENES_TEILTYP } from "@/lib/constants/teiltypen";
 
-// Abgeleitete UI-Liste: {id, label, icon, beschreibung} — shape für Wizard
+// Abgeleitete UI-Liste: {id, label, icon, beschreibung, istVerschiedenes} — shape für Wizard
 // id = name (teiltyp-String in der DB)
-export const STANDARD_TEILE = STANDARD_TEILTYPEN.map((t) => ({
-  id:           t.name,
-  label:        t.label,
-  icon:         t.icon,
-  beschreibung: t.beschreibung,
-}));
+// Verschiedenes wird ans Ende angehängt (Sammel-Kategorie mit Freitext, kein
+// echter Standard-Teiltyp — siehe lib/constants/teiltypen.ts).
+export const STANDARD_TEILE = [
+  ...STANDARD_TEILTYPEN.map((t) => ({
+    id:               t.name,
+    label:            t.label,
+    icon:             t.icon,
+    beschreibung:     t.beschreibung,
+    istVerschiedenes: false,
+  })),
+  {
+    id:               VERSCHIEDENES_TEILTYP,
+    label:            "Verschiedenes",
+    icon:             "📦",
+    beschreibung:     "Sammel-Kategorie — z.B. Schraubenset, Abdeckungen (Freitext)",
+    istVerschiedenes: true,
+  },
+];
 
 export type StandardTeilId = (typeof STANDARD_TEILTYPEN)[number]["name"];
 

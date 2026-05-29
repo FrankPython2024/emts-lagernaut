@@ -31,6 +31,7 @@ type AusgewaehltItem = {
   grading:    string;
   notiz:      string;
   lagerplatz: string;
+  verschiedenesText?: string;
 };
 
 type ErgebnisItem = {
@@ -176,12 +177,22 @@ function TeilKonfigurator({
   const [menge,   setMenge]   = useState(initial.menge   ?? 1);
   const [notiz,   setNotiz]   = useState(initial.notiz   ?? "");
   const [warn,    setWarn]    = useState(false);
+  const [freitext, setFreitext] = useState(initial.verschiedenesText ?? "");
+  const freitextRef = useRef<HTMLInputElement>(null);
+
+  const istVerschiedenes = teil.istVerschiedenes;
+  const freitextOk       = !istVerschiedenes || freitext.trim().length >= 2;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  // Bei Verschiedenes direkt ins Freitext-Feld springen
+  useEffect(() => {
+    if (istVerschiedenes) freitextRef.current?.focus();
+  }, [istVerschiedenes]);
 
   function changeMenge(delta: number) {
     const next = Math.max(1, Math.min(99, menge + delta));
@@ -191,15 +202,17 @@ function TeilKonfigurator({
   }
 
   function handleSave() {
-    if (!grading) return;
+    if (!grading || !freitextOk) return;
+    const ft = freitext.trim();
     onSave({
       teiltyp:    teil.id,
-      label:      teil.label,
+      label:      istVerschiedenes && ft ? `${teil.label} — ${ft}` : teil.label,
       icon:       teil.icon,
       menge,
       grading,
       notiz,
       lagerplatz: initial.lagerplatz ?? "",
+      ...(istVerschiedenes ? { verschiedenesText: ft } : {}),
     });
   }
 
@@ -228,6 +241,33 @@ function TeilKonfigurator({
         </div>
 
         <div style={{ padding: "1.5rem" }}>
+
+          {/* Freitext — nur bei Verschiedenes */}
+          {istVerschiedenes && (
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label htmlFor="verschiedenes-freitext" style={{ display: "block", fontWeight: 800, marginBottom: 10, fontSize: "1rem" }}>
+                ❓ Was genau? <span style={{ color: "var(--danger)" }}>*</span>
+              </label>
+              <input
+                id="verschiedenes-freitext"
+                ref={freitextRef}
+                type="text"
+                value={freitext}
+                onChange={(e) => setFreitext(e.target.value)}
+                placeholder='z.B. "Schraubenset" oder "Abdeckungen"'
+                maxLength={100}
+                style={{ ...S.input, minHeight: 56 }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--afb-navy)")}
+                onBlur={(e)  => (e.currentTarget.style.borderColor = "var(--border)")}
+                aria-label="Freitext für Verschiedenes-Artikel"
+              />
+              {!freitextOk && (
+                <div style={{ fontSize: "0.8rem", color: "#f7b928", fontWeight: 600, marginTop: 6 }}>
+                  Bitte mindestens 2 Zeichen eingeben.
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Grading */}
           <div style={{ marginBottom: "1.5rem" }}>
@@ -339,8 +379,8 @@ function TeilKonfigurator({
             </button>
             <button
               onClick={handleSave}
-              disabled={!grading}
-              style={{ ...S.bigBtn("var(--afb-green)", !grading), flex: 2 }}
+              disabled={!grading || !freitextOk}
+              style={{ ...S.bigBtn("var(--afb-green)", !grading || !freitextOk), flex: 2 }}
             >
               ✅ {teil.label} hinzufügen
             </button>
@@ -1329,7 +1369,7 @@ function StepBestaetigung({
   const [localItems, setLocalItems] = useState<AusgewaehltItem[]>(items);
 
   const previewQuery = api.einlagern.preview.useQuery(
-    { geraetName: geraet.name, items: localItems.map((i) => ({ teiltyp: i.teiltyp, menge: i.menge, grading: i.grading })) },
+    { geraetName: geraet.name, items: localItems.map((i) => ({ teiltyp: i.teiltyp, menge: i.menge, grading: i.grading, verschiedenesText: i.verschiedenesText })) },
     { staleTime: 0 },
   );
 
@@ -1758,11 +1798,12 @@ export default function EinlagernPage() {
       gewaehlterLagerplatzId: selectedLagerplatzId ?? undefined,
       standortId:             einlagerStandortId,
       items:                  finalItems.map((i) => ({
-        teiltyp:    i.teiltyp,
-        menge:      i.menge,
-        grading:    i.grading,
-        notiz:      i.notiz || undefined,
-        lagerplatz: i.lagerplatz || undefined,
+        teiltyp:           i.teiltyp,
+        menge:             i.menge,
+        grading:           i.grading,
+        notiz:             i.notiz || undefined,
+        lagerplatz:        i.lagerplatz || undefined,
+        verschiedenesText: i.verschiedenesText || undefined,
       })),
     });
   }

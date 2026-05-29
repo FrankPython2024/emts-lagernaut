@@ -29,6 +29,12 @@ const STANDARDS = [
   { name: "Akku",             icon: "Battery",           sortierung: 150 },
   { name: "D Cover",          icon: "Box",               sortierung: 160 },
   { name: "DC IN",            icon: "Plug",              sortierung: 170 },
+  { name: "BIOS Batterie",    icon: "BatteryLow",        sortierung: 175 },
+  { name: "B Cover",          icon: "Monitor",           sortierung: 180 },
+  { name: "C Cover",          icon: "Keyboard",          sortierung: 185 },
+  { name: "CPU Lüfter",       icon: "Fan",               sortierung: 190 },
+  // Sammel-Kategorie mit Freitext — ans Ende (sortierung 999)
+  { name: "Verschiedenes",    icon: "Package",           sortierung: 999 },
 ];
 
 async function main() {

@@ -14,11 +14,13 @@ import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
 import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
 
 const EinlagerItemSchema = z.object({
-  teiltyp:    z.string().min(1).max(100),
-  menge:      z.number().int().min(1).max(99),
-  grading:    z.string().min(1).max(5),
-  notiz:      z.string().max(500).optional(),
-  lagerplatz: z.string().max(50).optional(),
+  teiltyp:          z.string().min(1).max(100),
+  menge:            z.number().int().min(1).max(99),
+  grading:          z.string().min(1).max(5),
+  notiz:            z.string().max(500).optional(),
+  lagerplatz:       z.string().max(50).optional(),
+  // Nur für Teiltyp "Verschiedenes": Freitext (z.B. "Schraubenset").
+  verschiedenesText: z.string().max(100).optional(),
 });
 
 export const einlagernRouter = createTRPCRouter({
