@@ -355,6 +355,24 @@ export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
 
 // ── Queries ───────────────────────────────────────────────────────────────────
 
+/**
+ * Anzahl Anfragen im Status NEU — für das Sidebar-Badge.
+ *
+ * Standort-Scoping läuft über die Artikel-Relation (Anfrage selbst hat keinen
+ * standortId). NEU setzt immer einen Artikel mit Bestand > 0 voraus, daher ist
+ * der Artikel-Filter ausreichend.
+ *   - standortIds === null  → keine Einschränkung (alleStandorte / ADMIN-Wildcard)
+ *   - standortIds === []     → nichts sichtbar → 0
+ */
+export async function zaehleNeueAnfragen(standortIds: number[] | null): Promise<number> {
+  return prisma.anfrage.count({
+    where: {
+      status: AnfrageStatus.NEU,
+      ...(standortIds !== null ? { artikel: { standortId: { in: standortIds } } } : {}),
+    },
+  });
+}
+
 export async function getAnfragenByTechniker(data: {
   techniker:    string;
   showAll:      boolean;

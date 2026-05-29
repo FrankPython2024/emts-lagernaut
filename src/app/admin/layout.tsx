@@ -12,6 +12,7 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 import { StandortProvider } from "@/lib/standort/standortContext";
 import { StandortSwitcher } from "@/components/StandortSwitcher";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useNeueAnfragenZaehler } from "@/hooks/useNeueAnfragenZaehler";
 import { MeinProfilModal } from "@/app/admin/_components/MeinProfilModal";
 
 type NavItem = { href: string; label: string; icon: string; permission: string };
@@ -65,6 +66,7 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
   const pathname = usePathname();
   const { data: session } = useSession();
   const { has, isLoading: permsLoading } = usePermissions();
+  const neueAnfragen = useNeueAnfragenZaehler();
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -147,6 +149,7 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
                   const active = href === "/admin"
                     ? pathname === href
                     : (pathname ?? "").startsWith(href);
+                  const badge = href === "/admin/anfragen" ? neueAnfragen : 0;
                   return (
                     <Link
                       key={href}
@@ -162,7 +165,16 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
                       <span className={`text-base w-5 text-center flex-shrink-0 ${active ? "text-cyan-600 dark:text-cyan-400" : "text-gray-400 dark:text-gray-500"}`}>
                         {icon}
                       </span>
-                      {label}
+                      <span className="flex-1 min-w-0 truncate">{label}</span>
+                      {badge > 0 && (
+                        <span
+                          aria-label={`${badge} neue ${badge === 1 ? "Anfrage" : "Anfragen"}`}
+                          className="flex-shrink-0 text-white text-[11px] font-bold leading-none rounded-full px-2 py-1 min-w-[20px] text-center"
+                          style={{ background: "#008BD2" }}
+                        >
+                          {badge > 99 ? "99+" : badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

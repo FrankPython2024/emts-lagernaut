@@ -17,6 +17,7 @@ import {
   gruppeInBearbeitungNehmen,
   gruppeFreigeben,
   gruppeZurueckgeben,
+  zaehleNeueAnfragen,
 } from "@/modules/anfragen/service";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { naechsteBelegNr } from "@/core/infra/belegnr";
@@ -41,6 +42,10 @@ export const anfragenRouter = createTRPCRouter({
       korbId:      z.number().int().positive().optional(),
     }))
     .mutation(({ input }) => erstelleAnfrage(input)),
+
+  // Anzahl NEU-Anfragen — Sidebar-Badge (standort-gefiltert, ANFRAGE_VIEW_ALL)
+  zaehleNeue: anfragenReadProcedure
+    .query(({ ctx }) => zaehleNeueAnfragen(getZugaenglicheStandortIds(ctx))),
 
   // Alle Anfragen — read mit Filter (ANFRAGE_VIEW_ALL)
   getAll: anfragenReadProcedure
