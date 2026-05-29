@@ -12,6 +12,7 @@ import {
   getByModell,
   getModalData,
   setVerknuepfung,
+  setVerknuepfteArtikelBulk,
   autoVerknuepfung,
   massAutoVerknuepfung,
 } from "@/modules/kompatibilitaet/service";
@@ -76,7 +77,7 @@ export const kompatibilitaetRouter = createTRPCRouter({
     .input(z.object({ modellId: z.number().int().positive() }))
     .query(({ input }) => getModalData(input.modellId)),
 
-  // Verknüpfungen eines Modells komplett setzen
+  // Verknüpfungen eines Modells komplett setzen (Legacy, 1 Artikel pro Teiltyp)
   setVerknuepfung: adminProcedure
     .input(z.object({
       modellId:       z.number().int().positive(),
@@ -86,6 +87,17 @@ export const kompatibilitaetRouter = createTRPCRouter({
       })),
     }))
     .mutation(({ input }) => setVerknuepfung(input)),
+
+  // Multi-Artikel pro (geraet, teiltyp) setzen — Pool-Verknüpfung über mehrere Teiltypen
+  setVerknuepfteArtikelBulk: adminProcedure
+    .input(z.object({
+      geraet:    z.string().min(1).max(255),
+      eintraege: z.array(z.object({
+        teiltyp:    z.string().min(1).max(100),
+        artikelIds: z.array(z.number().int().positive()).max(50),
+      })).max(100),
+    }))
+    .mutation(({ input }) => setVerknuepfteArtikelBulk(input)),
 
   // Aktuell mit (artikel, teiltyp) verknüpfte Gerätenamen — für Multi-Select-Initialstate
   getVerknuepfteGeraete: adminProcedure
@@ -116,9 +128,9 @@ export const kompatibilitaetRouter = createTRPCRouter({
       prisma.$transaction(async (tx) => {
         for (const geraet of input.geraete) {
           await tx.kompatibilitaet.upsert({
-            where:  { geraet_teiltyp: { geraet, teiltyp: input.teiltyp } },
+            where:  { geraet_teiltyp_artikelId: { geraet, teiltyp: input.teiltyp, artikelId: input.artikelId } },
             create: { geraet, teiltyp: input.teiltyp, artikelId: input.artikelId },
-            update: { artikelId: input.artikelId },
+            update: {},
           });
         }
 

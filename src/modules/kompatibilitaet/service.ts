@@ -154,12 +154,15 @@ export async function getModalData(modellId: number) {
   const geraetVoll  = `${modell.hersteller} ${modell.modell}`;
   const standardTeile = STANDARD_TEILE_ENUM;
 
-  // Aktuelle Verknüpfungen
+  // Aktuelle Verknüpfungen — Multi-Artikel: pro Teiltyp eine Artikel-ID-Liste
   const aktuelleLinks = await prisma.kompatibilitaet.findMany({
     where: { geraet: geraetVoll },
     select: { teiltyp: true, artikelId: true, id: true },
   });
-  const currentMap = new Map(aktuelleLinks.map((l) => [l.teiltyp, l.artikelId]));
+  const currentMap: Record<string, number[]> = {};
+  for (const l of aktuelleLinks) {
+    (currentMap[l.teiltyp] ??= []).push(l.artikelId);
+  }
 
   // Alle Artikel für STANDARD_TEILE-Kategorien in einem einzigen Query laden
   const alleArtikel = await prisma.artikel.findMany({
@@ -175,7 +178,7 @@ export async function getModalData(modellId: number) {
 
   // Smart-Vorschläge: Keyword-Suche per IN-Query statt 13×N DB-Calls
   const keywords   = extractKeywords(modell.modell);
-  const fehlendeTl = standardTeile.filter((t) => !currentMap.has(t));
+  const fehlendeTl = standardTeile.filter((t) => !(currentMap[t]?.length));
 
   const vorschlaege: Record<string, number | null> = {};
   for (const teil of standardTeile) { vorschlaege[teil] = null; }
@@ -197,7 +200,7 @@ export async function getModalData(modellId: number) {
     }
   }
 
-  return { modell, geraetVoll, currentMap: Object.fromEntries(currentMap), artikelPerKategorie, vorschlaege };
+  return { modell, geraetVoll, currentMap, artikelPerKategorie, vorschlaege };
 }
 
 /**
@@ -226,6 +229,49 @@ export async function setVerknuepfung(input: {
   });
 
   return { geraet: geraetVoll, gespeichert: input.verknuepfungen.filter((v) => v.artikelId).length };
+}
+
+/**
+ * Multi-Artikel-Verknüpfung: pro Teiltyp eine Artikel-ID-Liste setzen (Pool).
+ * Diff pro Teiltyp (nur gelistete Teiltypen werden angefasst — andere Einträge,
+ * z.B. Verschiedenes-Varianten, bleiben unberührt). Alles in einer Transaktion.
+ */
+export async function setVerknuepfteArtikelBulk(input: {
+  geraet:    string;
+  eintraege: { teiltyp: string; artikelIds: number[] }[];
+}): Promise<{ hinzugefuegt: number; entfernt: number }> {
+  return prisma.$transaction(async (tx) => {
+    let hinzugefuegt = 0;
+    let entfernt     = 0;
+
+    for (const e of input.eintraege) {
+      const aktuell = await tx.kompatibilitaet.findMany({
+        where:  { geraet: input.geraet, teiltyp: e.teiltyp },
+        select: { artikelId: true },
+      });
+      const aktuellIds = new Set(aktuell.map((k) => k.artikelId));
+      const neuIds     = new Set(e.artikelIds);
+
+      const hinzu = [...neuIds].filter((id) => !aktuellIds.has(id));
+      const weg   = [...aktuellIds].filter((id) => !neuIds.has(id));
+
+      if (weg.length > 0) {
+        await tx.kompatibilitaet.deleteMany({
+          where: { geraet: input.geraet, teiltyp: e.teiltyp, artikelId: { in: weg } },
+        });
+        entfernt += weg.length;
+      }
+      if (hinzu.length > 0) {
+        await tx.kompatibilitaet.createMany({
+          data: hinzu.map((artikelId) => ({ geraet: input.geraet, teiltyp: e.teiltyp, artikelId })),
+          skipDuplicates: true,
+        });
+        hinzugefuegt += hinzu.length;
+      }
+    }
+
+    return { hinzugefuegt, entfernt };
+  });
 }
 
 /**
@@ -406,31 +452,40 @@ export async function getByGeraetMitStandard(args: {
     : STANDARD_TEILE_LOOKUP
   ).filter((name) => name !== VERSCHIEDENES_TEILTYP);
 
-  // Map: teiltyp → artikel — bei Duplikaten (geraet mit/ohne Prefix) gewinnt höherer Bestand.
-  // Schützt vor dem Fall wo Generator-Einträge (bestand=0) Einlager-Einträge (bestand>0) maskieren.
-  const verknuepftMap = new Map<string, { id: number; bezeichnung: string; kategorie: string; bestand: number }>();
+  // Pool je Teiltyp: ALLE verknüpften Artikel sammeln (dedupliziert nach Artikel-ID,
+  // da derselbe Artikel über mehrere geraet-Strings auftauchen kann).
+  type ArtikelLite = { id: number; bezeichnung: string; kategorie: string; bestand: number };
+  const poolMap = new Map<string, ArtikelLite[]>();
   for (const k of treffer) {
-    const existing = verknuepftMap.get(k.teiltyp);
-    if (!existing || k.artikel.bestand > existing.bestand) {
-      verknuepftMap.set(k.teiltyp, k.artikel);
-    }
+    const arr = poolMap.get(k.teiltyp) ?? [];
+    if (!arr.some((a) => a.id === k.artikel.id)) arr.push(k.artikel);
+    poolMap.set(k.teiltyp, arr);
+  }
+
+  // Pool aggregieren: Bestand = Summe über alle Artikel; primärer Artikel =
+  // höchster Bestand (>0 bevorzugt). artikelId zeigt auf den primären Artikel,
+  // der bei einer Anfrage tatsächlich ausgeliefert wird.
+  function aggregiere(teiltyp: string, artikel: ArtikelLite[]): TeilMitBestand {
+    const sortiert    = [...artikel].sort((a, b) => b.bestand - a.bestand);
+    const poolBestand = sortiert.reduce((s, a) => s + a.bestand, 0);
+    const primaer     = sortiert.find((a) => a.bestand > 0) ?? sortiert[0]!;
+    return {
+      teiltyp,
+      artikelId:   primaer.id,
+      bezeichnung: primaer.bezeichnung,
+      kategorie:   primaer.kategorie,
+      bestand:     poolBestand,
+      verfuegbar:  poolBestand > 0,
+    };
   }
 
   const kompatibilitaetVorhanden = treffer.length > 0;
+  const standardSet = new Set(standardListe);
 
-  // Alle aktiven Teiltypen — verknüpfte mit Bestandsdaten, andere als "nicht erfasst"
+  // Standard-Teile: verknüpfte mit Pool-Bestand, andere als "nicht erfasst" (Zustand C)
   const standardTeile: TeilMitBestand[] = standardListe.map((teiltyp) => {
-    const artikel = verknuepftMap.get(teiltyp);
-    if (artikel) {
-      return {
-        teiltyp,
-        artikelId:   artikel.id,
-        bezeichnung: artikel.bezeichnung,
-        kategorie:   artikel.kategorie,
-        bestand:     artikel.bestand,
-        verfuegbar:  artikel.bestand > 0,
-      };
-    }
+    const arr = poolMap.get(teiltyp);
+    if (arr && arr.length) return aggregiere(teiltyp, arr);
     return {
       teiltyp,
       artikelId:   null,
@@ -441,19 +496,12 @@ export async function getByGeraetMitStandard(args: {
     };
   });
 
-  // Verschiedenes-Varianten: eigener Artikel pro Freitext (Kategorie
-  // "Verschiedenes"). Anders als Standard-Slots erscheinen sie NUR mit Bestand
-  // (keine generischen Leer-Slots), jeweils mit dem Freitext im teiltyp/bezeichnung.
-  const verschiedenesVarianten: TeilMitBestand[] = [...verknuepftMap.entries()]
-    .filter(([, a]) => a.kategorie === VERSCHIEDENES_TEILTYP && a.bestand > 0)
-    .map(([teiltyp, a]) => ({
-      teiltyp,
-      artikelId:   a.id,
-      bezeichnung: a.bezeichnung,
-      kategorie:   a.kategorie,
-      bestand:     a.bestand,
-      verfuegbar:  true,
-    }));
+  // Verschiedenes-Varianten: eigener Pool pro Freitext-Teiltyp (Kategorie
+  // "Verschiedenes"). Erscheinen NUR mit Bestand (keine generischen Leer-Slots).
+  const verschiedenesVarianten: TeilMitBestand[] = [...poolMap.entries()]
+    .filter(([teiltyp, arr]) => !standardSet.has(teiltyp) && arr.some((a) => a.kategorie === VERSCHIEDENES_TEILTYP))
+    .map(([teiltyp, arr]) => aggregiere(teiltyp, arr))
+    .filter((t) => t.verfuegbar);
 
   return {
     kompatibilitaetVorhanden,

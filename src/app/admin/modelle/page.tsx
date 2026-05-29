@@ -45,16 +45,16 @@ function extractModellKeyword(modell: string): string {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function TeilSucheSection({
-  teiltyp, gewaehlt, modellKeyword, onChange, onPool,
+  teiltyp, gewaehlt, modellKeyword, onToggle, onPool,
 }: {
   teiltyp:       string;
-  gewaehlt:      number | null;
+  gewaehlt:      number[];
   modellKeyword: string;
-  onChange:      (artikelId: number | null) => void;
+  onToggle:      (artikelId: number) => void;
   onPool?:       (artikelId: number) => void;
 }) {
-  const [open,     setOpen]     = useState(gewaehlt !== null);
-  const [query,    setQuery]    = useState(gewaehlt === null ? modellKeyword : "");
+  const [open,     setOpen]     = useState(gewaehlt.length > 0);
+  const [query,    setQuery]    = useState(gewaehlt.length === 0 ? modellKeyword : "");
   const debQuery = useDebounce(query, 300);
 
   const suche = api.kompatibilitaet.sucheArtikelFuerTeil.useQuery(
@@ -63,40 +63,26 @@ function TeilSucheSection({
   );
 
   const results = suche.data ?? [];
-  const hatVorschlag = !gewaehlt && modellKeyword && debQuery === modellKeyword;
+  const hatVorschlag = gewaehlt.length === 0 && modellKeyword && debQuery === modellKeyword;
 
   return (
     <div className="border border-[#ced4da] dark:border-[#3e4042] rounded-xl overflow-hidden">
       {/* Abschnitt-Header */}
-      <div className="flex items-center bg-[#f0f2f5] dark:bg-[#18191a]">
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          className="flex-1 flex items-center justify-between px-4 py-3 hover:bg-[#ced4da]/30 dark:hover:bg-[#3e4042] transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{teiltyp}</span>
-            {gewaehlt !== null ? (
-              <span className="text-xs text-[#00a400] font-semibold">✓ Verknüpft</span>
-            ) : (
-              <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">— Keine</span>
-            )}
-          </div>
-          <span className="text-[#65676b] text-xs">{open ? "▲" : "▼"}</span>
-        </button>
-        {gewaehlt !== null && onPool && (
-          <button
-            type="button"
-            onClick={() => onPool(gewaehlt)}
-            title="Diesen Artikel zusätzlich für andere Modelle verknüpfen"
-            aria-label={`Pool für ${teiltyp} verwalten`}
-            className="flex items-center justify-center text-base text-[#008bd2] hover:bg-[#008bd2]/10 transition-colors flex-shrink-0 mr-1 rounded-lg"
-            style={{ minHeight: 36, minWidth: 36 }}
-          >
-            🔗
-          </button>
-        )}
-      </div>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-[#f0f2f5] dark:bg-[#18191a] hover:bg-[#ced4da]/30 dark:hover:bg-[#3e4042] transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{teiltyp}</span>
+          {gewaehlt.length === 0 ? (
+            <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Nicht verknüpft</span>
+          ) : (
+            <span className="text-xs text-[#00a400] font-semibold">✓ Verknüpft ({gewaehlt.length} Artikel)</span>
+          )}
+        </div>
+        <span className="text-[#65676b] text-xs">{open ? "▲" : "▼"}</span>
+      </button>
 
       {/* Abschnitt-Body */}
       {open && (
@@ -127,20 +113,12 @@ function TeilSucheSection({
             </p>
           )}
 
+          <p className="text-[10px] text-[#65676b] dark:text-[#b0b3b8]">
+            Mehrfachauswahl möglich — alle angehakten Artikel bilden den Bestand-Pool für diesen Teiltyp.
+          </p>
+
           {/* Ergebnisse */}
           <div className="space-y-1 max-h-44 overflow-y-auto pr-0.5">
-            {/* Keine Verknüpfung */}
-            <label className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] cursor-pointer">
-              <input
-                type="radio"
-                name={`teil-${teiltyp}`}
-                checked={gewaehlt === null}
-                onChange={() => onChange(null)}
-                className="accent-[#0064d2]"
-              />
-              <span className="text-sm text-[#65676b] dark:text-[#b0b3b8] italic">— Keine Verknüpfung</span>
-            </label>
-
             {suche.isLoading && (
               <div className="flex justify-center py-2">
                 <div className="w-4 h-4 border-2 border-[#0064d2]/20 border-t-[#0064d2] rounded-full animate-spin" />
@@ -153,24 +131,40 @@ function TeilSucheSection({
               </p>
             )}
 
-            {results.map((a) => (
-              <label key={a.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${gewaehlt === a.id ? "bg-[#0064d2]/10 border border-[#0064d2]/30" : "hover:bg-[#f0f2f5] dark:hover:bg-[#18191a]"}`}>
-                <input
-                  type="radio"
-                  name={`teil-${teiltyp}`}
-                  checked={gewaehlt === a.id}
-                  onChange={() => onChange(a.id)}
-                  className="accent-[#0064d2] flex-shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{a.bezeichnung}</div>
-                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{a.lagerplatz ?? "—"}</div>
+            {results.map((a) => {
+              const sel = gewaehlt.includes(a.id);
+              return (
+                <div key={a.id} className={`flex items-center gap-1 rounded-lg ${sel ? "bg-[#0064d2]/10 border border-[#0064d2]/30" : ""}`}>
+                  <label className="flex-1 flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={sel}
+                      onChange={() => onToggle(a.id)}
+                      className="accent-[#0064d2] flex-shrink-0 w-4 h-4"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{a.bezeichnung}</div>
+                      <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{a.lagerplatz ?? "—"}</div>
+                    </div>
+                    <span className={`text-xs flex-shrink-0 ${bestandFarbe(a.bestand)}`}>
+                      {a.bestand}
+                    </span>
+                  </label>
+                  {sel && onPool && (
+                    <button
+                      type="button"
+                      onClick={() => onPool(a.id)}
+                      title="Diesen Artikel zusätzlich für andere Modelle verknüpfen"
+                      aria-label={`Pool für ${a.bezeichnung} verwalten`}
+                      className="flex items-center justify-center text-base text-[#008bd2] hover:bg-[#008bd2]/10 transition-colors flex-shrink-0 mr-1 rounded-lg"
+                      style={{ minHeight: 36, minWidth: 36 }}
+                    >
+                      🔗
+                    </button>
+                  )}
                 </div>
-                <span className={`text-xs flex-shrink-0 ${bestandFarbe(a.bestand)}`}>
-                  {a.bestand}
-                </span>
-              </label>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -188,35 +182,44 @@ function VerknuepfungsModal({
   const { show } = useToast();
 
   const { data, isLoading, error } = api.kompatibilitaet.getModalData.useQuery({ modellId });
-  const [auswahl, setAuswahl] = useState<Record<string, number | null>>({});
+  const [auswahl, setAuswahl] = useState<Record<string, number[]>>({});
   const [initialized, setInitialized] = useState(false);
   const [poolModalState, setPoolModalState] = useState<{ artikelId: number; teiltyp: string; bezeichnung?: string } | null>(null);
 
   useEffect(() => {
     if (data && !initialized) {
-      const init: Record<string, number | null> = {};
+      const init: Record<string, number[]> = {};
       for (const teil of STANDARD_TEILE) {
         // Nur bestehende Verknüpfungen vorauswählen — KEINE automatischen Vorschläge
-        init[teil] = data.currentMap[teil] ?? null;
+        init[teil] = data.currentMap[teil] ?? [];
       }
       setAuswahl(init);
       setInitialized(true);
     }
   }, [data, initialized]);
 
-  const setVerknuepfung = api.kompatibilitaet.setVerknuepfung.useMutation({
+  const setVerknuepfung = api.kompatibilitaet.setVerknuepfteArtikelBulk.useMutation({
     onSuccess: (r) => {
-      show(`✅ ${r.gespeichert} Verknüpfungen gespeichert`, "success");
+      show(`✅ ${r.hinzugefuegt} verknüpft · ${r.entfernt} entfernt`, "success");
       onSaved();
       onClose();
     },
     onError: (e) => show(e.message, "error"),
   });
 
+  function toggleArtikel(teiltyp: string, artikelId: number) {
+    setAuswahl((a) => {
+      const cur  = a[teiltyp] ?? [];
+      const next = cur.includes(artikelId) ? cur.filter((x) => x !== artikelId) : [...cur, artikelId];
+      return { ...a, [teiltyp]: next };
+    });
+  }
+
   function handleSave() {
+    if (!data) return;
     setVerknuepfung.mutate({
-      modellId,
-      verknuepfungen: STANDARD_TEILE.map((t) => ({ teiltyp: t, artikelId: auswahl[t] ?? null })),
+      geraet:    data.geraetVoll,
+      eintraege: STANDARD_TEILE.map((t) => ({ teiltyp: t, artikelIds: auswahl[t] ?? [] })),
     });
   }
 
@@ -251,9 +254,9 @@ function VerknuepfungsModal({
           <TeilSucheSection
             key={teil}
             teiltyp={teil}
-            gewaehlt={auswahl[teil] ?? null}
+            gewaehlt={auswahl[teil] ?? []}
             modellKeyword={modellKeyword}
-            onChange={(id) => setAuswahl((a) => ({ ...a, [teil]: id }))}
+            onToggle={(id) => toggleArtikel(teil, id)}
             onPool={(artikelId) => setPoolModalState({
               artikelId,
               teiltyp:     teil,

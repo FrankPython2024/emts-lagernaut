@@ -346,9 +346,9 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     // 6. Kompatibilitaet: kanonische Form mit Prefix (= Artikel-Generator-Key).
     //    Verschiedenes nutzt den pro-Variante eindeutigen teiltypKey.
     await prisma.kompatibilitaet.upsert({
-      where:  { geraet_teiltyp: { geraet: geraetVoll, teiltyp: teiltypKey } },
+      where:  { geraet_teiltyp_artikelId: { geraet: geraetVoll, teiltyp: teiltypKey, artikelId: artikel.id } },
       create: { geraet: geraetVoll, teiltyp: teiltypKey, artikelId: artikel.id },
-      update: { artikelId: artikel.id },
+      update: {},
     });
     console.log(`[Einlagern] Verknüpft: "${geraetVoll}" + "${teiltypKey}" → Artikel #${artikel.id}`);
 

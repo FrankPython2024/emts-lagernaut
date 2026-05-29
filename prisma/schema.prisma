@@ -198,7 +198,9 @@ model Kompatibilitaet {
   artikelId Int
   artikel   Artikel @relation(fields: [artikelId], references: [id])
 
-  @@unique([geraet, teiltyp])
+  // Multi-Artikel: pro (geraet, teiltyp) sind mehrere Artikel erlaubt (Pool).
+  // Der unique-Key verhindert nur exakte Duplikate.
+  @@unique([geraet, teiltyp, artikelId])
 }
 
 model GeraeteModell {

@@ -59,7 +59,7 @@ export async function legeModellAn(
 
       // Kompatibilität mit kanonischem Namen (nicht "HP EliteBook 840 G5")
       await tx.kompatibilitaet.upsert({
-        where:  { geraet_teiltyp: { geraet: kanonischerName, teiltyp: teil } },
+        where:  { geraet_teiltyp_artikelId: { geraet: kanonischerName, teiltyp: teil, artikelId: artikel.id } },
         create: { geraet: kanonischerName, teiltyp: teil, artikelId: artikel.id },
         update: {},
       });
@@ -90,9 +90,10 @@ export async function legeEinzelteilAn(data: {
   const geraetVoll  = `${data.hersteller.trim()} ${data.modell.trim()}`;
   const bezeichnung = `${data.modell.trim()} ${data.teiltyp.trim()}`;
 
-  // Prüfen ob Kompatibilitätseintrag bereits existiert
-  const bestehend = await prisma.kompatibilitaet.findUnique({
-    where: { geraet_teiltyp: { geraet: geraetVoll, teiltyp: data.teiltyp.trim() } },
+  // Prüfen ob Kompatibilitätseintrag bereits existiert (irgendein Artikel für
+  // diese geraet+teiltyp-Kombination — Multi-Artikel: kein eindeutiger Key mehr)
+  const bestehend = await prisma.kompatibilitaet.findFirst({
+    where: { geraet: geraetVoll, teiltyp: data.teiltyp.trim() },
   });
 
   if (bestehend) {
