@@ -7,6 +7,7 @@ const lagerplatzReadProcedure = permissionProcedure("LAGERPLATZ_VIEW");
 import { extractSerie } from "@/lib/lager/serien";
 import { prisma as _prisma } from "@/core/db/prisma";
 import { standortWhere } from "@/lib/auth/standortFilter";
+import { STANDARD_TEILTYPEN, VERSCHIEDENES_TEILTYP } from "@/lib/constants/teiltypen";
 
 type PrismaInstance = typeof _prisma;
 
@@ -23,6 +24,40 @@ type ArtikelMitGrading = {
   grading:        string | null;
   letzteBuchung:  Date | null;
 };
+
+/**
+ * Aggregiert die Artikel einer Belegung pro Teiltyp (= kategorie) zu EINER Zeile
+ * mit Pool-Bestand (Summe) — konsistent mit dem Techniker-Portal
+ * (getByGeraetMitStandard). Repräsentant (id/grading/bezeichnung) ist der Artikel
+ * mit dem höchsten Einzelbestand. "Verschiedenes" wird NICHT aggregiert —
+ * jede Freitext-Variante bleibt eine eigene Zeile. Sortierung nach STANDARD_TEILTYPEN.
+ */
+function aggregiereNachTeiltyp(artikel: ArtikelMitGrading[]): ArtikelMitGrading[] {
+  const gruppen = new Map<string, ArtikelMitGrading[]>();
+  const verschiedenes: ArtikelMitGrading[] = [];
+
+  for (const a of artikel) {
+    if (a.kategorie === VERSCHIEDENES_TEILTYP) { verschiedenes.push(a); continue; }
+    const arr = gruppen.get(a.kategorie) ?? [];
+    arr.push(a);
+    gruppen.set(a.kategorie, arr);
+  }
+
+  const standard = [...gruppen.values()].map((arr) => {
+    const sortiert = [...arr].sort((x, y) => y.bestand - x.bestand);
+    const primaer  = sortiert[0]!;
+    const bestand  = sortiert.reduce((s, x) => s + x.bestand, 0);
+    return { ...primaer, bestand };
+  });
+
+  const idx = (name: string) => {
+    const i = STANDARD_TEILTYPEN.findIndex((t) => t.name === name);
+    return i === -1 ? 999 : i;
+  };
+  standard.sort((a, b) => idx(a.kategorie) - idx(b.kategorie));
+
+  return [...standard, ...verschiedenes];
+}
 
 // Kandidat = Fach mit Restkapazität (leer ODER teilbelegt mit gleichem Hersteller)
 type KandidatPlatz = {
@@ -274,7 +309,7 @@ export const lagerplatzRouter = createTRPCRouter({
             modellName: b.modell.modell,
             hersteller: b.modell.hersteller,
             erstelltAm: b.erstelltAm,
-            artikel:    artikelMitGrading,
+            artikel:    aggregiereNachTeiltyp(artikelMitGrading),
           };
         }),
       );
