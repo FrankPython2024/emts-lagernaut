@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useDebounce } from "use-debounce";
 import { BuchungsTyp } from "@prisma/client";
@@ -24,6 +24,144 @@ const LIMIT = 50;
 
 const INPUT_CLS = "px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] text-sm";
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Pool-Verknüpfung: ein Artikel ↔ mehrere Modelle (Multi-Select)
+// teiltyp = artikel.kategorie. Verknüpft denselben Artikel als kompatibles Teil
+// für mehrere Geräte (Kompatibilitaet.geraet = "Hersteller Modell").
+// ══════════════════════════════════════════════════════════════════════════════
+
+function ModellPoolModal({
+  artikel, onClose, onSaved,
+}: { artikel: Artikel; onClose: () => void; onSaved: () => void }) {
+  const { show } = useToast();
+  const teiltyp = artikel.kategorie;
+
+  const alleModelle = api.modell.list.useQuery({ aktiv: true });
+  const verknuepft  = api.kompatibilitaet.getVerknuepfteGeraete.useQuery({ artikelId: artikel.id, teiltyp });
+
+  const [suchtext,    setSuchtext]    = useState("");
+  const [ausgewaehlt, setAusgewaehlt] = useState<Set<string>>(new Set());
+  const [initialized, setInitialized] = useState(false);
+
+  // Initial-State aus bereits verknüpften Modellen
+  useEffect(() => {
+    if (verknuepft.data && !initialized) {
+      setAusgewaehlt(new Set(verknuepft.data));
+      setInitialized(true);
+    }
+  }, [verknuepft.data, initialized]);
+
+  const bereits = useMemo(() => new Set(verknuepft.data ?? []), [verknuepft.data]);
+
+  const gefiltert = useMemo(() => {
+    const q    = suchtext.trim().toLowerCase();
+    const list = alleModelle.data ?? [];
+    return q ? list.filter((g) => g.name.toLowerCase().includes(q)) : list;
+  }, [alleModelle.data, suchtext]);
+
+  const setBulk = api.kompatibilitaet.setVerknuepfungBulk.useMutation({
+    onSuccess: (r) => {
+      show(`✅ ${r.verknuepft} verknüpft · ${r.entfernt} entfernt`, "success");
+      onSaved();
+      onClose();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
+  function toggle(name: string) {
+    setAusgewaehlt((prev) => {
+      const n = new Set(prev);
+      if (n.has(name)) n.delete(name); else n.add(name);
+      return n;
+    });
+  }
+
+  function handleSave() {
+    const hinzugefuegt = [...ausgewaehlt].filter((g) => !bereits.has(g));
+    const entfernt     = [...bereits].filter((g) => !ausgewaehlt.has(g));
+    setBulk.mutate({ artikelId: artikel.id, teiltyp, geraete: hinzugefuegt, entfernen: entfernt });
+  }
+
+  const laedt = alleModelle.isLoading || verknuepft.isLoading;
+
+  return (
+    <Modal open onClose={onClose} title={`Modelle verknüpfen — ${teiltyp}`} width="max-w-xl">
+      <div className="space-y-3">
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+          Artikel: <strong className="text-[#1a1a1a] dark:text-[#e4e6eb]">{artikel.bezeichnung}</strong>
+        </p>
+
+        <input
+          type="search"
+          autoFocus
+          value={suchtext}
+          onChange={(e) => setSuchtext(e.target.value)}
+          placeholder="🔍 Modell suchen…"
+          className={`${INPUT_CLS} w-full`}
+          aria-label="Modell suchen"
+        />
+
+        <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+          {ausgewaehlt.size} ausgewählt · {bereits.size} bereits verknüpft · {gefiltert.length} angezeigt
+        </div>
+
+        <div className="max-h-96 overflow-y-auto space-y-1 pr-0.5 border-t border-[#ced4da] dark:border-[#3e4042] pt-2">
+          {laedt ? (
+            <div className="flex justify-center py-6">
+              <div className="w-6 h-6 border-2 border-[#0064d2]/20 border-t-[#0064d2] rounded-full animate-spin" />
+            </div>
+          ) : gefiltert.length === 0 ? (
+            <p className="text-sm text-center py-6 text-[#65676b] dark:text-[#b0b3b8]">
+              {suchtext ? `Keine Modelle für „${suchtext}"` : "Keine aktiven Modelle."}
+            </p>
+          ) : (
+            gefiltert.map((g) => {
+              const sel = ausgewaehlt.has(g.name);
+              const war = bereits.has(g.name);
+              return (
+                <label
+                  key={g.id}
+                  className="flex items-center gap-3 px-3 rounded-lg cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a]"
+                  style={{ minHeight: 44 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={sel}
+                    onChange={() => toggle(g.name)}
+                    className="w-4 h-4 accent-[#0064d2] flex-shrink-0"
+                  />
+                  <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                    {g.name}
+                    {war && <span className="ml-2 text-xs font-semibold text-[#008bd2]">aktiv</span>}
+                  </span>
+                </label>
+              );
+            })
+          )}
+        </div>
+
+        <div className="flex gap-3 pt-2 border-t border-[#ced4da] dark:border-[#3e4042]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-semibold"
+          >
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={setBulk.isPending || laedt}
+            className="flex-1 py-2.5 rounded-xl bg-[#0064d2] text-white font-bold hover:bg-blue-700 disabled:opacity-50"
+          >
+            {setBulk.isPending ? "Speichere…" : `Speichern (${ausgewaehlt.size} Modelle)`}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export default function ArtikelPage() {
   const { show } = useToast();
   const { activeStandortId } = useStandortFilter();
@@ -42,6 +180,7 @@ export default function ArtikelPage() {
 
   // Modal State
   const [buchModal,  setBuchModal]  = useState<Artikel | null>(null);
+  const [poolModal,  setPoolModal]  = useState<Artikel | null>(null);
   const [delTarget,  setDelTarget]  = useState<Artikel | null>(null);
   const [buchMenge,  setBuchMenge]  = useState(1);
   const [buchTyp,    setBuchTyp]    = useState<BuchungsTyp>(BuchungsTyp.EINGANG);
@@ -172,6 +311,10 @@ export default function ArtikelPage() {
           <button onClick={() => setBuchModal(a)}
             className="px-2 py-2 text-xs rounded min-h-[36px] bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] hover:bg-[#0064d2]/20 font-semibold">
             📥
+          </button>
+          <button onClick={() => setPoolModal(a)} title="Modelle verknüpfen"
+            className="px-2 py-2 text-xs rounded min-h-[36px] bg-[#008bd2]/10 text-[#008bd2] hover:bg-[#008bd2]/20 font-semibold">
+            🔗
           </button>
           {a.bestand === 0 && (
             <button onClick={() => setDelTarget(a)}
@@ -365,6 +508,15 @@ export default function ArtikelPage() {
           </button>
         </div>
       </Modal>
+
+      {/* Pool-Verknüpfung Modal */}
+      {poolModal && (
+        <ModellPoolModal
+          artikel={poolModal}
+          onClose={() => setPoolModal(null)}
+          onSaved={() => liste.refetch()}
+        />
+      )}
 
       <ConfirmDialog
         open={!!delTarget} onClose={() => setDelTarget(null)}

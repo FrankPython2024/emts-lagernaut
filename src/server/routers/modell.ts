@@ -7,6 +7,21 @@ import { meilisearchSync } from "@/core/infra/meilisearchSync";
 export const modellRouter = createTRPCRouter({
 
   /**
+   * Alle Modelle als { id, name } — name = "Hersteller Modell" (= Kompatibilitaet.geraet).
+   * Für Multi-Select-Listen (z.B. Pool-Verknüpfung). Default: nur aktive.
+   */
+  list: adminProcedure
+    .input(z.object({ aktiv: z.boolean().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.prisma.geraeteModell.findMany({
+        where:   input?.aktiv === undefined ? {} : { aktiv: input.aktiv },
+        orderBy: [{ hersteller: "asc" }, { modell: "asc" }],
+        select:  { id: true, hersteller: true, modell: true },
+      });
+      return rows.map((r) => ({ id: r.id, name: `${r.hersteller} ${r.modell}` }));
+    }),
+
+  /**
    * Sucht ein Modell case-insensitiv (mit/ohne Prefix, nur aktive).
    * Legt nur an wenn adminBestaetigt=true.
    * Gibt istUnsicher=true zurück wenn ähnliche Modelle existieren.

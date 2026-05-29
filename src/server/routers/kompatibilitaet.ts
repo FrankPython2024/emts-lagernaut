@@ -87,6 +87,57 @@ export const kompatibilitaetRouter = createTRPCRouter({
     }))
     .mutation(({ input }) => setVerknuepfung(input)),
 
+  // Aktuell mit (artikel, teiltyp) verknüpfte Gerätenamen — für Multi-Select-Initialstate
+  getVerknuepfteGeraete: adminProcedure
+    .input(z.object({
+      artikelId: z.number().int().positive(),
+      teiltyp:   z.string().min(1).max(100),
+    }))
+    .query(async ({ input }) => {
+      const rows = await prisma.kompatibilitaet.findMany({
+        where:   { artikelId: input.artikelId, teiltyp: input.teiltyp },
+        select:  { geraet: true },
+        orderBy: { geraet: "asc" },
+      });
+      return rows.map((r) => r.geraet);
+    }),
+
+  // Bulk: einen Artikel für mehrere Modelle als kompatibel setzen / abwählen.
+  // geraete = (neu) verknüpfen (upsert), entfernen = abwählen (nur wenn auf
+  // DIESEN Artikel zeigend). Beides in einer Transaktion. Leere Listen = No-op.
+  setVerknuepfungBulk: adminProcedure
+    .input(z.object({
+      artikelId: z.number().int().positive(),
+      teiltyp:   z.string().min(1).max(100),
+      geraete:   z.array(z.string().min(1).max(255)).default([]),
+      entfernen: z.array(z.string().min(1).max(255)).optional(),
+    }))
+    .mutation(async ({ input }) =>
+      prisma.$transaction(async (tx) => {
+        for (const geraet of input.geraete) {
+          await tx.kompatibilitaet.upsert({
+            where:  { geraet_teiltyp: { geraet, teiltyp: input.teiltyp } },
+            create: { geraet, teiltyp: input.teiltyp, artikelId: input.artikelId },
+            update: { artikelId: input.artikelId },
+          });
+        }
+
+        let entfernt = 0;
+        if (input.entfernen && input.entfernen.length > 0) {
+          const del = await tx.kompatibilitaet.deleteMany({
+            where: {
+              geraet:    { in: input.entfernen },
+              teiltyp:   input.teiltyp,
+              artikelId: input.artikelId,
+            },
+          });
+          entfernt = del.count;
+        }
+
+        return { verknuepft: input.geraete.length, entfernt };
+      }),
+    ),
+
   // Auto-Verknüpfung für ein Modell
   autoVerknuepfung: adminProcedure
     .input(z.object({ modellId: z.number().int().positive() }))
