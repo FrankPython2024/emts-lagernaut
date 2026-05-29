@@ -201,6 +201,10 @@ function VerknuepfungsModal({
   const setVerknuepfung = api.kompatibilitaet.setVerknuepfteArtikelBulk.useMutation({
     onSuccess: (r) => {
       show(`✅ ${r.hinzugefuegt} verknüpft · ${r.entfernt} entfernt`, "success");
+      const gespiegelt = Object.values(r.autoMirrored ?? {}).reduce((a, b) => a + b, 0);
+      if (gespiegelt > 0) {
+        show(`🔗 ${gespiegelt} Verknüpfung(en) automatisch beim Heimat-Modell gespiegelt`, "info");
+      }
       onSaved();
       onClose();
     },
@@ -245,6 +249,9 @@ function VerknuepfungsModal({
           <strong className="text-[#1a1a1a] dark:text-[#e4e6eb]">{data.geraetVoll}</strong>
           {" · "}Suchfeld pro Teiltyp ·
           <span className="text-[#f7b928]"> 💡 = Suchvorschlag (nur Hinweis, kein Auto-Speichern)</span>
+        </p>
+        <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-1">
+          🔗 Beim Verknüpfen wird der Artikel automatisch auch beim Heimat-Modell verknüpft. Entfernen wirkt nur lokal.
         </p>
       </div>
 

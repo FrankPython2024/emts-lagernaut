@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { STANDARD_TEILNAMEN, VERSCHIEDENES_TEILTYP } from "@/lib/constants/teiltypen";
+import { extractHeimatModell } from "@/lib/format/heimatModell";
 
 /**
  * Effiziente Fuzzy-Suche: findet passende Geräte-Strings per DB-Filter,
@@ -235,14 +236,27 @@ export async function setVerknuepfung(input: {
  * Multi-Artikel-Verknüpfung: pro Teiltyp eine Artikel-ID-Liste setzen (Pool).
  * Diff pro Teiltyp (nur gelistete Teiltypen werden angefasst — andere Einträge,
  * z.B. Verschiedenes-Varianten, bleiben unberührt). Alles in einer Transaktion.
+ *
+ * Auto-Spiegelung: NEU hinzugefügte Artikel werden zusätzlich beim Heimat-Modell
+ * des Artikels (aus der Bezeichnung abgeleitet) verknüpft — aber nur wenn dieses
+ * Modell existiert. Beim ENTFERNEN wird NICHT gespiegelt (asymmetrisch, damit
+ * gepflegte Heimat-Verknüpfungen nicht versehentlich zerstört werden).
  */
 export async function setVerknuepfteArtikelBulk(input: {
   geraet:    string;
   eintraege: { teiltyp: string; artikelIds: number[] }[];
-}): Promise<{ hinzugefuegt: number; entfernt: number }> {
+}): Promise<{ hinzugefuegt: number; entfernt: number; autoMirrored: Record<string, number> }> {
   return prisma.$transaction(async (tx) => {
     let hinzugefuegt = 0;
     let entfernt     = 0;
+    const autoMirrored: Record<string, number> = {};
+
+    // Existierende Modellnamen einmalig laden — Heimat-Validierung gegen Geister-Modelle
+    const alleNamen = await tx.geraeteModell.findMany({
+      where:  { aktiv: true },
+      select: { hersteller: true, modell: true },
+    });
+    const existierendeNamen = new Set(alleNamen.map((m) => `${m.hersteller} ${m.modell}`));
 
     for (const e of input.eintraege) {
       const aktuell = await tx.kompatibilitaet.findMany({
@@ -267,10 +281,27 @@ export async function setVerknuepfteArtikelBulk(input: {
           skipDuplicates: true,
         });
         hinzugefuegt += hinzu.length;
+
+        // Auto-Spiegelung der NEU hinzugefügten Artikel beim jeweiligen Heimat-Modell
+        const artikel = await tx.artikel.findMany({
+          where:  { id: { in: hinzu } },
+          select: { id: true, bezeichnung: true, kategorie: true },
+        });
+        for (const a of artikel) {
+          if (a.kategorie === VERSCHIEDENES_TEILTYP) continue;
+          const heimat = extractHeimatModell(a.bezeichnung, e.teiltyp);
+          if (!heimat || heimat === input.geraet) continue;     // kein Selbst-Mirror
+          if (!existierendeNamen.has(heimat)) continue;          // kein Geister-Modell
+          const r = await tx.kompatibilitaet.createMany({
+            data: [{ geraet: heimat, teiltyp: e.teiltyp, artikelId: a.id }],
+            skipDuplicates: true,
+          });
+          if (r.count > 0) autoMirrored[heimat] = (autoMirrored[heimat] ?? 0) + 1;
+        }
       }
     }
 
-    return { hinzugefuegt, entfernt };
+    return { hinzugefuegt, entfernt, autoMirrored };
   });
 }
 
