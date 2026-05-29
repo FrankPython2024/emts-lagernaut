@@ -80,6 +80,18 @@ function ModellPoolModal({
     });
   }
 
+  function alleGefilterteMarkieren() {
+    setAusgewaehltBasis((prev) => {
+      const next = new Set(prev);
+      for (const g of gefiltert) next.add(g.basisName);
+      return next;
+    });
+  }
+
+  function auswahlAufheben() {
+    setAusgewaehltBasis(new Set());
+  }
+
   function gruppenStatus(g: { varianten: string[] }): "voll" | "teilweise" | "leer" {
     const n = g.varianten.filter((v) => bereits.has(v)).length;
     if (n === 0) return "leer";
@@ -117,8 +129,29 @@ function ModellPoolModal({
           aria-label="Basis-Modell suchen"
         />
 
-        <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-          {ausgewaehltBasis.size} ausgewählt · {gefiltert.length} Basis-Modelle
+        <div className="flex items-center gap-2 text-sm">
+          <button
+            type="button"
+            onClick={alleGefilterteMarkieren}
+            disabled={gefiltert.length === 0}
+            aria-label={`Alle ${gefiltert.length} gefilterten Basis-Modelle markieren`}
+            className="px-3 py-1 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ minHeight: 36 }}
+          >
+            Alle{gefiltert.length > 0 ? ` (${gefiltert.length})` : ""} markieren
+          </button>
+          <button
+            type="button"
+            onClick={auswahlAufheben}
+            disabled={ausgewaehltBasis.size === 0}
+            className="px-3 py-1 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ minHeight: 36 }}
+          >
+            Auswahl aufheben
+          </button>
+          <span className="ml-auto text-xs text-[#65676b] dark:text-[#b0b3b8]">
+            {ausgewaehltBasis.size} ausgewählt · {gefiltert.length} Basis-Modelle
+          </span>
         </div>
 
         <div className="max-h-96 overflow-y-auto space-y-1 pr-0.5 border-t border-[#ced4da] dark:border-[#3e4042] pt-2">
