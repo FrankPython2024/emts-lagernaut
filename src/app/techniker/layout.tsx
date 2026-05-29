@@ -7,6 +7,7 @@ import { LogoutButton }  from "@/components/ui/LogoutButton";
 import { api }           from "@/trpc/react";
 import { useSocket }     from "@/hooks/useSocket";
 import { EVENTS }        from "@/modules/realtime/events";
+import { useTabBadge }   from "@/hooks/useTabBadge";
 
 // ── Font size context ─────────────────────────────────────────────────────────
 
@@ -508,6 +509,7 @@ export default function TechnikerLayout({ children }: { children: React.ReactNod
   const [fontSize, _setFontSize]  = useState<FontSize>("medium");
   const { on, off } = useSocket();
   const utils = api.useUtils();
+  const { notify } = useTabBadge();
 
   function setFontSize(s: FontSize) {
     _setFontSize(s);
@@ -527,19 +529,26 @@ export default function TechnikerLayout({ children }: { children: React.ReactNod
   }, []);
 
   // Socket: neuer Chat → Badge-Query invalidieren (kein Toast — der Badge in
-  // der Anfragen-Liste reicht als Hinweis)
+  // der Anfragen-Liste reicht als Hinweis). Zusätzlich Tab-Counter erhöhen wenn
+  // der Tab im Hintergrund ist (CHAT_NEU + ANFRAGE_UPDATED — beide sind bereits
+  // auf den eigenen Techniker zugeschnitten, siehe emitToUser/emitToBackoffice).
   useEffect(() => {
-    const handler = () => {
+    const invalidateChat = () => {
       utils.chat.getStatsForAnfrage.invalidate();
       utils.chat.getUngelesenCount.invalidate();
     };
-    on(EVENTS.CHAT_NEU,      handler);
-    on(EVENTS.NACHRICHT_NEU, handler);
+    const onChat    = () => { invalidateChat(); notify(); };
+    const onAnfrage = () => { notify(); };
+
+    on(EVENTS.CHAT_NEU,        onChat);
+    on(EVENTS.NACHRICHT_NEU,   invalidateChat);
+    on(EVENTS.ANFRAGE_UPDATED, onAnfrage);
     return () => {
       off(EVENTS.CHAT_NEU);
       off(EVENTS.NACHRICHT_NEU);
+      off(EVENTS.ANFRAGE_UPDATED);
     };
-  }, [on, off, utils]);
+  }, [on, off, utils, notify]);
 
   return (
     <FontCtx.Provider value={{ fontSize, setFontSize }}>

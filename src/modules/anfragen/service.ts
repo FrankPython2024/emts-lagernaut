@@ -4,7 +4,7 @@ import { prisma } from "@/core/db/prisma";
 import { normalizeLogId } from "@/lib/format/logId";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { sendeSystemNachricht } from "@/modules/nachrichten/service";
-import { emitToAdmins, emitToAll, emitToUser, emitToBackoffice } from "@/modules/realtime/socket";
+import { emitToAdmins, emitToUser, emitToBackoffice } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
 import { invalidateTechnikerCache } from "@/modules/statistik/service";
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
@@ -283,7 +283,9 @@ export async function setzeStatus(id: number, status: AnfrageStatus): Promise<An
 
   meilisearchSync.anfrage(id);
   invalidateTechnikerCache(aktualisiert.techniker).catch(() => {});
-  emitToAll(EVENTS.ANFRAGE_UPDATED, { id, status });
+  // Backoffice (Admin/Betrachter-Listen) + gezielt der betroffene Techniker.
+  // Kein Broadcast an ALLE — sonst sähe jeder Techniker fremde Status-Wechsel.
+  emitToBackoffice(EVENTS.ANFRAGE_UPDATED, { id, status });
   emitToUser(aktualisiert.techniker, EVENTS.ANFRAGE_UPDATED, { id, status });
 
   if (status === AnfrageStatus.ABGESCHLOSSEN && anfrage.artikelId) {
