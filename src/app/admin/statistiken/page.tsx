@@ -19,11 +19,22 @@ const FILTER_OPTS: { key: FilterRange; label: string }[] = [
 ];
 
 const STATUS_FARBE: Record<AnfrageStatus, string> = {
-  NEU:            "bg-[#0064d2]  text-white",
-  BEDARF:         "bg-[#f7b928]  text-white",
-  IN_BEARBEITUNG: "bg-[#d97706]  text-white",
-  ABGESCHLOSSEN:  "bg-[#00a400]  text-white",
-  STORNIERT:      "bg-[#888]     text-white",
+  NEU:              "bg-[#0064d2]  text-white",
+  BEDARF:           "bg-[#f7b928]  text-white",
+  IN_BEARBEITUNG:   "bg-[#d97706]  text-white",
+  ABGESCHLOSSEN:    "bg-[#00a400]  text-white",
+  STORNIERT:        "bg-[#fa3e3e]  text-white",
+  NICHT_VERFUEGBAR: "bg-[#f97316]  text-white",
+};
+
+// Hex-Varianten für eingefärbte Balken (Status-Verteilung)
+const STATUS_HEX: Record<string, string> = {
+  NEU:              "#0064d2",
+  BEDARF:           "#f7b928",
+  IN_BEARBEITUNG:   "#d97706",
+  ABGESCHLOSSEN:    "#00a400",
+  STORNIERT:        "#fa3e3e",
+  NICHT_VERFUEGBAR: "#f97316",
 };
 
 // ── Primitive UI ──────────────────────────────────────────────────────────────
@@ -50,9 +61,10 @@ function Empty() {
 
 // ── HBarChart mit optionalem Bedarf-Anteil ────────────────────────────────────
 
-function HBarChart({ items, showBedarf }: {
+function HBarChart({ items, showBedarf, barColor }: {
   items:      { label: string; value: number; bedarfValue?: number }[];
   showBedarf?: boolean;
+  barColor?:  (label: string) => string | undefined;
 }) {
   if (!items.length) return <Empty />;
   const max = Math.max(...items.map((i) => i.value), 1);
@@ -63,6 +75,7 @@ function HBarChart({ items, showBedarf }: {
         const bedarfPct = showBedarf && item.bedarfValue
           ? (item.bedarfValue / item.value) * pct
           : 0;
+        const col = barColor?.(item.label);
         return (
           <div key={item.label} className="flex items-center gap-3">
             <div
@@ -73,8 +86,8 @@ function HBarChart({ items, showBedarf }: {
               {item.label}
             </div>
             <div className="flex-1 bg-[#f0f2f5] dark:bg-[#18191a] rounded-full h-5 overflow-hidden relative">
-              <div className="h-full bg-[#0064d2] dark:bg-[#45bdff] rounded-full flex items-center justify-end pr-2 transition-all duration-700"
-                style={{ width: `${pct}%` }}>
+              <div className={`h-full rounded-full flex items-center justify-end pr-2 transition-all duration-700 ${col ? "" : "bg-[#0064d2] dark:bg-[#45bdff]"}`}
+                style={{ width: `${pct}%`, ...(col ? { background: col } : {}) }}>
                 <span className="text-[10px] text-white font-bold">{item.value}</span>
               </div>
               {showBedarf && bedarfPct > 0 && (
@@ -97,20 +110,21 @@ function HBarChart({ items, showBedarf }: {
 // ── Anfragen-Verlauf SVG ──────────────────────────────────────────────────────
 
 function AnfragenVerlauf({ data }: {
-  data: { datum: string; anfragen: number; erledigt: number; bedarf: number }[];
+  data: { datum: string; anfragen: number; erledigt: number; bedarf: number; nichtVerfuegbar?: number }[];
 }) {
   if (!data.length) return <Empty />;
 
-  const maxVal = Math.max(...data.flatMap((d) => [d.anfragen, d.erledigt, d.bedarf]), 1);
+  const nv = (d: typeof data[number]) => d.nichtVerfuegbar ?? 0;
+  const maxVal = Math.max(...data.flatMap((d) => [d.anfragen, d.erledigt, d.bedarf, nv(d)]), 1);
   const n      = data.length;
   const H      = 80;
   const W      = 300;
 
-  function pts(key: "anfragen" | "erledigt" | "bedarf") {
+  function pts(key: "anfragen" | "erledigt" | "bedarf" | "nichtVerfuegbar") {
     return data
       .map((d, i) => {
         const x = n > 1 ? (i / (n - 1)) * W : W / 2;
-        const y = H - 4 - (d[key] / maxVal) * (H - 8);
+        const y = H - 4 - ((d[key] ?? 0) / maxVal) * (H - 8);
         return `${x.toFixed(1)},${y.toFixed(1)}`;
       })
       .join(" ");
@@ -122,6 +136,7 @@ function AnfragenVerlauf({ data }: {
         <polyline points={pts("anfragen")} fill="none" stroke="#0064d2" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
         <polyline points={pts("erledigt")} fill="none" stroke="#00a400" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
         <polyline points={pts("bedarf")}   fill="none" stroke="#f7b928" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
+        <polyline points={pts("nichtVerfuegbar")} fill="none" stroke="#f97316" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
       </svg>
       {/* X-Achse: erste und letzte Beschriftung */}
       {n >= 2 && (
@@ -169,7 +184,7 @@ function StatusBadge({ status }: { status: AnfrageStatus }) {
 // ── Team-Vergleich Grid ───────────────────────────────────────────────────────
 
 function TeamVergleich({ data }: {
-  data: { techniker: string; volumen: number; erledigungsrate: number; bedarfQuote: number }[];
+  data: { techniker: string; volumen: number; erledigungsrate: number; bedarfQuote: number; nichtVerfuegbar?: number }[];
 }) {
   if (!data.length) return <Empty />;
   const maxVol = Math.max(...data.map((d) => d.volumen), 1);
@@ -203,6 +218,12 @@ function TeamVergleich({ data }: {
                 {t.bedarfQuote}%
               </span>
             </div>
+            {(t.nichtVerfuegbar ?? 0) > 0 && (
+              <div className="flex justify-between text-xs">
+                <span className="text-[#65676b] dark:text-[#b0b3b8]">Nicht verfügbar</span>
+                <span className="font-bold text-[#f97316]">{t.nichtVerfuegbar}</span>
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -276,7 +297,7 @@ function MonatsBalkenChart({
 
 type MonatsDetailData = {
   kuerzel: string; monat: number; jahr: number;
-  gesamt: number; erledigt: number; bedarf: number; storniert: number;
+  gesamt: number; erledigt: number; bedarf: number; storniert: number; nichtVerfuegbar: number;
   erledigungsrate: number;
   topTeile:   { teil: string; anzahl: number }[];
   topGeraete: { geraet: string; name: string; anzahl: number }[];
@@ -317,6 +338,10 @@ function MonatsDetailModal({ data, onClose }: { data: MonatsDetailData; onClose:
             <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
               <div className="text-2xl font-black text-[#fa3e3e]">{data.storniert}</div>
               <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Storniert</div>
+            </div>
+            <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
+              <div className="text-2xl font-black text-[#f97316]">{data.nichtVerfuegbar}</div>
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Nicht verfügbar</div>
             </div>
           </div>
 
@@ -686,9 +711,9 @@ export default function StatistikenPage() {
       {!hatTech && (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
             {kpi.isLoading ? (
-              Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} />)
+              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} />)
             ) : (
               <>
                 <StatCard title="Anfragen gesamt"  value={kpi.data?.gesamtAnfragen ?? 0}  icon="🔔" color="primary" />
@@ -696,6 +721,7 @@ export default function StatistikenPage() {
                   sub={`${kpi.data?.erledigungsquote ?? 0}% Erledigungsrate`} />
                 <StatCard title="Bedarf / Offen"    value={kpi.data?.bedarf ?? 0}           icon="⏳" color="warning" />
                 <StatCard title="Storniert"         value={kpi.data?.storniert ?? 0}        icon="❌" color="danger" />
+                <StatCard title="Nicht verfügbar"   value={kpi.data?.nichtVerfuegbar ?? 0}  icon="🚫" accent="orange" />
               </>
             )}
           </div>
@@ -703,10 +729,11 @@ export default function StatistikenPage() {
           {/* Anfragen-Verlauf + Status */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
             <div className="xl:col-span-2"><Panel title="Anfragen-Verlauf" sub="Täglich">
-              <div className="flex gap-4 text-xs mb-1">
+              <div className="flex gap-4 text-xs mb-1 flex-wrap">
                 <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#0064d2] inline-block" />Anfragen</span>
                 <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#00a400] inline-block" />Erledigt</span>
                 <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#f7b928] inline-block" />Bedarf</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#f97316] inline-block" />Nicht verfügbar</span>
               </div>
               {verlaufAlle.isLoading && <Skeleton h="h-20" />}
               {verlaufAlle.data && <AnfragenVerlauf data={verlaufAlle.data} />}
@@ -715,7 +742,7 @@ export default function StatistikenPage() {
             <Panel title="Status-Verteilung">
               {statusData.isLoading && <Skeleton h="h-20" />}
               {statusData.data && (
-                <HBarChart items={statusData.data.map((s) => ({ label: s.status, value: s.anzahl }))} />
+                <HBarChart items={statusData.data.map((s) => ({ label: s.status, value: s.anzahl }))} barColor={(l) => STATUS_HEX[l]} />
               )}
             </Panel>
           </div>
@@ -803,10 +830,11 @@ export default function StatistikenPage() {
 
           {/* Anfragen-Verlauf */}
           <Panel title="Anfragen-Verlauf" sub={`${kuerzel} · täglich`}>
-            <div className="flex gap-4 text-xs mb-1">
+            <div className="flex gap-4 text-xs mb-1 flex-wrap">
               <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#0064d2] inline-block" />Anfragen</span>
               <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#00a400] inline-block" />Erledigt</span>
               <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#f7b928] inline-block" />Bedarf</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#f97316] inline-block" />Nicht verfügbar</span>
             </div>
             {verlaufTech.isLoading && <Skeleton h="h-20" />}
             {verlaufTech.data && <AnfragenVerlauf data={verlaufTech.data} />}

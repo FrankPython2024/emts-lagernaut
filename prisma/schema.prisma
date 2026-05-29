@@ -189,6 +189,7 @@ enum AnfrageStatus {
   IN_BEARBEITUNG
   ABGESCHLOSSEN
   STORNIERT
+  NICHT_VERFUEGBAR
 }
 
 model Kompatibilitaet {

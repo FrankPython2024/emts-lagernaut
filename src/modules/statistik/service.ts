@@ -160,19 +160,21 @@ export async function getKpiOverview(tage: number, standortId?: number | null) {
   const where  = { datum: { gte: von, lte: bis } };
   const artFlt = aF(standortId);
 
-  const [gesamtAnfragen, abgeschlossen, bedarf, storniert, gesamtBuchungen] =
+  const [gesamtAnfragen, abgeschlossen, bedarf, storniert, nichtVerfuegbar, gesamtBuchungen] =
     await Promise.all([
       prisma.anfrage.count({ where: { ...artFlt, ...where } }),
       prisma.anfrage.count({ where: { ...artFlt, ...where, status: AnfrageStatus.ABGESCHLOSSEN } }),
       prisma.anfrage.count({ where: { ...artFlt, ...where, status: AnfrageStatus.BEDARF } }),
       prisma.anfrage.count({ where: { ...artFlt, ...where, status: AnfrageStatus.STORNIERT } }),
+      prisma.anfrage.count({ where: { ...artFlt, ...where, status: AnfrageStatus.NICHT_VERFUEGBAR } }),
       prisma.buchung.count({ where: { ...artFlt, ...where } }),
     ]);
 
   const erledigungsquote =
     gesamtAnfragen > 0 ? Math.round((abgeschlossen / gesamtAnfragen) * 100) : 0;
 
-  return { gesamtAnfragen, abgeschlossen, bedarf, storniert, gesamtBuchungen, erledigungsquote };
+  // NICHT_VERFUEGBAR wird bewusst NICHT in erledigungsquote/storniert eingerechnet.
+  return { gesamtAnfragen, abgeschlossen, bedarf, storniert, nichtVerfuegbar, gesamtBuchungen, erledigungsquote };
 }
 
 /**
@@ -216,11 +218,11 @@ export async function getAnfragenVerlauf(tage: number, kuerzel?: string, standor
     orderBy: { datum: "asc" },
   });
 
-  const tagesMap = new Map<string, { anfragen: number; erledigt: number; bedarf: number }>();
+  const tagesMap = new Map<string, { anfragen: number; erledigt: number; bedarf: number; nichtVerfuegbar: number }>();
   for (let i = 0; i < tage; i++) {
     const d = new Date(von);
     d.setDate(d.getDate() + i);
-    tagesMap.set(d.toISOString().slice(0, 10), { anfragen: 0, erledigt: 0, bedarf: 0 });
+    tagesMap.set(d.toISOString().slice(0, 10), { anfragen: 0, erledigt: 0, bedarf: 0, nichtVerfuegbar: 0 });
   }
 
   for (const a of anfragen) {
@@ -228,8 +230,9 @@ export async function getAnfragenVerlauf(tage: number, kuerzel?: string, standor
     const tag = tagesMap.get(key);
     if (!tag) continue;
     tag.anfragen++;
-    if (a.status === AnfrageStatus.ABGESCHLOSSEN) tag.erledigt++;
-    if (a.status === AnfrageStatus.BEDARF)        tag.bedarf++;
+    if (a.status === AnfrageStatus.ABGESCHLOSSEN)    tag.erledigt++;
+    if (a.status === AnfrageStatus.BEDARF)           tag.bedarf++;
+    if (a.status === AnfrageStatus.NICHT_VERFUEGBAR) tag.nichtVerfuegbar++;
   }
 
   return Array.from(tagesMap.entries()).map(([datum, werte]) => ({ datum, ...werte }));
@@ -256,6 +259,7 @@ export async function getTechnikerKpis(kuerzel: string, tage: number) {
   const abgeschlossen = alleAnfragen.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN).length;
   const bedarf        = alleAnfragen.filter((a) => a.status === AnfrageStatus.BEDARF).length;
   const storniert     = alleAnfragen.filter((a) => a.status === AnfrageStatus.STORNIERT).length;
+  const nichtVerfuegbar = alleAnfragen.filter((a) => a.status === AnfrageStatus.NICHT_VERFUEGBAR).length;
   const offen         = alleAnfragen.filter((a) => a.status === AnfrageStatus.NEU).length;
 
   // Aktivste Woche
@@ -276,6 +280,7 @@ export async function getTechnikerKpis(kuerzel: string, tage: number) {
     abgeschlossen,
     bedarf,
     storniert,
+    nichtVerfuegbar,
     offen,
     erledigungsrate: gesamt > 0 ? Math.round((abgeschlossen / gesamt) * 100) : 0,
     bedarfQuote:     gesamt > 0 ? Math.round((bedarf / gesamt) * 100) : 0,
@@ -410,23 +415,25 @@ export async function getTechnikerTeamVergleich(tage: number, standortId?: numbe
   });
 
   const map = new Map<string, {
-    gesamt: number; abgeschlossen: number; bedarf: number;
+    gesamt: number; abgeschlossen: number; bedarf: number; nichtVerfuegbar: number;
   }>();
 
   for (const a of alle) {
-    const e = map.get(a.techniker) ?? { gesamt: 0, abgeschlossen: 0, bedarf: 0 };
+    const e = map.get(a.techniker) ?? { gesamt: 0, abgeschlossen: 0, bedarf: 0, nichtVerfuegbar: 0 };
     e.gesamt++;
-    if (a.status === AnfrageStatus.ABGESCHLOSSEN) e.abgeschlossen++;
-    if (a.status === AnfrageStatus.BEDARF) e.bedarf++;
+    if (a.status === AnfrageStatus.ABGESCHLOSSEN)    e.abgeschlossen++;
+    if (a.status === AnfrageStatus.BEDARF)           e.bedarf++;
+    if (a.status === AnfrageStatus.NICHT_VERFUEGBAR) e.nichtVerfuegbar++;
     map.set(a.techniker, e);
   }
 
   return Array.from(map.entries())
     .map(([techniker, s]) => ({
       techniker,
-      volumen:        s.gesamt,
+      volumen:         s.gesamt,
       erledigungsrate: s.gesamt > 0 ? Math.round((s.abgeschlossen / s.gesamt) * 100) : 0,
       bedarfQuote:     s.gesamt > 0 ? Math.round((s.bedarf / s.gesamt) * 100) : 0,
+      nichtVerfuegbar: s.nichtVerfuegbar,
     }))
     .sort((a, b) => b.volumen - a.volumen);
 }
@@ -600,6 +607,7 @@ async function _buildMonatsDetail(kuerzel: string, monat: number, jahr: number) 
   const erledigt  = anfragen.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN).length;
   const bedarf    = anfragen.filter((a) => a.status === AnfrageStatus.BEDARF).length;
   const storniert = anfragen.filter((a) => a.status === AnfrageStatus.STORNIERT).length;
+  const nichtVerfuegbar = anfragen.filter((a) => a.status === AnfrageStatus.NICHT_VERFUEGBAR).length;
 
   // Top 3 Teile
   const teileMap = new Map<string, number>();
@@ -620,7 +628,7 @@ async function _buildMonatsDetail(kuerzel: string, monat: number, jahr: number) 
     .map(([geraet, { anzahl, name }]) => ({ geraet, name, anzahl }));
 
   return {
-    kuerzel, monat, jahr, gesamt, erledigt, bedarf, storniert,
+    kuerzel, monat, jahr, gesamt, erledigt, bedarf, storniert, nichtVerfuegbar,
     erledigungsrate: gesamt > 0 ? Math.round((erledigt / gesamt) * 100) : 0,
     topTeile, topGeraete,
     anfragen,

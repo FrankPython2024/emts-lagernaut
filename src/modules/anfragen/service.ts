@@ -4,6 +4,7 @@ import { prisma } from "@/core/db/prisma";
 import { normalizeLogId } from "@/lib/format/logId";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { sendeSystemNachricht } from "@/modules/nachrichten/service";
+import { senden as sendeChatNachricht } from "@/modules/chat/service";
 import { emitToAdmins, emitToUser, emitToBackoffice } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
 import { invalidateTechnikerCache } from "@/modules/statistik/service";
@@ -247,11 +248,12 @@ export async function gruppeZurueckgeben(
  */
 // Gültige Status-Übergänge — verhindert Rückwärts-Transitionen via API
 const GUELTIGE_TRANSITIONEN: Partial<Record<AnfrageStatus, AnfrageStatus[]>> = {
-  [AnfrageStatus.NEU]:            [AnfrageStatus.IN_BEARBEITUNG, AnfrageStatus.BEDARF,  AnfrageStatus.ABGESCHLOSSEN, AnfrageStatus.STORNIERT],
-  [AnfrageStatus.BEDARF]:         [AnfrageStatus.IN_BEARBEITUNG, AnfrageStatus.NEU,     AnfrageStatus.ABGESCHLOSSEN, AnfrageStatus.STORNIERT],
-  [AnfrageStatus.IN_BEARBEITUNG]: [AnfrageStatus.ABGESCHLOSSEN,  AnfrageStatus.BEDARF,  AnfrageStatus.NEU,           AnfrageStatus.STORNIERT],
+  [AnfrageStatus.NEU]:            [AnfrageStatus.IN_BEARBEITUNG, AnfrageStatus.BEDARF,  AnfrageStatus.ABGESCHLOSSEN, AnfrageStatus.STORNIERT, AnfrageStatus.NICHT_VERFUEGBAR],
+  [AnfrageStatus.BEDARF]:         [AnfrageStatus.IN_BEARBEITUNG, AnfrageStatus.NEU,     AnfrageStatus.ABGESCHLOSSEN, AnfrageStatus.STORNIERT, AnfrageStatus.NICHT_VERFUEGBAR],
+  [AnfrageStatus.IN_BEARBEITUNG]: [AnfrageStatus.ABGESCHLOSSEN,  AnfrageStatus.BEDARF,  AnfrageStatus.NEU,           AnfrageStatus.STORNIERT, AnfrageStatus.NICHT_VERFUEGBAR],
   [AnfrageStatus.ABGESCHLOSSEN]:  [], // terminal — keine Änderung mehr möglich
   [AnfrageStatus.STORNIERT]:      [], // terminal
+  [AnfrageStatus.NICHT_VERFUEGBAR]: [], // terminal — Ersatzteil nicht beschaffbar
 };
 
 export async function setzeStatus(id: number, status: AnfrageStatus): Promise<Anfrage> {
@@ -312,6 +314,46 @@ export async function setzeStatus(id: number, status: AnfrageStatus): Promise<An
   }
 
   return aktualisiert;
+}
+
+/**
+ * Anfrage als "Ersatzteil nicht beschaffbar" markieren (Admin).
+ * Erlaubt nur aus NEU / BEDARF / IN_BEARBEITUNG. Legt automatisch eine
+ * Chat-Nachricht in der Anfrage an, damit der Techniker das Gerät in ReForm
+ * anders behandeln kann (Broker / H-Status). Terminal-Status.
+ */
+export async function markiereNichtVerfuegbar(anfrageId: number, adminKuerzel: string) {
+  const anfrage = await prisma.anfrage.findUnique({
+    where:  { id: anfrageId },
+    select: { id: true, status: true, techniker: true },
+  });
+  if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
+
+  const erlaubt: AnfrageStatus[] = [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG];
+  if (!erlaubt.includes(anfrage.status)) {
+    throw new TRPCError({
+      code:    "BAD_REQUEST",
+      message: `Anfrage hat Status ${anfrage.status}, kann nicht auf NICHT_VERFUEGBAR gesetzt werden.`,
+    });
+  }
+
+  const updated = await prisma.anfrage.update({
+    where: { id: anfrageId },
+    data:  { status: AnfrageStatus.NICHT_VERFUEGBAR, bearbeitetVon: null, bearbeitetSeit: null },
+  });
+
+  // Automatische Chat-Nachricht (logId chat:{id}) an den Techniker
+  const chatNachricht = await sendeChatNachricht({
+    anfrageId,
+    vonKuerzel:  adminKuerzel,
+    empfKuerzel: anfrage.techniker,
+    inhalt:      "⚠️ Ersatzteil nicht verfügbar.\nBitte das Gerät auf Broker umstellen oder H-Status setzen, falls möglich.",
+  });
+
+  meilisearchSync.anfrage(anfrageId);
+  invalidateTechnikerCache(updated.techniker).catch(() => {});
+
+  return { anfrage: updated, chatNachricht };
 }
 
 /**
@@ -464,11 +506,12 @@ export async function getAnfragenGruppiert(input?: {
 
     // Gruppen-Status: niedrigster Rang "gewinnt" (zeigt schlechtesten Stand)
     const rang: Record<AnfrageStatus, number> = {
-      STORNIERT:       1,
-      BEDARF:          2,
-      IN_BEARBEITUNG:  3,
-      NEU:             4,
-      ABGESCHLOSSEN:   5,
+      STORNIERT:        1,
+      NICHT_VERFUEGBAR: 2,
+      BEDARF:           3,
+      IN_BEARBEITUNG:   4,
+      NEU:              5,
+      ABGESCHLOSSEN:    6,
     };
     if (rang[a.status] < rang[gruppe.gruppenStatus]) {
       gruppe.gruppenStatus = a.status;

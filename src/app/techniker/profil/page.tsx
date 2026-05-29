@@ -9,17 +9,19 @@ import { AnfrageStatus } from "@prisma/client";
 type SessionUser = { name?: string; kuerzel?: string; rolle?: string };
 
 const STATUS_COLOR: Record<string, string> = {
-  NEU:           "#3b82f6",
-  BEDARF:        "#8b5cf6",
-  ABGESCHLOSSEN: "#22c55e",
-  STORNIERT:     "#9ca3af",
+  NEU:              "#3b82f6",
+  BEDARF:           "#8b5cf6",
+  ABGESCHLOSSEN:    "#22c55e",
+  STORNIERT:        "#ef4444",
+  NICHT_VERFUEGBAR: "#f97316",
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  NEU:           "Neu",
-  BEDARF:        "Bedarf",
-  ABGESCHLOSSEN: "Erledigt",
-  STORNIERT:     "Storniert",
+  NEU:              "Neu",
+  BEDARF:           "Bedarf",
+  ABGESCHLOSSEN:    "Erledigt",
+  STORNIERT:        "Storniert",
+  NICHT_VERFUEGBAR: "Nicht verfügbar",
 };
 
 const cardStyle: React.CSSProperties = {

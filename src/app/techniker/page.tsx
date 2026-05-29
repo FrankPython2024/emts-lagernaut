@@ -24,11 +24,12 @@ const GREEN   = "#04B475";
 
 // Status in leichter Sprache
 const STATUS_CFG: Record<string, { text: string; color: string; bg: string }> = {
-  NEU:            { text: "Neu",            color: "#005fa3", bg: "#dbeafe" },
-  BEDARF:         { text: "Bedarf",          color: "#92400e", bg: "#fef3c7" },
-  IN_BEARBEITUNG: { text: "In Bearbeitung", color: "#92400e", bg: "#fef3c7" },
-  ABGESCHLOSSEN:  { text: "Abgeschlossen",  color: "#15803d", bg: "#dcfce7" },
-  STORNIERT:      { text: "Storniert",      color: "#6b7280", bg: "#f3f4f6" },
+  NEU:              { text: "Neu",             color: "#005fa3", bg: "#dbeafe" },
+  BEDARF:           { text: "Bedarf",          color: "#92400e", bg: "#fef3c7" },
+  IN_BEARBEITUNG:   { text: "In Bearbeitung",  color: "#92400e", bg: "#fef3c7" },
+  ABGESCHLOSSEN:    { text: "Abgeschlossen",   color: "#15803d", bg: "#dcfce7" },
+  STORNIERT:        { text: "Storniert",       color: "#b91c1c", bg: "#fee2e2" },
+  NICHT_VERFUEGBAR: { text: "Nicht verfügbar", color: "#c2410c", bg: "#ffedd5" },
 };
 
 // Icon-Mapping wird zur Laufzeit aus der Teiltyp-Tabelle aufgebaut
@@ -58,6 +59,7 @@ function gruppeStatus(g: GruppeData): string {
   const ss = g.anfragen.map(a => a.status);
   if (ss.every(s => s === "STORNIERT"))                           return "STORNIERT";
   if (ss.every(s => s === "ABGESCHLOSSEN" || s === "STORNIERT")) return "ABGESCHLOSSEN";
+  if (ss.some(s => s === "NICHT_VERFUEGBAR"))                     return "NICHT_VERFUEGBAR";
   if (ss.some(s => s === "IN_BEARBEITUNG"))                       return "IN_BEARBEITUNG";
   if (ss.some(s => s === "BEDARF"))                               return "BEDARF";
   return "NEU";

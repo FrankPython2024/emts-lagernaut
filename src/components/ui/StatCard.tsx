@@ -6,6 +6,7 @@ const ACCENT_COLORS = {
   amber:   "#F59E0B",
   red:     "#fa3e3e",
   navy:    "#202F61",
+  orange:  "#f97316",
 };
 
 const COLOR_TO_ACCENT: Record<string, string> = {

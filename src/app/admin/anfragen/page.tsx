@@ -252,6 +252,9 @@ function AnfragenPageInner() {
   // Auslager-Modal
   const [auslagerModal, setAuslagerModal] = useState<{ anfrageIds: number[]; gruppenLabel: string } | null>(null);
 
+  // "Nicht verfügbar"-Bestätigung
+  const [nvCandidate, setNvCandidate] = useState<{ id: number; label: string } | null>(null);
+
   // Freigeben-Dialog
   const [freigebenDialog, setFreigebenDialog] = useState<{
     anfrageIds: number[]; bearbeitetVon: string; seit: Date | null;
@@ -390,6 +393,16 @@ function AnfragenPageInner() {
         const beleg = belegAusResult(r as SetStatusResult, ersteller);
         if (beleg) setBelegModal(beleg);
       }
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
+  const markNichtVerfuegbar = api.anfragen.markiereNichtVerfuegbar.useMutation({
+    onSuccess: () => {
+      show("Anfrage als nicht verfügbar markiert. Techniker wurde benachrichtigt.", "success");
+      setNvCandidate(null);
+      refetch();
+      refetchChatBadges();
     },
     onError: (e) => show(e.message, "error"),
   });
@@ -647,9 +660,19 @@ function AnfragenPageInner() {
                 {anfragenTyped.map((a) => {
                   const rowLockedByOther = !!a.bearbeitetVon && a.bearbeitetVon.toUpperCase() !== ersteller.toUpperCase();
                   const rowCls = rowLockedByOther ? "opacity-60" : "";
+                  // Status-Markierung: Storno rot + ausgegraut, Nicht-verfügbar orange
+                  const statusBg =
+                    a.status === AnfrageStatus.STORNIERT          ? "bg-red-50/60 dark:bg-red-950/20 opacity-75"
+                    : a.status === AnfrageStatus.NICHT_VERFUEGBAR ? "bg-orange-50/60 dark:bg-orange-950/20"
+                    : "";
+                  const randFarbe =
+                    a.status === AnfrageStatus.STORNIERT          ? "#ef4444"
+                    : a.status === AnfrageStatus.NICHT_VERFUEGBAR ? "#f97316"
+                    : a.istSonderAnfrage                          ? "#f97316"
+                    : null;
                   return (
-                    <div key={a.id} id={`row-${a.id}`} className={`flex items-center gap-4 px-5 py-3 flex-wrap gap-y-1 ${rowCls}`}
-                      style={a.istSonderAnfrage ? { borderLeft: "3px solid #f97316", paddingLeft: "0.9rem" } : undefined}>
+                    <div key={a.id} id={`row-${a.id}`} className={`flex items-center gap-4 px-5 py-3 flex-wrap gap-y-1 ${rowCls} ${statusBg}`}
+                      style={randFarbe ? { borderLeft: `3px solid ${randFarbe}`, paddingLeft: "0.9rem" } : undefined}>
                       <div className="flex-1 min-w-0">
                         {a.istSonderAnfrage && (
                           <div className="flex items-center gap-1 mb-0.5">
@@ -725,6 +748,19 @@ function AnfragenPageInner() {
                           </button>
                         )}
 
+                        {/* Nicht verfügbar — Ersatzteil nicht beschaffbar */}
+                        {(a.status === AnfrageStatus.NEU || a.status === AnfrageStatus.BEDARF || a.status === AnfrageStatus.IN_BEARBEITUNG) && (
+                          <button
+                            onClick={() => !rowLockedByOther && setNvCandidate({ id: a.id, label: a.beschreibung ?? a.teil })}
+                            disabled={isBusy || rowLockedByOther}
+                            aria-label="Ersatzteil als nicht verfügbar markieren"
+                            title={rowLockedByOther ? `Gesperrt von ${a.bearbeitetVon}` : "Ersatzteil nicht verfügbar"}
+                            className="px-2 py-2 text-xs bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded hover:bg-orange-500/20 font-bold disabled:opacity-40 transition-colors min-h-[36px]"
+                          >
+                            🚫
+                          </button>
+                        )}
+
                         {/* Anfrage löschen (Admin) */}
                         <button
                           onClick={() => setDeleteCandidate({
@@ -755,6 +791,52 @@ function AnfragenPageInner() {
 
       {/* ── Modals ── */}
       {tagesModal && <TagesuebersichtModal onClose={() => setTagesModal(false)} />}
+
+      {/* "Nicht verfügbar"-Bestätigung */}
+      {nvCandidate && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="nv-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => !markNichtVerfuegbar.isPending && setNvCandidate(null)}
+        >
+          <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md border-2 border-orange-400 dark:border-orange-600" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 pt-6 pb-4 space-y-3">
+              <div className="text-center text-4xl">🚫</div>
+              <h2 id="nv-modal-title" className="font-black text-lg text-center text-[#1a1a1a] dark:text-[#e4e6eb]">
+                Anfrage als nicht erfüllbar markieren?
+              </h2>
+              <div className="px-4 py-3 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl text-sm text-center text-[#1a1a1a] dark:text-[#e4e6eb] font-semibold">
+                {nvCandidate.label}
+              </div>
+              <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                Diese Aktion ist nicht rückgängig zu machen. Der Techniker erhält automatisch folgenden Hinweis:
+              </p>
+              <blockquote className="p-3 rounded-lg bg-orange-50 dark:bg-orange-950/30 border-l-4 border-orange-400 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                ⚠️ Ersatzteil nicht verfügbar.<br />
+                Bitte das Gerät auf Broker umstellen oder H-Status setzen, falls möglich.
+              </blockquote>
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                onClick={() => setNvCandidate(null)}
+                disabled={markNichtVerfuegbar.isPending}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-semibold text-sm hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[44px]"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => markNichtVerfuegbar.mutate({ anfrageId: nvCandidate.id })}
+                disabled={markNichtVerfuegbar.isPending}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm disabled:opacity-50 transition-colors min-h-[44px]"
+              >
+                {markNichtVerfuegbar.isPending ? "…" : "Als nicht verfügbar markieren"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Löschen-Bestätigung */}
       {deleteCandidate && (

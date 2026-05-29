@@ -18,6 +18,7 @@ import {
   gruppeFreigeben,
   gruppeZurueckgeben,
   zaehleNeueAnfragen,
+  markiereNichtVerfuegbar,
 } from "@/modules/anfragen/service";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { naechsteBelegNr } from "@/core/infra/belegnr";
@@ -46,6 +47,20 @@ export const anfragenRouter = createTRPCRouter({
   // Anzahl NEU-Anfragen — Sidebar-Badge (standort-gefiltert, ANFRAGE_VIEW_ALL)
   zaehleNeue: anfragenReadProcedure
     .query(({ ctx }) => zaehleNeueAnfragen(getZugaenglicheStandortIds(ctx))),
+
+  // Anfrage als "Ersatzteil nicht beschaffbar" markieren — nur Admin
+  markiereNichtVerfuegbar: adminProcedure
+    .input(z.object({ anfrageId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const user   = ctx.session.user as SessionUser;
+      const result = await markiereNichtVerfuegbar(input.anfrageId, user.kuerzel);
+
+      emitToBackoffice(EVENTS.ANFRAGE_UPDATED, { id: result.anfrage.id, status: AnfrageStatus.NICHT_VERFUEGBAR });
+      emitToUser(result.anfrage.techniker, EVENTS.ANFRAGE_UPDATED, { id: result.anfrage.id, status: AnfrageStatus.NICHT_VERFUEGBAR });
+      emitToUser(result.anfrage.techniker, EVENTS.CHAT_NEU, { anfrageId: result.anfrage.id });
+
+      return result;
+    }),
 
   // Alle Anfragen — read mit Filter (ANFRAGE_VIEW_ALL)
   getAll: anfragenReadProcedure
