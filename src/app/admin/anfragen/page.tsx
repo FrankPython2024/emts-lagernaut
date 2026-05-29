@@ -523,7 +523,7 @@ function AnfragenPageInner() {
           const auslagerInfo     = auslagerMap.get(gruppenKey);
           const hatVerfuegbare   = !alleDone && (auslagerInfo?.anzahlVerfuegbar ?? 0) > 0;
           const auslagerIds      = anfragenTyped
-            .filter((a) => a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT && !a.istSonderAnfrage)
+            .filter((a) => a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT && a.status !== AnfrageStatus.NICHT_VERFUEGBAR)
             .map((a) => a.id);
 
           // ── Chat-Button ─────────────────────────────────────────────────

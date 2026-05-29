@@ -20,6 +20,7 @@ type Teil = {
   lagerplatzCode: string | null;
   grading:        string | null;
   status:         string;
+  istSonderanfrage?: boolean;
 };
 
 export type AuslagerResult = {
@@ -35,6 +36,7 @@ export type AuslagerResult = {
     logId:        string;
     geraeteName:  string | null;
     grading:      string | null;
+    istSonderanfrage?: boolean;
   }[];
   ausgefuehrtVon: string;
   datum:          Date;
@@ -288,6 +290,7 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
 
                 {teile.map((t) => {
                   const selected   = ausgewaehlt.has(t.teilId);
+                  const isSonder   = !!t.istSonderanfrage;
                   const isDirekt   = t.lagerStatus === "bedarf";
 
                   return (
@@ -320,38 +323,50 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">{t.teiltyp}</span>
+                          <span className="font-bold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                            {isSonder ? `🎁 ${t.artikelName}` : t.teiltyp}
+                          </span>
                           {!isDirekt && t.grading && (
                             <span className="text-[11px] font-black px-1.5 py-0.5 rounded text-white" style={{ background: gradingColor(t.grading) }}>
                               {t.grading}
                             </span>
                           )}
-                          {isDirekt && (
+                          {isSonder ? (
+                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded text-white" style={{ background: "#008BD2" }}>
+                              Sonderanfrage · DIREKT
+                            </span>
+                          ) : isDirekt && (
                             <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-[#f59e0b]/15 text-[#b45309] dark:text-[#fbbf24]">
                               ⚙️ Direkt
                             </span>
                           )}
                         </div>
                         <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
-                          {isDirekt
-                            ? `kein Lagerbestand · ${t.menge}× benötigt`
-                            : `Bestand: ${t.bestand} · ${t.menge}× benötigt`}
+                          {isSonder
+                            ? `Freitext-Anfrage · manuell ausgegeben · ${t.menge}× benötigt`
+                            : isDirekt
+                              ? `kein Lagerbestand · ${t.menge}× benötigt`
+                              : `Bestand: ${t.bestand} · ${t.menge}× benötigt`}
                         </div>
                       </div>
 
                       {/* Rechte Seite */}
-                      {!isDirekt && t.lagerplatzCode && (
+                      {isSonder ? (
+                        <div className="text-right flex-shrink-0">
+                          <div className="text-sm font-bold" style={{ color: "#008BD2" }}>DIREKT</div>
+                          <div className="text-[10px] text-[#65676b] dark:text-[#b0b3b8]">manuell</div>
+                        </div>
+                      ) : !isDirekt && t.lagerplatzCode ? (
                         <div className="text-right flex-shrink-0">
                           <div className="text-sm font-black font-mono text-[#202f61] dark:text-[#7a9fe0]">{t.lagerplatzCode}</div>
                           <div className="text-[10px] text-[#65676b] dark:text-[#b0b3b8]">Lagerplatz</div>
                         </div>
-                      )}
-                      {isDirekt && (
+                      ) : isDirekt ? (
                         <div className="text-right flex-shrink-0">
                           <div className="text-sm font-bold text-[#b45309] dark:text-[#fbbf24]">⚙️</div>
                           <div className="text-[10px] text-[#65676b] dark:text-[#b0b3b8]">Direkt</div>
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   );
                 })}
@@ -363,6 +378,18 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
               <div className="space-y-4">
                 {/* Statistik */}
                 <StatBanner ausgangAnz={ausgang.length} direktAnz={direkt.length} />
+
+                {/* Sonderanfrage-Hinweis */}
+                {selectedTeile.some((t) => t.istSonderanfrage) && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl text-sm bg-[#008BD2]/10 border border-[#008BD2]/30">
+                    <span className="flex-shrink-0">ℹ️</span>
+                    <span className="text-[#1a1a1a] dark:text-[#e4e6eb]">
+                      {selectedTeile.filter((t) => t.istSonderanfrage).length} Sonderanfrage(n) werden als{" "}
+                      <strong style={{ color: "#008BD2" }}>DIREKT-Buchung</strong> verarbeitet — kein Bestand-Effekt,
+                      Auslagerung wird manuell quittiert.
+                    </span>
+                  </div>
+                )}
 
                 {/* AUSGANG-Gruppe: nach Lagerplatz */}
                 {ausgang.length > 0 && (
@@ -502,7 +529,7 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
                   disabled={anzahl === 0}
                   className="flex-1 px-4 py-2.5 rounded-xl bg-[#04b475] text-white font-bold text-sm disabled:opacity-40 hover:bg-[#03a065] transition-colors min-h-[44px]"
                 >
-                  {anzahl} Teil{anzahl !== 1 ? "e" : ""} auslagern →
+                  {anzahl} Teil{anzahl !== 1 ? "e" : ""} auslagern{direkt.length > 0 ? ` (${direkt.length}× DIREKT)` : ""} →
                 </button>
               )}
               {step === 2 && (

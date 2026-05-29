@@ -36,15 +36,20 @@ export const auslagernRouter = createTRPCRouter({
    * BEDARF-Gruppen (kein Lager-Bestand) erscheinen jetzt auch, da DIREKT-Buchung möglich.
    */
   listAnfragen: adminProcedure.query(async ({ ctx }) => {
-    const standortIds    = getZugaenglicheStandortIds(ctx);
-    const artikelFilter  = standortIds
-      ? { artikel: { standortId: standortIds.length === 1 ? standortIds[0]! : { in: standortIds } } }
-      : {};
+    const standortIds          = getZugaenglicheStandortIds(ctx);
+    const standortArtikelWhere = standortIds
+      ? { standortId: standortIds.length === 1 ? standortIds[0]! : { in: standortIds } }
+      : undefined;
     const anfragen = await ctx.prisma.anfrage.findMany({
       where: {
-        ...artikelFilter,
-        status:    { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] },
-        artikelId: { not: null },
+        status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] },
+        // Standard-Artikel (standort-gefiltert) ODER Sonderanfragen (kein Artikel,
+        // werden als DIREKT-Buchung ausgelagert). NICHT_VERFUEGBAR fällt über den
+        // Status-Filter raus.
+        OR: [
+          { artikelId: { not: null }, ...(standortArtikelWhere ? { artikel: standortArtikelWhere } : {}) },
+          { istSonderAnfrage: true },
+        ],
       },
       include: {
         artikel: {
@@ -67,10 +72,26 @@ export const auslagernRouter = createTRPCRouter({
     for (const [gruppenKey, anfragenInGruppe] of groupMap) {
       const teile = await Promise.all(
         anfragenInGruppe.map(async (a) => {
-          if (!a.artikel || a.artikelId === null) return null;
+          // Sonderanfrage (Freitext, kein Standard-Artikel) → DIREKT-Übergabe
+          if (a.istSonderAnfrage || a.artikelId === null) {
+            return {
+              teilId:          a.id,
+              teiltyp:         a.sonderKategorie ?? "Sonderanfrage",
+              artikelName:     a.beschreibung ?? a.teil,
+              menge:           a.menge,
+              verfuegbar:      false,
+              lagerStatus:     "bedarf" as const,
+              bestand:         0,
+              lagerplatzCode:  null,
+              grading:         null,
+              status:          a.status,
+              istSonderanfrage: true,
+            };
+          }
+          if (!a.artikel) return null;
 
           const letzteBuchung = await ctx.prisma.buchung.findFirst({
-            where:   { artikelId: a.artikelId!, typ: BuchungsTyp.EINGANG },
+            where:   { artikelId: a.artikelId, typ: BuchungsTyp.EINGANG },
             orderBy: { datum: "desc" },
             select:  { notiz: true },
           });
@@ -89,6 +110,7 @@ export const auslagernRouter = createTRPCRouter({
             lagerplatzCode: a.artikel.lagerplatz ?? null,
             grading:        extractGrading(letzteBuchung?.notiz),
             status:         a.status,
+            istSonderanfrage: false,
           };
         }),
       );
@@ -128,9 +150,8 @@ export const auslagernRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const anfragen = await ctx.prisma.anfrage.findMany({
         where: {
-          id:        { in: input.anfrageIds },
-          status:    { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] },
-          artikelId: { not: null },
+          id:     { in: input.anfrageIds },
+          status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] },
         },
         include: {
           artikel: {
@@ -141,7 +162,23 @@ export const auslagernRouter = createTRPCRouter({
 
       const teile = await Promise.all(
         anfragen.map(async (a) => {
-          if (!a.artikel || !a.artikelId) return null;
+          // Sonderanfrage → DIREKT-Übergabe (kein Lager-Bestand)
+          if (a.istSonderAnfrage || a.artikelId === null) {
+            return {
+              teilId:          a.id,
+              teiltyp:         a.sonderKategorie ?? "Sonderanfrage",
+              artikelName:     a.beschreibung ?? a.teil,
+              menge:           a.menge,
+              verfuegbar:      false,
+              lagerStatus:     "bedarf" as const,
+              bestand:         0,
+              lagerplatzCode:  null,
+              grading:         null,
+              status:          a.status as string,
+              istSonderanfrage: true,
+            };
+          }
+          if (!a.artikel) return null;
           const letzteBuchung = await ctx.prisma.buchung.findFirst({
             where:   { artikelId: a.artikelId, typ: BuchungsTyp.EINGANG },
             orderBy: { datum: "desc" },
@@ -160,6 +197,7 @@ export const auslagernRouter = createTRPCRouter({
             lagerplatzCode: a.artikel.lagerplatz ?? null,
             grading:        extractGrading(letzteBuchung?.notiz),
             status:         a.status as string,
+            istSonderanfrage: false,
           };
         })
       );
@@ -191,8 +229,8 @@ export const auslagernRouter = createTRPCRouter({
       const txResult = await ctx.prisma.$transaction(async (tx) => {
         const ausgabe: {
           anfrageId:    number;
-          artikelId:    number;
-          buchungId:    number;
+          artikelId:    number | null;
+          buchungId:    number | null;
           buchungsTyp:  "AUSGANG" | "DIREKT";
           artikel:      string;
           kategorie:    string;
@@ -203,6 +241,7 @@ export const auslagernRouter = createTRPCRouter({
           logId:        string;
           geraeteName:  string | null;
           grading:      string | null;
+          istSonderanfrage: boolean;
         }[] = [];
 
         for (const anfrageId of input.anfrageIds) {
@@ -220,11 +259,37 @@ export const auslagernRouter = createTRPCRouter({
           if (!anfrage) {
             throw new TRPCError({ code: "NOT_FOUND",   message: `Anfrage #${anfrageId} nicht gefunden` });
           }
-          if (!anfrage.artikelId || !anfrage.artikel) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: `Anfrage #${anfrageId} hat keinen Artikel` });
-          }
-          if (anfrage.status === AnfrageStatus.ABGESCHLOSSEN || anfrage.status === AnfrageStatus.STORNIERT) {
+          if (anfrage.status === AnfrageStatus.ABGESCHLOSSEN || anfrage.status === AnfrageStatus.STORNIERT || anfrage.status === AnfrageStatus.NICHT_VERFUEGBAR) {
             throw new TRPCError({ code: "BAD_REQUEST", message: `Anfrage #${anfrageId} ist bereits ${anfrage.status}` });
+          }
+
+          // ── Sonderanfrage: DIREKT-Übergabe ohne Bestand-Effekt (kein Artikel,
+          //    keine Buchung — DIREKT-Regel per Konstruktion erfüllt) ─────────
+          if (anfrage.istSonderAnfrage || !anfrage.artikelId || !anfrage.artikel) {
+            if (!anfrage.istSonderAnfrage) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: `Anfrage #${anfrageId} hat keinen Artikel` });
+            }
+            await tx.anfrage.update({
+              where: { id: anfrageId },
+              data:  { status: AnfrageStatus.ABGESCHLOSSEN, bearbeitetVon: user.kuerzel, bearbeitetSeit: new Date() },
+            });
+            ausgabe.push({
+              anfrageId,
+              artikelId:    null,
+              buchungId:    null,
+              buchungsTyp:  "DIREKT",
+              artikel:      anfrage.beschreibung ?? anfrage.teil,
+              kategorie:    anfrage.sonderKategorie ?? "Sonderanfrage",
+              lagerplatz:   null,
+              menge:        anfrage.menge,
+              neuerBestand: 0,
+              techniker:    anfrage.techniker,
+              logId:        anfrage.logId,
+              geraeteName:  anfrage.geraeteName ?? null,
+              grading:      null,
+              istSonderanfrage: true,
+            });
+            continue;
           }
 
           const aktuellerBestand = anfrage.artikel.bestand;
@@ -303,6 +368,7 @@ export const auslagernRouter = createTRPCRouter({
             logId:       anfrage.logId,
             geraeteName: anfrage.geraeteName ?? null,
             grading:     extractGrading(letzteBuchung?.notiz),
+            istSonderanfrage: false,
           });
         }
 
@@ -312,8 +378,9 @@ export const auslagernRouter = createTRPCRouter({
       // Meilisearch sync — fire-and-forget nach TX-Commit
       for (const item of txResult.ausgabe) {
         meilisearchSync.anfrage(item.anfrageId);
-        meilisearchSync.artikel(item.artikelId);
-        meilisearchSync.buchung(item.buchungId);
+        // Sonderanfragen haben keinen Artikel/keine Buchung → nichts zu syncen
+        if (item.artikelId !== null) meilisearchSync.artikel(item.artikelId);
+        if (item.buchungId !== null) meilisearchSync.buchung(item.buchungId);
       }
 
       // Realtime: stats-relevante Events emitten, damit Backoffice (ADMIN +
@@ -330,19 +397,22 @@ export const auslagernRouter = createTRPCRouter({
           id:     item.anfrageId,
           status: AnfrageStatus.ABGESCHLOSSEN,
         });
-        emitToBackoffice(EVENTS.BUCHUNG_ERSTELLT, {
-          artikelId:    item.artikelId,
-          bezeichnung:  item.artikel,
-          typ:          item.buchungsTyp,
-          menge:        item.menge,
-          neuerBestand: item.neuerBestand,
-        });
-        // BESTAND_UPDATED nur bei AUSGANG — DIREKT lässt Bestand unverändert (heilige Regel)
-        if (item.buchungsTyp === "AUSGANG") {
-          emitToAll(EVENTS.BESTAND_UPDATED, {
-            artikelId: item.artikelId,
-            bestand:   item.neuerBestand,
+        // Buchungs-Event nur wenn es eine Buchung gab (Sonderanfragen → keine)
+        if (item.artikelId !== null) {
+          emitToBackoffice(EVENTS.BUCHUNG_ERSTELLT, {
+            artikelId:    item.artikelId,
+            bezeichnung:  item.artikel,
+            typ:          item.buchungsTyp,
+            menge:        item.menge,
+            neuerBestand: item.neuerBestand,
           });
+          // BESTAND_UPDATED nur bei AUSGANG — DIREKT lässt Bestand unverändert (heilige Regel)
+          if (item.buchungsTyp === "AUSGANG") {
+            emitToAll(EVENTS.BESTAND_UPDATED, {
+              artikelId: item.artikelId,
+              bestand:   item.neuerBestand,
+            });
+          }
         }
       }
 
