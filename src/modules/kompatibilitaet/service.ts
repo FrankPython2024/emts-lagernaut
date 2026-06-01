@@ -16,13 +16,28 @@ async function findMatchingGeraete(geraetLow: string): Promise<string[]> {
   });
 
   // Richtung 2: Suchanfrage enthält DB-Eintrag (kürzere DB-Einträge)
-  // Nur Strings laden — kein Join
+  // Nur Strings laden — kein Join. Match muss an einer WORTGRENZE liegen,
+  // sonst zieht "T480" fälschlich auch beim Scan auf "T480s 20L7-…" mit
+  // (mechanisch unterschiedliche Modelle). Trennzeichen: Whitespace, "-",
+  // ",", ";" oder String-Anfang/-Ende.
   const allGeraeteStrings = await prisma.kompatibilitaet.findMany({
     distinct: ["geraet"],
     select:   { geraet: true },
   });
   const reverseHits = allGeraeteStrings
-    .filter((g) => geraetLow.includes(g.geraet.toLowerCase()) && !g.geraet.toLowerCase().includes(geraetLow))
+    .filter((g) => {
+      const dbStr = g.geraet.toLowerCase();
+      if (dbStr.includes(geraetLow)) return false;       // Richtung 1 deckt das ab
+
+      const idx = geraetLow.indexOf(dbStr);
+      if (idx === -1) return false;
+
+      const charBefore = idx === 0 ? undefined : geraetLow[idx - 1];
+      const charAfter  = geraetLow[idx + dbStr.length];
+      const istGrenze  = (c: string | undefined) => c === undefined || /[\s\-,;]/.test(c);
+
+      return istGrenze(charBefore) && istGrenze(charAfter);
+    })
     .map((g) => g.geraet);
 
   return [...new Set([...containsHits.map((g) => g.geraet), ...reverseHits])];
