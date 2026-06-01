@@ -1,46 +1,25 @@
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { STANDARD_TEILNAMEN, VERSCHIEDENES_TEILTYP } from "@/lib/constants/teiltypen";
-import { extractHeimatModell } from "@/lib/format/heimatModell";
 
 /**
- * Effiziente Fuzzy-Suche: findet passende Geräte-Strings per DB-Filter,
- * lädt nur die Artikel für echte Treffer (kein volles Table-Scan in JS).
+ * Exact-Match (case-insensitive): liefert genau dann den gescannten
+ * Geräte-String zurück, wenn er als Kompatibilitäts-Eintrag existiert.
+ * Sonst leeres Array.
+ *
+ * Architektur-Entscheidung: keine impliziten Substring-Treffer mehr —
+ * Kompatibilität gilt nur was der Admin explizit gepflegt hat.
+ *
+ * MySQL _ci-Collation (utf8mb4_general_ci o.ä.) macht den `=`-Vergleich
+ * case-insensitive — daher reicht plain `equals`. Auf einer case-sensitiven
+ * Collation müsste hier eine andere Lösung her.
  */
 async function findMatchingGeraete(geraetLow: string): Promise<string[]> {
-  // Richtung 1: DB-enthält-Suchanfrage (häufigster Fall)
-  const containsHits = await prisma.kompatibilitaet.findMany({
-    where:    { geraet: { contains: geraetLow } },
-    distinct: ["geraet"],
-    select:   { geraet: true },
+  const hit = await prisma.kompatibilitaet.findFirst({
+    where:  { geraet: geraetLow },
+    select: { geraet: true },
   });
-
-  // Richtung 2: Suchanfrage enthält DB-Eintrag (kürzere DB-Einträge)
-  // Nur Strings laden — kein Join. Match muss an einer WORTGRENZE liegen,
-  // sonst zieht "T480" fälschlich auch beim Scan auf "T480s 20L7-…" mit
-  // (mechanisch unterschiedliche Modelle). Trennzeichen: Whitespace, "-",
-  // ",", ";" oder String-Anfang/-Ende.
-  const allGeraeteStrings = await prisma.kompatibilitaet.findMany({
-    distinct: ["geraet"],
-    select:   { geraet: true },
-  });
-  const reverseHits = allGeraeteStrings
-    .filter((g) => {
-      const dbStr = g.geraet.toLowerCase();
-      if (dbStr.includes(geraetLow)) return false;       // Richtung 1 deckt das ab
-
-      const idx = geraetLow.indexOf(dbStr);
-      if (idx === -1) return false;
-
-      const charBefore = idx === 0 ? undefined : geraetLow[idx - 1];
-      const charAfter  = geraetLow[idx + dbStr.length];
-      const istGrenze  = (c: string | undefined) => c === undefined || /[\s\-,;]/.test(c);
-
-      return istGrenze(charBefore) && istGrenze(charAfter);
-    })
-    .map((g) => g.geraet);
-
-  return [...new Set([...containsHits.map((g) => g.geraet), ...reverseHits])];
+  return hit ? [hit.geraet] : [];
 }
 
 /**
@@ -252,10 +231,8 @@ export async function setVerknuepfung(input: {
  * Diff pro Teiltyp (nur gelistete Teiltypen werden angefasst — andere Einträge,
  * z.B. Verschiedenes-Varianten, bleiben unberührt). Alles in einer Transaktion.
  *
- * Auto-Spiegelung: NEU hinzugefügte Artikel werden zusätzlich beim Heimat-Modell
- * des Artikels (aus der Bezeichnung abgeleitet) verknüpft — aber nur wenn dieses
- * Modell existiert. Beim ENTFERNEN wird NICHT gespiegelt (asymmetrisch, damit
- * gepflegte Heimat-Verknüpfungen nicht versehentlich zerstört werden).
+ * Keine Auto-Spiegelung — Kompatibilität gilt nur was der Admin explizit pflegt.
+ * `autoMirrored` bleibt im Return als leeres Objekt für Frontend-Backwards-Compat.
  */
 export async function setVerknuepfteArtikelBulk(input: {
   geraet:    string;
@@ -264,14 +241,6 @@ export async function setVerknuepfteArtikelBulk(input: {
   return prisma.$transaction(async (tx) => {
     let hinzugefuegt = 0;
     let entfernt     = 0;
-    const autoMirrored: Record<string, number> = {};
-
-    // Existierende Modellnamen einmalig laden — Heimat-Validierung gegen Geister-Modelle
-    const alleNamen = await tx.geraeteModell.findMany({
-      where:  { aktiv: true },
-      select: { hersteller: true, modell: true },
-    });
-    const existierendeNamen = new Set(alleNamen.map((m) => `${m.hersteller} ${m.modell}`));
 
     for (const e of input.eintraege) {
       const aktuell = await tx.kompatibilitaet.findMany({
@@ -296,27 +265,10 @@ export async function setVerknuepfteArtikelBulk(input: {
           skipDuplicates: true,
         });
         hinzugefuegt += hinzu.length;
-
-        // Auto-Spiegelung der NEU hinzugefügten Artikel beim jeweiligen Heimat-Modell
-        const artikel = await tx.artikel.findMany({
-          where:  { id: { in: hinzu } },
-          select: { id: true, bezeichnung: true, kategorie: true },
-        });
-        for (const a of artikel) {
-          if (a.kategorie === VERSCHIEDENES_TEILTYP) continue;
-          const heimat = extractHeimatModell(a.bezeichnung, e.teiltyp);
-          if (!heimat || heimat === input.geraet) continue;     // kein Selbst-Mirror
-          if (!existierendeNamen.has(heimat)) continue;          // kein Geister-Modell
-          const r = await tx.kompatibilitaet.createMany({
-            data: [{ geraet: heimat, teiltyp: e.teiltyp, artikelId: a.id }],
-            skipDuplicates: true,
-          });
-          if (r.count > 0) autoMirrored[heimat] = (autoMirrored[heimat] ?? 0) + 1;
-        }
       }
     }
 
-    return { hinzugefuegt, entfernt, autoMirrored };
+    return { hinzugefuegt, entfernt, autoMirrored: {} };
   });
 }
 
