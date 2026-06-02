@@ -3,6 +3,19 @@ import { useState, useEffect, useRef } from "react";
 import { api } from "@/trpc/react";
 import { DEFAULT_LAYOUT, DEFAULT_VISIBILITY, type LayoutsMap } from "./defaultLayout";
 
+// Widget-IDs, die es nicht mehr gibt. Ein gespeichertes Layout, das diese noch
+// referenziert, ist veraltet (z.B. die zusammengelegten KPI-Karten) → wir
+// verwerfen es und fallen auf das aktuelle DEFAULT_LAYOUT zurück, damit neue
+// Widgets (kpiOffeneAnfragen, ueberfaellig) korrekt positioniert erscheinen.
+const ENTFERNTE_WIDGET_IDS = new Set(["stats", "kpiAnfragen", "kpiBedarf"]);
+
+function layoutIstVeraltet(layouts?: LayoutsMap): boolean {
+  if (!layouts) return false;
+  return Object.values(layouts).some(items =>
+    (items ?? []).some(l => ENTFERNTE_WIDGET_IDS.has(l.i)),
+  );
+}
+
 // localStorage-Keys — nur noch für einmalige Migration (Phase 2 → Phase 3)
 const LS_LAYOUT     = "lagernaut.dashboard.layout";
 const LS_VISIBILITY = "lagernaut.dashboard.visibility";
@@ -48,7 +61,8 @@ export function useDashboardConfig() {
     if (data !== null) {
       // Server hat gespeicherte Konfiguration
       const cfg = data as { layouts?: LayoutsMap; visibility?: Record<string, boolean> };
-      setLayouts(cfg.layouts ?? DEFAULT_LAYOUT);
+      // Veraltetes Layout (referenziert entfernte Widget-IDs) → Default verwenden
+      setLayouts(layoutIstVeraltet(cfg.layouts) ? DEFAULT_LAYOUT : (cfg.layouts ?? DEFAULT_LAYOUT));
       setVisibility({ ...DEFAULT_VISIBILITY, ...(cfg.visibility ?? {}) });
       return;
     }

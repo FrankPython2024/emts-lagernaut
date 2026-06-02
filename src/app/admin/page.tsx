@@ -18,6 +18,7 @@ function useDashboardSocketInvalidation() {
   useEffect(() => {
     on(EVENTS.ANFRAGE_NEU, () => {
       void utils.dashboard.stats.invalidate();
+      void utils.dashboard.offeneAnfragen.invalidate();
       void utils.dashboard.letzteAnfragen.invalidate();
       void utils.dashboard.anfragenStatusVerteilung.invalidate();
       void utils.dashboard.aktivitaetsProtokoll.invalidate();
@@ -25,6 +26,7 @@ function useDashboardSocketInvalidation() {
     });
     on(EVENTS.ANFRAGE_UPDATED, () => {
       void utils.dashboard.stats.invalidate();
+      void utils.dashboard.offeneAnfragen.invalidate();
       void utils.dashboard.anfragenStatusVerteilung.invalidate();
       void utils.dashboard.aktivitaetsProtokoll.invalidate();
       void utils.dashboard.topTeiltypen.invalidate();

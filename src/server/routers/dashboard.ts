@@ -63,6 +63,26 @@ export const dashboardRouter = createTRPCRouter({
     return { aktiveAnfragen, offeneBedarf, artikelImBestand, auslagerungenHeute };
   }),
 
+  // 1b — Offene Anfragen (NEU + BEDARF + IN_BEARBEITUNG) als Liste.
+  // Eine gemeinsame Query versorgt:
+  //   • den "Offene Anfragen"-Counter + Modal (filtert clientseitig NEU + BEDARF)
+  //   • das "Überfällige Anfragen"-Widget (rechnet die 1h-Marke live über alle
+  //     drei offenen Status — siehe @/lib/anfragen/ueberfaellig)
+  // Sortierung createdAt aufsteigend (älteste zuerst). Cap 500 — offene Anfragen
+  // bleiben in der Praxis weit darunter.
+  offeneAnfragen: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(({ input, ctx }) => {
+    const aF = anfrageStandortFilter(ctx, input?.standortId);
+    return prisma.anfrage.findMany({
+      where:   { ...aF, status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] } },
+      orderBy: { createdAt: "asc" },
+      take:    500,
+      select: {
+        id: true, logId: true, techniker: true, teil: true, beschreibung: true,
+        geraeteName: true, status: true, createdAt: true, istSonderAnfrage: true,
+      },
+    });
+  }),
+
   // 2 — Anfragen-Status-Verteilung
   anfragenStatusVerteilung: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const aF = anfrageStandortFilter(ctx, input?.standortId);

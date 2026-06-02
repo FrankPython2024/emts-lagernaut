@@ -93,15 +93,9 @@ function KpiBase({ field, label, accent, sub, href }: KpiBaseProps) {
   );
 }
 
-// ── 4 einzelne Widget-Exports ─────────────────────────────────────────────────
-
-export function KpiAktiveAnfragenWidget() {
-  return <KpiBase field="aktiveAnfragen" label="Aktive Anfragen" accent="cyan" sub="NEU + IN BEARBEITUNG" href="/admin/anfragen" />;
-}
-
-export function KpiOffeneBedarfWidget() {
-  return <KpiBase field="offeneBedarf" label="Offene BEDARF" accent="amber" sub="kein Lagerbestand" href="/admin/anfragen" />;
-}
+// ── Widget-Exports ────────────────────────────────────────────────────────────
+// Aktive Anfragen + Offene BEDARF wurden zum "Offene Anfragen"-Widget
+// zusammengefasst (siehe OffeneAnfragenWidget).
 
 export function KpiArtikelImBestandWidget() {
   return <KpiBase field="artikelImBestand" label="Artikel im Bestand" accent="green" sub="bestand > 0" href="/admin/artikel" />;

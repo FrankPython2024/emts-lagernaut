@@ -12,11 +12,11 @@ import { WIDGET_META, type LayoutsMap } from "@/lib/dashboard/defaultLayout";
 import { WidgetEditContextProvider }  from "@/lib/dashboard/widgetContext";
 
 import {
-  KpiAktiveAnfragenWidget,
-  KpiOffeneBedarfWidget,
   KpiArtikelImBestandWidget,
   KpiAuslagerungenHeuteWidget,
 } from "@/components/dashboard/widgets/KpiWidget";
+import { OffeneAnfragenWidget }       from "@/components/dashboard/widgets/OffeneAnfragenWidget";
+import { UeberfaelligWidget }         from "@/components/dashboard/widgets/UeberfaelligWidget";
 import { AnfragenStatusWidget }       from "@/components/dashboard/widgets/AnfragenStatusWidget";
 import { AuslagerungsTrendWidget }    from "@/components/dashboard/widgets/AuslagerungsTrendWidget";
 import { TopTeiltypenWidget }         from "@/components/dashboard/widgets/TopTeiltypenWidget";
@@ -31,11 +31,12 @@ import { SystemStatusWidget }         from "@/components/dashboard/widgets/Syste
 
 // Widget-ID → Komponente
 const WIDGET_COMPONENTS: Record<string, React.ComponentType> = {
-  // 4 individuelle KPI-Widgets (ersetzt altes 'stats')
-  kpiAnfragen:     KpiAktiveAnfragenWidget,
-  kpiBedarf:       KpiOffeneBedarfWidget,
-  kpiBestand:      KpiArtikelImBestandWidget,
-  kpiAuslagerungen:KpiAuslagerungenHeuteWidget,
+  // "Offene Anfragen" (NEU+BEDARF, Klick → Modal) ersetzt die früheren
+  // KPI-Karten kpiAnfragen + kpiBedarf.
+  kpiOffeneAnfragen: OffeneAnfragenWidget,
+  kpiBestand:        KpiArtikelImBestandWidget,
+  kpiAuslagerungen:  KpiAuslagerungenHeuteWidget,
+  ueberfaellig:      UeberfaelligWidget,
   status:          AnfragenStatusWidget,
   trend:           AuslagerungsTrendWidget,
   topTeile:        TopTeiltypenWidget,

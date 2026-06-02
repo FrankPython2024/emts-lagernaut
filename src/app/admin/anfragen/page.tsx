@@ -9,6 +9,9 @@ import { useSocket } from "@/hooks/useSocket";
 import { EVENTS }    from "@/modules/realtime/events";
 import { ChatModal } from "@/components/ui/ChatModal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { UeberfaelligBadge } from "@/components/anfragen/UeberfaelligBadge";
+import { useNow } from "@/hooks/useNow";
+import { istUeberfaellig, verstricheneZeit } from "@/lib/anfragen/ueberfaellig";
 import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { BelegModal, MehrBelegModal } from "@/components/ui/BelegModal";
@@ -223,6 +226,7 @@ function FreigebenDialog({
 
 function AnfragenPageInner() {
   const { show }    = useToast();
+  const now         = useNow(60_000); // tickt jede Minute → 1h-Überfälligkeit live
   const { activeStandortId } = useStandortFilter();
   const { on, off } = useSocket();
   const { data: session } = useSession();
@@ -707,6 +711,9 @@ function AnfragenPageInner() {
                           </span>
                         )}
                       </div>
+                      {istUeberfaellig(a.status, a.createdAt, now) && (
+                        <UeberfaelligBadge title={verstricheneZeit(a.createdAt, now)} />
+                      )}
                       <StatusBadge status={a.status} />
                       <div className="flex gap-1">
                         {/* Beleg erneut drucken */}
