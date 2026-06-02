@@ -8,6 +8,9 @@ import { api }           from "@/trpc/react";
 import { useSocket }     from "@/hooks/useSocket";
 import { EVENTS }        from "@/modules/realtime/events";
 import { useTabBadge }   from "@/hooks/useTabBadge";
+import { NotificationProvider }        from "@/lib/notifications/notificationContext";
+import { NotificationToggleTechniker } from "@/components/header/NotificationToggleTechniker";
+import { useTechnikerNotifications }   from "@/hooks/useTechnikerNotifications";
 
 // ── Font size context ─────────────────────────────────────────────────────────
 
@@ -479,6 +482,9 @@ function TechnikerHeader() {
             {dark ? "☀️ Hell" : "🌙 Dunkel"}
           </button>
 
+          {/* Browser-Benachrichtigungen */}
+          <NotificationToggleTechniker style={btnIcon} />
+
           {/* Profil + Statistiken */}
           {kuerzel && (
             <button
@@ -530,34 +536,55 @@ export default function TechnikerLayout({ children }: { children: React.ReactNod
 
   // Socket: neuer Chat → Badge-Query invalidieren (kein Toast — der Badge in
   // der Anfragen-Liste reicht als Hinweis). Zusätzlich Tab-Counter erhöhen wenn
-  // der Tab im Hintergrund ist (CHAT_NEU + ANFRAGE_UPDATED — beide sind bereits
-  // auf den eigenen Techniker zugeschnitten, siehe emitToUser/emitToBackoffice).
+  // der Tab im Hintergrund ist. Alle drei Events sind via emitToUser bereits auf
+  // den eigenen Techniker zugeschnitten.
+  //
+  // Counter-Audit/Fixes:
+  //   • ANFRAGE_UEBERNOMMEN (NEU→IN_BEARBEITUNG) wurde vorher NICHT gezählt → ergänzt.
+  //   • Bei NICHT_VERFUEGBAR feuern Status (ANFRAGE_UPDATED) UND Auto-Chat (CHAT_NEU).
+  //     Die Auto-Chat-Nachricht trägt isAutoMessage=true und tickt NICHT mit →
+  //     genau eine Erhöhung statt zwei.
   useEffect(() => {
     const invalidateChat = () => {
       utils.chat.getStatsForAnfrage.invalidate();
       utils.chat.getUngelesenCount.invalidate();
     };
-    const onChat    = () => { invalidateChat(); notify(); };
+    const onChat = (d: unknown) => {
+      invalidateChat();
+      if (!(d as { isAutoMessage?: boolean })?.isAutoMessage) notify();
+    };
     const onAnfrage = () => { notify(); };
 
-    on(EVENTS.CHAT_NEU,        onChat);
-    on(EVENTS.NACHRICHT_NEU,   invalidateChat);
-    on(EVENTS.ANFRAGE_UPDATED, onAnfrage);
+    on(EVENTS.CHAT_NEU,           onChat);
+    on(EVENTS.NACHRICHT_NEU,      invalidateChat);
+    on(EVENTS.ANFRAGE_UPDATED,    onAnfrage);
+    on(EVENTS.ANFRAGE_UEBERNOMMEN, onAnfrage);
     return () => {
       off(EVENTS.CHAT_NEU);
       off(EVENTS.NACHRICHT_NEU);
       off(EVENTS.ANFRAGE_UPDATED);
+      off(EVENTS.ANFRAGE_UEBERNOMMEN);
     };
   }, [on, off, utils, notify]);
 
   return (
     <FontCtx.Provider value={{ fontSize, setFontSize }}>
       <ToastProvider>
-        <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-          <TechnikerHeader />
-          {children}
-        </div>
+        <NotificationProvider>
+          <TechnikerNotifications />
+          <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
+            <TechnikerHeader />
+            {children}
+          </div>
+        </NotificationProvider>
       </ToastProvider>
     </FontCtx.Provider>
   );
+}
+
+// ── Browser-Notifications (System-Toast + Ping) — einmal im Layout gemountet ──
+
+function TechnikerNotifications() {
+  useTechnikerNotifications();
+  return null;
 }

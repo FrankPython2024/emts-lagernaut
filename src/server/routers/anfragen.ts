@@ -55,9 +55,28 @@ export const anfragenRouter = createTRPCRouter({
       const user   = ctx.session.user as SessionUser;
       const result = await markiereNichtVerfuegbar(input.anfrageId, user.kuerzel);
 
-      emitToBackoffice(EVENTS.ANFRAGE_UPDATED, { id: result.anfrage.id, status: AnfrageStatus.NICHT_VERFUEGBAR });
-      emitToUser(result.anfrage.techniker, EVENTS.ANFRAGE_UPDATED, { id: result.anfrage.id, status: AnfrageStatus.NICHT_VERFUEGBAR });
-      emitToUser(result.anfrage.techniker, EVENTS.CHAT_NEU, { anfrageId: result.anfrage.id });
+      // Status-Event trägt logId + geraeteName für die Techniker-Notification.
+      const updatePayload = {
+        id:          result.anfrage.id,
+        status:      AnfrageStatus.NICHT_VERFUEGBAR,
+        techniker:   result.anfrage.techniker,
+        logId:       result.anfrage.logId,
+        geraeteName: result.anfrage.geraeteName,
+      };
+      emitToBackoffice(EVENTS.ANFRAGE_UPDATED, updatePayload);
+      emitToUser(result.anfrage.techniker, EVENTS.ANFRAGE_UPDATED, updatePayload);
+
+      // Auto-Chat-Nachricht: isAutoMessage=true. Dadurch zählt der Tab-Counter
+      // sie NICHT separat (der Status-Wechsel oben tickt bereits) und die
+      // Techniker-Notification überspringt sie → genau EIN Ping bei NICHT_VERFUEGBAR.
+      emitToUser(result.anfrage.techniker, EVENTS.CHAT_NEU, {
+        anfrageId:     result.anfrage.id,
+        logId:         result.anfrage.logId,
+        geraeteName:   result.anfrage.geraeteName,
+        autor:         user.kuerzel,
+        message:       result.chatNachricht.inhalt,
+        isAutoMessage: true,
+      });
 
       return result;
     }),
@@ -326,13 +345,20 @@ export const anfragenRouter = createTRPCRouter({
       const user = ctx.session.user as SessionUser;
       const locked = await gruppeInBearbeitungNehmen(input.anfrageIds, user.kuerzel);
 
-      // Techniker der ersten Anfrage ermitteln für gezielte Benachrichtigung
+      // Techniker + logId/geraeteName der ersten Anfrage für die gezielte
+      // Benachrichtigung (Tab-Counter + Techniker-Notification "in Bearbeitung").
       const anfrage = await ctx.prisma.anfrage.findFirst({
         where:  { id: { in: input.anfrageIds } },
-        select: { techniker: true },
+        select: { techniker: true, logId: true, geraeteName: true },
       });
 
-      const payload = { anfrageIds: input.anfrageIds, bearbeiter: user.kuerzel, seit: new Date() };
+      const payload = {
+        anfrageIds:  input.anfrageIds,
+        bearbeiter:  user.kuerzel,
+        seit:        new Date(),
+        logId:       anfrage?.logId,
+        geraeteName: anfrage?.geraeteName,
+      };
       emitToAdmins(EVENTS.ANFRAGE_UEBERNOMMEN, payload);
       if (anfrage) emitToUser(anfrage.techniker, EVENTS.ANFRAGE_UEBERNOMMEN, payload);
 

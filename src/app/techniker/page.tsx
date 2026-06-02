@@ -154,6 +154,23 @@ export default function TechnikerPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gruppen]);
 
+  // Deep-Link aus einer Browser-Notification: ?highlight=<logId> → passende
+  // Gruppe öffnen (Detail-Modal inkl. Chat). Nur einmal, sobald Daten da sind.
+  const highlightHandledRef = useRef(false);
+  useEffect(() => {
+    if (highlightHandledRef.current || gruppen.length === 0) return;
+    const hl = new URLSearchParams(window.location.search).get("highlight");
+    if (!hl) { highlightHandledRef.current = true; return; }
+    const norm = (s: string) => s.replace(/\D/g, "");
+    const g = gruppen.find(x => x.key === hl || (x.logId ? norm(x.logId) === norm(hl) : false));
+    if (g) {
+      setDetailGruppe(g);
+      highlightHandledRef.current = true;
+      window.history.replaceState(null, "", "/techniker"); // URL säubern
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gruppen]);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (

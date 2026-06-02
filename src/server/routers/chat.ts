@@ -76,7 +76,20 @@ export const chatRouter = createTRPCRouter({
       };
 
       if (isAdmin) {
-        emitToUser(technikerKuerzel, EVENTS.CHAT_NEU, payload);
+        // Manuelle Admin-Nachricht → Techniker. Zusatzfelder für die
+        // Techniker-Notification (isAutoMessage=false → wird gepingt).
+        const anf = await prisma.anfrage.findUnique({
+          where:  { id: input.anfrageId },
+          select: { logId: true, geraeteName: true },
+        });
+        emitToUser(technikerKuerzel, EVENTS.CHAT_NEU, {
+          ...payload,
+          logId:         anf?.logId,
+          geraeteName:   anf?.geraeteName,
+          autor:         user.kuerzel,
+          message:       input.inhalt,
+          isAutoMessage: false,
+        });
       } else {
         emitToAdmins(EVENTS.CHAT_NEU, { ...payload, techniker: user.kuerzel });
       }

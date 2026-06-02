@@ -288,8 +288,16 @@ export async function setzeStatus(id: number, status: AnfrageStatus): Promise<An
   invalidateTechnikerCache(aktualisiert.techniker).catch(() => {});
   // Backoffice (Admin/Betrachter-Listen) + gezielt der betroffene Techniker.
   // Kein Broadcast an ALLE — sonst sähe jeder Techniker fremde Status-Wechsel.
-  emitToBackoffice(EVENTS.ANFRAGE_UPDATED, { id, status });
-  emitToUser(aktualisiert.techniker, EVENTS.ANFRAGE_UPDATED, { id, status });
+  // Payload trägt logId + geraeteName, damit Techniker-Browser-Notifications
+  // (useTechnikerNotifications) eine aussagekräftige Meldung bauen können.
+  const updatePayload = {
+    id, status,
+    techniker:   aktualisiert.techniker,
+    logId:       aktualisiert.logId,
+    geraeteName: aktualisiert.geraeteName,
+  };
+  emitToBackoffice(EVENTS.ANFRAGE_UPDATED, updatePayload);
+  emitToUser(aktualisiert.techniker, EVENTS.ANFRAGE_UPDATED, updatePayload);
 
   if (status === AnfrageStatus.ABGESCHLOSSEN && anfrage.artikelId) {
     await syncBestandAusHistorie(anfrage.artikelId);

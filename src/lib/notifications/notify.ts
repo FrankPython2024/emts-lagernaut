@@ -2,16 +2,16 @@
 
 /**
  * Zeigt eine System-Benachrichtigung (Web-Notifications-API) für eine Anfrage.
- * Klick fokussiert das Fenster und springt zur Anfrage (?highlight=<id>,
- * dieselbe Logik wie im Überfällig-Widget).
+ * Klick fokussiert das Fenster und navigiert zur Ziel-URL `href`
+ * (Admin: /admin/anfragen?highlight=…, Techniker: /techniker?highlight=…).
  *
  * No-op, wenn Notifications nicht unterstützt oder nicht erlaubt sind.
  */
 export function zeigeAnfrageNotification(opts: {
-  title:       string;
-  body:        string;
-  tag:         string;
-  highlightId: number;
+  title: string;
+  body:  string;
+  tag:   string;
+  href:  string;
 }): void {
   if (typeof window === "undefined") return;
   if (!("Notification" in window) || Notification.permission !== "granted") return;
@@ -23,7 +23,7 @@ export function zeigeAnfrageNotification(opts: {
     });
     n.onclick = () => {
       window.focus();
-      window.location.href = `/admin/anfragen?highlight=${opts.highlightId}`;
+      window.location.href = opts.href;
       n.close();
     };
   } catch {

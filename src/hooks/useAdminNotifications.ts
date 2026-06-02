@@ -67,10 +67,10 @@ export function useAdminNotifications(): void {
       if (fensterAktiv) return;
 
       zeigeAnfrageNotification({
-        title:       "Neue Anfrage",
-        body:        `${a.logId} · ${a.techniker} · ${a.geraeteName ?? a.teil}`,
-        tag:         `anfrage-neu-${a.gruppenNr ?? a.id}`,
-        highlightId: a.id,
+        title: "Neue Anfrage",
+        body:  `${a.logId} · ${a.techniker} · ${a.geraeteName ?? a.teil}`,
+        tag:   `anfrage-neu-${a.gruppenNr ?? a.id}`,
+        href:  `/admin/anfragen?highlight=${a.id}`,
       });
       playPing();
     };
@@ -91,10 +91,10 @@ export function useAdminNotifications(): void {
     for (const a of offene) {
       if (istUeberfaellig(a.status, a.createdAt, now) && !notified.has(a.id)) {
         zeigeAnfrageNotification({
-          title:       "Anfrage überfällig",
-          body:        `${a.logId} · ${a.techniker} · ${verstricheneZeit(a.createdAt, now)}`,
-          tag:         `anfrage-ueberfaellig-${a.id}`,
-          highlightId: a.id,
+          title: "Anfrage überfällig",
+          body:  `${a.logId} · ${a.techniker} · ${verstricheneZeit(a.createdAt, now)}`,
+          tag:   `anfrage-ueberfaellig-${a.id}`,
+          href:  `/admin/anfragen?highlight=${a.id}`,
         });
         playPing();
         notified.add(a.id);
