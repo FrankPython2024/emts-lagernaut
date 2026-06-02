@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { printMehrereLabels } from "@/components/ui/ArtikelLabel";
 import { useStandortFilter } from "@/lib/standort/standortContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { ModellPoolModal } from "@/components/admin/ModellPoolModal";
 
 type Artikel = {
@@ -27,6 +28,8 @@ const INPUT_CLS = "px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e
 
 export default function ArtikelPage() {
   const { show } = useToast();
+  const { has } = usePermissions();
+  const canEdit = has("ARTIKEL_EDIT"); // Schreib-UI nur mit Permission (Server erzwingt zusätzlich)
   const { activeStandortId } = useStandortFilter();
 
   // Filter State
@@ -221,10 +224,12 @@ export default function ArtikelPage() {
             </button>
           )}
         </div>
-        <Link href="/admin/artikel/neu"
-          className="px-4 py-2 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 shadow-sm text-sm">
-          + Neuer Artikel
-        </Link>
+        {canEdit && (
+          <Link href="/admin/artikel/neu"
+            className="px-4 py-2 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 shadow-sm text-sm">
+            + Neuer Artikel
+          </Link>
+        )}
       </div>
 
       {/* Filter Bar */}

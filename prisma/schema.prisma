@@ -51,6 +51,7 @@ enum UserRolle {
   ADMIN
   TECHNIKER
   BETRACHTER
+  ADMIN_READONLY // Audit-Sicht: voller Lesezugriff auf den Admin-Bereich, keine Schreibrechte
 }
 
 // ── RBAC (Phase 1+2 — Fundament, noch keine User-Verknüpfung) ────────────────

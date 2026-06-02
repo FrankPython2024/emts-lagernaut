@@ -16,8 +16,9 @@ export async function middleware(req: NextRequest) {
 
   const rolle = token.rolle as string | undefined;
 
-  // /admin/benutzer → nur ADMIN
-  if (pathname.startsWith("/admin/benutzer") && rolle !== "ADMIN") {
+  // /admin/benutzer + /admin/rollen → nur ADMIN (Audit-Rolle sieht keine
+  // User-/Rollen-Daten, auch nicht lesend)
+  if ((pathname.startsWith("/admin/benutzer") || pathname.startsWith("/admin/rollen")) && rolle !== "ADMIN") {
     return NextResponse.redirect(new URL("/admin", req.url));
   }
 
@@ -26,9 +27,9 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/admin", req.url));
   }
 
-  // /admin → ADMIN oder BETRACHTER
+  // /admin → ADMIN, BETRACHTER oder ADMIN_READONLY (Audit-Lesesicht)
   if (pathname.startsWith("/admin")) {
-    if (rolle !== "ADMIN" && rolle !== "BETRACHTER") {
+    if (rolle !== "ADMIN" && rolle !== "BETRACHTER" && rolle !== "ADMIN_READONLY") {
       return NextResponse.redirect(new URL("/techniker", req.url));
     }
   }

@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useStandortFilter } from "@/lib/standort/standortContext";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
+import { usePermissions } from "@/hooks/usePermissions";
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
 
@@ -286,6 +287,8 @@ function EtlReihe({ reihe, plaetze, onKlick }: {
 
 export default function LagerplaetzePage() {
   const { show } = useToast();
+  const { has } = usePermissions();
+  const canEdit = has("LAGERPLATZ_EDIT"); // Schreib-UI nur mit Permission (Server erzwingt zusätzlich)
   const { activeStandortId } = useStandortFilter();
   const { data: session } = useSession();
   const kuerzel = (session?.user as { kuerzel?: string })?.kuerzel ?? "ADMIN";
@@ -459,6 +462,7 @@ export default function LagerplaetzePage() {
         </div>
 
         {/* Neuer Lagerplatz */}
+        {canEdit && (
         <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-4 shadow-sm mb-4">
           <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-3">Neuer Lagerplatz</p>
           <div className="flex gap-2 flex-wrap items-end">
@@ -484,6 +488,7 @@ export default function LagerplaetzePage() {
             </button>
           </div>
         </div>
+        )}
 
         {/* Filter */}
         <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-4 shadow-sm flex gap-3 flex-wrap items-center mb-4">

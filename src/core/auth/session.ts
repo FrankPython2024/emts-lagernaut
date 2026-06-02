@@ -37,9 +37,10 @@ export function requireRole(
   }
 
   const rangfolge: Record<UserRolle, number> = {
-    ADMIN:      3,
-    TECHNIKER:  2,
-    BETRACHTER: 1,
+    ADMIN:          3,
+    TECHNIKER:      2,
+    BETRACHTER:     1,
+    ADMIN_READONLY: 1, // Audit-Sicht: gleiche Rang-Stufe wie BETRACHTER (kein Schreib-Rang)
   };
 
   if (rangfolge[user.rolle] < rangfolge[rolle]) {

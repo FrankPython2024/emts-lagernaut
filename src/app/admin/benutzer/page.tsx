@@ -9,9 +9,10 @@ import { PageLoader } from "@/components/ui/LoadingSpinner";
 import type { SessionUser } from "@/core/types";
 
 const ROLLEN_FARBE: Record<string, string> = {
-  ADMIN:      "bg-[#fa3e3e]/10 text-[#fa3e3e]",
-  TECHNIKER:  "bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff]",
-  BETRACHTER: "bg-[#00a400]/10 text-[#00a400]",
+  ADMIN:          "bg-[#fa3e3e]/10 text-[#fa3e3e]",
+  TECHNIKER:      "bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff]",
+  BETRACHTER:     "bg-[#00a400]/10 text-[#00a400]",
+  ADMIN_READONLY: "bg-[#f59e0b]/10 text-[#b45309] dark:text-[#fbbf24]",
 };
 
 function Initials({ name }: { name: string }) {

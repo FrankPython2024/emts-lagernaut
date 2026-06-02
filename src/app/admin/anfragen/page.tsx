@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { UeberfaelligBadge } from "@/components/anfragen/UeberfaelligBadge";
 import { useNow } from "@/hooks/useNow";
 import { istUeberfaellig, verstricheneZeit } from "@/lib/anfragen/ueberfaellig";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { BelegModal, MehrBelegModal } from "@/components/ui/BelegModal";
@@ -227,6 +228,11 @@ function FreigebenDialog({
 function AnfragenPageInner() {
   const { show }    = useToast();
   const now         = useNow(60_000); // tickt jede Minute → 1h-Überfälligkeit live
+  const { has }     = usePermissions();
+  // Schreib-Aktionen nur mit Permission anzeigen (ADMIN_READONLY/BETRACHTER sehen
+  // reine Lese-Sicht). Der Server erzwingt das ohnehin (adminProcedure).
+  const canEdit   = has("ANFRAGE_EDIT");
+  const canDelete = has("ANFRAGE_DELETE");
   const { activeStandortId } = useStandortFilter();
   const { on, off } = useSocket();
   const { data: session } = useSession();
@@ -579,7 +585,7 @@ function AnfragenPageInner() {
                 {/* ── Aktions-Buttons ── */}
                 <div className="flex gap-2 flex-wrap">
                   {/* Lock-Buttons */}
-                  {!alleDone && anyTakeable && !bearbeitetVon && (
+                  {canEdit && !alleDone && anyTakeable && !bearbeitetVon && (
                     <button
                       onClick={() => gruppeNehmenMutation.mutate({ anfrageIds: gruppeAnfrageIds })}
                       disabled={gruppeNehmenMutation.isPending}
@@ -588,7 +594,7 @@ function AnfragenPageInner() {
                       {gruppeNehmenMutation.isPending ? "…" : "▶️ In Bearbeitung"}
                     </button>
                   )}
-                  {isLockedByMe && (
+                  {canEdit && isLockedByMe && (
                     <button
                       onClick={() => zurueckgebenMutation.mutate({ anfrageIds: gruppeAnfrageIds })}
                       disabled={zurueckgebenMutation.isPending}
@@ -597,7 +603,7 @@ function AnfragenPageInner() {
                       {zurueckgebenMutation.isPending ? "…" : "⏸️ Zurückgeben"}
                     </button>
                   )}
-                  {isLockedByOther && (
+                  {canEdit && isLockedByOther && (
                     <button
                       onClick={() => setFreigebenDialog({ anfrageIds: gruppeAnfrageIds, bearbeitetVon: bearbeitetVon!, seit: bearbeitetSeit ?? null })}
                       className="px-3 py-2.5 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 text-amber-700 dark:text-amber-400 text-xs font-bold rounded-lg border border-amber-300 dark:border-amber-700 transition-colors min-h-[44px]"
@@ -607,7 +613,7 @@ function AnfragenPageInner() {
                   )}
 
                   {/* Auslagern-Button */}
-                  {hatVerfuegbare && auslagerIds.length > 0 && (
+                  {canEdit && hatVerfuegbare && auslagerIds.length > 0 && (
                     <button
                       onClick={() => setAuslagerModal({
                         anfrageIds:   auslagerIds,
@@ -631,17 +637,19 @@ function AnfragenPageInner() {
                   </button>
 
                   {/* Alle erledigen */}
-                  <button
-                    onClick={() => alleErledigen(gruppe.anfragen, gruppe.geraeteName ?? gruppe.logId)}
-                    disabled={isBusy || isLockedByOther}
-                    title={isLockedByOther ? `Gesperrt von ${bearbeitetVon}` : "Alle Anfragen erledigen"}
-                    className="px-3 py-2.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-40 transition-colors min-h-[44px]"
-                  >
-                    {isBusy ? "…" : "✅ Alle erledigen"}
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => alleErledigen(gruppe.anfragen, gruppe.geraeteName ?? gruppe.logId)}
+                      disabled={isBusy || isLockedByOther}
+                      title={isLockedByOther ? `Gesperrt von ${bearbeitetVon}` : "Alle Anfragen erledigen"}
+                      className="px-3 py-2.5 bg-[#00a400] text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-40 transition-colors min-h-[44px]"
+                    >
+                      {isBusy ? "…" : "✅ Alle erledigen"}
+                    </button>
+                  )}
 
-                  {/* Gruppe löschen (Admin) */}
-                  {gruppe.gruppenNr && (
+                  {/* Gruppe löschen */}
+                  {canDelete && gruppe.gruppenNr && (
                     <button
                       onClick={() => setDeleteCandidate({
                         type:      "gruppe",
@@ -732,7 +740,7 @@ function AnfragenPageInner() {
                         )}
 
                         {/* Erledigen */}
-                        {a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT && (
+                        {canEdit && a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT && (
                           <button
                             onClick={() => !rowLockedByOther && handleErledigen(a.id, gruppe.geraeteName ?? gruppe.logId)}
                             disabled={isBusy || rowLockedByOther}
@@ -744,7 +752,7 @@ function AnfragenPageInner() {
                         )}
 
                         {/* Stornieren */}
-                        {(a.status === AnfrageStatus.NEU || a.status === AnfrageStatus.BEDARF) && (
+                        {canEdit && (a.status === AnfrageStatus.NEU || a.status === AnfrageStatus.BEDARF) && (
                           <button
                             onClick={() => !rowLockedByOther && setStatus.mutate({ id: a.id, status: AnfrageStatus.STORNIERT })}
                             disabled={isBusy || rowLockedByOther}
@@ -756,7 +764,7 @@ function AnfragenPageInner() {
                         )}
 
                         {/* Nicht verfügbar — Ersatzteil nicht beschaffbar */}
-                        {(a.status === AnfrageStatus.NEU || a.status === AnfrageStatus.BEDARF || a.status === AnfrageStatus.IN_BEARBEITUNG) && (
+                        {canEdit && (a.status === AnfrageStatus.NEU || a.status === AnfrageStatus.BEDARF || a.status === AnfrageStatus.IN_BEARBEITUNG) && (
                           <button
                             onClick={() => !rowLockedByOther && setNvCandidate({ id: a.id, label: a.beschreibung ?? a.teil })}
                             disabled={isBusy || rowLockedByOther}
@@ -768,19 +776,21 @@ function AnfragenPageInner() {
                           </button>
                         )}
 
-                        {/* Anfrage löschen (Admin) */}
-                        <button
-                          onClick={() => setDeleteCandidate({
-                            type:  "single",
-                            id:    a.id,
-                            label: a.beschreibung ?? a.teil,
-                          })}
-                          aria-label="Anfrage löschen"
-                          title="Anfrage löschen"
-                          className="flex items-center justify-center px-2 py-2 bg-[#fa3e3e]/10 text-[#fa3e3e] rounded hover:bg-[#fa3e3e]/20 transition-colors min-h-[44px] min-w-[44px]"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {/* Anfrage löschen */}
+                        {canDelete && (
+                          <button
+                            onClick={() => setDeleteCandidate({
+                              type:  "single",
+                              id:    a.id,
+                              label: a.beschreibung ?? a.teil,
+                            })}
+                            aria-label="Anfrage löschen"
+                            title="Anfrage löschen"
+                            className="flex items-center justify-center px-2 py-2 bg-[#fa3e3e]/10 text-[#fa3e3e] rounded hover:bg-[#fa3e3e]/20 transition-colors min-h-[44px] min-w-[44px]"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );

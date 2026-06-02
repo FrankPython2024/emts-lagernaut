@@ -75,6 +75,19 @@ const ROLLEN = [
       "MODELL_VIEW",
     ],
   },
+  {
+    name:         "ADMIN_READONLY",
+    bezeichnung:  "Admin (nur Lesen)",
+    beschreibung: "Voller Lesezugriff auf den Admin-Bereich (Audit), keine Schreibrechte. Ohne Benutzer-/Rollen-Verwaltung.",
+    // ALLE *_VIEW-Permissions + globale Suche + Aktivitäts-Log. KEINE Schreibrechte
+    // (*_EDIT/_CREATE/_DELETE/_EINLAGERN/_AUSLAGERN) und KEIN USER_*/ROLLE_EDIT.
+    permissions:  [
+      "DASHBOARD_VIEW", "STATISTIK_VIEW", "AKTIVITAETSLOG_VIEW", "SUCHE_GLOBAL",
+      "ANFRAGE_VIEW_ALL",
+      "ARTIKEL_VIEW", "LAGERPLATZ_VIEW", "BUCHUNG_VIEW",
+      "MODELL_VIEW",
+    ],
+  },
 ];
 
 async function main() {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createTRPCRouter, adminProcedure } from "@/server/trpc";
+import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma }       from "@/core/db/prisma";
 import { meilisearch }  from "@/core/infra/meilisearch";
 import { redis }        from "@/core/infra/redis";
@@ -42,10 +42,14 @@ function daysAgo(n: number): Date {
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
+// Dashboard ist eine reine Lese-Sicht → DASHBOARD_VIEW statt adminProcedure.
+// So sehen es ADMIN (via SYSTEM_ADMIN-Wildcard), BETRACHTER und ADMIN_READONLY.
+const dashboardRead = permissionProcedure("DASHBOARD_VIEW");
+
 export const dashboardRouter = createTRPCRouter({
 
   // 1 — KPI-Zahlen
-  stats: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+  stats: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const sId = input?.standortId;
     const { start, end } = heuteRange();
     const aF = anfrageStandortFilter(ctx, sId);
@@ -70,7 +74,7 @@ export const dashboardRouter = createTRPCRouter({
   //     drei offenen Status — siehe @/lib/anfragen/ueberfaellig)
   // Sortierung createdAt aufsteigend (älteste zuerst). Cap 500 — offene Anfragen
   // bleiben in der Praxis weit darunter.
-  offeneAnfragen: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(({ input, ctx }) => {
+  offeneAnfragen: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(({ input, ctx }) => {
     const aF = anfrageStandortFilter(ctx, input?.standortId);
     return prisma.anfrage.findMany({
       where:   { ...aF, status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] } },
@@ -84,7 +88,7 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 2 — Anfragen-Status-Verteilung
-  anfragenStatusVerteilung: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+  anfragenStatusVerteilung: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const aF = anfrageStandortFilter(ctx, input?.standortId);
     const grouped = await prisma.anfrage.groupBy({
       by: ["status"], _count: { status: true },
@@ -101,7 +105,7 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 3 — Auslagerungs-Trend (letzte 30 Tage)
-  auslagerungsTrend: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+  auslagerungsTrend: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const von = daysAgo(30);
     const bF  = buchungStandortFilter(ctx, input?.standortId);
     const buchungen = await prisma.buchung.findMany({
@@ -127,7 +131,7 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 4 — Top Teiltypen (letzte 30 Tage, abgeschlossene Anfragen)
-  topTeiltypen: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+  topTeiltypen: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const von = daysAgo(30);
     const aF  = anfrageStandortFilter(ctx, input?.standortId);
     const grouped = await prisma.anfrage.groupBy({
@@ -141,7 +145,7 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 5 — Techniker-Aktivität (letzte 7 Tage)
-  technikerAktivitaet: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+  technikerAktivitaet: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const von = daysAgo(7);
     const aF  = anfrageStandortFilter(ctx, input?.standortId);
     const [alle, abg] = await Promise.all([
@@ -163,7 +167,7 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 6 — Letzte 10 Anfragen
-  letzteAnfragen: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(({ input, ctx }) =>
+  letzteAnfragen: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(({ input, ctx }) =>
     prisma.anfrage.findMany({
       where:   anfrageStandortFilter(ctx, input?.standortId),
       take: 10, orderBy: { datum: "desc" },
@@ -172,7 +176,7 @@ export const dashboardRouter = createTRPCRouter({
   ),
 
   // 7 — Letzte 10 Buchungen
-  letzteBuchungen: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(({ input, ctx }) =>
+  letzteBuchungen: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(({ input, ctx }) =>
     prisma.buchung.findMany({
       where:   buchungStandortFilter(ctx, input?.standortId),
       take: 10, orderBy: { datum: "desc" },
@@ -181,7 +185,7 @@ export const dashboardRouter = createTRPCRouter({
   ),
 
   // 8 — Lagerplatz-Auslastung
-  lagerplatzAuslastung: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+  lagerplatzAuslastung: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const lF      = standortWhere(ctx, input?.standortId);
     const plaetze = await prisma.lagerplatz.findMany({
       where: lF,
@@ -211,7 +215,7 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 9 — Mindestbestand (Artikel unter Schwellwert 2)
-  mindestbestand: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+  mindestbestand: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const SCHWELLWERT = 2;
     const lF     = standortWhere(ctx, input?.standortId);
     const artikel = await prisma.artikel.findMany({
@@ -224,7 +228,7 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 10 — Aktivitäts-Protokoll (letzte Aktionen aus Buchungen + Anfragen)
-  aktivitaetsProtokoll: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+  aktivitaetsProtokoll: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const aF = anfrageStandortFilter(ctx, input?.standortId);
     const bF = buchungStandortFilter(ctx, input?.standortId);
     const [buchungen, anfragen] = await Promise.all([
@@ -254,7 +258,7 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 11 — System-Status (kein Standort-Filter — infrastruktur-global)
-  systemStatus: adminProcedure.query(async () => {
+  systemStatus: dashboardRead.query(async () => {
     const [dbOk, msOk, redisOk] = await Promise.all([
       prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
       meilisearch.health().then(() => true).catch(() => false),
@@ -268,7 +272,7 @@ export const dashboardRouter = createTRPCRouter({
   }),
 
   // 12 — Quick Stats
-  quickStats: adminProcedure.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
+  quickStats: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(async ({ input, ctx }) => {
     const lF = standortWhere(ctx, input?.standortId);
     const [modelle, aktiveTechniker, lpTotal, lpBelegt] = await Promise.all([
       prisma.geraeteModell.count({ where: { aktiv: true } }),

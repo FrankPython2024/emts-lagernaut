@@ -6,9 +6,10 @@ import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 
 const ROLLEN = [
-  { rolle: UserRolle.ADMIN,      icon: "🔴", label: "Admin",      desc: "Vollzugriff: Artikel, Buchungen, Benutzer, System" },
-  { rolle: UserRolle.TECHNIKER,  icon: "🔵", label: "Techniker",  desc: "Ersatzteil-Anfragen stellen, eigenen Verlauf sehen" },
-  { rolle: UserRolle.BETRACHTER, icon: "🟢", label: "Betrachter", desc: "Nur lesen: Admin-Bereich ohne Schreibrechte" },
+  { rolle: UserRolle.ADMIN,          icon: "🔴", label: "Admin",            desc: "Vollzugriff: Artikel, Buchungen, Benutzer, System" },
+  { rolle: UserRolle.TECHNIKER,      icon: "🔵", label: "Techniker",        desc: "Ersatzteil-Anfragen stellen, eigenen Verlauf sehen" },
+  { rolle: UserRolle.BETRACHTER,     icon: "🟢", label: "Betrachter",       desc: "Nur lesen: Statistiken und Bestände" },
+  { rolle: UserRolle.ADMIN_READONLY, icon: "🟡", label: "Admin (nur Lesen)", desc: "Audit: voller Admin-Lesezugriff, keine Schreibrechte, kein Benutzer-/Rollen-Zugriff" },
 ];
 
 export default function BenutzerNeuPage() {
@@ -22,9 +23,10 @@ export default function BenutzerNeuPage() {
   });
 
   const RECHTE: Record<UserRolle, string[]> = {
-    ADMIN:      ["Artikel verwalten", "Buchungen erstellen", "Anfragen bearbeiten", "Benutzer verwalten", "System einsehen"],
-    TECHNIKER:  ["Artikel suchen", "Anfragen stellen", "Eigene Anfragen stornieren"],
-    BETRACHTER: ["Artikel einsehen", "Anfragen einsehen (nur lesen)"],
+    ADMIN:          ["Artikel verwalten", "Buchungen erstellen", "Anfragen bearbeiten", "Benutzer verwalten", "System einsehen"],
+    TECHNIKER:      ["Artikel suchen", "Anfragen stellen", "Eigene Anfragen stornieren"],
+    BETRACHTER:     ["Artikel einsehen", "Anfragen einsehen (nur lesen)"],
+    ADMIN_READONLY: ["Admin-Bereich vollständig einsehen", "Anfragen, Lager, Modelle, Statistik, Activity-Log", "Keine Schreibrechte · kein Benutzer-/Rollen-Zugriff"],
   };
 
   return (

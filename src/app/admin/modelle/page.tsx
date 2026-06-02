@@ -12,6 +12,7 @@ import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { STANDARD_TEILNAMEN } from "@/lib/constants/teiltypen";
 import { getLucideIcon } from "@/lib/icons/getLucideIcon";
 import { ModellPoolModal } from "@/components/admin/ModellPoolModal";
+import { usePermissions } from "@/hooks/usePermissions";
 
 // ── Konstanten ────────────────────────────────────────────────────────────────
 
@@ -642,6 +643,8 @@ type Modell = { id: number; hersteller: string; modell: string; kompAnzahl: numb
 
 function ModelleListePageInner() {
   const { show } = useToast();
+  const { has } = usePermissions();
+  const canEdit = has("MODELL_EDIT"); // Schreib-UI nur mit Permission (Server erzwingt zusätzlich)
   const { activeStandortId } = useStandortFilter();
 
   const searchParams = useSearchParams();
@@ -720,17 +723,19 @@ function ModelleListePageInner() {
           <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Gerätemodelle</h1>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-0.5">{total} Modelle</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => setGlobalRemoveOpen(true)}
-            className="px-4 py-2 bg-[#fa3e3e]/10 text-[#fa3e3e] border border-[#fa3e3e]/30 font-bold rounded-xl hover:bg-[#fa3e3e]/20 text-sm transition-colors"
-          >
-            🗑️ Alle Verknüpfungen löschen
-          </button>
-          <Link href="/admin/modelle/neu" className="px-4 py-2 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 shadow-sm text-sm">
-            + Neues Modell
-          </Link>
-        </div>
+        {canEdit && (
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setGlobalRemoveOpen(true)}
+              className="px-4 py-2 bg-[#fa3e3e]/10 text-[#fa3e3e] border border-[#fa3e3e]/30 font-bold rounded-xl hover:bg-[#fa3e3e]/20 text-sm transition-colors"
+            >
+              🗑️ Alle Verknüpfungen löschen
+            </button>
+            <Link href="/admin/modelle/neu" className="px-4 py-2 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 shadow-sm text-sm">
+              + Neues Modell
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Filter */}
