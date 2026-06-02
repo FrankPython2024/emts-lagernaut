@@ -25,6 +25,7 @@ import { LetzteAnfragenWidget }       from "@/components/dashboard/widgets/Letzt
 import { LetzteBuchungenWidget }      from "@/components/dashboard/widgets/LetzteBuchungenWidget";
 import { LagerplatzHeatmapWidget }    from "@/components/dashboard/widgets/LagerplatzHeatmapWidget";
 import { MindestbestandWidget }       from "@/components/dashboard/widgets/MindestbestandWidget";
+import { BestellempfehlungWidget }     from "@/components/dashboard/widgets/BestellempfehlungWidget";
 import { QuickActionsWidget }         from "@/components/dashboard/widgets/QuickActionsWidget";
 import { AktivitaetWidget }           from "@/components/dashboard/widgets/AktivitaetWidget";
 import { SystemStatusWidget }         from "@/components/dashboard/widgets/SystemStatusWidget";
@@ -46,6 +47,7 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType> = {
   aktivitaet:      AktivitaetWidget,
   heatmap:         LagerplatzHeatmapWidget,
   mindestbestand:  MindestbestandWidget,
+  bestellempfehlung: BestellempfehlungWidget,
   quickActions:    QuickActionsWidget,
   systemStatus:    SystemStatusWidget,
 };

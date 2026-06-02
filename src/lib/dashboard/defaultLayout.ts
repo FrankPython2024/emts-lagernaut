@@ -25,6 +25,7 @@ export const WIDGET_META: { id: string; label: string }[] = [
   { id: "aktivitaet",       label: "Letzte Aktivitäten"      },
   { id: "heatmap",          label: "Lagerplatz-Auslastung"   },
   { id: "mindestbestand",   label: "Mindestbestand-Alarm"    },
+  { id: "bestellempfehlung", label: "Top Bestellempfehlungen" },
   { id: "quickActions",     label: "Schnellzugriff"          },
   { id: "systemStatus",     label: "System-Status"           },
 ];
@@ -61,8 +62,9 @@ export const DEFAULT_LAYOUT: LayoutsMap = {
     { i: "aktivitaet",        x: 6,  y: 14, w: 6,  h: 5,  minW: 3,  minH: 3  },
     { i: "heatmap",           x: 0,  y: 19, w: 8,  h: 5,  minW: 4,  minH: 3  },
     { i: "mindestbestand",    x: 8,  y: 19, w: 4,  h: 5,  minW: 3,  minH: 3  },
-    { i: "quickActions",      x: 0,  y: 24, w: 8,  h: 2,  minW: 4,  minH: 2  },
-    { i: "systemStatus",      x: 8,  y: 24, w: 4,  h: 3,  minW: 3,  minH: 2  },
+    { i: "bestellempfehlung", x: 0,  y: 24, w: 6,  h: 4,  minW: 3,  minH: 3  },
+    { i: "quickActions",      x: 0,  y: 28, w: 8,  h: 2,  minW: 4,  minH: 2  },
+    { i: "systemStatus",      x: 8,  y: 28, w: 4,  h: 3,  minW: 3,  minH: 2  },
   ],
   // ── Tablet (996–1279px) — 12 cols ────────────────────────────────────────
   // KPIs 2×2 Raster
@@ -80,6 +82,7 @@ export const DEFAULT_LAYOUT: LayoutsMap = {
     { i: "aktivitaet",        x: 6,  y: 14, w: 6,  h: 5,  minW: 3,  minH: 3  },
     { i: "heatmap",           x: 0,  y: 19, w: 12, h: 5,  minW: 4,  minH: 3  },
     { i: "mindestbestand",    x: 0,  y: 24, w: 6,  h: 5,  minW: 3,  minH: 3  },
+    { i: "bestellempfehlung", x: 6,  y: 24, w: 6,  h: 5,  minW: 3,  minH: 3  },
     { i: "quickActions",      x: 0,  y: 29, w: 8,  h: 2,  minW: 4,  minH: 2  },
     { i: "systemStatus",      x: 8,  y: 29, w: 4,  h: 3,  minW: 3,  minH: 2  },
   ],
@@ -98,7 +101,8 @@ export const DEFAULT_LAYOUT: LayoutsMap = {
     { i: "aktivitaet",        x: 0, y: 34, w: 6,  h: 5,  minW: 4,  minH: 3  },
     { i: "heatmap",           x: 0, y: 39, w: 6,  h: 5,  minW: 4,  minH: 3  },
     { i: "mindestbestand",    x: 0, y: 44, w: 6,  h: 5,  minW: 4,  minH: 3  },
-    { i: "quickActions",      x: 0, y: 49, w: 6,  h: 2,  minW: 4,  minH: 2  },
-    { i: "systemStatus",      x: 0, y: 51, w: 6,  h: 3,  minW: 4,  minH: 2  },
+    { i: "bestellempfehlung", x: 0, y: 49, w: 6,  h: 4,  minW: 4,  minH: 3  },
+    { i: "quickActions",      x: 0, y: 53, w: 6,  h: 2,  minW: 4,  minH: 2  },
+    { i: "systemStatus",      x: 0, y: 55, w: 6,  h: 3,  minW: 4,  minH: 2  },
   ],
 };

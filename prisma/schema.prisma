@@ -25,6 +25,7 @@ model User {
   // Bei false: Zugriff via standortId (Haupt) + UserStandortAccess (zusätzliche).
   alleStandorte   Boolean   @default(false)
   standortAccess  UserStandortAccess[]
+  externeBestellungen ExterneBestellung[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -406,4 +407,29 @@ enum NachrichtTyp {
   DIREKT
   BROADCAST
   SYSTEM
+}
+
+// ── Externe Bestellungen (Bestell-Empfehlungs-System) ────────────────────────
+// Manuelle Erfassung dessen, was Frank extern (z.B. Refurbished-Händler) für
+// NICHT_VERFUEGBAR-Anfragen nachbestellt hat.
+//
+// Gruppierungs-Schlüssel: (modellName, teiltyp). Anfrage hat KEINEN modellId-FK,
+// trägt das Modell nur als String (geraeteName). Daher wird hier exakt derselbe
+// String gespeichert — so matchen Anfragen-Aggregat und Bestell-Summe 1:1 und
+// die Offen-Zahl (Anfragen − Bestellt) ist exakt. `hersteller` ist denormalisiert
+// (bei Erfassung aufgelöst) für die Anzeige.
+model ExterneBestellung {
+  id          Int      @id @default(autoincrement())
+  modellName  String   @db.VarChar(500) // = Anfrage.geraeteName
+  hersteller  String?  // denormalisiert für Anzeige (best-effort aufgelöst)
+  teiltyp     String   // = Anfrage.teil
+  anzahl      Int
+  bestelltAm  DateTime // wann extern bestellt
+  notiz       String?  @db.Text
+  erstelltVon String   // User.kuerzel
+  user        User     @relation(fields: [erstelltVon], references: [kuerzel])
+  erstelltAm  DateTime @default(now())
+
+  @@index([modellName, teiltyp])
+  @@index([erstelltVon])
 }

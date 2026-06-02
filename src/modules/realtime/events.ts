@@ -24,6 +24,11 @@ export const EVENTS = {
   // Activity
   ACTIVITY_NEU:      "activity:neu",
 
+  // Externe Bestellungen (Bestell-Empfehlungs-System)
+  BESTELLUNG_ERFASST:      "bestellung:erfasst",
+  BESTELLUNG_AKTUALISIERT: "bestellung:aktualisiert",
+  BESTELLUNG_GELOESCHT:    "bestellung:geloescht",
+
   // Stress-Test Benchmark
   STRESSTEST_EVENT:   "stresstest:event",
   STRESSTEST_METRICS: "stresstest:metrics",

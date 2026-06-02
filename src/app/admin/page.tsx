@@ -42,11 +42,21 @@ function useDashboardSocketInvalidation() {
       void utils.dashboard.stats.invalidate();
       void utils.dashboard.mindestbestand.invalidate();
     });
+    const onBestellung = () => {
+      void utils.bestellempfehlung.top5.invalidate();
+      void utils.bestellempfehlung.list.invalidate();
+    };
+    on(EVENTS.BESTELLUNG_ERFASST,      onBestellung);
+    on(EVENTS.BESTELLUNG_AKTUALISIERT, onBestellung);
+    on(EVENTS.BESTELLUNG_GELOESCHT,    onBestellung);
     return () => {
       off(EVENTS.ANFRAGE_NEU);
       off(EVENTS.ANFRAGE_UPDATED);
       off(EVENTS.BUCHUNG_ERSTELLT);
       off(EVENTS.BESTAND_UPDATED);
+      off(EVENTS.BESTELLUNG_ERFASST);
+      off(EVENTS.BESTELLUNG_AKTUALISIERT);
+      off(EVENTS.BESTELLUNG_GELOESCHT);
     };
   }, [on, off, utils]);
 }
