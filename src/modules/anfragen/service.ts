@@ -81,6 +81,7 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
   emitToBackoffice(EVENTS.ANFRAGE_NEU, {
     id: anfrage.id, techniker: anfrage.techniker, logId: anfrage.logId,
     geraeteName: anfrage.geraeteName, teil: anfrage.teil, status: anfrage.status,
+    gruppenNr: anfrage.gruppenNr,
   });
 
   return anfrage;

@@ -14,6 +14,9 @@ import { StandortSwitcher } from "@/components/StandortSwitcher";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useNeueAnfragenZaehler } from "@/hooks/useNeueAnfragenZaehler";
 import { MeinProfilModal } from "@/app/admin/_components/MeinProfilModal";
+import { NotificationProvider } from "@/lib/notifications/notificationContext";
+import { NotificationToggle } from "@/components/header/NotificationToggle";
+import { useAdminNotifications } from "@/hooks/useAdminNotifications";
 
 type NavItem = { href: string; label: string; icon: string; permission: string };
 type NavSection = { title: string; items: NavItem[] };
@@ -220,6 +223,9 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
           <span>{dark ? "Hellmodus" : "Dunkelmodus"}</span>
         </button>
 
+        {/* Browser-Benachrichtigungen-Toggle */}
+        <NotificationToggle />
+
         {/* User-Card — Klick auf Avatar/Name öffnet Mein Profil */}
         {user && (
           <div className="flex items-center gap-1 px-1 py-1 rounded-lg bg-gray-100/60 dark:bg-gray-800/60 mt-1">
@@ -283,6 +289,13 @@ function SocketNotifications() {
   return null;
 }
 
+// ── Browser-Notifications (System-Toast + Ping) — einmal im Layout gemountet ──
+
+function AdminNotifications() {
+  useAdminNotifications();
+  return null;
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen,  setMobileOpen]  = useState(false);
   const [searchOpen,  setSearchOpen]  = useState(false);
@@ -306,7 +319,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <ToastProvider>
       <StandortProvider>
+      <NotificationProvider>
       <SocketNotifications />
+      <AdminNotifications />
       {sucheErlaubt && <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />}
       {profilOffen && <MeinProfilModal onClose={() => setProfilOffen(false)} />}
 
@@ -373,6 +388,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </main>
         </div>
       </div>
+      </NotificationProvider>
       </StandortProvider>
     </ToastProvider>
   );
