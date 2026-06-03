@@ -410,4 +410,33 @@ export const datenbankRouter = createTRPCRouter({
       return { columns, rows, total, page: input.page, pageSize: input.pageSize, primaryKey };
     }),
 
+  // ── Feature "Artikel-Kompatibilität": Geräte zu einem Artikel ──────────────
+  //
+  // Ein Artikel (Artikel.id) kann mit mehreren Geräten verknüpft sein. Die
+  // Verbindung steht in Kompatibilitaet (geraet [Freitext], teiltyp, artikelId).
+  // Strikt read-only. artikelId ausschließlich als gebundener Parameter; der
+  // Tabellenname Kompatibilitaet ist konstant. Geräte-Strings bleiben UNVERÄNDERT
+  // (kein Merge/Fuzzy) — Datenintegrität.
+  artikelKompatibilitaet: adminProcedure
+    .input(z.object({ artikelId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      await requireDbExplorer();
+
+      const rows = await ctx.prisma.$queryRaw<{ geraet: string; teiltyp: string }[]>`
+        SELECT geraet, teiltyp
+        FROM   Kompatibilitaet
+        WHERE  artikelId = ${input.artikelId}
+        ORDER BY geraet
+      `;
+
+      const geraete = rows.map((r) => r.geraet); // exakt wie gespeichert
+      const teiltypen = [...new Set(rows.map((r) => r.teiltyp))];
+      const teiltyp =
+        teiltypen.length === 0 ? null
+        : teiltypen.length === 1 ? teiltypen[0]
+        : teiltypen.join(", "); // mehrere Teiltypen: alle nennen
+
+      return { artikelId: input.artikelId, teiltyp, geraete, anzahl: geraete.length };
+    }),
+
 });

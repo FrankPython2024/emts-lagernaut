@@ -6,6 +6,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/trpc/react";
 import type { AppRouter } from "@/server/routers";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
+import { Modal } from "@/components/ui/Modal";
 import { useNow } from "@/hooks/useNow";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
@@ -798,12 +799,18 @@ function InhaltTab({ table, onTableChange }: { table: string | null; onTableChan
   const [live, setLive]             = useState(true);
   const [intervalMs, setIntervalMs] = useState(5_000);
 
-  // Tabellenwechsel → Such-/Sortier-/Seitenzustand zurücksetzen (live bleibt).
+  // Artikel-Kompatibilität: geöffnete Artikel-id (nur Tabelle "Artikel").
+  const [kompatId, setKompatId] = useState<number | null>(null);
+
+  const istArtikel = table === "Artikel";
+
+  // Tabellenwechsel → Such-/Sortier-/Seitenzustand + offenes Kompat-Modal zurücksetzen.
   useEffect(() => {
     setSearch("");
     setSortColumn(null);
     setSortDir("asc");
     setPage(1);
+    setKompatId(null);
   }, [table]);
 
   // Suche/Seitengröße/Sortierung ändern → zurück auf Seite 1.
@@ -1056,6 +1063,14 @@ function InhaltTab({ table, onTableChange }: { table: string | null; onTableChan
               </caption>
               <thead>
                 <tr>
+                  {istArtikel && (
+                    <th
+                      scope="col"
+                      className="sticky top-0 z-10 bg-[#f0f2f5] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042] px-4 text-left text-xs font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8] whitespace-nowrap"
+                    >
+                      Kompatibilität
+                    </th>
+                  )}
                   {data.columns.map((c) => (
                     <SortHeader
                       key={c.name}
@@ -1087,11 +1102,30 @@ function InhaltTab({ table, onTableChange }: { table: string | null; onTableChan
                 {data.rows.map((row, i) => {
                   const pkWert  = data.primaryKey ? row[data.primaryKey] : null;
                   const blitzen = pkWert != null && flashPks.has(pkWert);
+                  const artikelId = istArtikel && pkWert != null ? Number(pkWert) : null;
                   return (
                   <tr
                     key={pkWert ?? i}
                     className={`transition-colors ${blitzen ? "db-row-flash" : "hover:bg-[#f0f2f5]/60 dark:hover:bg-[#18191a]/60"}`}
                   >
+                    {istArtikel && (
+                      <td className="px-2 py-1 align-top border-b border-[#ced4da]/50 dark:border-[#3e4042]/50">
+                        {artikelId != null && Number.isFinite(artikelId) ? (
+                          <button
+                            type="button"
+                            onClick={() => setKompatId(artikelId)}
+                            aria-label={`Kompatibilität für Artikel ${pkWert} anzeigen`}
+                            title="Kompatible Geräte anzeigen"
+                            className="inline-flex items-center justify-center gap-1.5 min-h-[56px] min-w-[44px] px-3 rounded-lg text-sm font-bold text-[#008BD2] hover:bg-[#008BD2]/10 transition-colors focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
+                          >
+                            <span aria-hidden>🔌</span>
+                            <span className="hidden sm:inline">Geräte</span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-[#9ca3af] dark:text-[#6b7280]">—</span>
+                        )}
+                      </td>
+                    )}
                     {data.columns.map((c) => (
                       <td
                         key={c.name}
@@ -1145,6 +1179,75 @@ function InhaltTab({ table, onTableChange }: { table: string | null; onTableChan
           </div>
         </>
       ) : null}
+
+      {/* Artikel-Kompatibilität (nur Tabelle "Artikel") */}
+      {kompatId != null && (
+        <KompatibilitaetModal artikelId={kompatId} onClose={() => setKompatId(null)} />
+      )}
     </div>
+  );
+}
+
+/** Modal: mit welchen Geräten ist ein Artikel kompatibel? Read-only. */
+function KompatibilitaetModal({ artikelId, onClose }: { artikelId: number; onClose: () => void }) {
+  const q = api.datenbank.artikelKompatibilitaet.useQuery({ artikelId }, { staleTime: 30_000 });
+  const data = q.data;
+
+  return (
+    <Modal open onClose={onClose} title="Kompatibel mit">
+      {/* Kopf: Artikel + Teiltyp + Anzahl */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-bold text-white" style={{ background: "#202F61" }}>
+          🔌 Artikel #{artikelId}
+        </span>
+        {data?.teiltyp && (
+          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-sm font-semibold bg-[#008BD2]/10 text-[#008BD2] border border-[#008BD2]/30">
+            {data.teiltyp}
+          </span>
+        )}
+        {data && data.anzahl > 0 && (
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#04B475]/15 text-[#04B475] border border-[#04B475]/30">
+            passt in {data.anzahl} {data.anzahl === 1 ? "Gerät" : "Geräte"}
+          </span>
+        )}
+      </div>
+
+      {q.isLoading ? (
+        <div className="py-8 flex flex-col items-center gap-3 text-[#65676b] dark:text-[#b0b3b8]">
+          <span aria-hidden className="text-2xl animate-pulse">⏳</span>
+          <p className="text-sm font-semibold">Geräte werden geladen…</p>
+        </div>
+      ) : q.isError ? (
+        <div role="alert" className="py-6 text-center space-y-3">
+          <p className="text-sm text-[#b91c1c] dark:text-[#fca5a5] font-semibold">
+            {q.error.message || "Kompatibilität konnte nicht geladen werden."}
+          </p>
+          <button
+            onClick={() => q.refetch()}
+            className="min-h-[44px] px-4 rounded-lg text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
+            style={{ background: "#008BD2" }}
+          >
+            Erneut versuchen
+          </button>
+        </div>
+      ) : data && data.geraete.length === 0 ? (
+        <div className="py-8 flex flex-col items-center gap-3 text-center text-[#65676b] dark:text-[#b0b3b8]">
+          <span aria-hidden className="text-2xl">📭</span>
+          <p className="text-sm font-semibold">Für diesen Artikel ist keine Gerätezuordnung hinterlegt.</p>
+        </div>
+      ) : data ? (
+        <ul className="space-y-1.5 max-h-[55vh] overflow-y-auto">
+          {data.geraete.map((g, idx) => (
+            <li
+              key={idx}
+              className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-sm text-[#1a1a1a] dark:text-[#e4e6eb]"
+            >
+              <span aria-hidden className="text-[#008BD2] flex-shrink-0">📱</span>
+              <span className="font-mono break-all">{g}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Modal>
   );
 }
