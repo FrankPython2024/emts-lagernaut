@@ -169,6 +169,28 @@ html.font-large  { font-size: 22px; --base-font: 22px; }
   }
 }
 
+/* ── Datenbank-Explorer — Live-Update Zeilen-Flash (~1s) ──────────────────────── */
+.db-row-flash {
+  animation: db-row-flash-pulse 1s ease-out forwards;
+}
+@keyframes db-row-flash-pulse {
+  0%   { background-color: rgba(0,139,210,0.30); }
+  100% { background-color: transparent; }
+}
+.dark .db-row-flash {
+  animation-name: db-row-flash-pulse-dark;
+}
+@keyframes db-row-flash-pulse-dark {
+  0%   { background-color: rgba(31,165,232,0.32); }
+  100% { background-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .db-row-flash {
+    animation: none;                          /* kein Blitzen */
+    background-color: rgba(0,139,210,0.12);   /* nur dezente, statische Markierung */
+  }
+}
+
 /* ── Sidebar — subtile Scrollbar ──────────────────────────────────────────── */
 .sidebar-scroll::-webkit-scrollbar          { width: 5px; }
 .sidebar-scroll::-webkit-scrollbar-track   { background: transparent; }

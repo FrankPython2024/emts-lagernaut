@@ -6,6 +6,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/trpc/react";
 import type { AppRouter } from "@/server/routers";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
+import { useNow } from "@/hooks/useNow";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 
@@ -718,6 +719,36 @@ function MermaidDiagram({ code }: { code: string }) {
 type PageSize = 25 | 50 | 100;
 const PAGE_SIZES: PageSize[] = [25, 50, 100];
 
+const LIVE_INTERVALS: { ms: number; label: string }[] = [
+  { ms: 5_000,  label: "5s"  },
+  { ms: 10_000, label: "10s" },
+  { ms: 30_000, label: "30s" },
+];
+
+/** "vor X Sek." / "vor Y Min. Z Sek." aus Sekunden. */
+function relativeZeit(sek: number): string {
+  if (sek < 60) return `vor ${sek} Sek.`;
+  const min = Math.floor(sek / 60);
+  const rest = sek % 60;
+  return `vor ${min} Min. ${rest} Sek.`;
+}
+
+/**
+ * "Zuletzt aktualisiert vor X Sek." — tickt jede Sekunde über useNow. Eigene
+ * Komponente, damit nur dieser Text neu rendert (nicht das ganze Grid). Bewusst
+ * KEINE aria-live-Region (sonst Screenreader-Spam).
+ */
+function LiveStatus({ updatedAt, isFetching }: { updatedAt: number; isFetching: boolean }) {
+  const now = useNow(1_000);
+  if (!updatedAt) return null;
+  const sek = Math.max(0, Math.round((now - updatedAt) / 1000));
+  return (
+    <span className="text-xs text-[#65676b] dark:text-[#b0b3b8] tabular-nums">
+      {isFetching ? "Aktualisiere…" : `Zuletzt aktualisiert ${relativeZeit(sek)}`}
+    </span>
+  );
+}
+
 /** Eine Zelle: NULL abgesetzt; lange Werte gekürzt mit Titel + Klick zum Aufklappen. */
 function DatenZelle({ value }: { value: string | null }) {
   const [offen, setOffen] = useState(false);
@@ -763,7 +794,11 @@ function InhaltTab({ table, onTableChange }: { table: string | null; onTableChan
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDir, setSortDir]       = useState<SortOrder>("asc");
 
-  // Tabellenwechsel → Such-/Sortier-/Seitenzustand zurücksetzen.
+  // Live-Aktualisierung — Default AN, bleibt über Tabellenwechsel hinweg erhalten.
+  const [live, setLive]             = useState(true);
+  const [intervalMs, setIntervalMs] = useState(5_000);
+
+  // Tabellenwechsel → Such-/Sortier-/Seitenzustand zurücksetzen (live bleibt).
   useEffect(() => {
     setSearch("");
     setSortColumn(null);
@@ -783,7 +818,14 @@ function InhaltTab({ table, onTableChange }: { table: string | null; onTableChan
       sortColumn: sortColumn ?? undefined,
       sortDir,
     },
-    { enabled: !!table, staleTime: 10_000, placeholderData: keepPreviousData },
+    {
+      enabled:                     !!table,
+      staleTime:                   10_000,
+      placeholderData:             keepPreviousData,
+      // Polling nur bei gewählter Tabelle & Live AN; pausiert im Hintergrund.
+      refetchInterval:             live && !!table ? intervalMs : false,
+      refetchIntervalInBackground: false,
+    },
   );
 
   function onSort(colName: string) {
@@ -799,6 +841,58 @@ function InhaltTab({ table, onTableChange }: { table: string | null; onTableChan
   const total      = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const sucheAktiv = debounced.trim().length > 0;
+
+  // ── Live-Flash: geänderte/neue Zeilen ~1s aufblitzen ──────────────────────
+  // Baseline = vorheriger Datenstand des SELBEN Views, je PK serialisiert.
+  const baselineRef = useRef<Map<string, string> | null>(null);
+  const [flashPks, setFlashPks] = useState<Set<string>>(new Set());
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // View-Wechsel (Tabelle/Seite/Größe/Suche/Sortierung) → Baseline verwerfen.
+  // Der nächste Datenstand wird zur neuen Baseline (blitzt NICHT).
+  useEffect(() => {
+    baselineRef.current = null;
+    setFlashPks(new Set());
+  }, [table, page, pageSize, debounced, sortColumn, sortDir]);
+
+  // Bei jeder erfolgreichen (Re-)Abfrage gegen die Baseline diffen.
+  useEffect(() => {
+    const d = q.data;
+    if (!d) return;
+    const pk = d.primaryKey;
+
+    // Ohne Primärschlüssel kein verlässlicher Diff → stilles Update.
+    if (!pk) { baselineRef.current = null; return; }
+
+    const aktuell = new Map<string, string>();
+    for (const row of d.rows) {
+      const id = row[pk];
+      if (id === null || id === undefined) continue;
+      aktuell.set(id, JSON.stringify(row));
+    }
+
+    const baseline = baselineRef.current;
+    baselineRef.current = aktuell;
+
+    // Erster Stand nach einem Reset = Baseline, nichts blitzt.
+    if (!baseline) return;
+
+    const geaendert = new Set<string>();
+    for (const [id, ser] of aktuell) {
+      const alt = baseline.get(id);
+      if (alt === undefined || alt !== ser) geaendert.add(id); // neu ODER inhaltlich verändert
+    }
+
+    if (geaendert.size > 0) {
+      setFlashPks(geaendert);
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      flashTimer.current = setTimeout(() => setFlashPks(new Set()), 1_100);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q.dataUpdatedAt]);
+
+  // Timer beim Unmount aufräumen.
+  useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
 
   return (
     <div className="space-y-4">
@@ -851,6 +945,67 @@ function InhaltTab({ table, onTableChange }: { table: string | null; onTableChan
             <span className="font-mono font-semibold text-[#202F61] dark:text-[#008BD2]">{table}</span>
             {data.columns.length > 0 && <> · {data.columns.length} Spalten</>}
           </p>
+        )}
+
+        {/* ── Live-Aktualisierung ── */}
+        {table && (
+          <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-[#ced4da]/60 dark:border-[#3e4042]/60">
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Live-Schalter */}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={live}
+                onClick={() => setLive((l) => !l)}
+                className="inline-flex items-center gap-2.5 min-h-[56px] px-2 rounded-lg transition-colors hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
+              >
+                <span
+                  aria-hidden
+                  className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${live ? "bg-[#008BD2]" : "bg-[#ced4da] dark:bg-[#3e4042]"}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${live ? "translate-x-5" : ""}`} />
+                </span>
+                <span className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                  Live {live ? "AN" : "AUS"}
+                </span>
+              </button>
+
+              {/* Intervall-Auswahl (nur bei Live AN) */}
+              {live && (
+                <div role="group" aria-label="Aktualisierungs-Intervall" className="flex items-center gap-1 p-1 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] border border-[#ced4da] dark:border-[#3e4042]">
+                  {LIVE_INTERVALS.map((opt) => {
+                    const aktiv = intervalMs === opt.ms;
+                    return (
+                      <button
+                        key={opt.ms}
+                        type="button"
+                        aria-pressed={aktiv}
+                        onClick={() => setIntervalMs(opt.ms)}
+                        className={`min-h-[44px] px-3 rounded-md text-sm font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-[#008BD2] ${
+                          aktiv ? "text-white shadow-sm" : "text-[#65676b] dark:text-[#b0b3b8] hover:text-[#202F61] dark:hover:text-[#008BD2]"
+                        }`}
+                        style={aktiv ? { background: "#008BD2" } : undefined}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <LiveStatus updatedAt={q.dataUpdatedAt} isFetching={q.isFetching} />
+              <button
+                type="button"
+                onClick={() => q.refetch()}
+                disabled={q.isFetching}
+                className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
+              >
+                <span aria-hidden className={q.isFetching ? "animate-spin" : ""}>🔄</span> Aktualisieren
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -929,10 +1084,13 @@ function InhaltTab({ table, onTableChange }: { table: string | null; onTableChan
                 </tr>
               </thead>
               <tbody>
-                {data.rows.map((row, i) => (
+                {data.rows.map((row, i) => {
+                  const pkWert  = data.primaryKey ? row[data.primaryKey] : null;
+                  const blitzen = pkWert != null && flashPks.has(pkWert);
+                  return (
                   <tr
-                    key={i}
-                    className="hover:bg-[#f0f2f5]/60 dark:hover:bg-[#18191a]/60 transition-colors"
+                    key={pkWert ?? i}
+                    className={`transition-colors ${blitzen ? "db-row-flash" : "hover:bg-[#f0f2f5]/60 dark:hover:bg-[#18191a]/60"}`}
                   >
                     {data.columns.map((c) => (
                       <td
@@ -943,7 +1101,8 @@ function InhaltTab({ table, onTableChange }: { table: string | null; onTableChan
                       </td>
                     ))}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
