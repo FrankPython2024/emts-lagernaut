@@ -36,6 +36,9 @@ export type ErstelleAnfrageData = {
   istSonderAnfrage?: boolean;
   beschreibung?:     string;
   sonderKategorie?:  string;
+  // Test-Modus: Anfrage von ADMIN / ADMIN_READONLY im Portal-Testmodus.
+  // Zählt nicht in Statistik/KPIs, kein Bestand-Effekt beim Auslagern.
+  testModus?:        boolean;
 };
 
 /**
@@ -73,15 +76,18 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
       istSonderAnfrage: data.istSonderAnfrage ?? false,
       beschreibung:     data.beschreibung,
       sonderKategorie:  data.sonderKategorie,
+      testModus:        data.testModus ?? false,
     },
   });
 
   meilisearchSync.anfrage(anfrage.id);
   invalidateTechnikerCache(anfrage.techniker).catch(() => {});
+  // Realtime-Event feuert auch für Test-Anfragen normal — Browser-Notifications +
+  // Tab-Counter sollen die Echtzeit-Mechanik live zeigen (bewusste Entscheidung).
   emitToBackoffice(EVENTS.ANFRAGE_NEU, {
     id: anfrage.id, techniker: anfrage.techniker, logId: anfrage.logId,
     geraeteName: anfrage.geraeteName, teil: anfrage.teil, status: anfrage.status,
-    gruppenNr: anfrage.gruppenNr,
+    gruppenNr: anfrage.gruppenNr, testModus: anfrage.testModus,
   });
 
   return anfrage;
@@ -260,7 +266,7 @@ const GUELTIGE_TRANSITIONEN: Partial<Record<AnfrageStatus, AnfrageStatus[]>> = {
 export async function setzeStatus(id: number, status: AnfrageStatus): Promise<Anfrage> {
   const anfrage = await prisma.anfrage.findUnique({
     where:  { id },
-    select: { id: true, artikelId: true, status: true },
+    select: { id: true, artikelId: true, status: true, testModus: true },
   });
   if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
 
@@ -299,7 +305,9 @@ export async function setzeStatus(id: number, status: AnfrageStatus): Promise<An
   emitToBackoffice(EVENTS.ANFRAGE_UPDATED, updatePayload);
   emitToUser(aktualisiert.techniker, EVENTS.ANFRAGE_UPDATED, updatePayload);
 
-  if (status === AnfrageStatus.ABGESCHLOSSEN && anfrage.artikelId) {
+  // Test-Anfragen: KEIN Bestand-Sync (Sicherheitsgurt). Sie haben ohnehin keine
+  // Buchung; ein Sync wäre zwar idempotent, wir überspringen ihn aber explizit.
+  if (status === AnfrageStatus.ABGESCHLOSSEN && anfrage.artikelId && !anfrage.testModus) {
     await syncBestandAusHistorie(anfrage.artikelId);
     sendeSystemNachricht({
       empfKuerzel: aktualisiert.techniker,
@@ -376,7 +384,8 @@ export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
   if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
   if (anfrage.status === AnfrageStatus.ABGESCHLOSSEN) throw new TRPCError({ code: "BAD_REQUEST", message: "Anfrage bereits abgeschlossen." });
 
-  if (anfrage.artikelId) {
+  // Test-Anfragen: Sicherheitsgurt — keine AUSGANG-Buchung, kein Bestand-Effekt.
+  if (anfrage.artikelId && !anfrage.testModus) {
     await bucheLager({ artikelId: anfrage.artikelId, menge: anfrage.menge, typ: BuchungsTyp.AUSGANG, mitarbeiter, notiz: `Anfrage #${id}` });
   }
   await prisma.anfrage.update({
@@ -472,9 +481,11 @@ export async function getAnfragenGruppiert(input?: {
   von?:        Date;
   bis?:        Date;
   standortId?: number | null;
+  ohneTest?:   boolean;  // true = Test-Anfragen ausblenden (Admin-Filter)
 }): Promise<GruppenAnfrage[]> {
   const where = {
     ...(input?.standortId != null && { artikel: { standortId: input.standortId } }),
+    ...(input?.ohneTest && { testModus: false }),
     ...(input?.status    && { status: input.status }),
     ...(input?.techniker && { techniker: input.techniker.toUpperCase().trim() }),
     ...(input?.von || input?.bis

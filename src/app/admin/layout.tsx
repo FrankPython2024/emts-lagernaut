@@ -16,6 +16,7 @@ import { useNeueAnfragenZaehler } from "@/hooks/useNeueAnfragenZaehler";
 import { MeinProfilModal } from "@/app/admin/_components/MeinProfilModal";
 import { NotificationProvider } from "@/lib/notifications/notificationContext";
 import { NotificationToggle } from "@/components/header/NotificationToggle";
+import { TestModusToggle } from "@/components/TestModusToggle";
 import { useAdminNotifications } from "@/hooks/useAdminNotifications";
 
 type NavItem = { href: string; label: string; icon: string; permission: string };
@@ -226,6 +227,9 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
 
         {/* Browser-Benachrichtigungen-Toggle */}
         <NotificationToggle />
+
+        {/* Test-Modus-Toggle (nur ADMIN / ADMIN_READONLY) */}
+        <TestModusToggle />
 
         {/* User-Card — Klick auf Avatar/Name öffnet Mein Profil */}
         {user && (

@@ -263,6 +263,35 @@ export const auslagernRouter = createTRPCRouter({
             throw new TRPCError({ code: "BAD_REQUEST", message: `Anfrage #${anfrageId} ist bereits ${anfrage.status}` });
           }
 
+          // ── TEST-MODUS: Sicherheitsgurt (analog DIREKT/Sonderanfrage) ────────
+          //    Test-Anfragen dürfen NIEMALS echten Bestand verändern oder eine
+          //    Buchung schreiben. Nur Status → ABGESCHLOSSEN, kein Artikel-Update,
+          //    keine Buchung. So lässt sich der Auslager-Workflow live durchspielen
+          //    ohne den echten Lagerbestand zu verfälschen.
+          if (anfrage.testModus) {
+            await tx.anfrage.update({
+              where: { id: anfrageId },
+              data:  { status: AnfrageStatus.ABGESCHLOSSEN, bearbeitetVon: user.kuerzel, bearbeitetSeit: new Date() },
+            });
+            ausgabe.push({
+              anfrageId,
+              artikelId:    anfrage.artikelId,
+              buchungId:    null,                       // KEINE Buchung (Test)
+              buchungsTyp:  "DIREKT",
+              artikel:      anfrage.artikel?.bezeichnung ?? anfrage.beschreibung ?? anfrage.teil,
+              kategorie:    anfrage.artikel?.kategorie ?? anfrage.sonderKategorie ?? "Test",
+              lagerplatz:   anfrage.artikel?.lagerplatz ?? null,
+              menge:        anfrage.menge,
+              neuerBestand: anfrage.artikel?.bestand ?? 0,  // unverändert
+              techniker:    anfrage.techniker,
+              logId:        anfrage.logId,
+              geraeteName:  anfrage.geraeteName ?? null,
+              grading:      null,
+              istSonderanfrage: anfrage.istSonderAnfrage,
+            });
+            continue;
+          }
+
           // ── Sonderanfrage: DIREKT-Übergabe ohne Bestand-Effekt (kein Artikel,
           //    keine Buchung — DIREKT-Regel per Konstruktion erfüllt) ─────────
           if (anfrage.istSonderAnfrage || !anfrage.artikelId || !anfrage.artikel) {
@@ -397,8 +426,8 @@ export const auslagernRouter = createTRPCRouter({
           id:     item.anfrageId,
           status: AnfrageStatus.ABGESCHLOSSEN,
         });
-        // Buchungs-Event nur wenn es eine Buchung gab (Sonderanfragen → keine)
-        if (item.artikelId !== null) {
+        // Buchungs-Event nur wenn es eine Buchung gab (Sonderanfragen + Test → keine)
+        if (item.buchungId !== null) {
           emitToBackoffice(EVENTS.BUCHUNG_ERSTELLT, {
             artikelId:    item.artikelId,
             bezeichnung:  item.artikel,

@@ -252,6 +252,7 @@ function AnfragenPageInner() {
   const [statusFilter, setStatusFilter] = useState<AnfrageStatus | "">("");
   const [techFilter,   setTechFilter]   = useState("");
   const [meinFilter,   setMeinFilter]   = useState(false);
+  const [ohneTest,     setOhneTest]     = useState(false); // Test-Anfragen ausblenden
   const [tagesModal,   setTagesModal]   = useState(false);
 
   // Chat-Modal
@@ -294,6 +295,7 @@ function AnfragenPageInner() {
   const { data: rawData, isLoading, error, refetch } = api.anfragen.getGruppiert.useQuery({
     ...(statusFilter ? { status: statusFilter as AnfrageStatus } : {}),
     ...(techFilter   ? { techniker: techFilter } : {}),
+    ...(ohneTest     ? { ohneTest: true } : {}),
     standortId: activeStandortId,
   });
 
@@ -504,8 +506,20 @@ function AnfragenPageInner() {
         <input placeholder="Techniker filtern…" value={techFilter}
           onChange={(e) => setTechFilter(e.target.value.toUpperCase())}
           className="px-4 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] text-sm w-48" />
-        {(statusFilter || techFilter || meinFilter) && (
-          <button onClick={() => { setStatusFilter(""); setTechFilter(""); setMeinFilter(false); }}
+        {/* Test-Anfragen ein-/ausblenden (Default: einblenden) */}
+        <button
+          onClick={() => setOhneTest((v) => !v)}
+          title={ohneTest ? "Test-Anfragen werden ausgeblendet" : "Test-Anfragen werden angezeigt"}
+          className={`px-3 py-2 rounded-lg border text-xs font-bold transition-colors min-h-[40px] ${
+            ohneTest
+              ? "bg-yellow-300 border-yellow-400 text-yellow-900"
+              : "bg-white dark:bg-[#242526] border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"
+          }`}
+        >
+          🧪 Test-Anfragen {ohneTest ? "ausgeblendet" : "einblenden"}
+        </button>
+        {(statusFilter || techFilter || meinFilter || ohneTest) && (
+          <button onClick={() => { setStatusFilter(""); setTechFilter(""); setMeinFilter(false); setOhneTest(false); }}
             className="text-xs text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] px-2 py-1">
             ✕ Filter zurücksetzen
           </button>
@@ -520,6 +534,7 @@ function AnfragenPageInner() {
           type AnfrageExt = Anfrage & { bearbeitetVon?: string | null; bearbeitetSeit?: Date | null; istSonderAnfrage?: boolean; beschreibung?: string | null; sonderKategorie?: string | null };
           const anfragenTyped = gruppe.anfragen as AnfrageExt[];
           const gruppeAnfrageIds  = anfragenTyped.map((a) => a.id);
+          const istTestGruppe     = anfragenTyped.some((a) => a.testModus);
           const lockedAnfrage     = anfragenTyped.find((a) => a.bearbeitetVon);
           const bearbeitetVon     = lockedAnfrage?.bearbeitetVon ?? null;
           const bearbeitetSeit    = lockedAnfrage?.bearbeitetSeit ?? null;
@@ -562,6 +577,14 @@ function AnfragenPageInner() {
                     </div>
                   </div>
                   <StatusBadge status={gruppe.gruppenStatus} />
+                  {istTestGruppe && (
+                    <span
+                      title="Test-Anfrage — zählt nicht in Statistik"
+                      className="text-xs font-black px-2 py-0.5 rounded-full bg-yellow-300 text-yellow-900 whitespace-nowrap"
+                    >
+                      🧪 TEST
+                    </span>
+                  )}
                   {hatVerfuegbare && auslagerInfo && (
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008bd2]/15 text-[#008bd2] dark:text-[#45bdff] whitespace-nowrap">
                       📦 {auslagerInfo.anzahlVerfuegbar}/{auslagerInfo.anzahlTotal}
@@ -667,6 +690,13 @@ function AnfragenPageInner() {
                 </div>
               </div>
 
+              {/* Test-Anfrage-Hinweis — wird nicht in Statistik gezählt */}
+              {istTestGruppe && (
+                <div className="flex items-center gap-2 px-5 py-2 bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-300/60 dark:border-yellow-700/40 text-xs font-semibold text-yellow-800 dark:text-yellow-300">
+                  🧪 Test-Anfrage — wird nicht in Statistik gezählt. Auslagern verändert keinen echten Bestand.
+                </div>
+              )}
+
               {/* ── Anfragen-Zeilen ── */}
               <div className="divide-y divide-[#ced4da] dark:divide-[#3e4042]">
                 {anfragenTyped.map((a) => {
@@ -721,6 +751,14 @@ function AnfragenPageInner() {
                       </div>
                       {istUeberfaellig(a.status, a.createdAt, now) && (
                         <UeberfaelligBadge title={verstricheneZeit(a.createdAt, now)} />
+                      )}
+                      {a.testModus && (
+                        <span
+                          title="Test-Anfrage — zählt nicht in Statistik"
+                          className="text-[11px] font-black px-1.5 py-0.5 rounded bg-yellow-300 text-yellow-900 whitespace-nowrap"
+                        >
+                          [TEST]
+                        </span>
                       )}
                       <StatusBadge status={a.status} />
                       <div className="flex gap-1">

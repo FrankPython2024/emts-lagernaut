@@ -57,7 +57,8 @@ export async function getBestellempfehlung(opts?: { nurOffen?: boolean }): Promi
   // 1) NICHT_VERFUEGBAR-Anfragen — Menge überschaubar, Aggregation in JS
   //    (erlaubt Fallback geraeteName ?? geraet als Modell-Schlüssel).
   const anfragen = await prisma.anfrage.findMany({
-    where:  { status: AnfrageStatus.NICHT_VERFUEGBAR },
+    // Test-Anfragen ausschließen — sie dürfen die Bestell-Empfehlung nicht verfälschen.
+    where:  { status: AnfrageStatus.NICHT_VERFUEGBAR, testModus: false },
     select: { geraeteName: true, geraet: true, teil: true, datum: true },
   });
 

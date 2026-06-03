@@ -21,6 +21,25 @@ function assertOwner(sessionUser: unknown, techniker: string) {
   }
 }
 
+/**
+ * Berechtigung für das tatsächliche Absenden (= Erzeugen von Anfragen).
+ *
+ *  - testModus = true  → erlaubt für ADMIN und ADMIN_READONLY (Test-Daten, kein
+ *    echter Schaden). ADMIN_READONLY darf hier ausnahmsweise schreiben.
+ *  - testModus = false → echte Anfragen, nur für TECHNIKER (Self) und ADMIN.
+ *    ADMIN_READONLY / BETRACHTER dürfen KEINE echten Anfragen erzeugen.
+ */
+function assertDarfAbsenden(sessionUser: unknown, testModus: boolean) {
+  const rolle = (sessionUser as SessionUser)?.rolle;
+  if (testModus) {
+    if (rolle !== "ADMIN" && rolle !== "ADMIN_READONLY") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Test-Modus ist nur für Admins verfügbar." });
+    }
+  } else if (rolle !== "TECHNIKER" && rolle !== "ADMIN") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Keine Berechtigung, echte Anfragen zu erstellen." });
+  }
+}
+
 export const warenkorbRouter = createTRPCRouter({
 
   // Alle aktiven Körbe eines Technikers (je einer pro logId)
@@ -100,19 +119,23 @@ export const warenkorbRouter = createTRPCRouter({
     .input(z.object({
       korbId:     z.number().int().positive(),
       zusatzinfo: z.string().max(500).optional(),
+      testModus:  z.boolean().default(false),
     }))
-    .mutation(({ input }) =>
-      submit(input),
-    ),
+    .mutation(({ input, ctx }) => {
+      assertDarfAbsenden(ctx.session.user, input.testModus);
+      return submit(input);
+    }),
 
   // Alle aktiven Körbe auf einmal absenden
   submitAlle: protectedProcedure
     .input(z.object({
       techniker:  z.string().min(1).max(50),
       zusatzinfo: z.string().max(500).optional(),
+      testModus:  z.boolean().default(false),
     }))
     .mutation(({ input, ctx }) => {
       assertOwner(ctx.session.user, input.techniker);
+      assertDarfAbsenden(ctx.session.user, input.testModus);
       return submitAlle(input);
     }),
 

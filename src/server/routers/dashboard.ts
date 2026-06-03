@@ -40,6 +40,10 @@ function daysAgo(n: number): Date {
   return d;
 }
 
+// Test-Anfragen zählen NICHT in KPI-Karten / Widgets. In den reinen Feed-Widgets
+// (letzteAnfragen, aktivitaetsProtokoll) bleiben sie sichtbar (markiert).
+const OHNE_TEST = { testModus: false } as const;
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 // Dashboard ist eine reine Lese-Sicht → DASHBOARD_VIEW statt adminProcedure.
@@ -57,8 +61,8 @@ export const dashboardRouter = createTRPCRouter({
     const lF = standortWhere(ctx, sId);
     const [aktiveAnfragen, offeneBedarf, artikelImBestand, auslagerungenHeute] =
       await Promise.all([
-        prisma.anfrage.count({ where: { ...aF, status: { in: [AnfrageStatus.NEU, AnfrageStatus.IN_BEARBEITUNG] } } }),
-        prisma.anfrage.count({ where: { ...aF, status: AnfrageStatus.BEDARF } }),
+        prisma.anfrage.count({ where: { ...aF, ...OHNE_TEST, status: { in: [AnfrageStatus.NEU, AnfrageStatus.IN_BEARBEITUNG] } } }),
+        prisma.anfrage.count({ where: { ...aF, ...OHNE_TEST, status: AnfrageStatus.BEDARF } }),
         prisma.artikel.count({ where: { ...lF, bestand: { gt: 0 } } }),
         prisma.buchung.count({
           where: { ...bF, datum: { gte: start, lt: end }, typ: { in: [BuchungsTyp.AUSGANG, BuchungsTyp.DIREKT] } },
@@ -77,7 +81,7 @@ export const dashboardRouter = createTRPCRouter({
   offeneAnfragen: dashboardRead.input(z.object(STANDORT_INPUT).optional()).query(({ input, ctx }) => {
     const aF = anfrageStandortFilter(ctx, input?.standortId);
     return prisma.anfrage.findMany({
-      where:   { ...aF, status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] } },
+      where:   { ...aF, ...OHNE_TEST, status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] } },
       orderBy: { createdAt: "asc" },
       take:    500,
       select: {
@@ -92,7 +96,7 @@ export const dashboardRouter = createTRPCRouter({
     const aF = anfrageStandortFilter(ctx, input?.standortId);
     const grouped = await prisma.anfrage.groupBy({
       by: ["status"], _count: { status: true },
-      where: Object.keys(aF).length ? aF : undefined,
+      where: { ...aF, ...OHNE_TEST },
     });
     const m = new Map(grouped.map(g => [g.status, g._count.status]));
     return [
@@ -136,7 +140,7 @@ export const dashboardRouter = createTRPCRouter({
     const aF  = anfrageStandortFilter(ctx, input?.standortId);
     const grouped = await prisma.anfrage.groupBy({
       by: ["teil"],
-      where: { ...aF, datum: { gte: von }, status: AnfrageStatus.ABGESCHLOSSEN },
+      where: { ...aF, ...OHNE_TEST, datum: { gte: von }, status: AnfrageStatus.ABGESCHLOSSEN },
       _count: { teil: true },
       orderBy: { _count: { teil: "desc" } },
       take: 10,
@@ -150,11 +154,11 @@ export const dashboardRouter = createTRPCRouter({
     const aF  = anfrageStandortFilter(ctx, input?.standortId);
     const [alle, abg] = await Promise.all([
       prisma.anfrage.groupBy({
-        by: ["techniker"], where: { ...aF, datum: { gte: von } },
+        by: ["techniker"], where: { ...aF, ...OHNE_TEST, datum: { gte: von } },
         _count: { techniker: true }, orderBy: { _count: { techniker: "desc" } }, take: 10,
       }),
       prisma.anfrage.groupBy({
-        by: ["techniker"], where: { ...aF, datum: { gte: von }, status: AnfrageStatus.ABGESCHLOSSEN },
+        by: ["techniker"], where: { ...aF, ...OHNE_TEST, datum: { gte: von }, status: AnfrageStatus.ABGESCHLOSSEN },
         _count: { techniker: true },
       }),
     ]);
@@ -240,19 +244,21 @@ export const dashboardRouter = createTRPCRouter({
       prisma.anfrage.findMany({
         where: aF,
         take: 6, orderBy: { datum: "desc" },
-        select: { id: true, techniker: true, status: true, teil: true, datum: true },
+        // testModus mitladen → Test-Aktionen werden im Feed mit [TEST] markiert
+        // (bewusst NICHT ausgeblendet, damit die Live-Mechanik sichtbar bleibt).
+        select: { id: true, techniker: true, status: true, teil: true, datum: true, testModus: true },
       }),
     ]);
     return [
       ...buchungen.map(b => ({
         id: `b-${b.id}`, typ: "buchung" as const,
         label: `${b.typ}: ${b.bezeichnung.substring(0, 40)} ×${b.menge}`,
-        akteur: b.mitarbeiter, datum: b.datum, badge: b.typ,
+        akteur: b.mitarbeiter, datum: b.datum, badge: b.typ, testModus: false,
       })),
       ...anfragen.map(a => ({
         id: `a-${a.id}`, typ: "anfrage" as const,
-        label: `Anfrage: ${a.teil}`,
-        akteur: a.techniker, datum: a.datum, badge: a.status,
+        label: `${a.testModus ? "[TEST] " : ""}Anfrage: ${a.teil}`,
+        akteur: a.techniker, datum: a.datum, badge: a.status, testModus: a.testModus,
       })),
     ].sort((a, b) => b.datum.getTime() - a.datum.getTime()).slice(0, 10);
   }),

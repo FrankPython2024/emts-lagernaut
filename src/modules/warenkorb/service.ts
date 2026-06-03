@@ -274,6 +274,7 @@ export async function removeItem(itemId: number): Promise<void> {
 export async function submit(data: {
   korbId:      number;
   zusatzinfo?: string;
+  testModus?:  boolean;
 }): Promise<{ anzahl: number; gruppenNr: string }> {
   const korb = await prisma.warenkorb.findUnique({
     where:   { id: data.korbId },
@@ -324,6 +325,7 @@ export async function submit(data: {
         istSonderAnfrage: item.istSonderAnfrage ?? false,
         beschreibung:     item.beschreibung ?? undefined,
         sonderKategorie:  item.sonderKategorie ?? undefined,
+        testModus:        data.testModus ?? false,
       }),
     ),
   );
@@ -341,6 +343,7 @@ export async function submit(data: {
 export async function submitAlle(data: {
   techniker:   string;
   zusatzinfo?: string;
+  testModus?:  boolean;
 }): Promise<{ anzahl: number; gruppenNrs: string[] }> {
   const techniker = data.techniker.toUpperCase().trim();
   const koerbe    = await prisma.warenkorb.findMany({
@@ -357,7 +360,7 @@ export async function submitAlle(data: {
   const gruppenNrs: string[] = [];
 
   for (const korb of mitItems) {
-    const result = await submit({ korbId: korb.id, zusatzinfo: data.zusatzinfo });
+    const result = await submit({ korbId: korb.id, zusatzinfo: data.zusatzinfo, testModus: data.testModus });
     totalAnzahl += result.anzahl;
     gruppenNrs.push(result.gruppenNr);
   }

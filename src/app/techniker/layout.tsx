@@ -11,6 +11,7 @@ import { useTabBadge }   from "@/hooks/useTabBadge";
 import { NotificationProvider }        from "@/lib/notifications/notificationContext";
 import { NotificationToggleTechniker } from "@/components/header/NotificationToggleTechniker";
 import { useTechnikerNotifications }   from "@/hooks/useTechnikerNotifications";
+import { TestModusBanner }             from "@/components/TestModusBanner";
 
 // ── Font size context ─────────────────────────────────────────────────────────
 
@@ -573,6 +574,7 @@ export default function TechnikerLayout({ children }: { children: React.ReactNod
         <NotificationProvider>
           <TechnikerNotifications />
           <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
+            <TestModusBanner />
             <TechnikerHeader />
             {children}
           </div>

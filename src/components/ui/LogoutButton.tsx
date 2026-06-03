@@ -1,6 +1,7 @@
 "use client";
 import { signOut }  from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { setzeTestModus } from "@/lib/testModus/testModus";
 
 interface Props {
   children:  React.ReactNode;
@@ -13,6 +14,8 @@ export function LogoutButton({ children, className, style, title }: Props) {
   const router = useRouter();
 
   async function handleLogout() {
+    // Test-Modus immer zurücksetzen, damit er nicht über eine neue Session bestehen bleibt.
+    setzeTestModus(false);
     try {
       await signOut({ redirect: false });
       router.push("/login");

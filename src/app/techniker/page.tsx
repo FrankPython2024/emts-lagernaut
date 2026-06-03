@@ -10,6 +10,7 @@ import GruppenNachrichten from "./components/GruppenNachrichten";
 import { type AnfrageRow, type GruppeData } from "./components/constants";
 import { Loader2, MessageCircle } from "lucide-react";
 import { getLucideIcon } from "@/lib/icons/getLucideIcon";
+import { useTestModus, darfTestModus } from "@/lib/testModus/testModus";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,10 @@ export default function TechnikerPage() {
   const user     = session?.user as SessionUser | undefined;
   const kuerzel  = user?.kuerzel ?? "";
   const { on, off } = useSocket();
+
+  // Test-Modus ist nur wirksam, wenn er aktiv ist UND der User ein Admin ist
+  // (ADMIN / ADMIN_READONLY). Echte Techniker erzeugen immer reale Anfragen.
+  const testModusAktiv = useTestModus() && darfTestModus(user?.rolle);
 
   const [showFlow,         setShowFlow]         = useState(false);
   const [flowInitialLogId, setFlowInitialLogId] = useState<string | null>(null);
@@ -304,6 +309,7 @@ export default function TechnikerPage() {
       {showFlow && (
         <AnfrageFlow
           kuerzel={kuerzel}
+          testModus={testModusAktiv}
           initialLogId={flowInitialLogId}
           onClose={() => { setShowFlow(false); setFlowInitialLogId(null); }}
           onSuccess={() => { setShowFlow(false); setFlowInitialLogId(null); anfragenQuery.refetch(); }}
@@ -425,12 +431,14 @@ type FlowStep = "logid" | "pruefen" | "teile" | "sending" | "done";
 
 function AnfrageFlow({
   kuerzel,
+  testModus,
   initialLogId,
   onClose,
   onSuccess,
   onOpenGruppe,
 }: {
   kuerzel:      string;
+  testModus:    boolean;
   initialLogId: string | null;
   onClose:      () => void;
   onSuccess:    () => void;
@@ -624,7 +632,7 @@ function AnfrageFlow({
         });
       }
 
-      await submitMutation.mutateAsync({ techniker: kuerzel });
+      await submitMutation.mutateAsync({ techniker: kuerzel, testModus });
       setStep("done");
     } catch (e) {
       show(`Fehler: ${(e as { message?: string }).message ?? "Unbekannt"}`, "error");

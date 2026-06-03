@@ -41,8 +41,21 @@ export const anfragenRouter = createTRPCRouter({
       kommentar:   z.string().max(1000).optional(),
       gruppenNr:   z.string().max(50).optional(),
       korbId:      z.number().int().positive().optional(),
+      testModus:   z.boolean().default(false),
     }))
-    .mutation(({ input }) => erstelleAnfrage(input)),
+    .mutation(({ input, ctx }) => {
+      const rolle = (ctx.session.user as SessionUser).rolle;
+      // testModus = true  → nur ADMIN / ADMIN_READONLY (Test-Daten).
+      // testModus = false → echte Anfrage, nur TECHNIKER / ADMIN.
+      if (input.testModus) {
+        if (rolle !== "ADMIN" && rolle !== "ADMIN_READONLY") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Test-Modus ist nur für Admins verfügbar." });
+        }
+      } else if (rolle !== "TECHNIKER" && rolle !== "ADMIN") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Keine Berechtigung, echte Anfragen zu erstellen." });
+      }
+      return erstelleAnfrage(input);
+    }),
 
   // Anzahl NEU-Anfragen — Sidebar-Badge (standort-gefiltert, ANFRAGE_VIEW_ALL)
   zaehleNeue: anfragenReadProcedure
@@ -236,7 +249,9 @@ export const anfragenRouter = createTRPCRouter({
           include: { artikel: { select: { id: true, bezeichnung: true, lagerplatz: true, kategorie: true } } },
         });
 
-        if (anfrage) {
+        // TEST-MODUS: Sicherheitsgurt — Test-Anfragen erzeugen NIE eine Buchung
+        // und verändern NIE den Bestand. Status wird unten via setzeStatus gesetzt.
+        if (anfrage && !anfrage.testModus) {
           // AUSGANG-Buchung erstellen — nur wenn Artikel verknüpft und noch nicht ABGESCHLOSSEN
           if (anfrage.artikelId && anfrage.status !== AnfrageStatus.ABGESCHLOSSEN) {
             try {
@@ -285,6 +300,7 @@ export const anfragenRouter = createTRPCRouter({
       von:        z.date().optional(),
       bis:        z.date().optional(),
       standortId: z.number().int().positive().nullish(),
+      ohneTest:   z.boolean().optional(),  // Test-Anfragen ausblenden (Filter-Schalter)
     }).optional())
     .query(({ input, ctx }) => {
       const sF = standortWhere(ctx, input?.standortId);

@@ -173,6 +173,11 @@ model Anfrage {
   status           AnfrageStatus @default(NEU)
   bearbeitetVon    String?
   bearbeitetSeit   DateTime?
+  // Test-Modus: Anfrage wurde von ADMIN / ADMIN_READONLY im Techniker-Portal-
+  // Testmodus erstellt. Zählt NICHT in Statistik / KPIs / Bestell-Empfehlung und
+  // darf beim Auslagern KEINEN echten Bestand verändern (Sicherheitsgurt analog
+  // DIREKT). Bleibt in Admin-Liste + Activity-Log sichtbar (markiert).
+  testModus        Boolean       @default(false)
   artikel          Artikel?      @relation(fields: [artikelId], references: [id])
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
@@ -183,6 +188,7 @@ model Anfrage {
   @@index([artikelId])
   @@index([gruppenNr])
   @@index([bearbeitetVon, status])
+  @@index([testModus])
 }
 
 enum AnfrageStatus {
