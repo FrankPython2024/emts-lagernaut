@@ -51,10 +51,14 @@ const APPLE_INDICATORS: RegExp[] = [
   /^Pro Max [0-9]+$/i,    // "Pro Max 16" — Apple-Modell als Dell verkleidet
 ];
 
+/** Welche Regel den Ausgang bestimmt hat (additiv, für die Import-Sandbox). */
+export type HerstellerRegel = "leer" | "apple" | "typo" | "blocklist" | "whitelist" | "unbekannt";
+
 export interface HerstellerCheckResult {
   erlaubt:    boolean;
   kanonisch?: ErlaubterHersteller;
   grund?:     string;
+  regel?:     HerstellerRegel;
 }
 
 /**
@@ -63,7 +67,7 @@ export interface HerstellerCheckResult {
  */
 export function checkHersteller(raw: string, bezeichnung?: string): HerstellerCheckResult {
   if (!raw?.trim()) {
-    return { erlaubt: false, grund: "Leerer Hersteller" };
+    return { erlaubt: false, grund: "Leerer Hersteller", regel: "leer" };
   }
   const lower = raw.trim().toLowerCase();
 
@@ -71,24 +75,24 @@ export function checkHersteller(raw: string, bezeichnung?: string): HerstellerCh
   if (bezeichnung) {
     for (const re of APPLE_INDICATORS) {
       if (re.test(bezeichnung)) {
-        return { erlaubt: false, grund: "Apple-Indikator in Bezeichnung erkannt" };
+        return { erlaubt: false, grund: "Apple-Indikator in Bezeichnung erkannt", regel: "apple" };
       }
     }
   }
 
   // Tippfehler-Korrektur
   const typoFix = TYPO_FIX[lower];
-  if (typoFix) return { erlaubt: true, kanonisch: typoFix };
+  if (typoFix) return { erlaubt: true, kanonisch: typoFix, regel: "typo" };
 
   // Blocklist
   const blockGrund = BLOCKLIST[lower];
-  if (blockGrund) return { erlaubt: false, grund: blockGrund };
+  if (blockGrund) return { erlaubt: false, grund: blockGrund, regel: "blocklist" };
 
   // Whitelist (case-insensitive)
   const treffer = ERLAUBTE_HERSTELLER_LISTE.find((h) => h.toLowerCase() === lower);
-  if (treffer) return { erlaubt: true, kanonisch: treffer };
+  if (treffer) return { erlaubt: true, kanonisch: treffer, regel: "whitelist" };
 
-  return { erlaubt: false, grund: `Unbekannter Hersteller "${raw}" — nicht in Whitelist` };
+  return { erlaubt: false, grund: `Unbekannter Hersteller "${raw}" — nicht in Whitelist`, regel: "unbekannt" };
 }
 
 // ── Backward-Compat-Exports ────────────────────────────────────────────────
