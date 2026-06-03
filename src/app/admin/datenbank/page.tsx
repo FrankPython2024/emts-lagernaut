@@ -403,6 +403,98 @@ function baueMermaid(edges: Relation[]): string {
   return zeilen.join("\n");
 }
 
+/**
+ * Erklär-Panel in einfacher Sprache für Nicht-Techniker. Standardmäßig
+ * aufgeklappt, per Button einklappbar (aria-expanded steuert den Inhalt).
+ */
+function ErklaerPanel() {
+  const [offen, setOffen] = useState(true);
+
+  return (
+    <section className="rounded-2xl border-2 border-[#008BD2]/40 bg-[#008BD2]/[0.06] dark:bg-[#008BD2]/[0.08] shadow-sm overflow-hidden">
+      {/* Kopf / Einklapp-Button (56px Touch-Target) */}
+      <h3 className="m-0">
+        <button
+          type="button"
+          onClick={() => setOffen((o) => !o)}
+          aria-expanded={offen}
+          aria-controls="db-erklaer-inhalt"
+          className="flex items-center gap-3 w-full min-h-[56px] px-5 sm:px-6 text-left transition-colors hover:bg-[#008BD2]/10 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#008BD2]"
+        >
+          <span
+            aria-hidden
+            className="flex items-center justify-center w-9 h-9 rounded-lg text-white text-lg flex-shrink-0"
+            style={{ background: "#008BD2" }}
+          >
+            💡
+          </span>
+          <span className="flex-1 font-black text-base sm:text-lg text-[#202F61] dark:text-[#e4e6eb]">
+            Was bedeuten diese Verknüpfungen?
+          </span>
+          <span
+            aria-hidden
+            className={`text-[#008BD2] text-xl flex-shrink-0 transition-transform duration-200 ${offen ? "rotate-180" : ""}`}
+          >
+            ⌄
+          </span>
+        </button>
+      </h3>
+
+      {offen && (
+        <div
+          id="db-erklaer-inhalt"
+          className="px-5 sm:px-6 pb-6 pt-1 max-w-[68ch] space-y-6 text-[15px] leading-relaxed text-[#1a1a1a] dark:text-[#e4e6eb]"
+        >
+          <div className="space-y-3">
+            <p>Diese Seite zeigt, wie die Daten im System zusammenhängen.</p>
+            <p>Eine Tabelle ist wie ein Blatt in einer Excel-Datei. Jede Tabelle speichert eine Art von Information.</p>
+            <p>Eine Verknüpfung (die Pfeile) zeigt: Diese zwei Tabellen gehören zusammen.</p>
+          </div>
+
+          <div className="space-y-3">
+            <h4 className="font-black text-base text-[#202F61] dark:text-[#008BD2]">Das Wichtigste: die Kompatibilität</h4>
+            <p>Kompatibilität bedeutet: Welches Ersatzteil passt zu welchem Gerät?</p>
+            <p>Ein Beispiel:</p>
+            <ol className="list-decimal pl-6 space-y-1.5 marker:font-bold marker:text-[#008BD2]">
+              <li>Ein Gerät ist zum Beispiel der Laptop „HP EliteBook 840".</li>
+              <li>Dieser Laptop braucht Ersatzteile: einen Akku, ein Display, eine Tastatur.</li>
+              <li>Die Tabelle Kompatibilitaet speichert: Dieser Akku passt zu diesem Laptop.</li>
+            </ol>
+            <p>So weiß das System immer, welches Teil zu welchem Gerät gehört.</p>
+          </div>
+
+          <div className="space-y-3">
+            <h4 className="font-black text-base text-[#202F61] dark:text-[#008BD2]">Die Tabellen einfach erklärt</h4>
+            <ul className="space-y-2">
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">GeraeteModell</span> — die Geräte-Modelle. Zum Beispiel ein bestimmter Laptop-Typ.</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">Artikel</span> — die einzelnen Ersatzteile im Lager.</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">Kompatibilitaet</span> — die Verbindung: Welches Ersatzteil passt zu welchem Modell.</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">lagerplatz / LagerplatzBelegung</span> — der Ort: Wo liegt ein Teil im Lager?</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">Anfrage</span> — die Anfrage von einem Techniker: „Ich brauche ein Teil für dieses Gerät."</span></li>
+            </ul>
+          </div>
+
+          <div className="space-y-3">
+            <h4 className="font-black text-base text-[#202F61] dark:text-[#008BD2]">Was bedeuten die Pfeile?</h4>
+            <ul className="space-y-2">
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">1:n</span> — Eins zu viele. Ein Gerät kann viele Ersatzteile haben.</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">n:m</span> — Viele zu viele. Viele Geräte und viele Teile passen zusammen.</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">1:1</span> — Eins zu eins. Genau ein Teil gehört zu genau einer Sache.</span></li>
+            </ul>
+          </div>
+
+          <div className="space-y-3">
+            <h4 className="font-black text-base text-[#202F61] dark:text-[#008BD2]">Die gestrichelte Linie (wichtig!)</h4>
+            <p>Die Anfrage ist mit dem Gerät nur über den Namen verbunden — nicht über eine feste Nummer.</p>
+            <p>Das heißt: Wenn ein Name anders geschrieben ist, findet das System die Verbindung vielleicht nicht.</p>
+            <p>Eine feste Verbindung über eine Nummer wäre sicherer.</p>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function VerknuepfungenTab() {
   const rel = api.datenbank.relations.useQuery(undefined, { staleTime: 60_000 });
 
@@ -456,6 +548,9 @@ function VerknuepfungenTab() {
 
   return (
     <div className="space-y-5">
+      {/* ── Erklär-Panel für Nicht-Techniker ── */}
+      <ErklaerPanel />
+
       {/* ── Relations-Liste (Text-Alternative zum Diagramm) ── */}
       <section className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 sm:p-6">
         <h3 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">Verknüpfungen</h3>
