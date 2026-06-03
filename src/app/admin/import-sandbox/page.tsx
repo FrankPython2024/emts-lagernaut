@@ -4,6 +4,7 @@ import { useDebounce } from "use-debounce";
 import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/trpc/react";
 import type { AppRouter } from "@/server/routers";
+import { kernTokens } from "@/lib/geraete/vergleichsKern";
 
 /**
  * Import-Sandbox — read-only Demo, wie der Geräte-Import aus rohen Werten saubere
@@ -282,6 +283,9 @@ function Auswertung({ data, rohHersteller }: { data: Vorschau; rohHersteller: st
         </section>
       )}
 
+      {/* ── Tor C: Modell-Abgleich (Katalog) ── */}
+      {erlaubt && data.katalog && <TorC katalog={data.katalog} />}
+
       {/* ── Abschluss-Hinweis ── */}
       <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] leading-relaxed px-1 max-w-[68ch]">
         <span aria-hidden>ℹ️ </span>
@@ -289,5 +293,109 @@ function Auswertung({ data, rohHersteller }: { data: Vorschau; rohHersteller: st
         Hersteller-Präfix) — Duplikate werden nie angelegt.
       </p>
     </div>
+  );
+}
+
+type Katalog = NonNullable<Vorschau["katalog"]>;
+
+function TorC({ katalog }: { katalog: Katalog }) {
+  const { inputKern, kandidaten } = katalog;
+  const anzahl = kandidaten.length;
+
+  return (
+    <section className="rounded-2xl border-2 border-[#008BD2]/40 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 flex items-center gap-2 bg-[#008BD2]/[0.08] flex-wrap">
+        <span aria-hidden>🔎</span>
+        <h2 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb] flex-1">Tor C — Modell-Abgleich (Katalog)</h2>
+        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#f7b928]/15 text-[#9a7b0a] dark:text-[#f7b928] border border-[#f7b928]/30">
+          Vorschau — der echte Import bleibt unberührt
+        </span>
+      </div>
+
+      <div className="bg-white dark:bg-[#242526] px-5 py-4 space-y-4">
+        {/* Vergleichs-Kern */}
+        <div>
+          <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase tracking-wider">
+            Vergleichs-Kern (das wird verglichen)
+          </p>
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mb-1.5">
+            Specs, Größen und Codes werden für den Vergleich entfernt — übrig bleibt der Modell-Kern:
+          </p>
+          <span className="inline-block font-mono text-sm px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#202F61] dark:text-[#e4e6eb] break-all">
+            {inputKern || "∅"}
+          </span>
+        </div>
+
+        {/* Zustand + Kandidaten */}
+        {anzahl === 0 ? (
+          <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-[#f7b928]/10 border border-[#f7b928]/30">
+            <span aria-hidden className="text-xl">🆕</span>
+            <p className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+              <span className="font-bold">Kein Katalog-Treffer.</span> Dieses Modell würde als
+              NEU vorgeschlagen — der Admin bestätigt das Anlegen.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] flex items-center gap-2">
+              {anzahl === 1 ? (
+                <>
+                  <span aria-hidden>✅</span>
+                  <span className="text-[#04B475]">Erkanntes Modell:</span>
+                  <span className="font-mono">{kandidaten[0].modell}</span>
+                </>
+              ) : (
+                <>
+                  <span aria-hidden>🔢</span>
+                  <span>Kandidaten — der Admin würde bestätigen</span>
+                </>
+              )}
+            </p>
+
+            <ul className="space-y-2">
+              {kandidaten.map((k) => {
+                const treffer = new Set(k.trefferTokens);
+                const tokens = kernTokens(k.modell);
+                return (
+                  <li
+                    key={k.id}
+                    className={`rounded-xl border px-4 py-3 ${
+                      anzahl === 1
+                        ? "border-[#04B475]/50 bg-[#04B475]/[0.06]"
+                        : "border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5]/40 dark:bg-[#18191a]/40"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3 flex-wrap mb-1.5">
+                      <span className="font-mono font-bold text-sm text-[#202F61] dark:text-[#e4e6eb] break-all">{k.modell}</span>
+                      <span
+                        className="text-xs font-black px-2 py-0.5 rounded-full text-white flex-shrink-0"
+                        style={{ background: k.score >= 0.8 ? "#04B475" : "#008BD2" }}
+                      >
+                        {Math.round(k.score * 100)} %
+                      </span>
+                    </div>
+                    {/* Treffer-Tokens cyan hervorgehoben */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {tokens.map((t, i) => (
+                        <span
+                          key={i}
+                          className={`font-mono text-[11px] px-1.5 py-0.5 rounded ${
+                            treffer.has(t)
+                              ? "bg-[#008BD2]/15 text-[#008BD2] font-bold"
+                              : "bg-[#ced4da]/30 dark:bg-[#3e4042]/40 text-[#65676b] dark:text-[#b0b3b8]"
+                          }`}
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
