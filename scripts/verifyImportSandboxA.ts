@@ -57,8 +57,8 @@ console.log("\n• Sicherheitsnetz (zu kurz → Original)");
   const trace = bereinigeBezeichnungTrace("HP", "HP X"); // → "X" (1 Zeichen) → Netz greift
   eq('bereinigeBezeichnung("HP", "HP X")', bereinigeBezeichnung("HP", "HP X"), "HP X");
   eq("sicherheitsnetzGegriffen", trace.sicherheitsnetzGegriffen, true);
-  // 7 Schritte werden immer protokolliert
-  eq("schritte.length", trace.schritte.length, 7);
+  // 8 Schritte werden immer protokolliert (inkl. "Führende Sonderzeichen entfernen")
+  eq("schritte.length", trace.schritte.length, 8);
 }
 
 // ── checkHersteller: additives regel-Feld (Verhalten unverändert) ───────────

@@ -31,12 +31,20 @@ export interface BereinigungsSchritt {
 }
 
 /**
- * Die Reinigungs-Schritte 1–7 in fester Reihenfolge. EXAKT dieselben Regex,
- * Schwellen und Reihenfolge wie zuvor — Verhalten ist byte-identisch.
+ * Die Reinigungs-Schritte in fester Reihenfolge. Schritte 2–8 sind in ihrer Logik
+ * unverändert; Schritt 1 (führende Sonderzeichen) ist gezielt ergänzt.
  */
 export const BEREINIGUNGS_SCHRITTE: BereinigungsSchritt[] = [
   {
     nummer:       1,
+    name:         "Führende Sonderzeichen entfernen",
+    beschreibung: 'Zeichen wie „-", „.", oder Leerzeichen ganz am Anfang werden abgeschnitten. Ein Modellname beginnt nie mit einem Satzzeichen — Beispiel: „- ThinkPad L14 Gen 2" → „ThinkPad L14 Gen 2".',
+    transform: (current) =>
+      // 1. Führende Nicht-Alphanumerik entfernen (kaputtes Präfix, z.B. "- ThinkPad …")
+      current.replace(/^[^A-Za-z0-9]+/, ""),
+  },
+  {
+    nummer:       2,
     name:         "Marketing-Text abschneiden",
     beschreibung: 'Alles ab dem ersten „ - " (Leerzeichen beidseitig) wird entfernt — z.B. Display- und CPU-Angaben. Nur, wenn davor mindestens 5 Zeichen stehen.',
     transform: (current) => {
@@ -51,18 +59,19 @@ export const BEREINIGUNGS_SCHRITTE: BereinigungsSchritt[] = [
     },
   },
   {
-    nummer:       2,
+    nummer:       3,
     name:         "Vorsätze entfernen",
-    beschreibung: 'Wörter wie „Notebook", „Laptop" oder „Business-NB" am Anfang werden gestrichen.',
+    beschreibung: 'Wörter wie „Notebook", „Laptop" oder die Business-Familie („Business-NB", „Business-Tablet", …) am Anfang werden gestrichen.',
     transform: (current) =>
-      // 2. Marketing-Präfixe entfernen
+      // 3. Marketing-Präfixe entfernen — Business-<Wort> verallgemeinert
+      //    (Business-NB / -Convertible / -Laptop / -Tablet / künftige Varianten)
       current.replace(
-        /^(Business-NB|Business-Convertible|Business-Laptop|Notebook\s+Pc?|Notebook\b|Laptop\b)\s+/i,
+        /^(Business-[A-Za-zÄÖÜäöü]+|Notebook\s+Pc?|Notebook\b|Laptop\b)\s+/i,
         "",
       ).trim(),
   },
   {
-    nummer:       3,
+    nummer:       4,
     name:         "Hersteller-Doppelung entfernen",
     beschreibung: 'Steht der Hersteller-Name nochmal am Anfang (z.B. „Dell Precision"), wird er entfernt.',
     transform: (current, ctx) => {
@@ -76,7 +85,7 @@ export const BEREINIGUNGS_SCHRITTE: BereinigungsSchritt[] = [
     },
   },
   {
-    nummer:       4,
+    nummer:       5,
     name:         "Einzelbuchstabe in Klammern entfernen",
     beschreibung: 'Ein einzelner Großbuchstabe in Klammern am Ende wie „(F)" oder „(A)" wird entfernt.',
     transform: (current) =>
@@ -85,7 +94,7 @@ export const BEREINIGUNGS_SCHRITTE: BereinigungsSchritt[] = [
       current.replace(/\s*\([A-Z]\)\s*$/, "").trim(),
   },
   {
-    nummer:       5,
+    nummer:       6,
     name:         "Varianten-Suffix entfernen",
     beschreibung: 'Zusätze wie „und G5", „/ G5" oder „& G5" am Ende werden gestrichen.',
     transform: (current) =>
@@ -94,7 +103,7 @@ export const BEREINIGUNGS_SCHRITTE: BereinigungsSchritt[] = [
       current.replace(/\s+(?:und|\/|&)\s+G\d+\s*$/i, "").trim(),
   },
   {
-    nummer:       6,
+    nummer:       7,
     name:         "Interne Codes entfernen",
     beschreibung: 'Lange interne Codes am Ende (6+ Großbuchstaben/Ziffern) werden entfernt — Modell-Nummern wie 7530, T14s oder M3800 bleiben erhalten.',
     transform: (current) => {
@@ -112,7 +121,7 @@ export const BEREINIGUNGS_SCHRITTE: BereinigungsSchritt[] = [
     },
   },
   {
-    nummer:       7,
+    nummer:       8,
     name:         "Leerzeichen normalisieren",
     beschreibung: "Mehrfache Leerzeichen werden zu einem einzigen zusammengefasst.",
     transform: (current) =>
@@ -121,16 +130,32 @@ export const BEREINIGUNGS_SCHRITTE: BereinigungsSchritt[] = [
   },
 ];
 
+// Bekannte Platzhalter, die nie ein echtes Modell sind (case-insensitive, getrimmt).
+const PLATZHALTER = new Set(["nn", "-"]);
+
 /**
- * Sicherheitsnetz nach den Schritten: ist das Ergebnis leer oder kürzer als
- * 3 Zeichen, wird die getrimmte Original-Bezeichnung zurückgegeben.
+ * Sicherheitsnetz nach den Schritten:
+ *  • ist das Ergebnis leer oder kürzer als 3 Zeichen, wird die getrimmte
+ *    Original-Bezeichnung zurückgegeben;
+ *  • ist der so ermittelte Wert ein bekannter Platzhalter ("NN" / "-"), wird ""
+ *    zurückgegeben (ungültig — getOrCreateModell wertet das als Fehler, es
+ *    entsteht KEIN Modell).
  */
 function finalize(result: string, bezeichnung: string): { result: string; sicherheitsnetzGegriffen: boolean } {
-  // 8. Safety: zu kurz → Original zurückgeben
+  // Safety: zu kurz → Original zurückgeben
+  let final = result;
+  let sicherheitsnetzGegriffen = false;
   if (!result || result.length < 3) {
-    return { result: bezeichnung.trim(), sicherheitsnetzGegriffen: true };
+    final = bezeichnung.trim();
+    sicherheitsnetzGegriffen = true;
   }
-  return { result, sicherheitsnetzGegriffen: false };
+
+  // Platzhalter-Schutz: bekannter Dummy-Wert → ungültig ("")
+  if (PLATZHALTER.has(final.trim().toLowerCase())) {
+    return { result: "", sicherheitsnetzGegriffen };
+  }
+
+  return { result: final, sicherheitsnetzGegriffen };
 }
 
 /**

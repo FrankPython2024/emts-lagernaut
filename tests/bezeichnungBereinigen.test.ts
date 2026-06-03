@@ -59,6 +59,19 @@ const BEZ_TESTS: BezTest[] = [
   // ───── KLAMMERN ─────
   ["Dell", "Latitude 7490 (F)",            "Latitude 7490"],
   ["HP",   "EliteBook 840 G6 (A)",         "EliteBook 840 G6"],
+
+  // ───── NEU: führende Sonderzeichen entfernen ─────
+  ["Lenovo", "- ThinkPad L14 Gen 2 20X1004FGE", "ThinkPad L14 Gen 2"],
+  ["Lenovo", "- Thinkpad T14s Gen 1",           "Thinkpad T14s Gen 1"],
+
+  // ───── NEU: Platzhalter → ungültig ("") ─────
+  ["HP", "NN", ""],
+  ["HP", "-",  ""],
+
+  // ───── NEU: Gegenprobe — keine Übergriffigkeit ─────
+  ["Dell",   "7530",  "7530"],
+  ["Lenovo", "T14s",  "T14s"],
+  ["Dell",   "M3800", "M3800"],
 ];
 
 const HER_TESTS: HerTest[] = [
@@ -111,6 +124,22 @@ console.log("══════════════════════�
 for (const [hersteller, input, expected] of BEZ_TESTS) {
   const actual = bereinigeBezeichnung(hersteller, input);
   check(`bereinigeBezeichnung("${hersteller}", "${input}")`, actual, expected);
+}
+
+// Sonderfall: Präfix muss weg, der dashed Maschinen-Code darf bleiben (startsWith).
+{
+  const input  = "Business-Tablet ThinkPad X1 Tablet Gen3 20KK-S1A908";
+  const actual = bereinigeBezeichnung("Lenovo", input);
+  const prefix = "ThinkPad X1 Tablet Gen3";
+  if (actual.startsWith(prefix)) {
+    passed++;
+    console.log(`  ✅ bereinigeBezeichnung("Lenovo", "${input}") startsWith "${prefix}"`);
+  } else {
+    failed++;
+    console.error(`  ❌ bereinigeBezeichnung("Lenovo", "${input}")`);
+    console.error(`     Erwartet startsWith: "${prefix}"`);
+    console.error(`     Bekommen:            "${actual}"`);
+  }
 }
 
 console.log("\n══════════════════════════════════════════");
