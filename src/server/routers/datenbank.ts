@@ -13,6 +13,7 @@ import { z } from "zod";
 import { createHmac, createHash, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { TRPCError } from "@trpc/server";
+import { Prisma } from "@prisma/client";
 import { createTRPCRouter, adminProcedure } from "@/server/trpc";
 
 const COOKIE_NAME    = "db_explorer";
@@ -76,6 +77,110 @@ export async function requireDbExplorer(): Promise<void> {
   if (!tokenGueltig(store.get(COOKIE_NAME)?.value)) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Datenbank-Explorer ist gesperrt. Bitte erneut freischalten." });
   }
+}
+
+// ── Relationen aus Prisma DMMF ableiten (Schritt 3) ──────────────────────────
+//
+// Quelle ist ausschließlich das Prisma-Datenmodell (Prisma.dmmf), NICHT manuell
+// gepflegt. Keine DB-Abfrage nötig. Die eine Ausnahme ist die klar markierte
+// logische Soft-Verknüpfung Anfrage.geraeteName → GeraeteModell.modell (kein FK).
+//
+// Das JSON ist bewusst flach und selbsterklärend, damit es später unverändert für
+// einen PDF-Datenmodell-Export wiederverwendet werden kann.
+
+export type Cardinality = "1:1" | "1:n" | "n:1" | "n:m";
+
+export type RelationInfo = {
+  from:         string;   // Modellname (bei FK: referenzierte/"1"-Seite)
+  to:           string;   // Modellname (bei FK: FK-haltende/"n"-Seite)
+  fromFields:   string[]; // Felder auf `from` (referenziert, i.d.R. id)
+  toFields:     string[]; // Felder auf `to` (Fremdschlüssel)
+  relationName: string;
+  cardinality:  Cardinality;
+  soft?:        boolean;  // true = logische Verknüpfung ohne echten FK
+  note?:        string;   // Erläuterung (nur bei soft)
+};
+
+export type ModelInfo = { name: string; dbTable: string };
+
+/** Eine Seite einer DMMF-Relation (ein object-Feld). */
+type RelationSide = {
+  model:      string;
+  type:       string;
+  isList:     boolean;
+  fromFields: string[];
+  toFields:   string[];
+};
+
+/** Leitet alle Relationen + Modell→Tabelle-Zuordnung aus dem Prisma-DMMF ab. */
+function leiteRelationenAb(): { relations: RelationInfo[]; models: ModelInfo[] } {
+  const models = Prisma.dmmf.datamodel.models;
+
+  // Modell → DB-Tabellenname (@@map landet in dbName; sonst = Modellname).
+  const modelInfos: ModelInfo[] = models
+    .map((m) => ({ name: m.name, dbTable: m.dbName ?? m.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Beide Seiten je relationName sammeln, danach zu EINER Relation zusammenführen.
+  const sidesByName = new Map<string, RelationSide[]>();
+  for (const m of models) {
+    for (const f of m.fields) {
+      if (f.kind !== "object" || !f.relationName) continue;
+      const arr = sidesByName.get(f.relationName) ?? [];
+      arr.push({
+        model:      m.name,
+        type:       f.type,
+        isList:     f.isList,
+        fromFields: f.relationFromFields ? [...f.relationFromFields] : [],
+        toFields:   f.relationToFields   ? [...f.relationToFields]   : [],
+      });
+      sidesByName.set(f.relationName, arr);
+    }
+  }
+
+  const relations: RelationInfo[] = [];
+  for (const [relationName, sides] of sidesByName) {
+    const fkSide = sides.find((s) => s.fromFields.length > 0);
+
+    if (fkSide) {
+      // Explizite Relation: fkSide hält den FK und lebt auf der "n"/Kind-Seite,
+      // zeigt auf die referenzierte "1"/Eltern-Seite (fkSide.type).
+      const otherSide     = sides.find((s) => s !== fkSide);
+      const parentHasMany = otherSide ? otherSide.isList : true; // Rück-Relation = Liste? → 1:n
+      relations.push({
+        from:         fkSide.type,        // Eltern (referenziert)
+        to:           fkSide.model,       // Kind (FK-haltend)
+        fromFields:   fkSide.toFields,    // referenzierte Felder (id)
+        toFields:     fkSide.fromFields,  // Fremdschlüssel
+        relationName,
+        cardinality:  parentHasMany ? "1:n" : "1:1",
+      });
+    } else {
+      // Implizite m:n-Relation (beide Seiten Liste, kein FK-Feld).
+      const [a, b]     = sides;
+      const [from, to] = [a.model, (b ?? a).model].sort();
+      relations.push({ from, to, fromFields: [], toFields: [], relationName, cardinality: "n:m" });
+    }
+  }
+
+  // Eine bekannte LOGISCHE Verknüpfung (steht NICHT im DMMF, da kein FK):
+  // Anfrage.geraeteName (String) ↔ GeraeteModell.modell (String-Match).
+  relations.push({
+    from:         "GeraeteModell",
+    to:           "Anfrage",
+    fromFields:   ["modell"],
+    toFields:     ["geraeteName"],
+    relationName: "logical__Anfrage_geraeteName__GeraeteModell_modell",
+    cardinality:  "1:n",
+    soft:         true,
+    note:         "Logische Verknüpfung (kein FK, String-Match): Anfrage.geraeteName ≈ GeraeteModell.modell.",
+  });
+
+  relations.sort(
+    (x, y) => x.from.localeCompare(y.from) || x.to.localeCompare(y.to) || x.relationName.localeCompare(y.relationName),
+  );
+
+  return { relations, models: modelInfos };
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -164,6 +269,13 @@ export const datenbankRouter = createTRPCRouter({
       totalTables: tables.length,
       totalRows:   tables.reduce((sum, t) => sum + t.rows, 0),
     };
+  }),
+
+  // ── Schritt 3: Verknüpfungen/Relationen (rein aus Prisma DMMF abgeleitet) ──
+  // Strikt read-only, keine DB-Abfrage — reine Datenmodell-Ableitung.
+  relations: adminProcedure.query(async () => {
+    await requireDbExplorer();
+    return leiteRelationenAb();
   }),
 
 });
