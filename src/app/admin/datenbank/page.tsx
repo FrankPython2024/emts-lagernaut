@@ -1236,18 +1236,158 @@ function KompatibilitaetModal({ artikelId, onClose }: { artikelId: number; onClo
           <p className="text-sm font-semibold">Für diesen Artikel ist keine Gerätezuordnung hinterlegt.</p>
         </div>
       ) : data ? (
-        <ul className="space-y-1.5 max-h-[55vh] overflow-y-auto">
-          {data.geraete.map((g, idx) => (
-            <li
-              key={idx}
-              className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-sm text-[#1a1a1a] dark:text-[#e4e6eb]"
-            >
-              <span aria-hidden className="text-[#008BD2] flex-shrink-0">📱</span>
-              <span className="font-mono break-all">{g}</span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-1.5">
+            {data.geraete.map((g, idx) => (
+              <li
+                key={idx}
+                className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-sm text-[#1a1a1a] dark:text-[#e4e6eb]"
+              >
+                <span aria-hidden className="text-[#008BD2] flex-shrink-0">📱</span>
+                <span className="font-mono break-all">{g}</span>
+              </li>
+            ))}
+          </ul>
+
+          <KompatibilitaetFluss
+            artikelId={artikelId}
+            teiltyp={data.teiltyp}
+            anzahl={data.anzahl}
+            treffer={data.treffer}
+            geraete={data.geraete}
+          />
+        </>
       ) : null}
     </Modal>
+  );
+}
+
+type Treffer = RouterOutputs["datenbank"]["artikelKompatibilitaet"]["treffer"][number];
+
+/**
+ * Anschauliche 3-Stufen-Fluss-Darstellung (oben → unten), wie das System die
+ * Kompatibilität aus der Verknüpfung über die Artikel-Nummer ableitet.
+ * Einfache Sprache, Demo-Charakter, ohne neue Dependency. Einklappbar.
+ */
+function KompatibilitaetFluss({
+  artikelId, teiltyp, anzahl, treffer, geraete,
+}: {
+  artikelId: number;
+  teiltyp: string | null;
+  anzahl: number;
+  treffer: Treffer[];
+  geraete: string[];
+}) {
+  const [offen, setOffen] = useState(true);
+
+  return (
+    <section className="mt-6 rounded-xl border border-[#008BD2]/30 bg-[#008BD2]/[0.05] dark:bg-[#008BD2]/[0.08] overflow-hidden">
+      <h4 className="m-0">
+        <button
+          type="button"
+          onClick={() => setOffen((o) => !o)}
+          aria-expanded={offen}
+          aria-controls="kompat-fluss-inhalt"
+          className="flex items-center gap-2.5 w-full min-h-[56px] px-4 text-left transition-colors hover:bg-[#008BD2]/10 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#008BD2]"
+        >
+          <span aria-hidden className="text-lg">🔍</span>
+          <span className="flex-1 font-black text-sm text-[#202F61] dark:text-[#e4e6eb]">So findet das System das</span>
+          <span aria-hidden className={`text-[#008BD2] text-lg transition-transform duration-200 ${offen ? "rotate-180" : ""}`}>⌄</span>
+        </button>
+      </h4>
+
+      {offen && (
+        <div id="kompat-fluss-inhalt" className="px-4 pb-5 pt-1 space-y-4">
+          {/* Erklärung in einfacher Sprache */}
+          <p className="text-sm leading-relaxed text-[#1a1a1a] dark:text-[#e4e6eb] max-w-[60ch]">
+            <span className="font-bold">So funktioniert es:</span> Jeder Artikel hat eine Nummer. In der Tabelle
+            Kompatibilitaet steht, zu welchem Gerät eine Artikel-Nummer gehört. Das System sammelt alle Einträge
+            mit dieser Nummer — und weiß so, in welche Geräte das Teil passt.
+          </p>
+
+          {/* 3-Stufen-Fluss (oben → unten) */}
+          <ol className="space-y-0 list-none m-0 p-0">
+            {/* Stufe 1 — Der Artikel */}
+            <li>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8] mb-1.5">1 · Der Artikel</p>
+              <div className="rounded-lg border-2 border-[#202F61] bg-white dark:bg-[#242526] px-4 py-3 flex items-center gap-2 flex-wrap">
+                <span aria-hidden>🔌</span>
+                <span className="font-bold text-[#202F61] dark:text-[#e4e6eb]">
+                  Artikel <span className="font-mono">#{artikelId}</span>
+                  {teiltyp && <span className="font-normal text-[#65676b] dark:text-[#b0b3b8]"> · {teiltyp}</span>}
+                </span>
+              </div>
+            </li>
+
+            <FlussPfeil label="wird gesucht über die Artikel-Nummer" />
+
+            {/* Stufe 2 — Die Verbindungstabelle */}
+            <li>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8] mb-1.5">2 · Die Verbindungstabelle</p>
+              <div className="rounded-lg border-2 border-[#008BD2] bg-white dark:bg-[#242526] overflow-hidden">
+                <div className="px-4 py-2.5 flex items-center gap-2 flex-wrap border-b border-[#008BD2]/30 bg-[#008BD2]/[0.06]">
+                  <span aria-hidden>🔗</span>
+                  <span className="font-bold text-[#008BD2]">Tabelle Kompatibilitaet</span>
+                  <span className="text-sm text-[#65676b] dark:text-[#b0b3b8]">— {anzahl} {anzahl === 1 ? "passender Eintrag" : "passende Einträge"}</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-xs border-collapse">
+                    <caption className="sr-only">Rohe Treffer aus der Tabelle Kompatibilitaet für Artikel {artikelId}</caption>
+                    <thead>
+                      <tr className="bg-[#f0f2f5] dark:bg-[#18191a]">
+                        <th scope="col" className="px-3 py-2 font-bold text-[#65676b] dark:text-[#b0b3b8]">id</th>
+                        <th scope="col" className="px-3 py-2 font-bold text-white bg-[#008BD2]">artikelId</th>
+                        <th scope="col" className="px-3 py-2 font-bold text-[#65676b] dark:text-[#b0b3b8]">teiltyp</th>
+                        <th scope="col" className="px-3 py-2 font-bold text-[#65676b] dark:text-[#b0b3b8]">geraet</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-mono">
+                      {treffer.map((t) => (
+                        <tr key={t.id} className="border-b border-[#ced4da]/40 dark:border-[#3e4042]/40 last:border-0">
+                          <td className="px-3 py-2 text-[#1a1a1a] dark:text-[#e4e6eb]">{t.id}</td>
+                          <td className="px-3 py-2 font-bold text-[#008BD2] bg-[#008BD2]/[0.08]">{artikelId}</td>
+                          <td className="px-3 py-2 text-[#1a1a1a] dark:text-[#e4e6eb]">{t.teiltyp}</td>
+                          <td className="px-3 py-2 text-[#1a1a1a] dark:text-[#e4e6eb] break-all">{t.geraet}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="px-4 py-2 text-[11px] text-[#65676b] dark:text-[#b0b3b8] border-t border-[#008BD2]/20">
+                  <span className="text-[#008BD2] font-bold">Cyan</span> = die Artikel-Nummer. In allen Zeilen identisch — genau darüber läuft der Treffer.
+                </p>
+              </div>
+            </li>
+
+            <FlussPfeil label="jeder Eintrag verweist auf ein Gerät" />
+
+            {/* Stufe 3 — Die Geräte */}
+            <li>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8] mb-1.5">3 · Die Geräte</p>
+              <div className="flex flex-wrap gap-2">
+                {geraete.map((g, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 border-[#04B475] bg-white dark:bg-[#242526] text-sm font-mono text-[#1a1a1a] dark:text-[#e4e6eb]"
+                  >
+                    <span aria-hidden>📱</span>{g}
+                  </span>
+                ))}
+              </div>
+            </li>
+          </ol>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Dekorativer Abwärts-Pfeil mit Beschriftung zwischen zwei Fluss-Stufen. */
+function FlussPfeil({ label }: { label: string }) {
+  return (
+    <li className="flex flex-col items-center py-2" aria-hidden="false">
+      <span aria-hidden className="text-[#008BD2] text-xl leading-none">↓</span>
+      <span className="text-[11px] italic text-[#65676b] dark:text-[#b0b3b8] text-center px-2">{label}</span>
+    </li>
   );
 }

@@ -422,8 +422,8 @@ export const datenbankRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       await requireDbExplorer();
 
-      const rows = await ctx.prisma.$queryRaw<{ geraet: string; teiltyp: string }[]>`
-        SELECT geraet, teiltyp
+      const rows = await ctx.prisma.$queryRaw<{ id: number; geraet: string; teiltyp: string }[]>`
+        SELECT id, geraet, teiltyp
         FROM   Kompatibilitaet
         WHERE  artikelId = ${input.artikelId}
         ORDER BY geraet
@@ -436,7 +436,10 @@ export const datenbankRouter = createTRPCRouter({
         : teiltypen.length === 1 ? teiltypen[0]
         : teiltypen.join(", "); // mehrere Teiltypen: alle nennen
 
-      return { artikelId: input.artikelId, teiltyp, geraete, anzahl: geraete.length };
+      // Rohe Treffer für die anschauliche Fluss-Darstellung (artikelId = Input).
+      const treffer = rows.map((r) => ({ id: Number(r.id), geraet: r.geraet, teiltyp: r.teiltyp }));
+
+      return { artikelId: input.artikelId, teiltyp, geraete, anzahl: geraete.length, treffer };
     }),
 
 });
