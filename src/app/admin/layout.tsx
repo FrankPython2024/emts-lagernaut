@@ -61,6 +61,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/admin/benutzer",           label: "Benutzer",   icon: "👥", permission: "USER_VIEW" },
       { href: "/admin/rollen",             label: "Rollen",     icon: "🛡️", permission: "ROLLE_EDIT" },
       { href: "/admin/standorte",          label: "Standorte",  icon: "🏭", permission: "STANDORT_EDIT" },
+      { href: "/admin/datenbank",          label: "Datenbank",  icon: "🛢️", permission: "SYSTEM_ADMIN" },
       { href: "/admin/system",             label: "System",     icon: "⚙️", permission: "SYSTEM_ADMIN" },
       { href: "/admin/system/stresstest",  label: "Benchmark",  icon: "🔬", permission: "STRESSTEST_RUN" },
     ],

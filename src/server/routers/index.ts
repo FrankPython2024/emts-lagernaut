@@ -24,6 +24,7 @@ import { standortRouter }         from "./standort";
 import { teiltypenRouter }        from "./teiltypen";
 import { rollenRouter }           from "./rollen";
 import { bestellempfehlungRouter } from "./bestellempfehlung";
+import { datenbankRouter }         from "./datenbank";
 
 export const appRouter = createTRPCRouter({
   lager:           lagerRouter,
@@ -51,6 +52,7 @@ export const appRouter = createTRPCRouter({
   teiltypen:        teiltypenRouter,
   rollen:           rollenRouter,
   bestellempfehlung: bestellempfehlungRouter,
+  datenbank:         datenbankRouter,
 });
 
 export type AppRouter = typeof appRouter;
