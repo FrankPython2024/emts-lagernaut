@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "@/trpc/react";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 
@@ -111,26 +111,177 @@ export default function DatenbankPage() {
           </form>
         </div>
       ) : (
-        /* ── Freigeschaltet: Platzhalter (Inhalte folgen in Schritt 2) ── */
-        <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-6 sm:p-8">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div className="flex items-start gap-3">
-              <span aria-hidden className="text-2xl">✅</span>
-              <div>
-                <h2 className="font-black text-lg text-[#1a1a1a] dark:text-[#e4e6eb]">Datenbank-Explorer freigeschaltet</h2>
-                <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Inhalte folgen in Schritt&nbsp;2.</p>
-              </div>
+        /* ── Freigeschaltet: Übersicht (Schritt 2) ── */
+        <DatenbankUebersicht onLock={() => lock.mutate()} lockPending={lock.isPending} />
+      )}
+    </div>
+  );
+}
+
+// ── Übersicht: DB-Name + sortierbare Tabellenliste mit exakten Zeilenzahlen ──
+
+type SortKey   = "name" | "rows";
+type SortOrder = "asc" | "desc";
+
+const nf = new Intl.NumberFormat("de-DE");
+
+function DatenbankUebersicht({ onLock, lockPending }: { onLock: () => void; lockPending: boolean }) {
+  const overview = api.datenbank.overview.useQuery(undefined, { staleTime: 30_000 });
+
+  const [sortKey,   setSortKey]   = useState<SortKey>("rows");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+
+  function toggleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortOrder(key === "name" ? "asc" : "desc");
+    }
+  }
+
+  const sorted = useMemo(() => {
+    const rows = [...(overview.data?.tables ?? [])];
+    rows.sort((a, b) => {
+      const cmp =
+        sortKey === "name"
+          ? a.name.localeCompare(b.name, "de", { sensitivity: "base" })
+          : a.rows - b.rows;
+      return sortOrder === "asc" ? cmp : -cmp;
+    });
+    return rows;
+  }, [overview.data, sortKey, sortOrder]);
+
+  return (
+    <div className="space-y-5">
+      {/* ── Kopf: DB-Name + Sperren ── */}
+      <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-start gap-3">
+            <span aria-hidden className="text-2xl">🛢️</span>
+            <div>
+              <h2 className="font-black text-lg text-[#1a1a1a] dark:text-[#e4e6eb] break-all">
+                Datenbank: {overview.isLoading ? "…" : overview.data?.dbName ?? "—"}
+              </h2>
+              <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                {overview.isLoading
+                  ? "Tabellen werden gezählt…"
+                  : overview.data
+                  ? `${nf.format(overview.data.totalTables)} Tabellen, ${nf.format(overview.data.totalRows)} Zeilen gesamt`
+                  : "—"}
+              </p>
             </div>
-            <button
-              onClick={() => lock.mutate()}
-              disabled={lock.isPending}
-              className="min-h-[44px] px-4 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-sm font-semibold text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
-            >
-              🔒 Sperren
-            </button>
           </div>
+          <button
+            onClick={onLock}
+            disabled={lockPending}
+            className="min-h-[44px] px-4 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-sm font-semibold text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
+          >
+            🔒 Sperren
+          </button>
+        </div>
+      </div>
+
+      {/* ── Zustände ── */}
+      {overview.isLoading ? (
+        <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-10 flex flex-col items-center gap-3 text-[#65676b] dark:text-[#b0b3b8]">
+          <span aria-hidden className="text-3xl animate-pulse">⏳</span>
+          <p className="text-sm font-semibold">Tabellen werden geladen…</p>
+        </div>
+      ) : overview.isError ? (
+        <div
+          role="alert"
+          className="bg-white dark:bg-[#242526] rounded-2xl border border-[#fa3e3e]/30 shadow-sm p-6 sm:p-8"
+        >
+          <div className="flex items-start gap-3">
+            <span aria-hidden className="text-2xl">⚠️</span>
+            <div className="space-y-3">
+              <div>
+                <h3 className="font-black text-[#b91c1c] dark:text-[#fca5a5]">Übersicht konnte nicht geladen werden</h3>
+                <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                  {overview.error.message || "Unbekannter Fehler."}
+                </p>
+              </div>
+              <button
+                onClick={() => overview.refetch()}
+                className="min-h-[44px] px-4 rounded-lg text-white text-sm font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#008BD2] dark:focus:ring-offset-[#242526]"
+                style={{ background: "#008BD2" }}
+              >
+                Erneut versuchen
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* ── Tabellenliste ── */
+        <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <caption className="sr-only">Alle Tabellen der Datenbank mit exakter Zeilenzahl</caption>
+            <thead>
+              <tr className="border-b border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a]">
+                <SortHeader label="Name"   col="name" sortKey={sortKey} sortOrder={sortOrder} onSort={toggleSort} align="left" />
+                <SortHeader label="Zeilen" col="rows" sortKey={sortKey} sortOrder={sortOrder} onSort={toggleSort} align="right" />
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.length === 0 ? (
+                <tr>
+                  <td colSpan={2} className="px-4 py-8 text-center text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                    Keine Tabellen gefunden.
+                  </td>
+                </tr>
+              ) : (
+                sorted.map((t) => (
+                  <tr
+                    key={t.name}
+                    className="border-b border-[#ced4da]/60 dark:border-[#3e4042]/60 last:border-0 hover:bg-[#f0f2f5]/60 dark:hover:bg-[#18191a]/60 transition-colors"
+                  >
+                    <td className="px-4 py-3 font-mono text-sm text-[#1a1a1a] dark:text-[#e4e6eb] break-all">
+                      {t.name}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] whitespace-nowrap">
+                      {nf.format(t.rows)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
+  );
+}
+
+function SortHeader({
+  label, col, sortKey, sortOrder, onSort, align,
+}: {
+  label: string;
+  col: SortKey;
+  sortKey: SortKey;
+  sortOrder: SortOrder;
+  onSort: (k: SortKey) => void;
+  align: "left" | "right";
+}) {
+  const active = sortKey === col;
+  return (
+    <th
+      scope="col"
+      aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}
+      className={align === "right" ? "text-right" : "text-left"}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        className={`flex items-center gap-1.5 w-full min-h-[56px] px-4 text-xs font-bold uppercase tracking-wider transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#008BD2] ${
+          align === "right" ? "justify-end" : "justify-start"
+        } ${active ? "text-[#202F61] dark:text-[#008BD2]" : "text-[#65676b] dark:text-[#b0b3b8] hover:text-[#202F61] dark:hover:text-[#008BD2]"}`}
+      >
+        {label}
+        <span aria-hidden className="text-[10px]">
+          {active ? (sortOrder === "asc" ? "▲" : "▼") : "↕"}
+        </span>
+      </button>
+    </th>
   );
 }

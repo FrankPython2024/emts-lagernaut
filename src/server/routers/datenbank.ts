@@ -119,4 +119,51 @@ export const datenbankRouter = createTRPCRouter({
     return { unlocked: false };
   }),
 
+  // ── Schritt 2: Übersicht — DB-Name + alle Tabellen mit exakter Zeilenzahl ──
+  //
+  // Strikt read-only. Tabellennamen stammen AUSSCHLIESSLICH aus
+  // INFORMATION_SCHEMA (Whitelist), werden zusätzlich gegen /^[A-Za-z0-9_]+$/
+  // geprüft (Defense-in-Depth) und in Backticks gequotet. Kein User-Input
+  // fließt jemals ins SQL. MySQL ist auf Linux case-sensitive — Namen werden
+  // exakt so verwendet, wie INFORMATION_SCHEMA sie liefert.
+  overview: adminProcedure.query(async ({ ctx }) => {
+    await requireDbExplorer();
+
+    // 1) Aktueller DB-Name.
+    const dbRows = await ctx.prisma.$queryRaw<{ db: string | null }[]>`SELECT DATABASE() AS db`;
+    const dbName = dbRows[0]?.db ?? "(unbekannt)";
+
+    // 2) Alle Basistabellen der aktuellen DB (keine Views).
+    const tableRows = await ctx.prisma.$queryRaw<{ name: string }[]>`
+      SELECT TABLE_NAME AS name
+      FROM   INFORMATION_SCHEMA.TABLES
+      WHERE  TABLE_SCHEMA = DATABASE()
+        AND  TABLE_TYPE   = 'BASE TABLE'
+      ORDER BY TABLE_NAME
+    `;
+
+    // Defense-in-Depth: nur unbedenkliche Bezeichner durchlassen.
+    const namen = tableRows
+      .map((r) => r.name)
+      .filter((n): n is string => typeof n === "string" && /^[A-Za-z0-9_]+$/.test(n));
+
+    // 3) Exakte Zeilenzahl je Tabelle via COUNT(*). Name ist gewhitelistet +
+    //    regex-geprüft, in Backticks gequotet. COUNT(*) liefert BigInt → Number.
+    const tables = await Promise.all(
+      namen.map(async (name) => {
+        const rows = await ctx.prisma.$queryRawUnsafe<{ cnt: bigint }[]>(
+          `SELECT COUNT(*) AS cnt FROM \`${name}\``,
+        );
+        return { name, rows: Number(rows[0]?.cnt ?? 0) };
+      }),
+    );
+
+    return {
+      dbName,
+      tables,
+      totalTables: tables.length,
+      totalRows:   tables.reduce((sum, t) => sum + t.rows, 0),
+    };
+  }),
+
 });
