@@ -19,6 +19,10 @@ import { createTRPCRouter, adminProcedure } from "@/server/trpc";
 const COOKIE_NAME    = "db_explorer";
 const GUELTIGKEIT_MS = 2 * 60 * 60 * 1000; // 2 Stunden
 
+// Erlaubte SQL-Identifier (Tabellen-/Spaltennamen). Defense-in-Depth zusätzlich
+// zur INFORMATION_SCHEMA-Whitelist — nur diese Zeichen dürfen interpoliert werden.
+const IDENT = /^[A-Za-z0-9_]+$/;
+
 // ── Krypto-Helfer ─────────────────────────────────────────────────────────────
 
 function secret(): string {
@@ -183,6 +187,27 @@ function leiteRelationenAb(): { relations: RelationInfo[]; models: ModelInfo[] }
   return { relations, models: modelInfos };
 }
 
+// ── Tabellen-Inhalt: Zell-Werte serialisierungssicher normalisieren (Schritt 4a) ─
+//
+// $queryRaw liefert je nach Spaltentyp unterschiedliche JS-Werte. Für den
+// Transport (superjson/JSON) und die Anzeige normalisieren wir alles auf
+// string | null — ohne den Wert zu verfälschen.
+function normalisiereZelle(v: unknown): string | null {
+  if (v === null || v === undefined)               return null;
+  if (typeof v === "bigint")                        return v.toString();
+  if (typeof v === "string")                        return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (v instanceof Date)                            return v.toISOString();
+  if (v instanceof Uint8Array || Buffer.isBuffer(v)) return "[binär]";
+  if (typeof v === "object") {
+    // Prisma.Decimal & ähnliche Wert-Objekte besitzen ein sinnvolles toString().
+    const ctor = (v as { constructor?: { name?: string } }).constructor?.name;
+    if (ctor === "Decimal") return (v as { toString(): string }).toString();
+    try { return JSON.stringify(v); } catch { return String(v); }
+  }
+  return String(v);
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 export const datenbankRouter = createTRPCRouter({
@@ -277,5 +302,112 @@ export const datenbankRouter = createTRPCRouter({
     await requireDbExplorer();
     return leiteRelationenAb();
   }),
+
+  // ── Schritt 4a: Tabellen-Inhalt read-only, paginiert, mit Suche/Sortierung ──
+  //
+  // Sicherheit:
+  //  • Tabelle + Spalten stammen ausschließlich aus INFORMATION_SCHEMA (Whitelist)
+  //    und werden zusätzlich gegen IDENT geprüft, bevor sie (gequotet) interpoliert
+  //    werden. KEIN sonstiger User-Input fließt als Identifier ins SQL.
+  //  • Der Suchwert wird NIE interpoliert, sondern als gebundener ?-Parameter
+  //    übergeben (ein Platzhalter je durchsuchter Spalte).
+  //  • page/pageSize sind validierte Ganzzahlen (pageSize aus fester Auswahl).
+  //  • Ausschließlich SELECT — strikt read-only.
+  tableRows: adminProcedure
+    .input(
+      z.object({
+        table:      z.string().min(1).max(64),
+        page:       z.number().int().min(1).default(1),
+        pageSize:   z.union([z.literal(25), z.literal(50), z.literal(100)]).default(50),
+        search:     z.string().max(200).optional(),
+        sortColumn: z.string().max(64).optional(),
+        sortDir:    z.enum(["asc", "desc"]).default("asc"),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      await requireDbExplorer();
+
+      // 1) Tabelle gegen Whitelist (BASE TABLE der aktuellen DB) + IDENT prüfen.
+      const tableRows = await ctx.prisma.$queryRaw<{ name: string }[]>`
+        SELECT TABLE_NAME AS name
+        FROM   INFORMATION_SCHEMA.TABLES
+        WHERE  TABLE_SCHEMA = DATABASE()
+          AND  TABLE_TYPE   = 'BASE TABLE'
+      `;
+      const erlaubteTabellen = new Set(tableRows.map((r) => r.name));
+      if (!IDENT.test(input.table) || !erlaubteTabellen.has(input.table)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Unbekannte Tabelle." });
+      }
+
+      // 2) Spalten aus INFORMATION_SCHEMA holen (Tabellenname als gebundener Param).
+      const colRows = await ctx.prisma.$queryRaw<
+        { name: string; dataType: string; nullable: string; colKey: string }[]
+      >`
+        SELECT COLUMN_NAME AS name, DATA_TYPE AS dataType, IS_NULLABLE AS nullable, COLUMN_KEY AS colKey
+        FROM   INFORMATION_SCHEMA.COLUMNS
+        WHERE  TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ${input.table}
+        ORDER BY ORDINAL_POSITION
+      `;
+
+      const columns = colRows
+        .filter((c) => IDENT.test(c.name)) // Defense-in-Depth
+        .map((c) => ({
+          name:         c.name,
+          type:         c.dataType,
+          nullable:     c.nullable === "YES",
+          isPrimaryKey: c.colKey === "PRI",
+        }));
+
+      const primaryKey = columns.find((c) => c.isPrimaryKey)?.name ?? null;
+
+      if (columns.length === 0) {
+        return { columns, rows: [], total: 0, page: 1, pageSize: input.pageSize, primaryKey };
+      }
+
+      // 3) Such-Filter: über ALLE Spalten, je Spalte CAST(`col` AS CHAR) LIKE ?.
+      //    Suchwert ausschließlich als gebundener Parameter (ein ? je Spalte).
+      const params: string[] = [];
+      let   where = "";
+      const suche = input.search?.trim();
+      if (suche) {
+        const like    = `%${suche}%`;
+        const klauseln = columns.map((c) => `CAST(\`${c.name}\` AS CHAR) LIKE ?`);
+        where = ` WHERE ${klauseln.join(" OR ")}`;
+        for (const _ of columns) params.push(like);
+      }
+
+      // 4) Sortierung: validierte Spalte + Richtung. Default = PK (stabile Pagination),
+      //    sonst erste Spalte.
+      const colNames  = new Set(columns.map((c) => c.name));
+      let   orderCol  = primaryKey ?? columns[0].name;
+      if (input.sortColumn && IDENT.test(input.sortColumn) && colNames.has(input.sortColumn)) {
+        orderCol = input.sortColumn;
+      }
+      const orderDir   = input.sortDir === "desc" ? "DESC" : "ASC";
+      const orderBy    = ` ORDER BY \`${orderCol}\` ${orderDir}`;
+
+      // 5) Gesamtzahl mit gleichem Filter.
+      const countRows = await ctx.prisma.$queryRawUnsafe<{ cnt: bigint }[]>(
+        `SELECT COUNT(*) AS cnt FROM \`${input.table}\`${where}`,
+        ...params,
+      );
+      const total = Number(countRows[0]?.cnt ?? 0);
+
+      // 6) Pagination (validierte Ganzzahlen, sicher interpolierbar).
+      const offset = (input.page - 1) * input.pageSize;
+      const rawRows = await ctx.prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+        `SELECT * FROM \`${input.table}\`${where}${orderBy} LIMIT ${input.pageSize} OFFSET ${offset}`,
+        ...params,
+      );
+
+      // 7) Zellen serialisierungssicher normalisieren (Reihenfolge = Spaltenliste).
+      const rows = rawRows.map((r) => {
+        const obj: Record<string, string | null> = {};
+        for (const c of columns) obj[c.name] = normalisiereZelle(r[c.name]);
+        return obj;
+      });
+
+      return { columns, rows, total, page: input.page, pageSize: input.pageSize, primaryKey };
+    }),
 
 });

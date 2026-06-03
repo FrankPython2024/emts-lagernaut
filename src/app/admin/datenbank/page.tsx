@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useDebounce } from "use-debounce";
+import { keepPreviousData } from "@tanstack/react-query";
 import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/trpc/react";
 import type { AppRouter } from "@/server/routers";
@@ -124,15 +126,23 @@ export default function DatenbankPage() {
 
 // ── Freigeschalteter Inhalt: Kopf + Tab-Navigation ───────────────────────────
 
-type Tab = "uebersicht" | "verknuepfungen";
+type Tab = "uebersicht" | "verknuepfungen" | "inhalt";
 
 function DatenbankInhalt({ onLock, lockPending }: { onLock: () => void; lockPending: boolean }) {
   const overview = api.datenbank.overview.useQuery(undefined, { staleTime: 30_000 });
-  const [tab, setTab] = useState<Tab>("uebersicht");
+  const [tab, setTab]           = useState<Tab>("uebersicht");
+  const [tabelle, setTabelle]   = useState<string | null>(null);
+
+  // Tabellenname in der Übersicht angeklickt → Inhalt-Tab vorausgewählt öffnen.
+  function oeffneTabelle(name: string) {
+    setTabelle(name);
+    setTab("inhalt");
+  }
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: "uebersicht",     label: "Übersicht",     icon: "📋" },
-    { id: "verknuepfungen", label: "Verknüpfungen", icon: "🔗" },
+    { id: "uebersicht",     label: "Übersicht",      icon: "📋" },
+    { id: "verknuepfungen", label: "Verknüpfungen",  icon: "🔗" },
+    { id: "inhalt",         label: "Tabellen-Inhalt", icon: "🗂️" },
   ];
 
   return (
@@ -191,13 +201,19 @@ function DatenbankInhalt({ onLock, lockPending }: { onLock: () => void; lockPend
       </div>
 
       {/* ── Tab-Inhalt ── */}
-      {tab === "uebersicht" ? (
+      {tab === "uebersicht" && (
         <div role="tabpanel" id="db-panel-uebersicht" aria-labelledby="db-tab-uebersicht">
-          <UebersichtTab />
+          <UebersichtTab onOpenTable={oeffneTabelle} />
         </div>
-      ) : (
+      )}
+      {tab === "verknuepfungen" && (
         <div role="tabpanel" id="db-panel-verknuepfungen" aria-labelledby="db-tab-verknuepfungen">
           <VerknuepfungenTab />
+        </div>
+      )}
+      {tab === "inhalt" && (
+        <div role="tabpanel" id="db-panel-inhalt" aria-labelledby="db-tab-inhalt">
+          <InhaltTab table={tabelle} onTableChange={setTabelle} />
         </div>
       )}
     </div>
@@ -211,18 +227,18 @@ type SortOrder = "asc" | "desc";
 
 const nf = new Intl.NumberFormat("de-DE");
 
-function UebersichtTab() {
+function UebersichtTab({ onOpenTable }: { onOpenTable: (name: string) => void }) {
   // Teilt sich den React-Query-Cache mit dem Kopf im Container (gleicher Key).
   const overview = api.datenbank.overview.useQuery(undefined, { staleTime: 30_000 });
 
   const [sortKey,   setSortKey]   = useState<SortKey>("rows");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
-  function toggleSort(key: SortKey) {
+  function toggleSort(key: string) {
     if (key === sortKey) {
       setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
     } else {
-      setSortKey(key);
+      setSortKey(key as SortKey);
       setSortOrder(key === "name" ? "asc" : "desc");
     }
   }
@@ -295,8 +311,16 @@ function UebersichtTab() {
                     key={t.name}
                     className="border-b border-[#ced4da]/60 dark:border-[#3e4042]/60 last:border-0 hover:bg-[#f0f2f5]/60 dark:hover:bg-[#18191a]/60 transition-colors"
                   >
-                    <td className="px-4 py-3 font-mono text-sm text-[#1a1a1a] dark:text-[#e4e6eb] break-all">
-                      {t.name}
+                    <td className="px-2 py-1">
+                      <button
+                        type="button"
+                        onClick={() => onOpenTable(t.name)}
+                        title={`Inhalt von „${t.name}" anzeigen`}
+                        className="flex items-center gap-2 w-full min-h-[44px] px-2 rounded-lg font-mono text-sm text-left text-[#008BD2] hover:underline hover:bg-[#008BD2]/10 break-all transition-colors focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
+                      >
+                        <span aria-hidden className="text-xs opacity-70">🗂️</span>
+                        {t.name}
+                      </button>
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] whitespace-nowrap">
                       {nf.format(t.rows)}
@@ -313,33 +337,45 @@ function UebersichtTab() {
 }
 
 function SortHeader({
-  label, col, sortKey, sortOrder, onSort, align,
+  label, col, sortKey, sortOrder, onSort, align, sub, badge, sticky, preserveCase,
 }: {
   label: string;
-  col: SortKey;
-  sortKey: SortKey;
+  col: string;
+  sortKey: string | null;
   sortOrder: SortOrder;
-  onSort: (k: SortKey) => void;
+  onSort: (k: string) => void;
   align: "left" | "right";
+  sub?: string;                 // z.B. Spaltentyp (klein, unter dem Namen)
+  badge?: React.ReactNode;      // z.B. PK-Markierung
+  sticky?: boolean;             // klebender Header (Daten-Grid)
+  preserveCase?: boolean;       // Spaltennamen sind case-sensitive → nicht großschreiben
 }) {
   const active = sortKey === col;
   return (
     <th
       scope="col"
       aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}
-      className={align === "right" ? "text-right" : "text-left"}
+      className={`${align === "right" ? "text-right" : "text-left"} ${
+        sticky ? "sticky top-0 z-10 bg-[#f0f2f5] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042]" : ""
+      }`}
     >
       <button
         type="button"
         onClick={() => onSort(col)}
-        className={`flex items-center gap-1.5 w-full min-h-[56px] px-4 text-xs font-bold uppercase tracking-wider transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#008BD2] ${
-          align === "right" ? "justify-end" : "justify-start"
-        } ${active ? "text-[#202F61] dark:text-[#008BD2]" : "text-[#65676b] dark:text-[#b0b3b8] hover:text-[#202F61] dark:hover:text-[#008BD2]"}`}
+        className={`flex flex-col justify-center w-full min-h-[56px] py-2 px-4 text-xs font-bold tracking-wider transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#008BD2] ${
+          preserveCase ? "" : "uppercase"
+        } ${align === "right" ? "items-end" : "items-start"} ${
+          active ? "text-[#202F61] dark:text-[#008BD2]" : "text-[#65676b] dark:text-[#b0b3b8] hover:text-[#202F61] dark:hover:text-[#008BD2]"
+        }`}
       >
-        {label}
-        <span aria-hidden className="text-[10px]">
-          {active ? (sortOrder === "asc" ? "▲" : "▼") : "↕"}
+        <span className="flex items-center gap-1.5">
+          {badge}
+          <span className="break-all">{label}</span>
+          <span aria-hidden className="text-[10px]">
+            {active ? (sortOrder === "asc" ? "▲" : "▼") : "↕"}
+          </span>
         </span>
+        {sub && <span className="text-[10px] font-medium normal-case tracking-normal opacity-60 mt-0.5">{sub}</span>}
       </button>
     </th>
   );
@@ -674,5 +710,282 @@ function MermaidDiagram({ code }: { code: string }) {
       aria-label="Entity-Relationship-Diagramm des Kompatibilitäts-Clusters. Die vollständige Beschreibung steht in der Verknüpfungs-Liste darüber."
       className="overflow-x-auto flex justify-center [&_svg]:max-w-full [&_svg]:h-auto"
     />
+  );
+}
+
+// ── Tab "Tabellen-Inhalt": read-only Datensätze, paginiert, mit Suche ─────────
+
+type PageSize = 25 | 50 | 100;
+const PAGE_SIZES: PageSize[] = [25, 50, 100];
+
+/** Eine Zelle: NULL abgesetzt; lange Werte gekürzt mit Titel + Klick zum Aufklappen. */
+function DatenZelle({ value }: { value: string | null }) {
+  const [offen, setOffen] = useState(false);
+
+  if (value === null) {
+    return <span className="italic text-[#9ca3af] dark:text-[#6b7280] select-none">NULL</span>;
+  }
+  if (value === "") {
+    return <span className="italic text-[#9ca3af] dark:text-[#6b7280] select-none">(leer)</span>;
+  }
+
+  const lang = value.length > 80;
+  if (!lang) return <span className="whitespace-pre-wrap break-words">{value}</span>;
+
+  return (
+    <button
+      type="button"
+      onClick={() => setOffen((o) => !o)}
+      title={offen ? "Einklappen" : value}
+      aria-expanded={offen}
+      className="text-left align-top text-[#1a1a1a] dark:text-[#e4e6eb] hover:text-[#008BD2] transition-colors focus:outline-none focus:ring-2 focus:ring-[#008BD2] rounded"
+    >
+      <span className={offen ? "whitespace-pre-wrap break-words" : "block max-w-[26rem] truncate"}>
+        {value}
+      </span>
+      <span aria-hidden className="text-[10px] text-[#008BD2] font-bold">{offen ? " ▲ weniger" : " … mehr"}</span>
+    </button>
+  );
+}
+
+function InhaltTab({ table, onTableChange }: { table: string | null; onTableChange: (t: string | null) => void }) {
+  // Tabellen-Dropdown teilt sich den Cache mit der Übersicht.
+  const overview = api.datenbank.overview.useQuery(undefined, { staleTime: 30_000 });
+  const tabellen = useMemo(
+    () => [...(overview.data?.tables ?? [])].map((t) => t.name).sort((a, b) => a.localeCompare(b)),
+    [overview.data],
+  );
+
+  const [search, setSearch]         = useState("");
+  const [debounced]                 = useDebounce(search, 300);
+  const [page, setPage]             = useState(1);
+  const [pageSize, setPageSize]     = useState<PageSize>(50);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDir, setSortDir]       = useState<SortOrder>("asc");
+
+  // Tabellenwechsel → Such-/Sortier-/Seitenzustand zurücksetzen.
+  useEffect(() => {
+    setSearch("");
+    setSortColumn(null);
+    setSortDir("asc");
+    setPage(1);
+  }, [table]);
+
+  // Suche/Seitengröße/Sortierung ändern → zurück auf Seite 1.
+  useEffect(() => { setPage(1); }, [debounced, pageSize, sortColumn, sortDir]);
+
+  const q = api.datenbank.tableRows.useQuery(
+    {
+      table:      table ?? "",
+      page,
+      pageSize,
+      search:     debounced.trim() || undefined,
+      sortColumn: sortColumn ?? undefined,
+      sortDir,
+    },
+    { enabled: !!table, staleTime: 10_000, placeholderData: keepPreviousData },
+  );
+
+  function onSort(colName: string) {
+    if (sortColumn === colName) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(colName);
+      setSortDir("asc");
+    }
+  }
+
+  const data       = q.data;
+  const total      = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const sucheAktiv = debounced.trim().length > 0;
+
+  return (
+    <div className="space-y-4">
+      {/* ── Steuerleiste: Tabellen-Auswahl + Suche ── */}
+      <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 sm:p-6 space-y-4">
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          {/* Tabelle */}
+          <div>
+            <label htmlFor="db-tabelle" className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1.5 uppercase tracking-wider">
+              Tabelle
+            </label>
+            <select
+              id="db-tabelle"
+              value={table ?? ""}
+              onChange={(e) => onTableChange(e.target.value || null)}
+              className="w-full min-h-[56px] px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-base outline-none focus:border-[#008BD2] focus:ring-2 focus:ring-[#008BD2]/40 transition-colors"
+            >
+              <option value="">{overview.isLoading ? "Tabellen werden geladen…" : "— Tabelle wählen —"}</option>
+              {tabellen.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Suche */}
+          <div>
+            <label htmlFor="db-suche" className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1.5 uppercase tracking-wider">
+              Suche (alle Spalten)
+            </label>
+            <div className="relative">
+              <span aria-hidden className="absolute left-4 top-1/2 -translate-y-1/2 text-[#65676b] dark:text-[#b0b3b8]">🔍</span>
+              <input
+                id="db-suche"
+                type="text"
+                value={search}
+                disabled={!table}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={table ? "Werte durchsuchen…" : "Erst eine Tabelle wählen"}
+                className="w-full min-h-[56px] pl-11 pr-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-base outline-none focus:border-[#008BD2] focus:ring-2 focus:ring-[#008BD2]/40 transition-colors disabled:opacity-50"
+              />
+            </div>
+          </div>
+        </div>
+
+        {table && data && (
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]" aria-live="polite">
+            {sucheAktiv
+              ? `${nf.format(total)} Treffer für „${debounced.trim()}" in `
+              : `${nf.format(total)} Zeilen in `}
+            <span className="font-mono font-semibold text-[#202F61] dark:text-[#008BD2]">{table}</span>
+            {data.columns.length > 0 && <> · {data.columns.length} Spalten</>}
+          </p>
+        )}
+      </div>
+
+      {/* ── Zustände + Daten-Grid ── */}
+      {!table ? (
+        <div className="bg-white dark:bg-[#242526] rounded-2xl border border-dashed border-[#ced4da] dark:border-[#3e4042] p-10 flex flex-col items-center gap-3 text-center text-[#65676b] dark:text-[#b0b3b8]">
+          <span aria-hidden className="text-3xl">🗂️</span>
+          <p className="text-sm font-semibold">Bitte oben eine Tabelle wählen, um ihren Inhalt anzuzeigen.</p>
+        </div>
+      ) : q.isLoading ? (
+        <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-10 flex flex-col items-center gap-3 text-[#65676b] dark:text-[#b0b3b8]">
+          <span aria-hidden className="text-3xl animate-pulse">⏳</span>
+          <p className="text-sm font-semibold">Daten werden geladen…</p>
+        </div>
+      ) : q.isError ? (
+        <div role="alert" className="bg-white dark:bg-[#242526] rounded-2xl border border-[#fa3e3e]/30 shadow-sm p-6 sm:p-8">
+          <div className="flex items-start gap-3">
+            <span aria-hidden className="text-2xl">⚠️</span>
+            <div className="space-y-3">
+              <div>
+                <h3 className="font-black text-[#b91c1c] dark:text-[#fca5a5]">Daten konnten nicht geladen werden</h3>
+                <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">{q.error.message || "Unbekannter Fehler."}</p>
+              </div>
+              <button
+                onClick={() => q.refetch()}
+                className="min-h-[44px] px-4 rounded-lg text-white text-sm font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#008BD2] dark:focus:ring-offset-[#242526]"
+                style={{ background: "#008BD2" }}
+              >
+                Erneut versuchen
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : data && data.rows.length === 0 ? (
+        <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-10 flex flex-col items-center gap-3 text-center text-[#65676b] dark:text-[#b0b3b8]">
+          <span aria-hidden className="text-3xl">{sucheAktiv ? "🔍" : "📭"}</span>
+          <p className="text-sm font-semibold">
+            {sucheAktiv ? "Keine Treffer für die Suche." : "Diese Tabelle enthält keine Zeilen."}
+          </p>
+        </div>
+      ) : data ? (
+        <>
+          {/* Daten-Grid */}
+          <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-auto max-h-[70vh] relative">
+            <table className="min-w-full text-left border-collapse">
+              <caption className="sr-only">
+                Inhalt der Tabelle {table}, Seite {page} von {totalPages}
+              </caption>
+              <thead>
+                <tr>
+                  {data.columns.map((c) => (
+                    <SortHeader
+                      key={c.name}
+                      label={c.name}
+                      col={c.name}
+                      sortKey={sortColumn}
+                      sortOrder={sortDir}
+                      onSort={onSort}
+                      align="left"
+                      sticky
+                      preserveCase
+                      sub={c.type + (c.nullable ? "" : " · not null")}
+                      badge={
+                        c.isPrimaryKey ? (
+                          <span
+                            title="Primärschlüssel"
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black text-white"
+                            style={{ background: "#202F61" }}
+                          >
+                            PK
+                          </span>
+                        ) : undefined
+                      }
+                    />
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((row, i) => (
+                  <tr
+                    key={i}
+                    className="hover:bg-[#f0f2f5]/60 dark:hover:bg-[#18191a]/60 transition-colors"
+                  >
+                    {data.columns.map((c) => (
+                      <td
+                        key={c.name}
+                        className="px-4 py-2.5 align-top font-mono text-sm text-[#1a1a1a] dark:text-[#e4e6eb] border-b border-[#ced4da]/50 dark:border-[#3e4042]/50"
+                      >
+                        <DatenZelle value={row[c.name] ?? null} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between flex-wrap gap-3 bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-4">
+            <div className="flex items-center gap-2 text-sm text-[#65676b] dark:text-[#b0b3b8]">
+              <label htmlFor="db-pagesize" className="font-semibold">Pro Seite:</label>
+              <select
+                id="db-pagesize"
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
+                className="min-h-[44px] px-3 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#008BD2] focus:ring-2 focus:ring-[#008BD2]/40"
+              >
+                {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            <p className="text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]" aria-live="polite">
+              Seite {nf.format(page)} von {nf.format(totalPages)}
+              <span className="text-[#65676b] dark:text-[#b0b3b8] font-normal"> · {nf.format(total)} Treffer</span>
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || q.isFetching}
+                className="min-h-[44px] px-4 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
+              >
+                ← Zurück
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || q.isFetching}
+                className="min-h-[44px] px-4 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
+              >
+                Weiter →
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }
