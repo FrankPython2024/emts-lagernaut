@@ -26,6 +26,7 @@ model User {
   alleStandorte   Boolean   @default(false)
   standortAccess  UserStandortAccess[]
   externeBestellungen ExterneBestellung[]
+  colliDruckLogs  ColliDruckLog[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -439,4 +440,20 @@ model ExterneBestellung {
 
   @@index([modellName, teiltyp])
   @@index([erstelltVon])
+}
+
+// Nutzungs-Protokoll des Colli-Etiketten-Moduls (Nerd-Dashboard).
+// Ein Eintrag pro Druckvorgang (Stapel oder Einzel) + Anzahl Etiketten — so kann
+// das Dashboard wahlweise Druckvorgänge ODER Etiketten-Summe auswerten.
+model ColliDruckLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  modus     String   // 'colli' | 'text'
+  anzahl    Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }
