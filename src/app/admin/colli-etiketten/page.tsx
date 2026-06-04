@@ -4,6 +4,7 @@ import { useId, useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Printer } from "lucide-react";
 import { printColliEtiketten } from "@/lib/print/colliEtikett";
+import { usePermissions } from "@/hooks/usePermissions";
 
 // Colli-Nummern aus dem Textfeld lesen: eine pro Zeile, zusätzlich Komma/Semikolon
 // als Trenner. Leere Einträge raus, Reihenfolge bleibt erhalten.
@@ -63,9 +64,23 @@ function ColliEtikett({ nummer, onPrint }: { nummer: string; onPrint: () => void
 }
 
 export default function ColliEtikettenPage() {
+  const { has, isLoading: permsLoading } = usePermissions();
   const [text, setText] = useState("");
   const nummern = useMemo(() => parseColli(text), [text]);
   const taId = useId();
+
+  // Zugriff: eigenes Recht COLLI_ETIKETTEN_VIEW (ADMIN via SYSTEM_ADMIN inklusive,
+  // ADMIN_READONLY erhält es gezielt). Rein clientseitig — keine Schreib-/adminProcedure.
+  if (permsLoading) {
+    return <div className="p-8 text-center text-sm text-[#65676b] dark:text-[#b0b3b8]">Lade Berechtigungen…</div>;
+  }
+  if (!has("COLLI_ETIKETTEN_VIEW")) {
+    return (
+      <div className="p-8 text-center text-sm text-[#65676b] dark:text-[#b0b3b8]">
+        Kein Zugriff auf Colli-Etiketten. Bitte das Recht <strong>COLLI_ETIKETTEN_VIEW</strong> bei der Rolle aktivieren.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

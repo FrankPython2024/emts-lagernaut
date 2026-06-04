@@ -1,5 +1,5 @@
 /**
- * Seed: 22 Permissions + 3 System-Rollen (ADMIN, TECHNIKER, BETRACHTER).
+ * Seed: Permissions + System-Rollen (ADMIN, TECHNIKER, BETRACHTER, ADMIN_READONLY).
  *
  * Ausführung:
  *   npx tsx prisma/scripts/seed-rbac.ts
@@ -25,6 +25,9 @@ const PERMISSIONS = [
   { key: "ANFRAGE_EDIT",        kategorie: "Anfragen",    bezeichnung: "Anfragen-Status ändern" },
   { key: "ANFRAGE_DELETE",      kategorie: "Anfragen",    bezeichnung: "Anfragen löschen" },
   { key: "ANFRAGE_AUSLAGERN",   kategorie: "Anfragen",    bezeichnung: "Auslager-Wizard nutzen" },
+
+  // Betrieb / Werkzeuge
+  { key: "COLLI_ETIKETTEN_VIEW", kategorie: "Betrieb",    bezeichnung: "Colli-Etiketten erstellen & drucken" },
 
   // Artikel & Lager
   { key: "ARTIKEL_VIEW",        kategorie: "Lager",       bezeichnung: "Artikel-Liste sehen" },
@@ -86,6 +89,8 @@ const ROLLEN = [
       "ANFRAGE_VIEW_ALL",
       "ARTIKEL_VIEW", "LAGERPLATZ_VIEW", "BUCHUNG_VIEW",
       "MODELL_VIEW",
+      // Colli-Etiketten: rein clientseitig (kein DB-Schreiben) → für Readonly nutzbar
+      "COLLI_ETIKETTEN_VIEW",
     ],
   },
 ];
