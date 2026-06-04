@@ -41,6 +41,7 @@ export function requireRole(
     TECHNIKER:      2,
     BETRACHTER:     1,
     ADMIN_READONLY: 1, // Audit-Sicht: gleiche Rang-Stufe wie BETRACHTER (kein Schreib-Rang)
+    PICKUP:         1, // operativer Picker, kein Schreib-Rang (Zugriff via Permission PICKUP_PICK)
   };
 
   if (rangfolge[user.rolle] < rangfolge[rolle]) {

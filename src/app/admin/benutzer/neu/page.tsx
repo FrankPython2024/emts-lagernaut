@@ -10,6 +10,7 @@ const ROLLEN = [
   { rolle: UserRolle.TECHNIKER,      icon: "🔵", label: "Techniker",        desc: "Ersatzteil-Anfragen stellen, eigenen Verlauf sehen" },
   { rolle: UserRolle.BETRACHTER,     icon: "🟢", label: "Betrachter",       desc: "Nur lesen: Statistiken und Bestände" },
   { rolle: UserRolle.ADMIN_READONLY, icon: "🟡", label: "Admin (nur Lesen)", desc: "Audit: voller Admin-Lesezugriff, keine Schreibrechte, kein Benutzer-/Rollen-Zugriff" },
+  { rolle: UserRolle.PICKUP,         icon: "🟣", label: "Picker",            desc: "Arbeitet Pickup-Aufträge scannend ab (keine Umbuchung – passiert in ReForm)" },
 ];
 
 export default function BenutzerNeuPage() {
@@ -27,6 +28,7 @@ export default function BenutzerNeuPage() {
     TECHNIKER:      ["Artikel suchen", "Anfragen stellen", "Eigene Anfragen stornieren"],
     BETRACHTER:     ["Artikel einsehen", "Anfragen einsehen (nur lesen)"],
     ADMIN_READONLY: ["Admin-Bereich vollständig einsehen", "Anfragen, Lager, Modelle, Statistik, Activity-Log", "Keine Schreibrechte · kein Benutzer-/Rollen-Zugriff"],
+    PICKUP:         ["Pickup-Aufträge scannend abarbeiten", "Kein Admin-Bereich · keine Umbuchung (ReForm)"],
   };
 
   return (

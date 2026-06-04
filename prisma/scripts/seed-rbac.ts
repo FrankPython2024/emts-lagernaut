@@ -1,5 +1,5 @@
 /**
- * Seed: Permissions + System-Rollen (ADMIN, TECHNIKER, BETRACHTER, ADMIN_READONLY).
+ * Seed: Permissions + System-Rollen (ADMIN, TECHNIKER, BETRACHTER, ADMIN_READONLY, PICKUP).
  *
  * Ausführung:
  *   npx tsx prisma/scripts/seed-rbac.ts
@@ -28,6 +28,8 @@ const PERMISSIONS = [
 
   // Betrieb / Werkzeuge
   { key: "COLLI_ETIKETTEN_VIEW", kategorie: "Betrieb",    bezeichnung: "Colli-Etiketten erstellen & drucken" },
+  { key: "PICKUP_PICK",          kategorie: "Betrieb",    bezeichnung: "Pickup-Aufträge bearbeiten" },
+  { key: "PICKUP_MANAGE",        kategorie: "Betrieb",    bezeichnung: "Pickup-Aufträge anlegen & verwalten" },
 
   // Artikel & Lager
   { key: "ARTIKEL_VIEW",        kategorie: "Lager",       bezeichnung: "Artikel-Liste sehen" },
@@ -92,6 +94,13 @@ const ROLLEN = [
       "ARTIKEL_VIEW", "LAGERPLATZ_VIEW", "BUCHUNG_VIEW",
       "MODELL_VIEW",
     ],
+  },
+  {
+    name:         "PICKUP",
+    bezeichnung:  "Picker",
+    beschreibung: "Arbeitet Pickup-Aufträge scannend ab. Keine Umbuchung (passiert in ReForm).",
+    // NUR PICKUP_PICK — KEIN PICKUP_MANAGE (das hat ADMIN über SYSTEM_ADMIN-Wildcard).
+    permissions:  ["PICKUP_PICK"],
   },
 ];
 

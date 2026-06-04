@@ -27,6 +27,8 @@ model User {
   standortAccess  UserStandortAccess[]
   externeBestellungen ExterneBestellung[]
   colliDruckLogs  ColliDruckLog[]
+  pickupAuftraege PickupAuftrag[]
+  pickupGefunden  PickupPosition[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -53,6 +55,7 @@ enum UserRolle {
   TECHNIKER
   BETRACHTER
   ADMIN_READONLY // Audit-Sicht: voller Lesezugriff auf den Admin-Bereich, keine Schreibrechte
+  PICKUP         // Picker: arbeitet Pickup-Aufträge scannend ab (Recht PICKUP_PICK)
 }
 
 // ── RBAC (Phase 1+2 — Fundament, noch keine User-Verknüpfung) ────────────────
@@ -456,4 +459,39 @@ model ColliDruckLog {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+// ── Pickup — Sammel-/Scan-Hilfe (ersetzt Excel-Scan-Vergleichsliste) ──────────
+// Lagernaut ist hier reine Scan-/Nachweis-Hilfe: KEINE Umbuchung, KEIN Bestands-
+// einfluss (das passiert in ReForm). Aufträge + Positionen bleiben dauerhaft als
+// Nachweis erhalten.
+model PickupAuftrag {
+  id              Int       @id @default(autoincrement())
+  name            String
+  status          String    @default("offen") // 'offen' | 'abgeschlossen'
+  erstelltVon     Int
+  ersteller       User      @relation(fields: [erstelltVon], references: [id])
+  createdAt       DateTime  @default(now())
+  abgeschlossenAm DateTime?
+  positionen      PickupPosition[]
+
+  @@index([status])
+  @@index([erstelltVon])
+}
+
+model PickupPosition {
+  id          Int       @id @default(autoincrement())
+  auftragId   Int
+  auftrag     PickupAuftrag @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  logId       String    // normalisiert (reine Ziffern)
+  colli       String?
+  stellplatz  String?
+  bezeichnung String?
+  status      String    @default("OFFEN") // 'OFFEN' | 'GEFUNDEN'
+  gefundenVon Int?
+  finder      User?     @relation(fields: [gefundenVon], references: [id])
+  gefundenAm  DateTime?
+
+  @@index([auftragId, logId])
+  @@index([logId])
 }
