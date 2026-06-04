@@ -76,6 +76,8 @@ const ROLLEN = [
       "ANFRAGE_VIEW_ALL",
       "ARTIKEL_VIEW", "LAGERPLATZ_VIEW", "BUCHUNG_VIEW",
       "MODELL_VIEW",
+      // Colli-Etiketten: rein clientseitig (kein DB-Schreiben) → für Betrachter nutzbar
+      "COLLI_ETIKETTEN_VIEW",
     ],
   },
   {
@@ -89,8 +91,6 @@ const ROLLEN = [
       "ANFRAGE_VIEW_ALL",
       "ARTIKEL_VIEW", "LAGERPLATZ_VIEW", "BUCHUNG_VIEW",
       "MODELL_VIEW",
-      // Colli-Etiketten: rein clientseitig (kein DB-Schreiben) → für Readonly nutzbar
-      "COLLI_ETIKETTEN_VIEW",
     ],
   },
 ];
