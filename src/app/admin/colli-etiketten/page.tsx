@@ -171,7 +171,7 @@ export default function ColliEtikettenPage() {
       {/* Titel + Stapeldruck */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">🏷️ Etiketten-Druck</h1>
+          <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">🏷️ Label Tool</h1>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
             55 × 30 mm-Label-Format (gleicher Drucker wie die Auslagerbelege).
           </p>
