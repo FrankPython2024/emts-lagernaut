@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import { AnfrageStatus } from "@prisma/client";
-import { Printer, Trash2, ChevronDown } from "lucide-react";
+import { Printer, Trash2, ChevronDown, MessageCircle } from "lucide-react";
 import type { AppRouter } from "@/server/routers";
 import { istUeberfaellig, verstricheneZeit } from "@/lib/anfragen/ueberfaellig";
 import { UeberfaelligBadge } from "@/components/anfragen/UeberfaelligBadge";
@@ -47,6 +47,10 @@ export type AnfragenBoardProps = {
   onZurueckgeben:   (g: AnfragenGruppe) => void;
   onFreigeben:      (g: AnfragenGruppe) => void;
   onEtikettDrucken: (g: AnfragenGruppe) => void;
+  // Chat — öffnet exakt den bestehenden Chat der Liste; chatUngelesen liefert die
+  // Ungelesen-Anzahl (gleiche Logik/Datenquelle wie die Liste).
+  onChat:           (g: AnfragenGruppe) => void;
+  chatUngelesen:    (g: AnfragenGruppe) => number;
   // Per-Teil-Aktionen — verdrahten 1:1 auf die bestehenden Handler/Mutationen der Liste
   onTeilErledigen:       (anfrageId: number, gruppenLabel: string) => void;
   onTeilStornieren:      (anfrageId: number) => void;
@@ -114,6 +118,7 @@ function SubStatusTag({ status }: { status: AnfrageStatus }) {
 function GruppenKarte({
   gruppe, spalte, flash, ersteller, now, canEdit, canDelete, isBusy,
   onUebernehmen, onAlleErledigen, onZurueckgeben, onFreigeben, onEtikettDrucken,
+  onChat, chatUngelesen,
   onTeilErledigen, onTeilStornieren, onTeilNichtVerfuegbar, onTeilLoeschen, onTeilReprint,
 }: { gruppe: AnfragenGruppe; spalte: SpaltenKey; flash: boolean } & Omit<AnfragenBoardProps, "gruppen">) {
   const [offen, setOffen] = useState(false); // Teil-Bereich: Default zugeklappt
@@ -121,6 +126,7 @@ function GruppenKarte({
   const n     = teile.length;
   const kartenId     = gruppenKey(gruppe);
   const gruppenLabel = gruppe.geraeteName ?? gruppe.logId;
+  const chatCount    = chatUngelesen(gruppe);
 
   // Überfälligkeit + Alter aus der ältesten Anfrage (bestehende Logik, kein Neu-Erfinden).
   const aeltesteMs  = Math.min(...teile.map((a) => new Date(a.createdAt).getTime()));
@@ -166,6 +172,23 @@ function GruppenKarte({
                 <Avatar text={isLockedByMe ? "Du" : initialen(bearbeitetVon)} akzent title={`Bearbeiter: ${bearbeitetVon}`} />
               )
             )}
+
+            {/* Chat — öffnet exakt den Chat der Liste; Ungelesen-Badge wie dort */}
+            <button
+              type="button"
+              onClick={() => onChat(gruppe)}
+              aria-label={chatCount > 0 ? `Chat öffnen — ${chatCount} ungelesen` : "Chat öffnen"}
+              title="Chat öffnen"
+              style={chatCount > 0 ? { animation: "chatPulse 1.5s ease-in-out infinite" } : undefined}
+              className={`relative inline-flex items-center justify-center w-9 h-9 rounded-lg transition-colors flex-shrink-0 ${chatCount > 0 ? "bg-[#0064d2] text-white hover:bg-[#0056b3]" : "bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] hover:bg-[#0064d2]/20"}`}
+            >
+              <MessageCircle size={16} aria-hidden />
+              {chatCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-[#fa3e3e] text-white text-[10px] font-black leading-none">
+                  {chatCount > 9 ? "9+" : chatCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -468,6 +491,8 @@ export function AnfragenBoard(props: AnfragenBoardProps) {
                     onZurueckgeben={props.onZurueckgeben}
                     onFreigeben={props.onFreigeben}
                     onEtikettDrucken={props.onEtikettDrucken}
+                    onChat={props.onChat}
+                    chatUngelesen={props.chatUngelesen}
                     onTeilErledigen={props.onTeilErledigen}
                     onTeilStornieren={props.onTeilStornieren}
                     onTeilNichtVerfuegbar={props.onTeilNichtVerfuegbar}

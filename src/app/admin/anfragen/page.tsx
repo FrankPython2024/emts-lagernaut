@@ -593,6 +593,17 @@ function AnfragenPageInner() {
             const a = g.anfragen.find((x) => x.status === AnfrageStatus.ABGESCHLOSSEN) ?? g.anfragen[0];
             if (a) druckeBeleg(a);
           }}
+          // Chat — exakt wie die Listen-Zeile (firstId, bezugInfo, Ungelesen-Anzahl)
+          onChat={(g) => {
+            const firstId = g.anfragen[0]?.id;
+            if (!firstId) return;
+            const bezugInfo = [g.geraeteName, g.logId !== "unbekannt" ? g.logId : undefined].filter(Boolean).join(" · ");
+            setChatModal({ anfrageId: firstId, bezugInfo, partnerName: g.techniker });
+          }}
+          chatUngelesen={(g) => {
+            const firstId = g.anfragen[0]?.id;
+            return firstId ? ((ungelesenData ?? []).find((x) => x.anfrageId === firstId)?.count ?? 0) : 0;
+          }}
           // Per-Teil-Aktionen — identische Handler/Mutationen wie die Listen-Zeilen
           onTeilErledigen={(id, gruppenLabel) => handleErledigen(id, gruppenLabel)}
           onTeilStornieren={(id) => setStatus.mutate({ id, status: AnfrageStatus.STORNIERT })}
