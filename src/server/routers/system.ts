@@ -138,7 +138,75 @@ async function resetAllData() {
 
 // ── Router ───────────────────────────────────────────────────────────────────
 
+// Eine Zeile der Colli-Etiketten-Nutzungs-Bestenliste (Nerd-Dashboard).
+type ColliNutzerZeile = {
+  userId:         number;
+  name:           string;
+  kuerzel:        string;
+  vorgaenge:      number;       // Anzahl Druckvorgänge (Events)
+  etiketten:      number;       // Summe gedruckter Etiketten
+  letzteNutzung:  Date | null;
+  colliVorgaenge: number;
+  colliEtiketten: number;
+  textVorgaenge:  number;
+  textEtiketten:  number;
+};
+
 export const systemRouter = createTRPCRouter({
+
+  // Colli-Etiketten-Nutzung pro Nutzer (Nerd-Dashboard, read-only). Aggregiert
+  // ColliDruckLog: Druckvorgänge (count), Etiketten gesamt (sum), letzte Nutzung
+  // (max) — zusätzlich je Modus (colli/text). Sortiert nach Vorgängen absteigend.
+  colliNutzung: adminProcedure.query(async () => {
+    const grouped = await prisma.colliDruckLog.groupBy({
+      by:     ["userId", "modus"],
+      _count: { _all: true },
+      _sum:   { anzahl: true },
+      _max:   { createdAt: true },
+    });
+
+    if (grouped.length === 0) {
+      return { gesamtVorgaenge: 0, gesamtEtiketten: 0, nutzer: [] as ColliNutzerZeile[] };
+    }
+
+    // userId → Name/Kürzel auflösen
+    const userIds = [...new Set(grouped.map((g) => g.userId))];
+    const users = await prisma.user.findMany({
+      where:  { id: { in: userIds } },
+      select: { id: true, name: true, kuerzel: true },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    // pro Nutzer über die Modi zusammenfassen
+    const byUser = new Map<number, ColliNutzerZeile>();
+    for (const g of grouped) {
+      const vorg = g._count._all;
+      const etik = g._sum.anzahl ?? 0;
+      const max  = g._max.createdAt ?? null;
+      let row = byUser.get(g.userId);
+      if (!row) {
+        const u = userMap.get(g.userId);
+        row = {
+          userId: g.userId, name: u?.name ?? "—", kuerzel: u?.kuerzel ?? "—",
+          vorgaenge: 0, etiketten: 0, letzteNutzung: null,
+          colliVorgaenge: 0, colliEtiketten: 0, textVorgaenge: 0, textEtiketten: 0,
+        };
+        byUser.set(g.userId, row);
+      }
+      row.vorgaenge += vorg;
+      row.etiketten += etik;
+      if (max && (!row.letzteNutzung || max > row.letzteNutzung)) row.letzteNutzung = max;
+      if (g.modus === "text") { row.textVorgaenge += vorg; row.textEtiketten += etik; }
+      else                    { row.colliVorgaenge += vorg; row.colliEtiketten += etik; }
+    }
+
+    const nutzer = [...byUser.values()].sort((a, b) => b.vorgaenge - a.vorgaenge);
+    return {
+      gesamtVorgaenge: nutzer.reduce((s, n) => s + n.vorgaenge, 0),
+      gesamtEtiketten: nutzer.reduce((s, n) => s + n.etiketten, 0),
+      nutzer,
+    };
+  }),
 
   getMetrics: adminProcedure
     .query(async () => {

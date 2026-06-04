@@ -370,6 +370,9 @@ export default function SystemPage() {
         )}
       </Section>
 
+      {/* ── BEREICH 6b — COLLI-ETIKETTEN-NUTZUNG ───────────────────────── */}
+      <ColliNutzungWidget />
+
       {/* ── BEREICH 7 — SOCKET.IO ──────────────────────────────────────── */}
       <Section title="Socket.io" icon="⚡">
         {data?.socketio ? (
@@ -471,6 +474,68 @@ function formatUptimeSec(s: number): string {
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);
   return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+// ── COLLI-ETIKETTEN-NUTZUNG ─────────────────────────────────────────────────────
+
+function ColliNutzungWidget() {
+  const { data, isLoading } = api.system.colliNutzung.useQuery(undefined, {
+    refetchInterval: 10_000,
+    staleTime:       5_000,
+  });
+
+  return (
+    <Section title="Colli-Etiketten-Nutzung" icon="🏷️">
+      {isLoading ? (
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Lade…</p>
+      ) : !data || data.nutzer.length === 0 ? (
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Noch keine Nutzung.</p>
+      ) : (
+        <>
+          {/* Gesamt-Zeile */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+            <MetricCard label="Druckvorgänge"    value={fmtNum(data.gesamtVorgaenge)} icon="🖨️" color="primary" />
+            <MetricCard label="Etiketten gesamt" value={fmtNum(data.gesamtEtiketten)} icon="🏷️" color="success" />
+            <MetricCard label="Nutzer"           value={fmtNum(data.nutzer.length)}   icon="👤" color="purple" />
+          </div>
+
+          {/* Bestenliste */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
+                  <th scope="col" className="text-left  py-2 pr-4">Nutzer</th>
+                  <th scope="col" className="text-right py-2 px-2">Druckvorgänge</th>
+                  <th scope="col" className="text-right py-2 px-2">Etiketten gesamt</th>
+                  <th scope="col" className="text-right py-2 pl-2">Zuletzt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.nutzer.map((n) => (
+                  <tr key={n.userId} className="border-b border-[#f0f2f5] dark:border-[#3e4042]">
+                    <td className="py-2 pr-4">
+                      <span className="font-bold text-[#0064d2] dark:text-[#45bdff]">{n.kuerzel}</span>
+                      <span className="text-[#65676b] dark:text-[#b0b3b8]"> · {n.name}</span>
+                      <div className="text-[10px] text-[#65676b] dark:text-[#b0b3b8]">
+                        Colli {fmtNum(n.colliVorgaenge)} · Text {fmtNum(n.textVorgaenge)}
+                      </div>
+                    </td>
+                    <td className="text-right py-2 px-2 font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{fmtNum(n.vorgaenge)}</td>
+                    <td className="text-right py-2 px-2 text-[#1a1a1a] dark:text-[#e4e6eb]">{fmtNum(n.etiketten)}</td>
+                    <td className="text-right py-2 pl-2 text-[#65676b] dark:text-[#b0b3b8] whitespace-nowrap">
+                      {n.letzteNutzung
+                        ? new Date(n.letzteNutzung).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                        : "–"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </Section>
+  );
 }
 
 // ── DANGER ZONE ───────────────────────────────────────────────────────────────
