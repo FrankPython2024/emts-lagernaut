@@ -17,6 +17,7 @@ import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { BelegModal, MehrBelegModal } from "@/components/ui/BelegModal";
 import { AuslagerModal } from "@/components/auslagern/AuslagerModal";
+import { AnfragenBoard } from "@/components/anfragen/AnfragenBoard";
 import { useStandortFilter } from "@/lib/standort/standortContext";
 import {
   buildAuslagerBelegHtml,
@@ -255,6 +256,17 @@ function AnfragenPageInner() {
   const [ohneTest,     setOhneTest]     = useState(false); // Test-Anfragen ausblenden
   const [tagesModal,   setTagesModal]   = useState(false);
 
+  // A/B-Ansicht: "liste" (Default) | "board". Auswahl in localStorage merken.
+  const [ansicht, setAnsicht] = useState<"liste" | "board">("liste");
+  useEffect(() => {
+    const gespeichert = window.localStorage.getItem("anfragen-ansicht");
+    if (gespeichert === "board" || gespeichert === "liste") setAnsicht(gespeichert);
+  }, []);
+  function wechsleAnsicht(neu: "liste" | "board") {
+    setAnsicht(neu);
+    window.localStorage.setItem("anfragen-ansicht", neu);
+  }
+
   // Chat-Modal
   const [chatModal, setChatModal] = useState<{
     anfrageId: number; bezugInfo: string; partnerName: string;
@@ -453,6 +465,16 @@ function AnfragenPageInner() {
     setAuslagerModal({ anfrageIds: [anfrageId], gruppenLabel });
   }
 
+  // Auslagerbeleg für eine einzelne (abgeschlossene) Anfrage drucken — identisch
+  // zum Reprint-Button der Listen-Zeile. (Board nutzt dies, Liste bleibt unverändert.)
+  function druckeBeleg(a: { id: number; teil: string; grading: string | null; techniker: string; logId: string }) {
+    printAuslagerBeleg({
+      belegNr: `AL-${new Date().getFullYear()}-${a.id.toString().padStart(4, "0")}`,
+      artikelBezeichnung: a.teil, lagerplatz: null, kategorie: "", grading: a.grading,
+      techniker: a.techniker, logId: a.logId, restBestand: 0, ersteller, datum: new Date(),
+    });
+  }
+
   // Öffnet AuslagerModal für alle offenen Anfragen einer Gruppe
   function alleErledigen(anfragen: Anfrage[], gruppenLabel: string) {
     const offen = anfragen.filter((a) => {
@@ -482,6 +504,26 @@ function AnfragenPageInner() {
 
       {/* Filter */}
       <div className="flex gap-3 flex-wrap items-center">
+        {/* A/B-Umschalter: Liste | Board */}
+        <div role="group" aria-label="Ansicht" className="flex rounded-lg overflow-hidden border border-[#ced4da] dark:border-[#3e4042]">
+          <button
+            type="button"
+            aria-pressed={ansicht === "liste"}
+            onClick={() => wechsleAnsicht("liste")}
+            className={`px-4 text-xs font-bold transition-colors min-h-[56px] ${ansicht === "liste" ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
+          >
+            ☰ Liste
+          </button>
+          <button
+            type="button"
+            aria-pressed={ansicht === "board"}
+            onClick={() => wechsleAnsicht("board")}
+            className={`px-4 text-xs font-bold border-l border-[#ced4da] dark:border-[#3e4042] transition-colors min-h-[56px] ${ansicht === "board" ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
+          >
+            ▦ Board
+          </button>
+        </div>
+
         {/* Quick-Filter: Alle / Meine */}
         <div className="flex rounded-lg overflow-hidden border border-[#ced4da] dark:border-[#3e4042]">
           <button
@@ -527,7 +569,41 @@ function AnfragenPageInner() {
         <span className="py-2 text-sm text-[#65676b] dark:text-[#b0b3b8]">{data?.length ?? 0} Gruppen</span>
       </div>
 
-      {/* Gruppen */}
+      {/* Board (B) — opt-in über Umschalter, nutzt dieselben Daten + Handler wie die Liste */}
+      {ansicht === "board" && (
+        <AnfragenBoard
+          gruppen={data ?? []}
+          ersteller={ersteller}
+          now={now}
+          canEdit={canEdit}
+          canDelete={canDelete}
+          isBusy={isBusy}
+          onUebernehmen={(g) => gruppeNehmenMutation.mutate({ anfrageIds: g.anfragen.map((a) => a.id) })}
+          onAlleErledigen={(g) => alleErledigen(g.anfragen, g.geraeteName ?? g.logId)}
+          onZurueckgeben={(g) => zurueckgebenMutation.mutate({ anfrageIds: g.anfragen.map((a) => a.id) })}
+          onFreigeben={(g) => {
+            const locked = g.anfragen.find((a) => a.bearbeitetVon);
+            setFreigebenDialog({
+              anfrageIds:    g.anfragen.map((a) => a.id),
+              bearbeitetVon: locked?.bearbeitetVon ?? "",
+              seit:          locked?.bearbeitetSeit ?? null,
+            });
+          }}
+          onEtikettDrucken={(g) => {
+            const a = g.anfragen.find((x) => x.status === AnfrageStatus.ABGESCHLOSSEN) ?? g.anfragen[0];
+            if (a) druckeBeleg(a);
+          }}
+          // Per-Teil-Aktionen — identische Handler/Mutationen wie die Listen-Zeilen
+          onTeilErledigen={(id, gruppenLabel) => handleErledigen(id, gruppenLabel)}
+          onTeilStornieren={(id) => setStatus.mutate({ id, status: AnfrageStatus.STORNIERT })}
+          onTeilNichtVerfuegbar={(id, label) => setNvCandidate({ id, label })}
+          onTeilLoeschen={(id, label) => setDeleteCandidate({ type: "single", id, label })}
+          onTeilReprint={(a) => druckeBeleg(a)}
+        />
+      )}
+
+      {/* Gruppen (Liste A) — Default, unverändert */}
+      {ansicht === "liste" && (
       <div className="space-y-4">
         {data?.map((gruppe, gi) => {
           // ── Lock-State ──────────────────────────────────────────────────
@@ -843,6 +919,7 @@ function AnfragenPageInner() {
           </div>
         )}
       </div>
+      )}
 
       {/* ── Modals ── */}
       {tagesModal && <TagesuebersichtModal onClose={() => setTagesModal(false)} />}

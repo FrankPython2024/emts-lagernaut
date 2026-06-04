@@ -191,6 +191,49 @@ html.font-large  { font-size: 22px; --base-font: 22px; }
   }
 }
 
+/* ── Anfragen-Board — Karte wechselt Spalte ──────────────────────────────────── */
+/* Sanftes Einblenden an der neuen Position (Bewegung) … */
+.board-card-enter {
+  animation: board-card-enter 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes board-card-enter {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+/* … plus derselbe dezente Cyan-Puls wie row-highlight (als Overlay, damit die
+   Status-Tönung der Karte erhalten bleibt). */
+.board-card-flash-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: board-card-flash-overlay 1.1s ease-out forwards;
+}
+@keyframes board-card-flash-overlay {
+  0%   { background-color: rgba(0,139,210,0.26); box-shadow: inset 0 0 0 2px var(--afb-blue); }
+  100% { background-color: transparent;          box-shadow: inset 0 0 0 0 transparent; }
+}
+.dark .board-card-flash-overlay {
+  animation-name: board-card-flash-overlay-dark;
+}
+@keyframes board-card-flash-overlay-dark {
+  0%   { background-color: rgba(31,165,232,0.30); box-shadow: inset 0 0 0 2px var(--afb-blue); }
+  100% { background-color: transparent;           box-shadow: inset 0 0 0 0 transparent; }
+}
+/* Reduzierte Bewegung: KEINE Bewegung, nur ein dezenter, statisch ausklingender
+   Cyan-Highlight. */
+@media (prefers-reduced-motion: reduce) {
+  .board-card-enter { animation: none; }
+  .board-card-flash-overlay {
+    animation: board-card-flash-overlay-static 1.1s ease-out forwards;
+    box-shadow: none;
+  }
+}
+@keyframes board-card-flash-overlay-static {
+  0%   { background-color: rgba(0,139,210,0.16); }
+  100% { background-color: transparent; }
+}
+
 /* ── Sidebar — subtile Scrollbar ──────────────────────────────────────────── */
 .sidebar-scroll::-webkit-scrollbar          { width: 5px; }
 .sidebar-scroll::-webkit-scrollbar-track   { background: transparent; }
