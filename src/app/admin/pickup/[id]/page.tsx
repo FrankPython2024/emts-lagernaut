@@ -7,6 +7,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { formatLogId } from "@/lib/pickup/logId";
+import { exportPickupCsv, printPickupBericht } from "@/lib/pickup/bericht";
 
 function PosStatusBadge({ status }: { status: string }) {
   const gefunden = status === "GEFUNDEN";
@@ -31,6 +32,7 @@ export default function PickupDetailPage() {
   const id = Number(params?.id);
   const router = useRouter();
   const { show } = useToast();
+  const utils = api.useUtils();
 
   const [loeschDialog, setLoeschDialog] = useState(false);
 
@@ -41,6 +43,11 @@ export default function PickupDetailPage() {
 
   const loeschen = api.pickup.loeschen.useMutation({
     onSuccess: () => { show("Pickup-Auftrag gelöscht", "success"); router.push("/admin/pickup"); },
+    onError:   (e) => show(e.message, "error"),
+  });
+
+  const wiederOeffnen = api.pickup.wiederOeffnen.useMutation({
+    onSuccess: () => { show("Auftrag wieder geöffnet", "success"); utils.pickup.details.invalidate({ id }); },
     onError:   (e) => show(e.message, "error"),
   });
 
@@ -89,9 +96,12 @@ export default function PickupDetailPage() {
     );
   }
 
-  const gesamt   = data.positionen.length;
-  const gefunden = data.positionen.filter((p) => p.status === "GEFUNDEN").length;
-  const offen    = gesamt - gefunden;
+  const gesamt        = data.positionen.length;
+  const gefunden      = data.positionen.filter((p) => p.status === "GEFUNDEN").length;
+  const offen         = gesamt - gefunden;
+  const abgeschlossen = data.status === "abgeschlossen";
+  const nichtGefundene = data.positionen.filter((p) => p.status !== "GEFUNDEN");
+  const pct           = gesamt > 0 ? Math.round((gefunden / gesamt) * 100) : 0;
 
   return (
     <div className="space-y-5">
@@ -110,13 +120,37 @@ export default function PickupDetailPage() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/pickup/${id}`}
-            className="inline-flex items-center gap-2 px-5 rounded-xl bg-[#008BD2] text-white text-sm font-bold hover:bg-[#0077b5] transition-colors shadow-sm min-h-[56px]"
-          >
-            ▶ Scannen
-          </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          {data.status === "offen" ? (
+            <Link
+              href={`/pickup/${id}`}
+              className="inline-flex items-center gap-2 px-5 rounded-xl bg-[#008BD2] text-white text-sm font-bold hover:bg-[#0077b5] transition-colors shadow-sm min-h-[56px]"
+            >
+              ▶ Scannen
+            </Link>
+          ) : (
+            <>
+              <button
+                onClick={() => exportPickupCsv(data)}
+                className="inline-flex items-center gap-2 px-4 rounded-xl bg-[#008BD2] text-white text-sm font-bold hover:bg-[#0077b5] transition-colors shadow-sm min-h-[56px]"
+              >
+                ⬇ CSV-Export
+              </button>
+              <button
+                onClick={() => printPickupBericht(data)}
+                className="inline-flex items-center gap-2 px-4 rounded-xl border border-[#008BD2]/40 text-[#008BD2] dark:text-[#45bdff] text-sm font-bold hover:bg-[#008BD2]/10 transition-colors min-h-[56px]"
+              >
+                🖨️ Drucken
+              </button>
+              <button
+                onClick={() => wiederOeffnen.mutate({ id })}
+                disabled={wiederOeffnen.isPending}
+                className="inline-flex items-center gap-2 px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] text-sm font-bold hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] disabled:opacity-50 transition-colors min-h-[56px]"
+              >
+                {wiederOeffnen.isPending ? "…" : "↩ Wieder öffnen"}
+              </button>
+            </>
+          )}
           <button
             onClick={() => setLoeschDialog(true)}
             className="inline-flex items-center gap-2 px-4 rounded-xl border border-[#fa3e3e]/40 text-[#fa3e3e] text-sm font-bold hover:bg-[#fa3e3e]/10 transition-colors min-h-[56px]"
@@ -126,19 +160,64 @@ export default function PickupDetailPage() {
         </div>
       </div>
 
-      {/* Zähler */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Gesamt",   value: gesamt,   color: "text-[#202F61] dark:text-[#e4e6eb]" },
-          { label: "Offen",    value: offen,    color: "text-[#65676b] dark:text-[#b0b3b8]" },
-          { label: "Gefunden", value: gefunden, color: "text-[#04B475]" },
-        ].map((k) => (
-          <div key={k.label} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-4 text-center">
-            <div className={`text-2xl font-black ${k.color}`}>{k.value}</div>
-            <div className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mt-0.5">{k.label}</div>
+      {/* Abschlussbericht (abgeschlossen) bzw. einfache Zähler (offen) */}
+      {abgeschlossen ? (
+        <div className="bg-white dark:bg-[#242526] rounded-2xl border-2 border-[#04B475]/40 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 bg-[#04B475]/10 border-b border-[#04B475]/30 flex items-center justify-between gap-2 flex-wrap">
+            <h2 className="font-black text-sm uppercase tracking-wider text-[#04713f] dark:text-[#04B475]">✓ Abschlussbericht</h2>
+            <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+              Abgeschlossen: {data.abgeschlossenAm ? fmtDatum(data.abgeschlossenAm) : "—"}
+              {(data.abschliesser?.kuerzel || data.abschliesser?.name) ? ` · ${data.abschliesser?.kuerzel ?? data.abschliesser?.name}` : ""}
+            </span>
           </div>
-        ))}
-      </div>
+          <div className="p-5 space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: "Gesamt",         value: gesamt,                color: "text-[#202F61] dark:text-[#e4e6eb]" },
+                { label: "Gefunden",       value: gefunden,              color: "text-[#04B475]" },
+                { label: "Nicht gefunden", value: nichtGefundene.length, color: "text-[#b3261e]" },
+                { label: "Quote",          value: `${pct}%`,             color: "text-[#202F61] dark:text-[#e4e6eb]" },
+              ].map((k) => (
+                <div key={k.label} className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-4 text-center">
+                  <div className={`text-2xl font-black ${k.color}`}>{k.value}</div>
+                  <div className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mt-0.5">{k.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {nichtGefundene.length > 0 && (
+              <div className="rounded-xl border border-[#fa3e3e]/30 overflow-hidden">
+                <div className="px-4 py-2 bg-[#fa3e3e]/10 text-sm font-bold text-[#b3261e]">
+                  ✗ Nicht gefunden ({nichtGefundene.length})
+                </div>
+                <div className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+                  {nichtGefundene.map((p) => (
+                    <div key={p.id} className="flex items-center gap-3 px-4 py-2 flex-wrap gap-y-0.5 text-sm">
+                      <span className="font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] min-w-[110px]">{formatLogId(p.logId)}</span>
+                      <span className="text-xs text-[#65676b] dark:text-[#b0b3b8] min-w-[70px]">Colli {p.colli ?? "—"}</span>
+                      <span className="text-xs text-[#65676b] dark:text-[#b0b3b8] min-w-[70px]">{p.stellplatz ?? "—"}</span>
+                      <span className="flex-1 min-w-0 truncate text-[#1a1a1a] dark:text-[#e4e6eb]" title={p.bezeichnung ?? ""}>{p.bezeichnung ?? "—"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Gesamt",   value: gesamt,   color: "text-[#202F61] dark:text-[#e4e6eb]" },
+            { label: "Offen",    value: offen,    color: "text-[#65676b] dark:text-[#b0b3b8]" },
+            { label: "Gefunden", value: gefunden, color: "text-[#04B475]" },
+          ].map((k) => (
+            <div key={k.label} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-4 text-center">
+              <div className={`text-2xl font-black ${k.color}`}>{k.value}</div>
+              <div className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mt-0.5">{k.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Positionen gruppiert nach Colli */}
       <div className="space-y-4">
@@ -149,7 +228,7 @@ export default function PickupDetailPage() {
                 📦 Colli {g.colli || "— (ohne Colli)"}
               </h2>
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff]">
-                {g.items.length} {g.items.length === 1 ? "Position" : "Positionen"}
+                {g.items.filter((p) => p.status === "GEFUNDEN").length}/{g.items.length} gefunden
               </span>
             </div>
             <div className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">

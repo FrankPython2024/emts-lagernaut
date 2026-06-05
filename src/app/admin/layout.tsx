@@ -288,11 +288,17 @@ function SocketNotifications() {
       const a = d as { techniker: string; teil: string };
       show(`🔔 Neue Anfrage: ${a.teil} (${a.techniker})`, "info");
     });
+    on(EVENTS.PICKUP_ABGESCHLOSSEN, (d: unknown) => {
+      const p = d as { name: string; gesamt: number; gefunden: number; nichtGefunden: number };
+      const text = `✅ Pickup „${p.name}" abgeschlossen — ${p.gefunden}/${p.gesamt} gefunden${p.nichtGefunden > 0 ? `, ${p.nichtGefunden} nicht gefunden` : ""}`;
+      show(text, p.nichtGefunden > 0 ? "warning" : "success");
+    });
 
     return () => {
       off(EVENTS.TECHNIKER_ONLINE);
       off(EVENTS.TECHNIKER_OFFLINE);
       off(EVENTS.ANFRAGE_NEU);
+      off(EVENTS.PICKUP_ABGESCHLOSSEN);
     };
   }, [on, off, show]);
 

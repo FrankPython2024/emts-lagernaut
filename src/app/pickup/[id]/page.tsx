@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
 import { formatLogId } from "@/lib/pickup/logId";
@@ -84,12 +84,22 @@ export default function PickupScanPage() {
 
   const params = useParams<{ id: string }>();
   const id = Number(params?.id);
+  const router = useRouter();
   const utils = api.useUtils();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [eingabe, setEingabe]       = useState("");
   const [feedback, setFeedback]     = useState<Feedback | null>(null);
   const [fremdScans, setFremdScans] = useState<{ logId: string; zeit: Date }[]>([]);
+  const [abschlussDialog, setAbschlussDialog] = useState(false);
+  const [abschlussErgebnis, setAbschlussErgebnis] = useState<{ name: string; gesamt: number; gefunden: number; nichtGefunden: number } | null>(null);
+
+  const abschliessen = api.pickup.abschliessen.useMutation({
+    onSuccess: (r) => {
+      setAbschlussErgebnis({ name: r.name, gesamt: r.gesamt, gefunden: r.gefunden, nichtGefunden: r.nichtGefunden });
+      setTimeout(() => router.push("/pickup"), 1800);
+    },
+  });
 
   const { data, isLoading, error } = api.pickup.pickDetails.useQuery(
     { id },
@@ -174,6 +184,14 @@ export default function PickupScanPage() {
               </div>
             )}
           </div>
+          {data && (
+            <button
+              onClick={() => setAbschlussDialog(true)}
+              className="inline-flex items-center gap-2 px-5 rounded-xl bg-[#04B475] text-white text-base font-bold hover:bg-[#039c64] transition-colors shadow-sm min-h-[56px] flex-shrink-0"
+            >
+              ✓ Auftrag abschließen
+            </button>
+          )}
         </div>
 
         {error || (!isLoading && !data) ? (
@@ -292,6 +310,50 @@ export default function PickupScanPage() {
               })}
             </div>
           </>
+        )}
+
+        {/* Abschluss-Dialog (Bestätigung + Erfolg) */}
+        {abschlussDialog && data && (
+          <div role="dialog" aria-modal="true" aria-labelledby="pickup-abschluss-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => { if (!abschliessen.isPending && !abschlussErgebnis) setAbschlussDialog(false); }}>
+            <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              {abschlussErgebnis ? (
+                <div className="px-6 py-8 text-center space-y-3">
+                  <div className="text-5xl" aria-hidden>✅</div>
+                  <h2 className="font-black text-xl text-[#202F61] dark:text-[#e4e6eb]">Auftrag abgeschlossen</h2>
+                  <p className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">
+                    {abschlussErgebnis.gefunden} von {abschlussErgebnis.gesamt} gefunden{abschlussErgebnis.nichtGefunden > 0 ? `, ${abschlussErgebnis.nichtGefunden} nicht gefunden` : ""}.
+                  </p>
+                  <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Weiter zur Auftragsliste…</p>
+                </div>
+              ) : (
+                <>
+                  <div className="px-6 pt-6 pb-4 text-center space-y-3">
+                    <div className="text-4xl" aria-hidden>{(data.gesamt - data.gefunden) > 0 ? "⚠️" : "✓"}</div>
+                    <h2 id="pickup-abschluss-title" className="font-black text-lg text-[#202F61] dark:text-[#e4e6eb]">Auftrag abschließen?</h2>
+                    <div className="px-4 py-3 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                      <strong>{data.gefunden}</strong> von <strong>{data.gesamt}</strong> Positionen gefunden.
+                    </div>
+                    {(data.gesamt - data.gefunden) > 0 && (
+                      <div className="px-4 py-3 rounded-xl text-sm font-semibold" style={{ background: "rgba(186,117,23,0.12)", color: "#BA7517" }}>
+                        ⚠ {data.gesamt - data.gefunden} Positionen wurden NICHT gefunden — trotzdem abschließen?
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-3 px-6 pb-6">
+                    <button onClick={() => setAbschlussDialog(false)} disabled={abschliessen.isPending}
+                      className="flex-1 text-sm text-[#65676b] dark:text-[#b0b3b8] font-semibold border border-[#ced4da] dark:border-[#3e4042] rounded-xl hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[56px] disabled:opacity-50">
+                      Abbrechen
+                    </button>
+                    <button onClick={() => abschliessen.mutate({ id })} disabled={abschliessen.isPending}
+                      className="flex-1 bg-[#04B475] text-white text-sm font-bold rounded-xl hover:bg-[#039c64] disabled:opacity-50 transition-colors min-h-[56px]">
+                      {abschliessen.isPending ? "Schließe ab…" : "Ja, abschließen"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         )}
     </div>
   );

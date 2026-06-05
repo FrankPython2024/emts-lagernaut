@@ -4,6 +4,8 @@ import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import type { SessionUser } from "@/core/types";
 import { normalizeLogId } from "@/lib/pickup/logId";
+import { emitToAdmins } from "@/modules/realtime/socket";
+import { EVENTS } from "@/modules/realtime/events";
 
 // Verwaltung (anlegen/liste/details/löschen) erfordert PICKUP_MANAGE.
 // Picken (Scan-Ansicht) erfordert PICKUP_PICK. Admin hat beides über die
@@ -78,8 +80,9 @@ export const pickupRouter = createTRPCRouter({
       const auftrag = await prisma.pickupAuftrag.findUnique({
         where:   { id: input.id },
         include: {
-          ersteller:  { select: { name: true, kuerzel: true } },
-          positionen: true,
+          ersteller:    { select: { name: true, kuerzel: true } },
+          abschliesser: { select: { name: true, kuerzel: true } },
+          positionen:   { include: { finder: { select: { name: true, kuerzel: true } } } },
         },
       });
       if (!auftrag) throw new TRPCError({ code: "NOT_FOUND", message: "Pickup-Auftrag nicht gefunden" });
@@ -228,6 +231,48 @@ export const pickupRouter = createTRPCRouter({
       await prisma.pickupPosition.update({
         where: { id: input.positionId },
         data:  { status: "OFFEN", gefundenVon: null, gefundenAm: null },
+      });
+      return { ok: true };
+    }),
+
+  // Auftrag abschließen (PICKUP_PICK). Idempotent: schon abgeschlossen → nur
+  // aktuellen Stand zurück. Meldet Admins per Socket. Kein Bestand-Effekt.
+  abschliessen: pickupPick
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const user    = ctx.session.user as SessionUser;
+      const auftrag = await prisma.pickupAuftrag.findUnique({ where: { id: input.id } });
+      if (!auftrag) throw new TRPCError({ code: "NOT_FOUND", message: "Pickup-Auftrag nicht gefunden" });
+
+      const positionen    = await prisma.pickupPosition.findMany({ where: { auftragId: input.id }, select: { status: true } });
+      const gesamt        = positionen.length;
+      const gefunden      = positionen.filter((p) => p.status === "GEFUNDEN").length;
+      const nichtGefunden = gesamt - gefunden;
+      const zusammenfassung = { name: auftrag.name, gesamt, gefunden, nichtGefunden };
+
+      // Idempotent
+      if (auftrag.status === "abgeschlossen") {
+        return { ...zusammenfassung, schonAbgeschlossen: true };
+      }
+
+      await prisma.pickupAuftrag.update({
+        where: { id: input.id },
+        data:  { status: "abgeschlossen", abgeschlossenAm: new Date(), abgeschlossenVon: user.id },
+      });
+
+      // Admin-Meldung (gleiche Schiene wie neue Anfrage)
+      emitToAdmins(EVENTS.PICKUP_ABGESCHLOSSEN, { id: input.id, name: auftrag.name, gesamt, gefunden, nichtGefunden });
+
+      return { ...zusammenfassung, schonAbgeschlossen: false };
+    }),
+
+  // Auftrag wieder öffnen (nur Admin / PICKUP_MANAGE) — für Korrekturen.
+  wiederOeffnen: pickupManage
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      await prisma.pickupAuftrag.update({
+        where: { id: input.id },
+        data:  { status: "offen", abgeschlossenAm: null, abgeschlossenVon: null },
       });
       return { ok: true };
     }),

@@ -27,7 +27,8 @@ model User {
   standortAccess  UserStandortAccess[]
   externeBestellungen ExterneBestellung[]
   colliDruckLogs  ColliDruckLog[]
-  pickupAuftraege PickupAuftrag[]
+  pickupAuftraege PickupAuftrag[] @relation("PickupErsteller")
+  pickupAbgeschlossen PickupAuftrag[] @relation("PickupAbschliesser")
   pickupGefunden  PickupPosition[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -471,9 +472,11 @@ model PickupAuftrag {
   bemerkung       String?   @db.Text // optionaler Freitext (z.B. Verkäufer-Reservierungsnummer)
   status          String    @default("offen") // 'offen' | 'abgeschlossen'
   erstelltVon     Int
-  ersteller       User      @relation(fields: [erstelltVon], references: [id])
+  ersteller       User      @relation("PickupErsteller", fields: [erstelltVon], references: [id])
   createdAt       DateTime  @default(now())
   abgeschlossenAm DateTime?
+  abgeschlossenVon Int?
+  abschliesser    User?     @relation("PickupAbschliesser", fields: [abgeschlossenVon], references: [id])
   positionen      PickupPosition[]
 
   @@index([status])

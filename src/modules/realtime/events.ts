@@ -24,6 +24,9 @@ export const EVENTS = {
   // Activity
   ACTIVITY_NEU:      "activity:neu",
 
+  // Pickup
+  PICKUP_ABGESCHLOSSEN: "pickup:abgeschlossen",
+
   // Externe Bestellungen (Bestell-Empfehlungs-System)
   BESTELLUNG_ERFASST:      "bestellung:erfasst",
   BESTELLUNG_AKTUALISIERT: "bestellung:aktualisiert",

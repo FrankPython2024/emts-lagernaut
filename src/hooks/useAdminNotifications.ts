@@ -79,6 +79,26 @@ export function useAdminNotifications(): void {
     return () => off(EVENTS.ANFRAGE_NEU);
   }, [active, on, off]);
 
+  // ── Trigger 1b: Pickup abgeschlossen (Socket) ─────────────────────────────
+  // Gleiche Schiene: Ping (Glocken-Toggle respektiert) + Browser-Notification,
+  // wenn das Fenster nicht aktiv ist. Der Toast kommt aus dem Admin-Layout.
+  useEffect(() => {
+    if (!active) return;
+    const handler = (d: unknown) => {
+      const p = d as { id: number; name: string; gesamt: number; gefunden: number; nichtGefunden: number };
+      playPing();
+      if (!document.hidden && document.hasFocus()) return;
+      zeigeAnfrageNotification({
+        title: "Pickup abgeschlossen",
+        body:  `${p.name} — ${p.gefunden}/${p.gesamt} gefunden${p.nichtGefunden > 0 ? `, ${p.nichtGefunden} nicht gefunden` : ""}`,
+        tag:   `pickup-abgeschlossen-${p.id}`,
+        href:  `/admin/pickup/${p.id}`,
+      });
+    };
+    on(EVENTS.PICKUP_ABGESCHLOSSEN, handler);
+    return () => off(EVENTS.PICKUP_ABGESCHLOSSEN);
+  }, [active, on, off]);
+
   // ── Trigger 2: Überfälligkeit (1h überschritten) ──────────────────────────
   useEffect(() => {
     if (!active || !offene) return;
