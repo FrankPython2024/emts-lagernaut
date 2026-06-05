@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
 import { formatLogId } from "@/lib/pickup/logId";
@@ -83,7 +84,6 @@ export default function PickupScanPage() {
 
   const params = useParams<{ id: string }>();
   const id = Number(params?.id);
-  const router = useRouter();
   const utils = api.useUtils();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -148,23 +148,22 @@ export default function PickupScanPage() {
   }
 
   if (permsLoading) {
-    return <div className="min-h-screen flex items-center justify-center text-[#65676b] dark:text-[#b0b3b8]">Lade Berechtigungen…</div>;
+    return <div className="py-16 text-center text-[#65676b] dark:text-[#b0b3b8]">Lade Berechtigungen…</div>;
   }
   if (!darfPick) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 text-center text-[#65676b] dark:text-[#b0b3b8]">
+      <div className="py-16 text-center text-[#65676b] dark:text-[#b0b3b8]">
         Kein Zugriff auf die Scan-Ansicht. Bitte das Recht <strong className="mx-1">PICKUP_PICK</strong> bei der Rolle aktivieren.
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb]">
-      <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-5">
+    <div className="space-y-5">
         {/* Kopf */}
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="min-w-0">
-            <button onClick={() => router.back()} className="text-[#65676b] dark:text-[#b0b3b8] hover:text-[#008BD2] text-sm mb-1">← Zurück</button>
+            <Link href="/pickup" className="inline-block text-[#65676b] dark:text-[#b0b3b8] hover:text-[#008BD2] text-sm mb-1">← Zur Auftragsliste</Link>
             <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb] truncate">
               {isLoading ? "Lade…" : (data?.name ?? "Pickup")}
             </h1>
@@ -294,7 +293,6 @@ export default function PickupScanPage() {
             </div>
           </>
         )}
-      </div>
     </div>
   );
 }

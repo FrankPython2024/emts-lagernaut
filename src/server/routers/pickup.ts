@@ -139,6 +139,36 @@ export const pickupRouter = createTRPCRouter({
 
   // ── Picken (PICKUP_PICK) ──────────────────────────────────────────────────
 
+  // Offene Aufträge für die Picker-Startseite (nur OFFENE, mit Zählern).
+  offeneAuftraege: pickupPick.query(async () => {
+    const auftraege = await prisma.pickupAuftrag.findMany({
+      where:   { status: "offen" },
+      orderBy: { createdAt: "desc" },
+    });
+    const ids = auftraege.map((a) => a.id);
+    const counts = ids.length
+      ? await prisma.pickupPosition.groupBy({
+          by:     ["auftragId", "status"],
+          where:  { auftragId: { in: ids } },
+          _count: { _all: true },
+        })
+      : [];
+    const zaehler = new Map<number, { gesamt: number; gefunden: number }>();
+    for (const c of counts) {
+      const e = zaehler.get(c.auftragId) ?? { gesamt: 0, gefunden: 0 };
+      e.gesamt += c._count._all;
+      if (c.status === "GEFUNDEN") e.gefunden += c._count._all;
+      zaehler.set(c.auftragId, e);
+    }
+    return auftraege.map((a) => ({
+      id:        a.id,
+      name:      a.name,
+      bemerkung: a.bemerkung,
+      createdAt: a.createdAt,
+      ...(zaehler.get(a.id) ?? { gesamt: 0, gefunden: 0 }),
+    }));
+  }),
+
   // Auftrag + Positionen für die Scan-Ansicht (inkl. Finder-Name + gefundenAm).
   pickDetails: pickupPick
     .input(z.object({ id: z.number().int().positive() }))
