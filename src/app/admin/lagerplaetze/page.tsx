@@ -9,6 +9,7 @@ import { useStandortFilter } from "@/lib/standort/standortContext";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { usePermissions } from "@/hooks/usePermissions";
+import { UmlagernModal } from "@/components/admin/UmlagernModal";
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
 
@@ -66,6 +67,8 @@ function EtlDetailModal({ platz, onClose, onChanged }: { platz: EtlPlatz; onClos
     onError: (e) => show(e.message, "error"),
   });
 
+  const [umlagern, setUmlagern] = useState<{ modellId: number; modellName: string; hersteller: string } | null>(null);
+
   const belegungen = d?.belegungen ?? [];
 
   return (
@@ -113,16 +116,25 @@ function EtlDetailModal({ platz, onClose, onChanged }: { platz: EtlPlatz; onClos
                     <div style={{ fontWeight: 800, fontSize: "1rem", color: "var(--text)", wordBreak: "break-word" }}>{b.modellName}</div>
                     <div style={{ fontSize: "0.8rem", color: herstellerFarbe(b.hersteller).textColor, fontWeight: 600 }}>{b.hersteller}</div>
                   </div>
-                  <button
-                    onClick={() => {
-                      if (confirm(`Modell „${b.modellName}" aus Fach ${platz.code} entfernen?`)) loesen.mutate({ modellId: b.modellId });
-                    }}
-                    disabled={loesen.isPending}
-                    aria-label={`Modell ${b.modellName} aus Fach entfernen`}
-                    style={{ flexShrink: 0, minHeight: 36, padding: "0.3rem 0.7rem", borderRadius: 8, border: "1px solid var(--afb-red, #fa3e3e)", background: "transparent", color: "var(--afb-red, #fa3e3e)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontWeight: 700, fontSize: "0.78rem" }}
-                  >
-                    Entfernen
-                  </button>
+                  <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <button
+                      onClick={() => setUmlagern({ modellId: b.modellId, modellName: b.modellName, hersteller: b.hersteller })}
+                      aria-label={`Modell ${b.modellName} umlagern`}
+                      style={{ minHeight: 36, padding: "0.3rem 0.7rem", borderRadius: 8, border: "1px solid #008BD2", background: "transparent", color: "#008BD2", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontWeight: 700, fontSize: "0.78rem" }}
+                    >
+                      Umlagern
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Modell „${b.modellName}" aus Fach ${platz.code} entfernen?`)) loesen.mutate({ modellId: b.modellId });
+                      }}
+                      disabled={loesen.isPending}
+                      aria-label={`Modell ${b.modellName} aus Fach entfernen`}
+                      style={{ minHeight: 36, padding: "0.3rem 0.7rem", borderRadius: 8, border: "1px solid var(--afb-red, #fa3e3e)", background: "transparent", color: "var(--afb-red, #fa3e3e)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontWeight: 700, fontSize: "0.78rem" }}
+                    >
+                      Entfernen
+                    </button>
+                  </div>
                 </div>
 
                 {b.artikel.length === 0 ? (
@@ -158,6 +170,18 @@ function EtlDetailModal({ platz, onClose, onChanged }: { platz: EtlPlatz; onClos
           </button>
         </div>
       </div>
+
+      {/* Umlagern-Dialog (über dem Fach-Detail gestapelt) */}
+      {umlagern && (
+        <UmlagernModal
+          modellId={umlagern.modellId}
+          modellName={umlagern.modellName}
+          hersteller={umlagern.hersteller}
+          aktuellesFachCode={platz.code}
+          onClose={() => setUmlagern(null)}
+          onDone={() => { detailQ.refetch(); onChanged(); }}
+        />
+      )}
     </Modal>
   );
 }

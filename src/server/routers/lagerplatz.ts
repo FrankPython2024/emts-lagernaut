@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { BuchungsTyp } from "@prisma/client";
 import { createTRPCRouter, adminProcedure, permissionProcedure } from "@/server/trpc";
+import type { SessionUser } from "@/core/types";
 
 // Read-Procedure für Lagerplatz (BETRACHTER bekommt LAGERPLATZ_VIEW).
 const lagerplatzReadProcedure = permissionProcedure("LAGERPLATZ_VIEW");
@@ -13,6 +15,13 @@ type PrismaInstance = typeof _prisma;
 
 // Geschäftsregel: 1 Fach = mehrere Modelle DESSELBEN Herstellers, max 4 (= 4 Boxen).
 const MAX_MODELLE_PRO_FACH = 4;
+
+// Artikel eines Modells bestimmen — GENAU dieselbe Logik wie zuweisen/umziehen/loesen
+// (Move-Sync). Bewusst NICHT die breitere platzDetail-Anzeige-Logik, damit die im
+// Umlager-Dialog gezeigte Liste EXAKT der tatsächlich verschobenen Menge entspricht.
+function artikelDesModellsWhere(modellName: string) {
+  return { OR: [{ bezeichnung: modellName }, { bezeichnung: { startsWith: `${modellName} ` } }] };
+}
 
 // ── Lokale Typen ──────────────────────────────────────────────────────────────
 
@@ -715,6 +724,154 @@ export const lagerplatzRouter = createTRPCRouter({
         });
 
         return { geloest: true as const };
+      });
+    }),
+
+  // ── Modell umlagern (Fach A → Fach B) ──────────────────────────────────────
+
+  // Vorschau für den Umlager-Dialog: aktuelles Fach, betroffene Artikel (gleiche
+  // Move-Sync-Logik wie der Umzug) und gültige Zielfächer (aktueller Standort,
+  // freie Kapazität, Hersteller-Reinheit, ohne das aktuelle Fach).
+  umlagerVorschau: lagerplatzReadProcedure
+    .input(z.object({ modellId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const modell = await ctx.prisma.geraeteModell.findUnique({
+        where:   { id: input.modellId },
+        include: { belegung: { include: { lagerplatz: true } } },
+      });
+      if (!modell) throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden" });
+      if (!modell.belegung) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: 'Modell hat noch kein Fach. Nutze "zuweisen".' });
+      }
+      const aktuellesFach = modell.belegung.lagerplatz;
+
+      const betroffeneArtikel = await ctx.prisma.artikel.findMany({
+        where:   artikelDesModellsWhere(modell.modell),
+        select:  { id: true, bezeichnung: true, kategorie: true, bestand: true, lagerplatz: true, standortId: true },
+        orderBy: { kategorie: "asc" },
+      });
+
+      // Zielfächer im SELBEN Standort (Standort-übergreifend folgt später)
+      const faecher = await ctx.prisma.lagerplatz.findMany({
+        where:   { standortId: aktuellesFach.standortId },
+        include: { belegungen: { include: { modell: { select: { hersteller: true, modell: true } } } } },
+        orderBy: [{ reihe: "asc" }, { fach: "desc" }, { ebene: "asc" }],
+      });
+      const zielfaecher = faecher
+        .map((f) => {
+          const belegt = f.belegungen.length;
+          const modellHersteller = belegt > 0 ? f.belegungen[0]!.modell.hersteller : null;
+          return {
+            id: f.id, code: f.code, reihe: f.reihe, ebene: f.ebene, fach: f.fach,
+            hersteller: f.hersteller, belegt, frei: MAX_MODELLE_PRO_FACH - belegt,
+            modellHersteller, modelle: f.belegungen.map((b) => b.modell.modell),
+          };
+        })
+        .filter((f) =>
+          f.id !== aktuellesFach.id &&
+          f.frei > 0 &&
+          (f.belegt === 0 || f.modellHersteller === modell.hersteller),
+        );
+
+      return {
+        modell:         { id: modell.id, modell: modell.modell, hersteller: modell.hersteller, aktiv: modell.aktiv },
+        aktuellesFach:  { id: aktuellesFach.id, code: aktuellesFach.code, standortId: aktuellesFach.standortId },
+        betroffeneArtikel,
+        zielfaecher,
+      };
+    }),
+
+  // Ein ganzes Modell von Fach A → Fach B umlagern. Verändert NUR den Lagerort,
+  // NIE den Bestand (DIREKT-Buchung als Nachweis). Transaktional.
+  umlagern: adminProcedure
+    .input(z.object({
+      modellId:          z.number().int().positive(),
+      neuerLagerplatzId: z.number().int().positive(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const mitarbeiter = (ctx.session.user as SessionUser).kuerzel;
+
+      return ctx.prisma.$transaction(async (tx) => {
+        const modell = await tx.geraeteModell.findUnique({
+          where:   { id: input.modellId },
+          include: { belegung: { include: { lagerplatz: true } } },
+        });
+        if (!modell) throw new TRPCError({ code: "NOT_FOUND", message: "Modell nicht gefunden" });
+        if (!modell.aktiv) throw new TRPCError({ code: "BAD_REQUEST", message: "Inaktives Modell kann nicht umgelagert werden" });
+        if (!modell.belegung) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: 'Modell hat noch kein Fach. Nutze "zuweisen".' });
+        }
+
+        const alterPlatz = modell.belegung.lagerplatz;
+        const neuerPlatz = await tx.lagerplatz.findUnique({ where: { id: input.neuerLagerplatzId } });
+        if (!neuerPlatz) throw new TRPCError({ code: "NOT_FOUND", message: "Zielfach nicht gefunden" });
+
+        if (neuerPlatz.id === alterPlatz.id) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Modell liegt bereits in Fach ${alterPlatz.code}.` });
+        }
+        // Vorerst nur innerhalb des aktuellen Standorts. standortId-Logik unten ist
+        // aber bereits korrekt (zieht auf Zielfach-Standort), damit Standort-
+        // übergreifend später nur diese Schranke entfällt.
+        if (neuerPlatz.standortId !== alterPlatz.standortId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Zielfach muss im selben Standort liegen (Standort-übergreifend folgt später)." });
+        }
+
+        // Zielfach-Prüfung: Kapazität + Hersteller-Reinheit (wiederverwendet)
+        const kap = await fachKapazitaet(tx, neuerPlatz.id);
+        if (kap.voll) {
+          throw new TRPCError({ code: "CONFLICT", message: `Fach ${neuerPlatz.code} ist voll (max ${MAX_MODELLE_PRO_FACH} Modelle).` });
+        }
+        const fachHerst = await fachHersteller(tx, neuerPlatz.id);
+        if (fachHerst && modell.hersteller !== fachHerst) {
+          throw new TRPCError({
+            code:    "BAD_REQUEST",
+            message: `Fach ${neuerPlatz.code} enthält ${fachHerst}-Modelle, ${modell.hersteller} ist nicht erlaubt.`,
+          });
+        }
+
+        // (Basis) Belegung-FK auf neues Fach umhängen
+        await tx.lagerplatzBelegung.update({
+          where: { id: modell.belegung.id },
+          data:  { lagerplatzId: neuerPlatz.id },
+        });
+
+        // Betroffene Artikel — identische Move-Sync-Logik
+        const artikel = await tx.artikel.findMany({
+          where:  artikelDesModellsWhere(modell.modell),
+          select: { id: true, bezeichnung: true, kategorie: true },
+        });
+
+        if (artikel.length > 0) {
+          // (a) Lücke: lagerplatz-String UND standortId auf das Zielfach ziehen
+          //     (Lagerplatz = Wahrheit).
+          await tx.artikel.updateMany({
+            where: { id: { in: artikel.map((a) => a.id) } },
+            data:  { lagerplatz: neuerPlatz.code, standortId: neuerPlatz.standortId },
+          });
+
+          // (b) Lücke: Nachweis im Activity-Feed. DIREKT = KEIN Bestand-Effekt
+          //     (heilige Regel): hier wird KEIN Artikel.bestand verändert.
+          const notiz = `Umlagerung: ${alterPlatz.code} → ${neuerPlatz.code}`;
+          await tx.buchung.createMany({
+            data: artikel.map((a) => ({
+              artikelId:   a.id,
+              bezeichnung: a.bezeichnung,
+              typ:         BuchungsTyp.DIREKT,
+              menge:       1,
+              mitarbeiter,
+              notiz,
+            })),
+          });
+        }
+
+        return {
+          von:           alterPlatz.code,
+          nach:          neuerPlatz.code,
+          modellName:    modell.modell,
+          hersteller:    modell.hersteller,
+          anzahlArtikel: artikel.length,
+          artikel:       artikel.map((a) => ({ id: a.id, bezeichnung: a.bezeichnung, kategorie: a.kategorie })),
+        };
       });
     }),
 

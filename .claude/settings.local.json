@@ -73,7 +73,13 @@
       "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'pickup|scanSound' | Select-Object -First 30)",
       "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'pickup|Pickup|error TS' | Select-Object -First 40)",
       "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'benutzer|UserPermission|getMeinePermissions|rollen|error TS' | Select-Object -First 40)",
-      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'GruppenNachrichten|chat|techniker|markGelesen|error TS' | Select-Object -First 40)"
+      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'GruppenNachrichten|chat|techniker|markGelesen|error TS' | Select-Object -First 40)",
+      "Bash(ls src/modules/kompatibilitaet/)",
+      "Bash(ls src/server/routers/kompatibilitaet.ts)",
+      "Bash(ls src/app/admin/kompatibilitaet)",
+      "Bash(sed -n '1,20p' src/components/ui/ArtikelLabel.tsx)",
+      "Bash(sed -n '156,165p' src/components/ui/ArtikelLabel.tsx)",
+      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'lagerplatz|Umlagern|umlagern|UmlagernModal|ArtikelLabel' | Select-Object -First 40)"
     ]
   }
 }
