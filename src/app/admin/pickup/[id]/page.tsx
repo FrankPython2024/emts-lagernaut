@@ -103,6 +103,12 @@ export default function PickupDetailPage() {
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
             {data.status === "offen" ? "Offen" : "Abgeschlossen"} · {fmtDatum(data.createdAt)} · {data.ersteller?.kuerzel ?? data.ersteller?.name ?? "—"}
           </p>
+          {data.bemerkung && (
+            <div className="mt-2 inline-flex items-start gap-2 px-3 py-2 rounded-xl bg-[#008BD2]/10 text-[#202F61] dark:text-[#e4e6eb] text-sm">
+              <span aria-hidden>📝</span>
+              <span className="font-semibold whitespace-pre-wrap break-words">{data.bemerkung}</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Link

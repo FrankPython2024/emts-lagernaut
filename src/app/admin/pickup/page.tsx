@@ -68,10 +68,16 @@ export default function PickupListePage() {
                 href={`/admin/pickup/${a.id}`}
                 className="block bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 hover:border-[#008BD2] hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-[#008BD2]/40"
               >
-                <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex items-start justify-between gap-3 mb-1">
                   <h2 className="font-black text-[#202F61] dark:text-[#e4e6eb] truncate">{a.name}</h2>
                   <StatusBadge status={a.status} />
                 </div>
+                {a.bemerkung && (
+                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-3 truncate" title={a.bemerkung}>
+                    📝 {a.bemerkung}
+                  </div>
+                )}
+                {!a.bemerkung && <div className="mb-3" />}
 
                 {/* Fortschritt */}
                 <div className="mb-2">

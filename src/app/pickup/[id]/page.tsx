@@ -168,6 +168,12 @@ export default function PickupScanPage() {
             <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb] truncate">
               {isLoading ? "Lade…" : (data?.name ?? "Pickup")}
             </h1>
+            {data?.bemerkung && (
+              <div className="mt-1 inline-flex items-start gap-2 px-3 py-2 rounded-xl bg-[#008BD2]/10 text-[#202F61] dark:text-[#e4e6eb] text-base font-semibold">
+                <span aria-hidden>📝</span>
+                <span className="whitespace-pre-wrap break-words">{data.bemerkung}</span>
+              </div>
+            )}
           </div>
         </div>
 

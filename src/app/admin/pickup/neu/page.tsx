@@ -21,6 +21,7 @@ export default function PickupNeuPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [name, setName]       = useState(`Pickup ${heuteISO()}`);
+  const [bemerkung, setBemerkung] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [result, setResult]   = useState<PickupImportResult | null>(null);
@@ -67,6 +68,7 @@ export default function PickupNeuPage() {
     if (!result || result.total === 0 || !name.trim()) return;
     erstellen.mutate({
       name: name.trim(),
+      bemerkung: bemerkung.trim() || undefined,
       positionen: result.positionen.map((p) => ({
         logId: p.logId, colli: p.colli, stellplatz: p.stellplatz, bezeichnung: p.bezeichnung,
       })),
@@ -94,6 +96,21 @@ export default function PickupNeuPage() {
             onChange={(e) => setName(e.target.value)}
             maxLength={200}
             className="w-full px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#202F61] dark:text-[#e4e6eb] text-sm outline-none focus:border-[#008BD2] focus:ring-2 focus:ring-[#008BD2]/30 transition-colors min-h-[56px]"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="pickup-bemerkung" className="block text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] mb-1">
+            Bemerkung (optional)
+          </label>
+          <textarea
+            id="pickup-bemerkung"
+            value={bemerkung}
+            onChange={(e) => setBemerkung(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder="z.B. Verkäufer-Reservierungsnummer"
+            className="w-full px-4 py-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#202F61] dark:text-[#e4e6eb] text-sm outline-none focus:border-[#008BD2] focus:ring-2 focus:ring-[#008BD2]/30 transition-colors resize-y min-h-[56px]"
           />
         </div>
 

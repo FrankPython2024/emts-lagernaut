@@ -468,6 +468,7 @@ model ColliDruckLog {
 model PickupAuftrag {
   id              Int       @id @default(autoincrement())
   name            String
+  bemerkung       String?   @db.Text // optionaler Freitext (z.B. Verkäufer-Reservierungsnummer)
   status          String    @default("offen") // 'offen' | 'abgeschlossen'
   erstelltVon     Int
   ersteller       User      @relation(fields: [erstelltVon], references: [id])
