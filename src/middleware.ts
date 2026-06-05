@@ -41,9 +41,13 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  // /pickup → nur Login-Pflicht (oben erzwungen). Feingranulare Berechtigung
+  // (PICKUP_PICK) prüft die Seite + die tRPC-Procedures; daher hier KEINE
+  // Rollen-Einschränkung (PICKUP-Rolle, ADMIN via Wildcard, künftige Rollen).
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/techniker/:path*"],
+  matcher: ["/admin/:path*", "/techniker/:path*", "/pickup/:path*"],
 };

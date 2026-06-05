@@ -6,9 +6,10 @@ import type { SessionUser } from "@/core/types";
 import { normalizeLogId } from "@/lib/pickup/logId";
 
 // Verwaltung (anlegen/liste/details/löschen) erfordert PICKUP_MANAGE.
-// Admin hat das über die SYSTEM_ADMIN-Wildcard. (Das Picken via PICKUP_PICK
-// kommt in S3 — hier noch nicht.)
+// Picken (Scan-Ansicht) erfordert PICKUP_PICK. Admin hat beides über die
+// SYSTEM_ADMIN-Wildcard.
 const pickupManage = permissionProcedure("PICKUP_MANAGE");
+const pickupPick   = permissionProcedure("PICKUP_PICK");
 
 const positionInput = z.object({
   logId:       z.string(),
@@ -16,6 +17,25 @@ const positionInput = z.object({
   stellplatz:  z.string().nullish(),
   bezeichnung: z.string().nullish(),
 });
+
+// Position für die Scan-Ansicht aufbereiten (Finder-Name auflösen).
+type PosMitFinder = {
+  id: number; logId: string; colli: string | null; stellplatz: string | null;
+  bezeichnung: string | null; status: string; gefundenAm: Date | null;
+  finder: { name: string; kuerzel: string } | null;
+};
+function shapePos(p: PosMitFinder) {
+  return {
+    id:              p.id,
+    logId:           p.logId,
+    colli:           p.colli,
+    stellplatz:      p.stellplatz,
+    bezeichnung:     p.bezeichnung,
+    status:          p.status,
+    gefundenVonName: p.finder?.kuerzel ?? p.finder?.name ?? null,
+    gefundenAm:      p.gefundenAm,
+  };
+}
 
 export const pickupRouter = createTRPCRouter({
 
@@ -111,6 +131,70 @@ export const pickupRouter = createTRPCRouter({
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       await prisma.pickupAuftrag.delete({ where: { id: input.id } });
+      return { ok: true };
+    }),
+
+  // ── Picken (PICKUP_PICK) ──────────────────────────────────────────────────
+
+  // Auftrag + Positionen für die Scan-Ansicht (inkl. Finder-Name + gefundenAm).
+  pickDetails: pickupPick
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const auftrag = await prisma.pickupAuftrag.findUnique({
+        where:   { id: input.id },
+        include: { positionen: { include: { finder: { select: { name: true, kuerzel: true } } } } },
+      });
+      if (!auftrag) throw new TRPCError({ code: "NOT_FOUND", message: "Pickup-Auftrag nicht gefunden" });
+      const positionen = auftrag.positionen.map(shapePos);
+      return {
+        id:        auftrag.id,
+        name:      auftrag.name,
+        status:    auftrag.status,
+        createdAt: auftrag.createdAt,
+        gesamt:    positionen.length,
+        gefunden:  positionen.filter((p) => p.status === "GEFUNDEN").length,
+        positionen,
+      };
+    }),
+
+  // Ein Scan. EXAKTE LogID-Zuordnung (kein fuzzy). Kein Bestand-Effekt.
+  scan: pickupPick
+    .input(z.object({ auftragId: z.number().int().positive(), logIdRaw: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const user  = ctx.session.user as SessionUser;
+      const logId = normalizeLogId(input.logIdRaw);
+      if (!logId) return { result: "FREMD" as const, logId: "", position: null };
+
+      const pos = await prisma.pickupPosition.findFirst({
+        where:   { auftragId: input.auftragId, logId },
+        include: { finder: { select: { name: true, kuerzel: true } } },
+      });
+
+      // Nicht auf dieser Liste → NICHTS in der DB ändern.
+      if (!pos) return { result: "FREMD" as const, logId, position: null };
+
+      // Schon gefunden → nur melden.
+      if (pos.status === "GEFUNDEN") {
+        return { result: "SCHON" as const, logId, position: shapePos(pos) };
+      }
+
+      // OFFEN → als GEFUNDEN persistieren.
+      const updated = await prisma.pickupPosition.update({
+        where:   { id: pos.id },
+        data:    { status: "GEFUNDEN", gefundenVon: user.id, gefundenAm: new Date() },
+        include: { finder: { select: { name: true, kuerzel: true } } },
+      });
+      return { result: "GEFUNDEN" as const, logId, position: shapePos(updated) };
+    }),
+
+  // Versehentlichen Treffer zurücksetzen: GEFUNDEN → OFFEN.
+  treffersZuruecksetzen: pickupPick
+    .input(z.object({ positionId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      await prisma.pickupPosition.update({
+        where: { id: input.positionId },
+        data:  { status: "OFFEN", gefundenVon: null, gefundenAm: null },
+      });
       return { ok: true };
     }),
 });

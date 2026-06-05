@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
@@ -103,12 +104,20 @@ export default function PickupDetailPage() {
             {data.status === "offen" ? "Offen" : "Abgeschlossen"} · {fmtDatum(data.createdAt)} · {data.ersteller?.kuerzel ?? data.ersteller?.name ?? "—"}
           </p>
         </div>
-        <button
-          onClick={() => setLoeschDialog(true)}
-          className="inline-flex items-center gap-2 px-4 rounded-xl border border-[#fa3e3e]/40 text-[#fa3e3e] text-sm font-bold hover:bg-[#fa3e3e]/10 transition-colors min-h-[56px]"
-        >
-          🗑️ Löschen
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/pickup/${id}`}
+            className="inline-flex items-center gap-2 px-5 rounded-xl bg-[#008BD2] text-white text-sm font-bold hover:bg-[#0077b5] transition-colors shadow-sm min-h-[56px]"
+          >
+            ▶ Scannen
+          </Link>
+          <button
+            onClick={() => setLoeschDialog(true)}
+            className="inline-flex items-center gap-2 px-4 rounded-xl border border-[#fa3e3e]/40 text-[#fa3e3e] text-sm font-bold hover:bg-[#fa3e3e]/10 transition-colors min-h-[56px]"
+          >
+            🗑️ Löschen
+          </button>
+        </div>
       </div>
 
       {/* Zähler */}
