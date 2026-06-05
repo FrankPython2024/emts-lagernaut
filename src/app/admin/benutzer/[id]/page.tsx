@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { UserRolle } from "@prisma/client";
 import { api } from "@/trpc/react";
@@ -53,6 +53,27 @@ export default function BenutzerDetailPage() {
       setZusaetzlich(new Set(accessQ.data.zusaetzlicheStandortIds));
     }
   }, [accessQ.data]);
+
+  // ── Zusatz-Rechte (zusätzlich zur Rolle) ──────────────────────────────────
+  const permsQ  = api.rollen.listPermissions.useQuery();
+  const extraQ  = api.benutzer.getExtraRechte.useQuery({ userId });
+  const setExtra = api.benutzer.setExtraRechte.useMutation({
+    onSuccess: () => { show("✅ Zusatz-Rechte gespeichert", "success"); extraQ.refetch(); },
+    onError:   (e) => show(e.message, "error"),
+  });
+  const [extraSel, setExtraSel] = useState<Set<string>>(new Set());
+  useEffect(() => { if (extraQ.data) setExtraSel(new Set(extraQ.data.extra)); }, [extraQ.data]);
+
+  const rolleRechteSet = useMemo(() => new Set(extraQ.data?.rolleRechte ?? []), [extraQ.data]);
+  const rechteGruppen = useMemo(() => {
+    const map = new Map<string, { key: string; bezeichnung: string }[]>();
+    for (const p of permsQ.data ?? []) {
+      const arr = map.get(p.kategorie) ?? [];
+      arr.push({ key: p.key, bezeichnung: p.bezeichnung });
+      map.set(p.kategorie, arr);
+    }
+    return [...map.entries()];
+  }, [permsQ.data]);
 
   if (isLoading) return <PageLoader />;
   if (!user) return <div className="text-[#fa3e3e]">Benutzer nicht gefunden.</div>;
@@ -181,6 +202,67 @@ export default function BenutzerDetailPage() {
 
             <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] italic">
               Hinweis: Änderungen wirken erst nach Re-Login beim betroffenen Benutzer.
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* Zusätzliche Rechte (zusätzlich zur Rolle) */}
+      <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-6 shadow-sm space-y-4">
+        <div className="border-b border-[#ced4da] dark:border-[#3e4042] pb-3">
+          <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Zusätzliche Rechte (zusätzlich zur Rolle)</h2>
+          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+            Einzelne Rechte zusätzlich zur Rolle <strong>{extraQ.data?.rolle ?? user.rolle}</strong>. Ausgegraute sind bereits durch die Rolle abgedeckt.
+          </p>
+        </div>
+
+        {permsQ.isLoading || extraQ.isLoading ? (
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Lade…</p>
+        ) : (
+          <>
+            {rechteGruppen.map(([kategorie, perms]) => (
+              <fieldset key={kategorie}>
+                <legend className="text-xs uppercase font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1">{kategorie}</legend>
+                <div className="space-y-0.5">
+                  {perms.map((p) => {
+                    const durchRolle = rolleRechteSet.has(p.key);
+                    const checked    = durchRolle || extraSel.has(p.key);
+                    return (
+                      <label key={p.key} className={`flex items-center gap-2 py-1 min-h-[44px] ${durchRolle ? "opacity-60" : "cursor-pointer"}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={durchRolle}
+                          onChange={() => setExtraSel((prev) => {
+                            const n = new Set(prev);
+                            if (n.has(p.key)) n.delete(p.key); else n.add(p.key);
+                            return n;
+                          })}
+                          className="w-4 h-4 accent-[#0064d2] flex-shrink-0"
+                        />
+                        <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                          {p.bezeichnung} <span className="text-[#65676b] dark:text-[#b0b3b8] font-mono text-[11px]">{p.key}</span>
+                        </span>
+                        {durchRolle && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#65676b]/10 text-[#65676b] dark:text-[#b0b3b8] whitespace-nowrap">bereits durch Rolle</span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            ))}
+
+            <button
+              onClick={() => setExtra.mutate({ userId, rechte: [...extraSel].filter((k) => !rolleRechteSet.has(k)) })}
+              disabled={setExtra.isPending}
+              className="px-6 py-2.5 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 min-h-[44px]"
+            >
+              {setExtra.isPending ? "..." : "Zusatz-Rechte speichern"}
+            </button>
+
+            <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] italic">
+              Wirkt sofort (serverseitig live). Die Menü-/Sidebar-Anzeige beim Benutzer folgt nach kurzer Zeit (spätestens nach einem Reload) — <strong>kein Neu-Anmelden nötig</strong>.
             </p>
           </>
         )}

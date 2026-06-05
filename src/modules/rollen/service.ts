@@ -70,13 +70,29 @@ export async function loescheRolle(id: number) {
   return { geloescht: rolle.name };
 }
 
-export async function getMeinePermissions(rolleName: string): Promise<string[]> {
-  const rolle = await prisma.rolle.findUnique({
-    where:   { name: rolleName },
-    include: { permissions: { include: { permission: true } } },
-  });
-  if (!rolle || !rolle.aktiv) return [];
-  return rolle.permissions.map(rp => rp.permission.key);
+/**
+ * Effektive Rechte eines Users = Rollen-Rechte ∪ Zusatz-Rechte (distinct).
+ * Wird live aus der DB aufgelöst (NICHT im Session-Token gecacht) → Änderungen
+ * greifen ohne Re-Login. `userId` optional, damit Alt-Aufrufer (nur Rolle)
+ * weiter funktionieren; ohne userId gibt es keine Zusatz-Rechte.
+ *
+ * Hinweis: Zusatz-Rechte verweisen per FK auf existierende Permissions; gelöschte
+ * Rechte räumt der Cascade weg, daher entstehen hier keine ungültigen Codes.
+ */
+export async function getMeinePermissions(rolleName: string, userId?: number): Promise<string[]> {
+  const [rolle, extra] = await Promise.all([
+    prisma.rolle.findUnique({
+      where:   { name: rolleName },
+      include: { permissions: { include: { permission: true } } },
+    }),
+    userId
+      ? prisma.userPermission.findMany({ where: { userId }, include: { permission: true } })
+      : Promise.resolve([] as { permission: { key: string } }[]),
+  ]);
+
+  const rollenKeys = (rolle && rolle.aktiv) ? rolle.permissions.map(rp => rp.permission.key) : [];
+  const extraKeys  = extra.map(up => up.permission.key);
+  return [...new Set([...rollenKeys, ...extraKeys])];
 }
 
 export function hasPermission(permissions: string[], key: string): boolean {

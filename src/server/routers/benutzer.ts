@@ -186,6 +186,61 @@ export const benutzerRouter = createTRPCRouter({
       });
     }),
 
+  // ── Zusatz-Rechte pro User (zusätzlich zur Rolle) ────────────────────────
+
+  // Lädt die aktuellen Zusatz-Rechte + die Rollen-Rechte (für "bereits durch Rolle").
+  getExtraRechte: adminProcedure
+    .input(z.object({ userId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const user = await prisma.user.findUnique({
+        where:  { id: input.userId },
+        select: {
+          rolle:            true,
+          extraPermissions: { select: { permission: { select: { key: true } } } },
+        },
+      });
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Benutzer nicht gefunden." });
+
+      const rolle = await prisma.rolle.findUnique({
+        where:  { name: user.rolle },
+        select: { permissions: { select: { permission: { select: { key: true } } } } },
+      });
+
+      return {
+        rolle:       user.rolle,
+        extra:       user.extraPermissions.map(p => p.permission.key),
+        rolleRechte: rolle?.permissions.map(p => p.permission.key) ?? [],
+      };
+    }),
+
+  // Ersetzt das Zusatz-Rechte-Set des Users transaktional. Nur Admin verwaltet
+  // Rechte. Ungültige/gelöschte Recht-Codes werden ignoriert (nur existierende
+  // Permissions werden verknüpft). Greift live (ohne Re-Login).
+  setExtraRechte: adminProcedure
+    .input(z.object({
+      userId: z.number().int().positive(),
+      rechte: z.array(z.string().max(50)).max(200),
+    }))
+    .mutation(async ({ input }) => {
+      const perms = await prisma.permission.findMany({
+        where:  { key: { in: input.rechte } },
+        select: { id: true },
+      });
+      const permIds = perms.map(p => p.id);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.userPermission.deleteMany({ where: { userId: input.userId } });
+        if (permIds.length > 0) {
+          await tx.userPermission.createMany({
+            data:           permIds.map(pid => ({ userId: input.userId, permissionId: pid })),
+            skipDuplicates: true,
+          });
+        }
+      });
+
+      return { gespeichert: permIds.length };
+    }),
+
   // Eigenes Passwort ändern — jeder eingeloggte User
   changePassword: protectedProcedure
     .input(z.object({

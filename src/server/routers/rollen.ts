@@ -17,7 +17,7 @@ export const rollenRouter = createTRPCRouter({
   // Permissions des eingeloggten Users (für Sidebar-Filter & has()-Checks im FE)
   meinePermissions: protectedProcedure.query(({ ctx }) => {
     const user = ctx.session.user as SessionUser;
-    return getMeinePermissions(user.rolle);
+    return getMeinePermissions(user.rolle, user.id);
   }),
 
   // Alle Rollen inkl. Permissions + Counts

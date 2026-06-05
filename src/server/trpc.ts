@@ -60,7 +60,7 @@ export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 export function permissionProcedure(requiredPermission: string) {
   return protectedProcedure.use(async ({ ctx, next }) => {
     const user        = ctx.session.user as SessionUser;
-    const permissions = await getMeinePermissions(user.rolle);
+    const permissions = await getMeinePermissions(user.rolle, user.id);
 
     if (!hasPermission(permissions, requiredPermission)) {
       throw new TRPCError({
@@ -76,7 +76,7 @@ export function permissionProcedure(requiredPermission: string) {
 // Inline-Check ohne neue Procedure. Sinnvoll wenn ein bestehender
 // adminProcedure intern feingranular prüfen soll.
 export async function requirePermission(user: SessionUser, key: string): Promise<void> {
-  const permissions = await getMeinePermissions(user.rolle);
+  const permissions = await getMeinePermissions(user.rolle, user.id);
   if (!hasPermission(permissions, key)) {
     throw new TRPCError({
       code:    "FORBIDDEN",

@@ -30,6 +30,7 @@ model User {
   pickupAuftraege PickupAuftrag[] @relation("PickupErsteller")
   pickupAbgeschlossen PickupAuftrag[] @relation("PickupAbschliesser")
   pickupGefunden  PickupPosition[]
+  extraPermissions UserPermission[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -81,6 +82,7 @@ model Permission {
   kategorie    String            @db.VarChar(50)
   beschreibung String?           @db.VarChar(255)
   rollen       RollePermission[]
+  users        UserPermission[]
 
   @@index([kategorie])
 }
@@ -95,6 +97,22 @@ model RollePermission {
 
   @@unique([rolleId, permissionId])
   @@index([rolleId])
+  @@index([permissionId])
+}
+
+// Zusatz-Rechte pro User (zusätzlich zur Rolle). Effektive Rechte eines Users =
+// Rollen-Rechte ∪ Zusatz-Rechte. Analog zu RollePermission, aber User↔Permission.
+model UserPermission {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  permissionId Int
+  createdAt    DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+  @@index([userId])
   @@index([permissionId])
 }
 
