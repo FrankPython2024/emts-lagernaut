@@ -27,6 +27,7 @@ import { bestellempfehlungRouter } from "./bestellempfehlung";
 import { datenbankRouter }         from "./datenbank";
 import { importSandboxRouter }     from "./importSandbox";
 import { colliEtikettenRouter }     from "./colliEtiketten";
+import { pickupRouter }             from "./pickup";
 
 export const appRouter = createTRPCRouter({
   lager:           lagerRouter,
@@ -57,6 +58,7 @@ export const appRouter = createTRPCRouter({
   datenbank:         datenbankRouter,
   importSandbox:     importSandboxRouter,
   colliEtiketten:    colliEtikettenRouter,
+  pickup:            pickupRouter,
 });
 
 export type AppRouter = typeof appRouter;
