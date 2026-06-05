@@ -26,6 +26,7 @@ export const EVENTS = {
 
   // Pickup
   PICKUP_ABGESCHLOSSEN: "pickup:abgeschlossen",
+  PICKUP_FORTSCHRITT:   "pickup:fortschritt",
 
   // Externe Bestellungen (Bestell-Empfehlungs-System)
   BESTELLUNG_ERFASST:      "bestellung:erfasst",

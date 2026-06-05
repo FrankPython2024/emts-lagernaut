@@ -39,6 +39,23 @@ function shapePos(p: PosMitFinder) {
   };
 }
 
+// Live-Fortschritt an Admins melden (nur Ansicht aktualisieren, KEIN Ton/Toast).
+// Fire-and-forget — Fehler werden geschluckt, damit der Scan nie blockiert.
+async function emitFortschritt(auftragId: number): Promise<void> {
+  try {
+    const [auftrag, positionen] = await Promise.all([
+      prisma.pickupAuftrag.findUnique({ where: { id: auftragId }, select: { status: true } }),
+      prisma.pickupPosition.findMany({ where: { auftragId }, select: { status: true } }),
+    ]);
+    if (!auftrag) return;
+    const gesamt   = positionen.length;
+    const gefunden = positionen.filter((p) => p.status === "GEFUNDEN").length;
+    emitToAdmins(EVENTS.PICKUP_FORTSCHRITT, { auftragId, gefunden, gesamt, status: auftrag.status });
+  } catch {
+    /* Live-Update ist Best-Effort */
+  }
+}
+
 export const pickupRouter = createTRPCRouter({
 
   // Alle Aufträge mit Zählern (gesamt/offen/gefunden), neueste zuerst.
@@ -221,6 +238,7 @@ export const pickupRouter = createTRPCRouter({
         data:    { status: "GEFUNDEN", gefundenVon: user.id, gefundenAm: new Date() },
         include: { finder: { select: { name: true, kuerzel: true } } },
       });
+      void emitFortschritt(input.auftragId); // Admin-Live-Update (ohne Ton/Toast)
       return { result: "GEFUNDEN" as const, logId, position: shapePos(updated) };
     }),
 
@@ -228,10 +246,11 @@ export const pickupRouter = createTRPCRouter({
   treffersZuruecksetzen: pickupPick
     .input(z.object({ positionId: z.number().int().positive() }))
     .mutation(async ({ input }) => {
-      await prisma.pickupPosition.update({
+      const pos = await prisma.pickupPosition.update({
         where: { id: input.positionId },
         data:  { status: "OFFEN", gefundenVon: null, gefundenAm: null },
       });
+      void emitFortschritt(pos.auftragId); // Admin-Live-Update
       return { ok: true };
     }),
 
@@ -260,8 +279,9 @@ export const pickupRouter = createTRPCRouter({
         data:  { status: "abgeschlossen", abgeschlossenAm: new Date(), abgeschlossenVon: user.id },
       });
 
-      // Admin-Meldung (gleiche Schiene wie neue Anfrage)
+      // Admin-Meldung (gleiche Schiene wie neue Anfrage) + Live-Update
       emitToAdmins(EVENTS.PICKUP_ABGESCHLOSSEN, { id: input.id, name: auftrag.name, gesamt, gefunden, nichtGefunden });
+      void emitFortschritt(input.id);
 
       return { ...zusammenfassung, schonAbgeschlossen: false };
     }),
@@ -274,6 +294,7 @@ export const pickupRouter = createTRPCRouter({
         where: { id: input.id },
         data:  { status: "offen", abgeschlossenAm: null, abgeschlossenVon: null },
       });
+      void emitFortschritt(input.id); // Admin-Live-Update (zurück ins offene Archiv)
       return { ok: true };
     }),
 });

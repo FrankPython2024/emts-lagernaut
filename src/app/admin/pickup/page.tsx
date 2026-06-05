@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSocket } from "@/hooks/useSocket";
+import { EVENTS } from "@/modules/realtime/events";
 import { api } from "@/trpc/react";
 
 type Auftrag = {
@@ -10,15 +13,15 @@ type Auftrag = {
   ersteller: string; gesamt: number; gefunden: number; offen: number;
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const offen = status === "offen";
-  return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${offen
-      ? "bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff]"
-      : "bg-[#04B475]/10 text-[#04B475]"}`}>
-      {offen ? "Offen" : "Abgeschlossen"}
-    </span>
-  );
+// Badge: offen / Vollständig (grün) / Nicht komplett (orange) — abgeleitet aus nichtGefunden.
+function StatusBadge({ status, nichtGefunden }: { status: string; nichtGefunden: number }) {
+  if (status === "offen") {
+    return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff]">Offen</span>;
+  }
+  if (nichtGefunden === 0) {
+    return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#04B475]/10 text-[#04B475]">Vollständig</span>;
+  }
+  return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: "rgba(186,117,23,0.15)", color: "#BA7517" }}>Nicht komplett</span>;
 }
 
 function fmtDatum(d: Date | string): string {
@@ -34,7 +37,7 @@ function AuftragKarte({ a }: { a: Auftrag }) {
     >
       <div className="flex items-start justify-between gap-3 mb-1">
         <h2 className="font-black text-[#202F61] dark:text-[#e4e6eb] truncate">{a.name}</h2>
-        <StatusBadge status={a.status} />
+        <StatusBadge status={a.status} nichtGefunden={a.gesamt - a.gefunden} />
       </div>
       {a.bemerkung ? (
         <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-3 truncate" title={a.bemerkung}>📝 {a.bemerkung}</div>
@@ -61,6 +64,16 @@ export default function PickupListePage() {
   const { has, isLoading: permsLoading } = usePermissions();
   const darfManage = has("PICKUP_MANAGE");
   const { data, isLoading } = api.pickup.liste.useQuery(undefined, { enabled: !permsLoading && darfManage });
+
+  // Live-Fortschritt (Socket): Liste invalidieren → Karten + offen↔archiv ohne Reload.
+  const utils = api.useUtils();
+  const { on, off, connected } = useSocket();
+  useEffect(() => {
+    const h = () => { void utils.pickup.liste.invalidate(); };
+    on(EVENTS.PICKUP_FORTSCHRITT, h);
+    return () => off(EVENTS.PICKUP_FORTSCHRITT);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
 
   if (permsLoading) {
     return <div className="p-8 text-center text-sm text-[#65676b] dark:text-[#b0b3b8]">Lade Berechtigungen…</div>;

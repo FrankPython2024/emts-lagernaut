@@ -290,8 +290,11 @@ function SocketNotifications() {
     });
     on(EVENTS.PICKUP_ABGESCHLOSSEN, (d: unknown) => {
       const p = d as { name: string; gesamt: number; gefunden: number; nichtGefunden: number };
-      const text = `✅ Pickup „${p.name}" abgeschlossen — ${p.gefunden}/${p.gesamt} gefunden${p.nichtGefunden > 0 ? `, ${p.nichtGefunden} nicht gefunden` : ""}`;
-      show(text, p.nichtGefunden > 0 ? "warning" : "success");
+      if (p.nichtGefunden > 0) {
+        show(`⚠️ Pickup „${p.name}" als NICHT komplett gemeldet — ${p.gefunden}/${p.gesamt}, ${p.nichtGefunden} fehlen`, "warning");
+      } else {
+        show(`✅ Pickup „${p.name}" vollständig abgeschlossen — ${p.gefunden}/${p.gesamt}`, "success");
+      }
     });
 
     return () => {

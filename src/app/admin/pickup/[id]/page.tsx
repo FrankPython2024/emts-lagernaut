@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSocket } from "@/hooks/useSocket";
+import { EVENTS } from "@/modules/realtime/events";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { formatLogId } from "@/lib/pickup/logId";
@@ -50,6 +52,18 @@ export default function PickupDetailPage() {
     onSuccess: () => { show("Auftrag wieder geöffnet", "success"); utils.pickup.details.invalidate({ id }); },
     onError:   (e) => show(e.message, "error"),
   });
+
+  // Live-Fortschritt (Socket): nur für DIESE id die Details invalidieren → ohne Reload.
+  const { on, off, connected } = useSocket();
+  useEffect(() => {
+    const h = (d: unknown) => {
+      const p = d as { auftragId: number };
+      if (p.auftragId === id) void utils.pickup.details.invalidate({ id });
+    };
+    on(EVENTS.PICKUP_FORTSCHRITT, h);
+    return () => off(EVENTS.PICKUP_FORTSCHRITT);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, id]);
 
   // Positionen nach Colli gruppieren; Colli natürlich aufsteigend (ohne Colli zuletzt),
   // innerhalb nach Stellplatz, dann LogId.
@@ -109,7 +123,14 @@ export default function PickupDetailPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <button onClick={() => router.push("/admin/pickup")} className="text-[#65676b] hover:text-[#008BD2] text-sm mb-1">← Zurück zur Liste</button>
-          <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb] truncate">{data.name}</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb] truncate">{data.name}</h1>
+            {abgeschlossen && (
+              nichtGefundene.length === 0
+                ? <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#04B475]/10 text-[#04B475]">Vollständig</span>
+                : <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: "rgba(186,117,23,0.15)", color: "#BA7517" }}>Nicht komplett</span>
+            )}
+          </div>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
             {data.status === "offen" ? "Offen" : "Abgeschlossen"} · {fmtDatum(data.createdAt)} · {data.ersteller?.kuerzel ?? data.ersteller?.name ?? "—"}
           </p>

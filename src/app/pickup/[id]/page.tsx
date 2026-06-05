@@ -92,7 +92,8 @@ export default function PickupScanPage() {
   const [feedback, setFeedback]     = useState<Feedback | null>(null);
   const [fremdScans, setFremdScans] = useState<{ logId: string; zeit: Date }[]>([]);
   const [tastatur, setTastatur]     = useState(false); // Soft-Tastatur erlauben (Default: aus)
-  const [abschlussDialog, setAbschlussDialog] = useState(false);
+  const [abschlussDialog, setAbschlussDialog] = useState(false); // Vollständig abschließen (aus Banner)
+  const [unvollDialog, setUnvollDialog]       = useState(false); // Als nicht komplett melden
   const [abschlussErgebnis, setAbschlussErgebnis] = useState<{ name: string; gesamt: number; gefunden: number; nichtGefunden: number } | null>(null);
   const prevVollRef = useRef<boolean | null>(null); // vorheriger Vollständig-Stand (für Live-Trigger)
 
@@ -131,6 +132,7 @@ export default function PickupScanPage() {
   // (nicht beim Öffnen eines bereits vollständigen Auftrags). Beim Zurückfallen
   // unter vollständig wird der Trigger wieder scharf gestellt.
   const vollstaendig = !!data && data.gesamt > 0 && data.gefunden === data.gesamt;
+  const offen        = data ? data.gesamt - data.gefunden : 0;
   useEffect(() => {
     if (!data) return;
     const istVoll = data.gesamt > 0 && data.gefunden === data.gesamt;
@@ -198,12 +200,12 @@ export default function PickupScanPage() {
               </div>
             )}
           </div>
-          {data && (
+          {data && !vollstaendig && offen > 0 && (
             <button
-              onClick={() => setAbschlussDialog(true)}
-              className="inline-flex items-center gap-2 px-5 rounded-xl bg-[#04B475] text-white text-base font-bold hover:bg-[#039c64] transition-colors shadow-sm min-h-[56px] flex-shrink-0"
+              onClick={() => setUnvollDialog(true)}
+              className="inline-flex items-center gap-1.5 px-3 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] text-xs font-bold hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[44px] flex-shrink-0"
             >
-              ✓ Auftrag abschließen
+              Als nicht komplett melden
             </button>
           )}
         </div>
@@ -357,49 +359,100 @@ export default function PickupScanPage() {
           </>
         )}
 
-        {/* Abschluss-Dialog (Bestätigung + Erfolg) */}
-        {abschlussDialog && data && (
-          <div role="dialog" aria-modal="true" aria-labelledby="pickup-abschluss-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-            onClick={() => { if (!abschliessen.isPending && !abschlussErgebnis) setAbschlussDialog(false); }}>
-            <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-              {abschlussErgebnis ? (
-                <div className="px-6 py-8 text-center space-y-3">
+        {/* Erfolgsmeldung (beide Wege) → danach Redirect auf /pickup */}
+        {abschlussErgebnis && (
+          <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div role="status" aria-live="assertive" className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md px-6 py-8 text-center space-y-3">
+              {abschlussErgebnis.nichtGefunden === 0 ? (
+                <>
                   <div className="text-5xl" aria-hidden>✅</div>
                   <h2 className="font-black text-xl text-[#202F61] dark:text-[#e4e6eb]">Auftrag abgeschlossen</h2>
-                  <p className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">
-                    {abschlussErgebnis.gefunden} von {abschlussErgebnis.gesamt} gefunden{abschlussErgebnis.nichtGefunden > 0 ? `, ${abschlussErgebnis.nichtGefunden} nicht gefunden` : ""}.
-                  </p>
-                  <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Weiter zur Auftragsliste…</p>
-                </div>
+                  <p className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">Alle {abschlussErgebnis.gesamt} Geräte gescannt.</p>
+                </>
               ) : (
                 <>
-                  <div className="px-6 pt-6 pb-4 text-center space-y-3">
-                    <div className="text-4xl" aria-hidden>{(data.gesamt - data.gefunden) > 0 ? "⚠️" : "✓"}</div>
-                    <h2 id="pickup-abschluss-title" className="font-black text-lg text-[#202F61] dark:text-[#e4e6eb]">Auftrag abschließen?</h2>
-                    <div className="px-4 py-3 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-                      <strong>{data.gefunden}</strong> von <strong>{data.gesamt}</strong> Positionen gefunden.
-                    </div>
-                    {(data.gesamt - data.gefunden) > 0 && (
-                      <div className="px-4 py-3 rounded-xl text-sm font-semibold" style={{ background: "rgba(186,117,23,0.12)", color: "#BA7517" }}>
-                        ⚠ {data.gesamt - data.gefunden} Positionen wurden NICHT gefunden — trotzdem abschließen?
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-3 px-6 pb-6">
-                    <button onClick={() => setAbschlussDialog(false)} disabled={abschliessen.isPending}
-                      className="flex-1 text-sm text-[#65676b] dark:text-[#b0b3b8] font-semibold border border-[#ced4da] dark:border-[#3e4042] rounded-xl hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[56px] disabled:opacity-50">
-                      Abbrechen
-                    </button>
-                    <button onClick={() => abschliessen.mutate({ id })} disabled={abschliessen.isPending}
-                      className="flex-1 bg-[#04B475] text-white text-sm font-bold rounded-xl hover:bg-[#039c64] disabled:opacity-50 transition-colors min-h-[56px]">
-                      {abschliessen.isPending ? "Schließe ab…" : "Ja, abschließen"}
-                    </button>
-                  </div>
+                  <div className="text-5xl" aria-hidden>⚠️</div>
+                  <h2 className="font-black text-xl" style={{ color: "#BA7517" }}>Als nicht komplett gemeldet</h2>
+                  <p className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">{abschlussErgebnis.nichtGefunden} von {abschlussErgebnis.gesamt} fehlen.</p>
                 </>
               )}
+              <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Weiter zur Auftragsliste…</p>
             </div>
           </div>
         )}
+
+        {/* Bestätigung: vollständig abschließen (aus dem Vollständig-Banner) */}
+        {abschlussDialog && !abschlussErgebnis && data && (
+          <div role="dialog" aria-modal="true" aria-labelledby="pickup-voll-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => { if (!abschliessen.isPending) setAbschlussDialog(false); }}>
+            <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              <div className="px-6 pt-6 pb-4 text-center space-y-3">
+                <div className="text-4xl" aria-hidden>✓</div>
+                <h2 id="pickup-voll-title" className="font-black text-lg text-[#202F61] dark:text-[#e4e6eb]">Auftrag abschließen?</h2>
+                <div className="px-4 py-3 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                  <strong>{data.gefunden}</strong> von <strong>{data.gesamt}</strong> Geräten gefunden.
+                </div>
+              </div>
+              <div className="flex gap-3 px-6 pb-6">
+                <button onClick={() => setAbschlussDialog(false)} disabled={abschliessen.isPending}
+                  className="flex-1 text-sm text-[#65676b] dark:text-[#b0b3b8] font-semibold border border-[#ced4da] dark:border-[#3e4042] rounded-xl hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[56px] disabled:opacity-50">
+                  Abbrechen
+                </button>
+                <button onClick={() => abschliessen.mutate({ id })} disabled={abschliessen.isPending}
+                  className="flex-1 bg-[#04B475] text-white text-sm font-bold rounded-xl hover:bg-[#039c64] disabled:opacity-50 transition-colors min-h-[56px]">
+                  {abschliessen.isPending ? "Schließe ab…" : "Ja, abschließen"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bestätigung: als nicht komplett melden — listet die fehlenden Geräte */}
+        {unvollDialog && !abschlussErgebnis && data && (() => {
+          const fehlende = data.positionen
+            .filter((p) => p.status !== "GEFUNDEN")
+            .sort((a, b) => {
+              const c = (a.colli ?? "").localeCompare(b.colli ?? "", "de", { numeric: true });
+              if (c !== 0) return c;
+              const s = (a.stellplatz ?? "").localeCompare(b.stellplatz ?? "", "de", { numeric: true });
+              return s !== 0 ? s : a.logId.localeCompare(b.logId, "de", { numeric: true });
+            });
+          return (
+            <div role="dialog" aria-modal="true" aria-labelledby="pickup-unvoll-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+              onClick={() => { if (!abschliessen.isPending) setUnvollDialog(false); }}>
+              <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="px-6 pt-6 pb-3 space-y-2">
+                  <div className="text-4xl text-center" aria-hidden>⚠️</div>
+                  <h2 id="pickup-unvoll-title" className="font-black text-lg text-center text-[#202F61] dark:text-[#e4e6eb]">Auftrag als nicht komplett melden?</h2>
+                  <p className="text-sm text-center text-[#65676b] dark:text-[#b0b3b8]">Die fehlenden Geräte werden für den Admin festgehalten.</p>
+                  <div className="text-sm font-bold text-[#b3261e] pt-1">Diese {fehlende.length} Geräte fehlen:</div>
+                </div>
+                <div className="px-6 overflow-y-auto flex-1 min-h-[80px]">
+                  <div className="rounded-xl border border-[#fa3e3e]/30 overflow-hidden divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+                    {fehlende.map((p) => (
+                      <div key={p.id} className="flex items-center gap-3 px-3 py-2 flex-wrap gap-y-0.5 text-sm">
+                        <span className="font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] min-w-[100px]">{formatLogId(p.logId)}</span>
+                        <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Colli {p.colli ?? "—"}</span>
+                        <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{p.stellplatz ?? "—"}</span>
+                        <span className="flex-1 min-w-0 truncate text-[#1a1a1a] dark:text-[#e4e6eb]" title={p.bezeichnung ?? ""}>{p.bezeichnung ?? "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-3 px-6 py-5">
+                  <button onClick={() => setUnvollDialog(false)} disabled={abschliessen.isPending}
+                    className="flex-1 text-sm text-[#65676b] dark:text-[#b0b3b8] font-semibold border border-[#ced4da] dark:border-[#3e4042] rounded-xl hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[56px] disabled:opacity-50">
+                    Abbrechen
+                  </button>
+                  <button onClick={() => abschliessen.mutate({ id })} disabled={abschliessen.isPending}
+                    className="flex-1 bg-[#BA7517] text-white text-sm font-bold rounded-xl hover:bg-[#9c6213] disabled:opacity-50 transition-colors min-h-[56px]">
+                    {abschliessen.isPending ? "Melde…" : "Als nicht komplett melden"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }
