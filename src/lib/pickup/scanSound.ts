@@ -45,6 +45,20 @@ function ton(
   osc.stop(start + dauer + 0.02);
 }
 
+// Abschluss-Fanfare: aufsteigender Dreiklang (C-E-G-C), klar unterscheidbar vom
+// normalen GEFUNDEN-Ping. Wird nur bei der Live-Vervollständigung gespielt.
+export function playComplete(): void {
+  try {
+    const ctx = getCtx();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const noten = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
+    noten.forEach((f, i) => ton(ctx, f, t + i * 0.12, 0.16, "sine", 0.2));
+  } catch {
+    /* Audio nicht verfügbar — bewusst ignorieren */
+  }
+}
+
 export type ScanResult = "GEFUNDEN" | "FREMD" | "SCHON";
 
 export function playScanSound(result: ScanResult): void {

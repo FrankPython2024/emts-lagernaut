@@ -69,7 +69,8 @@
       "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'pickup|Pickup|scanSound|middleware' | Select-Object -First 40)",
       "PowerShell(npx prisma generate 2>&1 | Select-String -Pattern \"Generated|Error\" | Select-Object -First 3; $out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'pickup|bemerkung|Bemerkung' | Select-Object -First 30)",
       "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'pickup|middleware|homeFor|page.tsx' | Select-Object -First 40)",
-      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'pickup|Pickup|bericht|abschliessen|abgeschlossen|error TS' | Select-Object -First 40)"
+      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'pickup|Pickup|bericht|abschliessen|abgeschlossen|error TS' | Select-Object -First 40)",
+      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'pickup|scanSound' | Select-Object -First 30)"
     ]
   }
 }

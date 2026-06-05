@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
 import { formatLogId } from "@/lib/pickup/logId";
-import { playScanSound, type ScanResult } from "@/lib/pickup/scanSound";
+import { playScanSound, playComplete, type ScanResult } from "@/lib/pickup/scanSound";
 
 type Feedback = {
   result:   ScanResult;
@@ -91,8 +91,10 @@ export default function PickupScanPage() {
   const [eingabe, setEingabe]       = useState("");
   const [feedback, setFeedback]     = useState<Feedback | null>(null);
   const [fremdScans, setFremdScans] = useState<{ logId: string; zeit: Date }[]>([]);
+  const [tastatur, setTastatur]     = useState(false); // Soft-Tastatur erlauben (Default: aus)
   const [abschlussDialog, setAbschlussDialog] = useState(false);
   const [abschlussErgebnis, setAbschlussErgebnis] = useState<{ name: string; gesamt: number; gefunden: number; nichtGefunden: number } | null>(null);
+  const prevVollRef = useRef<boolean | null>(null); // vorheriger Vollständig-Stand (für Live-Trigger)
 
   const abschliessen = api.pickup.abschliessen.useMutation({
     onSuccess: (r) => {
@@ -124,6 +126,18 @@ export default function PickupScanPage() {
 
   // Nach jedem Ergebnis Fokus zurück ins Scan-Feld (Handheld-tauglich).
   useEffect(() => { inputRef.current?.focus(); }, [feedback]);
+
+  // Vollständigkeit erkennen. Ton NUR beim Live-Übergang unvollständig→vollständig
+  // (nicht beim Öffnen eines bereits vollständigen Auftrags). Beim Zurückfallen
+  // unter vollständig wird der Trigger wieder scharf gestellt.
+  const vollstaendig = !!data && data.gesamt > 0 && data.gefunden === data.gesamt;
+  useEffect(() => {
+    if (!data) return;
+    const istVoll = data.gesamt > 0 && data.gefunden === data.gesamt;
+    if (prevVollRef.current === null) { prevVollRef.current = istVoll; return; } // Initial: nur merken
+    if (istVoll && !prevVollRef.current) playComplete();
+    prevVollRef.current = istVoll;
+  }, [data]);
 
   // Positionen nach Colli gruppieren — STABILE, deterministische Sortierung
   // (Colli natürlich aufsteigend, ohne Colli zuletzt; intern Stellplatz, dann LogId).
@@ -200,25 +214,54 @@ export default function PickupScanPage() {
           </div>
         ) : (
           <>
-            {/* Fortschritt */}
-            {data && (() => {
-              const pct = data.gesamt > 0 ? Math.round((data.gefunden / data.gesamt) * 100) : 0;
-              return (
-                <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-bold text-[#65676b] dark:text-[#b0b3b8]">Fortschritt</span>
-                    <span className="text-lg font-black text-[#202F61] dark:text-[#e4e6eb]">{data.gefunden} / {data.gesamt} · {pct}%</span>
-                  </div>
-                  <div className="h-3 w-full rounded-full bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden" role="progressbar" aria-valuenow={data.gefunden} aria-valuemin={0} aria-valuemax={data.gesamt}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: "#04B475" }} />
+            {/* Großer Fortschritts-Zähler (dominant) */}
+            {data && (
+              <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-4 text-center">
+                <div className="text-4xl sm:text-5xl font-black text-[#202F61] dark:text-[#e4e6eb] leading-none">
+                  {data.gefunden} <span className="text-[#65676b] dark:text-[#b0b3b8]">/</span> {data.gesamt}
+                </div>
+                <div className="text-xs font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8] mt-1">gefunden</div>
+                <div className="h-1 w-full rounded-full bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden mt-3" role="progressbar" aria-valuenow={data.gefunden} aria-valuemin={0} aria-valuemax={data.gesamt}>
+                  <div className="h-full rounded-full transition-all" style={{ width: `${data.gesamt > 0 ? Math.round((data.gefunden / data.gesamt) * 100) : 0}%`, background: "#04B475" }} />
+                </div>
+              </div>
+            )}
+
+            {/* Vollständig-Banner (100 %) — klarer nächster Schritt */}
+            {vollstaendig && data && (
+              <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5 flex items-center justify-between gap-4 flex-wrap" style={{ borderColor: "#04B475", background: "rgba(4,180,117,0.12)" }}>
+                <div className="flex items-center gap-4 min-w-0">
+                  <span className="text-5xl" aria-hidden>✅</span>
+                  <div className="min-w-0">
+                    <div className="text-xl font-black" style={{ color: "#04713f" }}>Vollständig</div>
+                    <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">Alle {data.gesamt} Geräte gescannt!</div>
                   </div>
                 </div>
-              );
-            })()}
+                <button
+                  onClick={() => setAbschlussDialog(true)}
+                  className="inline-flex items-center gap-2 px-5 rounded-xl bg-[#04B475] text-white text-base font-bold hover:bg-[#039c64] transition-colors shadow-sm min-h-[56px] flex-shrink-0"
+                >
+                  ✓ Auftrag abschließen
+                </button>
+              </div>
+            )}
 
-            {/* Scan-Feld */}
-            <form onSubmit={(e) => { e.preventDefault(); handleScan(); }} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-4 space-y-3">
-              <label htmlFor="scan-input" className="block text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">LogID scannen</label>
+            {/* Scan-Feld (prominent, autofokussiert) */}
+            <form onSubmit={(e) => { e.preventDefault(); handleScan(); }} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-4 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="scan-input" className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">LogID scannen</label>
+                <button
+                  type="button"
+                  onClick={() => { setTastatur((v) => !v); inputRef.current?.focus(); }}
+                  aria-pressed={tastatur}
+                  title="Soft-Tastatur für manuelle Eingabe ein-/ausschalten"
+                  className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors min-h-[44px] ${tastatur
+                    ? "bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff] border border-[#008BD2]/40"
+                    : "text-[#65676b] dark:text-[#b0b3b8] border border-[#ced4da] dark:border-[#3e4042] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
+                >
+                  ⌨ Tastatur {tastatur ? "an" : "aus"}
+                </button>
+              </div>
               <div className="flex gap-2">
                 <input
                   id="scan-input"
@@ -227,41 +270,26 @@ export default function PickupScanPage() {
                   onChange={(e) => setEingabe(e.target.value)}
                   autoFocus
                   autoComplete="off"
-                  inputMode="numeric"
+                  inputMode={tastatur ? "numeric" : "none"}
                   enterKeyHint="done"
                   spellCheck={false}
-                  placeholder="LogID scannen oder eingeben…"
+                  placeholder="LogID scannen…"
                   className="flex-1 min-w-0 px-4 rounded-xl border-2 border-[#008BD2]/40 bg-[#f0f2f5] dark:bg-[#18191a] text-2xl font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] outline-none focus:border-[#008BD2] focus:ring-2 focus:ring-[#008BD2]/30 transition-colors min-h-[56px]"
                 />
-                <button
-                  type="submit"
-                  disabled={!eingabe.trim() || scan.isPending}
-                  className="px-6 rounded-xl bg-[#008BD2] text-white text-base font-bold hover:bg-[#0077b5] disabled:opacity-40 transition-colors min-h-[56px] min-w-[56px]"
-                >
-                  Prüfen
-                </button>
+                {tastatur && (
+                  <button
+                    type="submit"
+                    disabled={!eingabe.trim() || scan.isPending}
+                    className="px-6 rounded-xl bg-[#008BD2] text-white text-base font-bold hover:bg-[#0077b5] disabled:opacity-40 transition-colors min-h-[56px] min-w-[56px]"
+                  >
+                    Prüfen
+                  </button>
+                )}
               </div>
             </form>
 
-            {/* Ergebnis */}
+            {/* Ergebnis des letzten Scans */}
             <ErgebnisBanner fb={feedback} />
-
-            {/* Fremd-Scans dieser Sitzung */}
-            {fremdScans.length > 0 && (
-              <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#fa3e3e]/30 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-bold text-[#b3261e]">✗ Fremd-Scans (diese Sitzung): {fremdScans.length}</span>
-                  <button onClick={() => setFremdScans([])} className="text-xs text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e]">Leeren</button>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {fremdScans.slice(0, 20).map((f, i) => (
-                    <span key={i} className="px-2 py-1 rounded-lg bg-[#fa3e3e]/10 text-[#b3261e] text-xs font-mono font-bold">
-                      {f.logId ? formatLogId(f.logId) : "—"} · {f.zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Live-Liste nach Colli */}
             <div className="space-y-4">
@@ -309,6 +337,23 @@ export default function PickupScanPage() {
                 );
               })}
             </div>
+
+            {/* Fremd-Scans dieser Sitzung — kompakt, ganz unten */}
+            {fremdScans.length > 0 && (
+              <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#fa3e3e]/30 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold text-[#b3261e]">✗ Fremd-Scans (Sitzung): {fremdScans.length}</span>
+                  <button onClick={() => setFremdScans([])} className="text-xs text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] min-h-[44px] px-1">Leeren</button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {fremdScans.slice(0, 20).map((f, i) => (
+                    <span key={i} className="px-2 py-1 rounded-lg bg-[#fa3e3e]/10 text-[#b3261e] text-xs font-mono font-bold">
+                      {f.logId ? formatLogId(f.logId) : "—"} · {f.zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 
