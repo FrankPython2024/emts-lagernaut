@@ -93,7 +93,7 @@ export default function AnfragenGruppe({ gruppe, kuerzel, onStorno }: Props) {
       {/* ── Chat-Bereich (immer anzeigen wenn Anfragen vorhanden) ── */}
       {gruppe.anfragen.length > 0 && (
         <GruppenNachrichten
-          anfrageId={gruppe.anfragen[0]!.id}
+          anfrageIds={gruppe.anfragen.map((a) => a.id)}
           kuerzel={kuerzel}
           bezugInfo={[gruppe.geraeteName, hasRealLogId ? gruppe.logId : undefined].filter(Boolean).join(" · ") || undefined}
         />

@@ -1523,7 +1523,7 @@ function AnfrageDetailModal({
             </h3>
             <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
               <GruppenNachrichten
-                anfrageId={gruppe.anfragen[0]!.id}
+                anfrageIds={gruppe.anfragen.map((a) => a.id)}
                 kuerzel={kuerzel}
                 bezugInfo={geraet}
               />

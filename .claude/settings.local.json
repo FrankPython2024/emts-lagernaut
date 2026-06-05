@@ -72,7 +72,8 @@
       "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'pickup|Pickup|bericht|abschliessen|abgeschlossen|error TS' | Select-Object -First 40)",
       "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'pickup|scanSound' | Select-Object -First 30)",
       "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'pickup|Pickup|error TS' | Select-Object -First 40)",
-      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'benutzer|UserPermission|getMeinePermissions|rollen|error TS' | Select-Object -First 40)"
+      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'benutzer|UserPermission|getMeinePermissions|rollen|error TS' | Select-Object -First 40)",
+      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'GruppenNachrichten|chat|techniker|markGelesen|error TS' | Select-Object -First 40)"
     ]
   }
 }

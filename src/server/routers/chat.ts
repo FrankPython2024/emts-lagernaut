@@ -6,6 +6,7 @@ import {
   getTechnikerVonAnfrage,
   senden,
   markGelesen,
+  markGelesenMehrere,
   getUngelesenCount,
   getUngelesenProAnfrage,
   getStatsForAnfrage,
@@ -104,6 +105,28 @@ export const chatRouter = createTRPCRouter({
       const user        = ctx.session.user as SessionUser;
       const empfKuerzel = user.rolle === "ADMIN" ? ADMIN_EMPF : user.kuerzel;
       return markGelesen(input.anfrageId, empfKuerzel);
+    }),
+
+  // Alle Nachrichten einer GRUPPE (mehrere Teil-Anfragen) als gelesen markieren.
+  // Symmetrisch zu getStatsBatch (Karten-Badge summiert über alle Teile) — sonst
+  // bleiben Auto-Nachrichten an Nicht-Erst-Teilen dauerhaft ungelesen.
+  markGelesenGruppe: protectedProcedure
+    .input(z.object({ anfrageIds: z.array(z.number().int().positive()).max(200) }))
+    .mutation(async ({ input, ctx }) => {
+      const user        = ctx.session.user as SessionUser;
+      const empfKuerzel = user.rolle === "ADMIN" ? ADMIN_EMPF : user.kuerzel;
+
+      // Ownership: Techniker dürfen nur eigene Anfragen als gelesen markieren.
+      let anfrageIds = input.anfrageIds;
+      if (user.rolle !== "ADMIN" && anfrageIds.length > 0) {
+        const eigene = await prisma.anfrage.findMany({
+          where:  { id: { in: anfrageIds }, techniker: user.kuerzel.toUpperCase() },
+          select: { id: true },
+        });
+        anfrageIds = eigene.map(a => a.id);
+      }
+
+      return markGelesenMehrere(anfrageIds, empfKuerzel);
     }),
 
   // Gesamtzahl ungelesener Nachrichten → Glocken-Badge

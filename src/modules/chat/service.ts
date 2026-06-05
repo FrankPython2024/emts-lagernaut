@@ -68,8 +68,21 @@ export async function senden(data: {
  * Alle ungelesenen Nachrichten eines Chats als gelesen markieren.
  */
 export async function markGelesen(anfrageId: number, empfKuerzel: string) {
+  return markGelesenMehrere([anfrageId], empfKuerzel);
+}
+
+/**
+ * Alle ungelesenen Nachrichten MEHRERER Anfragen (= einer Gruppe) als gelesen
+ * markieren. Wichtig, weil eine Gruppe aus mehreren Teil-Anfragen besteht und
+ * System-/Auto-Nachrichten (z.B. NICHT_VERFÜGBAR) an der jeweiligen Teil-Anfrage
+ * hängen — nicht zwingend an der ersten. Der Ungelesen-Zähler der Karte summiert
+ * über ALLE Teile, also muss auch das „gelesen markieren" alle Teile erfassen.
+ */
+export async function markGelesenMehrere(anfrageIds: number[], empfKuerzel: string) {
+  if (anfrageIds.length === 0) return;
+  const logIds = anfrageIds.map(toLogId);
   const msgIds = await prisma.nachricht.findMany({
-    where:  { logId: toLogId(anfrageId) },
+    where:  { logId: { in: logIds } },
     select: { id: true },
   });
   if (msgIds.length === 0) return;

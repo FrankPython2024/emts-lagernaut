@@ -6,43 +6,49 @@ import { EVENTS }    from "@/modules/realtime/events";
 import { ChatModal } from "@/components/ui/ChatModal";
 
 interface Props {
-  anfrageId:  number;
+  // ALLE Teil-Anfragen der Gruppe — Chat-Stats/„gelesen" müssen über die ganze
+  // Gruppe laufen (System-/Auto-Nachrichten hängen ggf. an einer Nicht-Erst-Anfrage).
+  anfrageIds: number[];
   kuerzel:    string;
   bezugInfo?: string;
 }
 
-export default function GruppenNachrichten({ anfrageId, kuerzel, bezugInfo }: Props) {
+export default function GruppenNachrichten({ anfrageIds, kuerzel, bezugInfo }: Props) {
   const [chatOpen, setChatOpen] = useState(false);
   const { on, off } = useSocket();
+  const primaryId = anfrageIds[0]!; // Thread-Schlüssel für das Modal (wie bisher)
 
-  // Einzelner Stats-Call ersetzt die früheren zwei parallelen Queries
-  const { data: stats, refetch } = api.chat.getStatsForAnfrage.useQuery(
-    { anfrageId },
-    { refetchInterval: 3_000, staleTime: 2_000 },
+  // Stats über die GANZE Gruppe (alle Teil-Anfragen), passend zum Karten-Badge.
+  const { data: statsArr, refetch } = api.chat.getStatsBatch.useQuery(
+    { anfrageIds },
+    { enabled: anfrageIds.length > 0, refetchInterval: 3_000, staleTime: 2_000 },
   );
 
-  const markGelesenMutation = api.chat.markGelesen.useMutation({
+  const markGelesenMutation = api.chat.markGelesenGruppe.useMutation({
     onSuccess: () => refetch(),
   });
 
-  const ungelesen      = stats?.ungelesen      ?? 0;
-  const letzteNachricht = stats?.letzteNachricht ?? null;
-  const gesamtAnzahl   = stats?.gesamtAnzahl   ?? 0;
+  const ungelesen    = (statsArr ?? []).reduce((s, x) => s + (x.ungelesen ?? 0), 0);
+  const gesamtAnzahl = (statsArr ?? []).reduce((s, x) => s + (x.gesamtAnzahl ?? 0), 0);
+  const letzteNachricht = (statsArr ?? [])
+    .map((x) => x.letzteNachricht)
+    .filter((m): m is NonNullable<typeof m> => !!m)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null;
 
-  // Sofortiger Refresh bei eingehender Chat-Nachricht (Socket.io)
+  // Sofortiger Refresh bei eingehender Chat-Nachricht (Socket.io) für jedes Teil
   useEffect(() => {
     const handler = (d: unknown) => {
       const data = d as { anfrageId: number };
-      if (data.anfrageId === anfrageId) refetch();
+      if (anfrageIds.includes(data.anfrageId)) refetch();
     };
     on(EVENTS.CHAT_NEU, handler);
     return () => off(EVENTS.CHAT_NEU);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anfrageId]);
+  }, [anfrageIds.join(",")]);
 
   function openChat() {
     setChatOpen(true);
-    markGelesenMutation.mutate({ anfrageId });
+    markGelesenMutation.mutate({ anfrageIds });
   }
 
   // Pulsieren NUR wenn ungelesen > 0 und Modal noch nicht offen
@@ -52,7 +58,7 @@ export default function GruppenNachrichten({ anfrageId, kuerzel, bezugInfo }: Pr
     <>
       {chatOpen && (
         <ChatModal
-          anfrageId={anfrageId}
+          anfrageId={primaryId}
           currentUser={kuerzel}
           isAdmin={false}
           bezugInfo={bezugInfo}
