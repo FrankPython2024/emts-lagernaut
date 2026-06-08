@@ -144,20 +144,27 @@ export function ChatModal({
         backdropFilter: "blur(4px)",
         zIndex:         10500,
         display:        "flex",
-        alignItems:     "center",
+        alignItems:     "flex-start",
         justifyContent: "center",
-        padding:        16,
+        overflowY:      "auto",
+        padding:        "3vh 12px",
       }}
       onClick={onClose}
     >
+      <style>{`
+        .chat-modal-card {
+          max-height: 88vh;   /* Fallback */
+          max-height: 88dvh;  /* berücksichtigt Browserleiste/Tastatur */
+        }
+      `}</style>
       <div
+        className="chat-modal-card"
         style={{
           background:    "var(--card-bg)",
           borderRadius:  16,
           boxShadow:     "0 24px 60px rgba(0,0,0,0.3)",
           width:         "100%",
           maxWidth:      620,
-          maxHeight:     "88vh",
           display:       "flex",
           flexDirection: "column",
           overflow:      "hidden",
@@ -166,7 +173,7 @@ export function ChatModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ── */}
-        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10, flexShrink: 0, position: "sticky", top: 0, zIndex: 2, background: "var(--card-bg)" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: "0.95rem" }}>{headerTitle}</div>
             {bezugInfo && (
@@ -177,7 +184,7 @@ export function ChatModal({
         </div>
 
         {/* ── Nachrichten ── */}
-        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px 18px" }}>
+        <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 18px" }}>
           {isLoading && (
             <div style={{ textAlign: "center", color: "var(--text-dim)", padding: "2rem" }}>Laden...</div>
           )}
