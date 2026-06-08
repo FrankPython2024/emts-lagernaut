@@ -85,6 +85,19 @@ export function ChatModal({
     { refetchInterval: 3_000, staleTime: 2_000 },
   );
 
+  // Hintergrund-Scroll sperren, solange das Modal offen ist (kein Scroll-Leak nach außen)
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    const prevPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) document.body.style.paddingRight = scrollbarWidth + "px";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.paddingRight = prevPaddingRight;
+    };
+  }, []);
+
   // Als gelesen markieren beim Öffnen
   const markGelesenMutation = api.chat.markGelesen.useMutation();
   useEffect(() => {
@@ -147,6 +160,7 @@ export function ChatModal({
         alignItems:     "flex-start",
         justifyContent: "center",
         overflowY:      "auto",
+        overscrollBehavior: "contain",
         padding:        "3vh 12px",
       }}
       onClick={onClose}
@@ -184,7 +198,7 @@ export function ChatModal({
         </div>
 
         {/* ── Nachrichten ── */}
-        <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 18px" }}>
+        <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", padding: "16px 18px" }}>
           {isLoading && (
             <div style={{ textAlign: "center", color: "var(--text-dim)", padding: "2rem" }}>Laden...</div>
           )}
