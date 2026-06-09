@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { api }         from "@/trpc/react";
 import { useToast }    from "@/components/ui/Toast";
+import { relTime }     from "@/lib/utils/relativeTime";
 
 // ── Formatier-Hilfen ─────────────────────────────────────────────────────────
 
@@ -396,14 +397,18 @@ export default function SystemPage() {
                       <th className="text-left py-2 pr-4">Socket ID</th>
                       <th className="text-left py-2 px-2">Kürzel</th>
                       <th className="text-left py-2 px-2">Rolle</th>
+                      <th className="text-left py-2 px-2">Letzte Aktion</th>
+                      <th className="text-left py-2 px-2">Wann</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(data.socketio as { clients: { id: string; kuerzel: string; rolle: string }[] }).clients.map((c) => (
+                    {(data.socketio as { clients: { id: string; kuerzel: string; rolle: string; letzteAktion: string | null; letzteAktionAt: string | Date | null }[] }).clients.map((c) => (
                       <tr key={c.id} className="border-b border-[#f0f2f5] dark:border-[#3e4042]">
                         <td className="py-2 pr-4 font-mono text-[#65676b] dark:text-[#b0b3b8] text-[10px]">{c.id}</td>
                         <td className="py-2 px-2 font-bold text-[#0064d2] dark:text-[#45bdff]">{c.kuerzel}</td>
                         <td className="py-2 px-2">{c.rolle}</td>
+                        <td className="py-2 px-2 text-[#1a1a1a] dark:text-[#e4e6eb] max-w-[18rem] truncate" title={c.letzteAktion ?? undefined}>{c.letzteAktion ?? "—"}</td>
+                        <td className="py-2 px-2 text-[#65676b] dark:text-[#b0b3b8] whitespace-nowrap">{c.letzteAktionAt ? relTime(c.letzteAktionAt) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>

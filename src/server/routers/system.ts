@@ -83,12 +83,68 @@ async function getBullMQStats() {
   }
 }
 
+type ConnectedClient = Awaited<ReturnType<typeof getConnectedClients>>[number];
+type AngereicherterClient = ConnectedClient & {
+  letzteAktion:   string | null;
+  letzteAktionAt: Date | null;
+};
+
+// Reichert die (DB-freie) Verbindungsliste pro Kürzel um die zuletzt erzeugte
+// Aktion an. Quelle: neueste Buchung ODER Anfrage (testModus ausgeschlossen,
+// konsistent zu den Dashboard-Statistiken). distinct + orderBy desc liefert je
+// Mitarbeiter/Techniker die jeweils neueste Zeile in EINER Query.
+async function reichereLetzteAktionAn(
+  clients: ConnectedClient[],
+): Promise<AngereicherterClient[]> {
+  const kuerzelListe = [...new Set(clients.map((c) => c.kuerzel).filter(Boolean))];
+  if (kuerzelListe.length === 0) {
+    return clients.map((c) => ({ ...c, letzteAktion: null, letzteAktionAt: null }));
+  }
+
+  const [buchungen, anfragen] = await Promise.all([
+    prisma.buchung.findMany({
+      where:    { mitarbeiter: { in: kuerzelListe } },
+      orderBy:  { datum: "desc" },
+      distinct: ["mitarbeiter"],
+      select:   { mitarbeiter: true, datum: true, typ: true, bezeichnung: true },
+    }),
+    prisma.anfrage.findMany({
+      where:    { techniker: { in: kuerzelListe }, testModus: false },
+      orderBy:  { datum: "desc" },
+      distinct: ["techniker"],
+      select:   { techniker: true, datum: true, status: true, teil: true },
+    }),
+  ]);
+
+  const buchungMap = new Map(buchungen.map((b) => [b.mitarbeiter, b]));
+  const anfrageMap = new Map(anfragen.map((a) => [a.techniker, a]));
+
+  return clients.map((c) => {
+    const b = buchungMap.get(c.kuerzel);
+    const a = anfrageMap.get(c.kuerzel);
+
+    let letzteAktion:   string | null = null;
+    let letzteAktionAt: Date   | null = null;
+
+    // neuere der beiden Quellen gewinnt (bei Gleichstand die Buchung)
+    if (b && (!a || b.datum >= a.datum)) {
+      letzteAktion   = `${b.typ}: ${b.bezeichnung}`;
+      letzteAktionAt = b.datum;
+    } else if (a) {
+      letzteAktion   = `Anfrage ${a.status}: ${a.teil}`;
+      letzteAktionAt = a.datum;
+    }
+
+    return { ...c, letzteAktion, letzteAktionAt };
+  });
+}
+
 async function getSocketIOStats() {
   if (!isSocketIOReady()) {
     return { ok: false, clients: [], note: "Socket.io nicht initialisiert" };
   }
   try {
-    const clients = await getConnectedClients();
+    const clients = await reichereLetzteAktionAn(await getConnectedClients());
     return { ok: true, clients };
   } catch {
     return { ok: false, clients: [] };
