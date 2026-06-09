@@ -197,6 +197,49 @@ async function getSocketIOStats() {
   }
 }
 
+// Letzte Aktivität der vergangenen 24h direkt aus der DB (modelliert nach
+// dashboard.aktivitaetsProtokoll, aber 24h-begrenzt + mehr Einträge). Anders
+// als das Socket.io-Panel unabhängig davon, wer gerade online ist — so tauchen
+// auch Anfragen inzwischen getrennter Techniker auf. testModus ausgeschlossen.
+type AktivitaetZeile = {
+  id:     string;
+  kuerzel: string;
+  text:   string;
+  datum:  Date;
+  quelle: "buchung" | "anfrage";
+};
+
+async function getLetzteAktivitaet(): Promise<AktivitaetZeile[]> {
+  const seit24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [buchungen, anfragen] = await Promise.all([
+    prisma.buchung.findMany({
+      where:   { datum: { gte: seit24h } },
+      orderBy: { datum: "desc" },
+      take:    25,
+      select:  { id: true, typ: true, bezeichnung: true, mitarbeiter: true, datum: true },
+    }),
+    prisma.anfrage.findMany({
+      where:   { datum: { gte: seit24h }, testModus: false },
+      orderBy: { datum: "desc" },
+      take:    25,
+      select:  { id: true, techniker: true, status: true, teil: true, datum: true },
+    }),
+  ]);
+
+  return [
+    ...buchungen.map((b): AktivitaetZeile => ({
+      id: `b-${b.id}`, kuerzel: b.mitarbeiter,
+      text: `${b.typ}: ${b.bezeichnung}`, datum: b.datum, quelle: "buchung",
+    })),
+    ...anfragen.map((a): AktivitaetZeile => ({
+      id: `a-${a.id}`, kuerzel: a.techniker,
+      text: `Anfrage ${a.status}: ${a.teil}`, datum: a.datum, quelle: "anfrage",
+    })),
+  ]
+    .sort((x, y) => y.datum.getTime() - x.datum.getTime())
+    .slice(0, 25);
+}
+
 // ── Router ───────────────────────────────────────────────────────────────────
 
 // ── Reset ────────────────────────────────────────────────────────────────────
@@ -333,11 +376,12 @@ export const systemRouter = createTRPCRouter({
         select: { kuerzel: true, lastSeen: true },
       });
 
-      const [redisStats, msStats, bullmqStats, socketStats] = await Promise.all([
+      const [redisStats, msStats, bullmqStats, socketStats, letzteAktivitaet] = await Promise.all([
         getRedisStats(),
         getMeilisearchStats(),
         getBullMQStats(),
         getSocketIOStats(),
+        getLetzteAktivitaet(),
       ]);
 
       const queryLatency = Date.now() - startMs;
@@ -373,6 +417,7 @@ export const systemRouter = createTRPCRouter({
         online:     onlineUsers,
         bullmq:     bullmqStats,
         socketio:   socketStats,
+        letzteAktivitaet,
       };
     }),
 

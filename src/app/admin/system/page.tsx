@@ -452,6 +452,41 @@ export default function SystemPage() {
         )}
       </Section>
 
+      {/* ── Letzte Aktivität (24 h) — direkt aus der DB, unabhängig von Online-Status ── */}
+      <Section title="Letzte Aktivität (24 h)" icon="🕘">
+        {(() => {
+          const eintraege = (data?.letzteAktivitaet ?? []) as { id: string; kuerzel: string; text: string; datum: string | Date }[];
+          if (!data) {
+            return <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Lade…</p>;
+          }
+          if (eintraege.length === 0) {
+            return <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Keine Aktivität in den letzten 24 Stunden</p>;
+          }
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
+                    <th className="text-left py-2 pr-4">Wann</th>
+                    <th className="text-left py-2 px-2">Kürzel</th>
+                    <th className="text-left py-2 px-2">Aktion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {eintraege.map((e) => (
+                    <tr key={e.id} className="border-b border-[#f0f2f5] dark:border-[#3e4042]">
+                      <td className="py-2 pr-4 text-[#65676b] dark:text-[#b0b3b8] whitespace-nowrap">{relTime(e.datum)}</td>
+                      <td className="py-2 px-2 font-bold text-[#0064d2] dark:text-[#45bdff]">{e.kuerzel}</td>
+                      <td className="py-2 px-2 text-[#1a1a1a] dark:text-[#e4e6eb] max-w-[24rem] truncate" title={e.text}>{e.text}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+      </Section>
+
       {/* ── BEREICH 8 — SYSTEM LOG ─────────────────────────────────────── */}
       <Section title="System Log" icon="📋">
         <div className="flex items-center gap-2 mb-3 flex-wrap">
