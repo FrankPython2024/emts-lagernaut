@@ -3,6 +3,28 @@ import { useEffect, useState, useRef } from "react";
 import { api }         from "@/trpc/react";
 import { useToast }    from "@/components/ui/Toast";
 import { relTime }     from "@/lib/utils/relativeTime";
+import { NAV_SECTIONS } from "@/app/admin/layout";
+
+// Pfad → Menü-Label fürs Socket.io-Panel ("Letzter Menüpunkt"). Basis sind die
+// Admin-Sidebar-Einträge, ergänzt um die Portale ohne NAV-Sektion.
+const PFAD_LABEL: Record<string, string> = {
+  ...Object.fromEntries(NAV_SECTIONS.flatMap((s) => s.items).map((i) => [i.href, i.label])),
+  "/pickup":    "Pickup",
+  "/techniker": "Techniker-Portal",
+};
+
+function menuLabel(pfad: string | null): string {
+  if (!pfad) return "—";
+  return PFAD_LABEL[pfad] ?? pfad;
+}
+
+// Jüngere zweier (optionaler) Zeitpunkte — für die "Wann"-Spalte.
+function juengereZeit(a: string | Date | null, b: string | Date | null): Date | null {
+  const da = a ? new Date(a) : null;
+  const db = b ? new Date(b) : null;
+  if (da && db) return da > db ? da : db;
+  return da ?? db ?? null;
+}
 
 // ── Formatier-Hilfen ─────────────────────────────────────────────────────────
 
@@ -397,20 +419,25 @@ export default function SystemPage() {
                       <th className="text-left py-2 pr-4">Socket ID</th>
                       <th className="text-left py-2 px-2">Kürzel</th>
                       <th className="text-left py-2 px-2">Rolle</th>
+                      <th className="text-left py-2 px-2">Letzter Menüpunkt</th>
                       <th className="text-left py-2 px-2">Letzte Aktion</th>
                       <th className="text-left py-2 px-2">Wann</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(data.socketio as { clients: { id: string; kuerzel: string; rolle: string; letzteAktion: string | null; letzteAktionAt: string | Date | null }[] }).clients.map((c) => (
-                      <tr key={c.id} className="border-b border-[#f0f2f5] dark:border-[#3e4042]">
-                        <td className="py-2 pr-4 font-mono text-[#65676b] dark:text-[#b0b3b8] text-[10px]">{c.id}</td>
-                        <td className="py-2 px-2 font-bold text-[#0064d2] dark:text-[#45bdff]">{c.kuerzel}</td>
-                        <td className="py-2 px-2">{c.rolle}</td>
-                        <td className="py-2 px-2 text-[#1a1a1a] dark:text-[#e4e6eb] max-w-[18rem] truncate" title={c.letzteAktion ?? undefined}>{c.letzteAktion ?? "—"}</td>
-                        <td className="py-2 px-2 text-[#65676b] dark:text-[#b0b3b8] whitespace-nowrap">{c.letzteAktionAt ? relTime(c.letzteAktionAt) : "—"}</td>
-                      </tr>
-                    ))}
+                    {(data.socketio as { clients: { id: string; kuerzel: string; rolle: string; letzteAktion: string | null; letzteAktionAt: string | Date | null; letzterMenuPfad: string | null; letzterMenuAt: string | Date | null }[] }).clients.map((c) => {
+                      const wann = juengereZeit(c.letzterMenuAt, c.letzteAktionAt);
+                      return (
+                        <tr key={c.id} className="border-b border-[#f0f2f5] dark:border-[#3e4042]">
+                          <td className="py-2 pr-4 font-mono text-[#65676b] dark:text-[#b0b3b8] text-[10px]">{c.id}</td>
+                          <td className="py-2 px-2 font-bold text-[#0064d2] dark:text-[#45bdff]">{c.kuerzel}</td>
+                          <td className="py-2 px-2">{c.rolle}</td>
+                          <td className="py-2 px-2 text-[#1a1a1a] dark:text-[#e4e6eb] max-w-[14rem] truncate" title={c.letzterMenuPfad ?? undefined}>{menuLabel(c.letzterMenuPfad)}</td>
+                          <td className="py-2 px-2 text-[#1a1a1a] dark:text-[#e4e6eb] max-w-[18rem] truncate" title={c.letzteAktion ?? undefined}>{c.letzteAktion ?? "—"}</td>
+                          <td className="py-2 px-2 text-[#65676b] dark:text-[#b0b3b8] whitespace-nowrap">{wann ? relTime(wann) : "—"}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

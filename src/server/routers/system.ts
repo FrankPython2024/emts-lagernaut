@@ -85,35 +85,74 @@ async function getBullMQStats() {
 
 type ConnectedClient = Awaited<ReturnType<typeof getConnectedClients>>[number];
 type AngereicherterClient = ConnectedClient & {
-  letzteAktion:   string | null;
-  letzteAktionAt: Date | null;
+  letzteAktion:    string | null;
+  letzteAktionAt:  Date | null;
+  letzterMenuPfad: string | null;
+  letzterMenuAt:   Date | null;
 };
 
-// Reichert die (DB-freie) Verbindungsliste pro Kürzel um die zuletzt erzeugte
-// Aktion an. Quelle: neueste Buchung ODER Anfrage (testModus ausgeschlossen,
-// konsistent zu den Dashboard-Statistiken). distinct + orderBy desc liefert je
-// Mitarbeiter/Techniker die jeweils neueste Zeile in EINER Query.
+// Liest die zuletzt besuchten Menü-Pfade (vom Socket-"activity"-Handler in Redis
+// geschrieben, 24h-TTL) für die verbundenen Kürzel. In try/catch — der Redis-
+// Client wirft sofort bei Ausfall (enableOfflineQueue:false); das darf das
+// Nerd-Dashboard NICHT kippen. Bei Fehler: alle null.
+async function leseLetzteNavigation(
+  kuerzelListe: string[],
+): Promise<Map<string, { path: string; ts: number }>> {
+  const map = new Map<string, { path: string; ts: number }>();
+  if (kuerzelListe.length === 0) return map;
+  try {
+    const roh = await redis.mget(kuerzelListe.map((k) => `nav:${k}`));
+    kuerzelListe.forEach((k, i) => {
+      const v = roh[i];
+      if (!v) return;
+      try {
+        const parsed = JSON.parse(v) as { path?: unknown; ts?: unknown };
+        if (typeof parsed.path === "string" && typeof parsed.ts === "number") {
+          map.set(k, { path: parsed.path, ts: parsed.ts });
+        }
+      } catch {
+        // defekter Eintrag → ignorieren
+      }
+    });
+  } catch {
+    // Redis weg → leere Map (Panel bleibt funktionsfähig)
+  }
+  return map;
+}
+
+// Reichert die (DB-freie) Verbindungsliste pro Kürzel an um:
+//   • die zuletzt erzeugte Aktion (neueste Buchung ODER Anfrage, testModus
+//     ausgeschlossen, konsistent zu den Dashboard-Statistiken) — auf 24h begrenzt.
+//   • den zuletzt besuchten Menü-Pfad (aus Redis, 24h-TTL).
+// distinct + orderBy desc liefert je Mitarbeiter/Techniker die jeweils neueste
+// Zeile in EINER Query.
 async function reichereLetzteAktionAn(
   clients: ConnectedClient[],
 ): Promise<AngereicherterClient[]> {
   const kuerzelListe = [...new Set(clients.map((c) => c.kuerzel).filter(Boolean))];
   if (kuerzelListe.length === 0) {
-    return clients.map((c) => ({ ...c, letzteAktion: null, letzteAktionAt: null }));
+    return clients.map((c) => ({
+      ...c, letzteAktion: null, letzteAktionAt: null,
+      letzterMenuPfad: null, letzterMenuAt: null,
+    }));
   }
 
-  const [buchungen, anfragen] = await Promise.all([
+  const seit24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const [buchungen, anfragen, navMap] = await Promise.all([
     prisma.buchung.findMany({
-      where:    { mitarbeiter: { in: kuerzelListe } },
+      where:    { mitarbeiter: { in: kuerzelListe }, datum: { gte: seit24h } },
       orderBy:  { datum: "desc" },
       distinct: ["mitarbeiter"],
       select:   { mitarbeiter: true, datum: true, typ: true, bezeichnung: true },
     }),
     prisma.anfrage.findMany({
-      where:    { techniker: { in: kuerzelListe }, testModus: false },
+      where:    { techniker: { in: kuerzelListe }, testModus: false, datum: { gte: seit24h } },
       orderBy:  { datum: "desc" },
       distinct: ["techniker"],
       select:   { techniker: true, datum: true, status: true, teil: true },
     }),
+    leseLetzteNavigation(kuerzelListe),
   ]);
 
   const buchungMap = new Map(buchungen.map((b) => [b.mitarbeiter, b]));
@@ -135,7 +174,14 @@ async function reichereLetzteAktionAn(
       letzteAktionAt = a.datum;
     }
 
-    return { ...c, letzteAktion, letzteAktionAt };
+    const nav = navMap.get(c.kuerzel);
+    return {
+      ...c,
+      letzteAktion,
+      letzteAktionAt,
+      letzterMenuPfad: nav?.path ?? null,
+      letzterMenuAt:   nav ? new Date(nav.ts) : null,
+    };
   });
 }
 

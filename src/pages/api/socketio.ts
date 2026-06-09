@@ -91,6 +91,19 @@ export default function handler(
     socket.on("ping", () => socket.emit("pong"));
 
     socket.on("activity", (data: unknown) => {
+      // Navigation server-seitig festhalten (Nerd-Dashboard "Letzter Menüpunkt").
+      // kuerzel kommt aus dem Handshake (vertrauenswürdig), NICHT aus dem Payload.
+      // Aus dem Payload nur den Pfad, defensiv geprüft.
+      const path = (data as { path?: unknown } | null)?.path;
+      if (kuerzel && typeof path === "string" && path.length > 0 && path.length <= 200) {
+        // Fire & forget: Redis-Client wirft sofort (enableOfflineQueue:false) —
+        // darf das Event-Handling nie kippen. 24h-TTL.
+        import("@/core/infra/redis")
+          .then(({ redis }) =>
+            redis.set(`nav:${kuerzel}`, JSON.stringify({ path, ts: Date.now() }), "EX", 86400),
+          )
+          .catch(() => {});
+      }
       io.to("admins").emit("activity:neu", data);
     });
   });
