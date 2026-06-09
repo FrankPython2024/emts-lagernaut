@@ -12,9 +12,19 @@ function LoginForm() {
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
   const [dark, setDark]         = useState(false);
+  const [hinweis, setHinweis]   = useState<string | null>(null);
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
+  }, []);
+
+  // Öffentlichen Login-Hinweis aus Redis laden (über /api/login-hinweis).
+  // Fehler werden bewusst geschluckt — kein Hinweis darf die Login-Seite stören.
+  useEffect(() => {
+    fetch("/api/login-hinweis")
+      .then((r) => r.json())
+      .then((d: { text?: string | null }) => setHinweis(d?.text ?? null))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -78,10 +88,29 @@ function LoginForm() {
         </button>
       </div>
 
+      <div className="w-full max-w-sm flex flex-col gap-4 relative z-10">
+
+      {/* Login-Hinweis (Redis: "login_hinweis") — nur wenn Text vorhanden */}
+      {hinweis && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-start gap-2.5 px-4 py-3 rounded-xl text-sm font-medium text-left"
+          style={{
+            background:  dark ? "rgba(0,139,210,0.15)" : "#E6F4FB",
+            border:      "1px solid #008BD2",
+            color:       dark ? "#BFE6F8" : "#0B4D6E",
+          }}
+        >
+          <span aria-hidden className="text-base leading-none mt-0.5" style={{ color: "#008BD2" }}>ℹ️</span>
+          <span className="flex-1">{hinweis}</span>
+        </div>
+      )}
+
       <form
         id="loginForm"
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-2xl p-8 text-center relative z-10"
+        className="w-full rounded-2xl p-8 text-center"
         style={{
           background:   dark ? "#1F2329" : "white",
           border:       `1px solid ${dark ? "#3A3F47" : "#d0d5e0"}`,
@@ -172,6 +201,8 @@ function LoginForm() {
           Social &amp; Green IT · AfB Sömmerda
         </p>
       </form>
+
+      </div>
 
       <style>{`
         @keyframes shake {
