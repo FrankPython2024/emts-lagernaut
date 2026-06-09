@@ -8,7 +8,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - MEILISEARCH_URL=http://meilisearch:7700
       - MEILISEARCH_KEY=9852af2e1d13039762b1bca3c51c55302c6c5a5fb36ea66c7987b66bd80f6ba2
-      - NEXTAUTH_SECRET=lagernaut-secret-key
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - DB_EXPLORER_PASSWORD=kräutertee
       - NEXTAUTH_URL=http://49.13.162.158:3000
       - DB_EXPLORER_PASSWORD=kräutertee
