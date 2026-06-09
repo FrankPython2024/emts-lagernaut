@@ -95,6 +95,7 @@ export default function handler(
       // kuerzel kommt aus dem Handshake (vertrauenswürdig), NICHT aus dem Payload.
       // Aus dem Payload nur den Pfad, defensiv geprüft.
       const path = (data as { path?: unknown } | null)?.path;
+      console.log("[nav] activity", kuerzel, path); // TEMP-Diagnose: kommt das Event an?
       if (kuerzel && typeof path === "string" && path.length > 0 && path.length <= 200) {
         // Fire & forget: Redis-Client wirft sofort (enableOfflineQueue:false) —
         // darf das Event-Handling nie kippen. 24h-TTL.
