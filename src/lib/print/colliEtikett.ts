@@ -108,14 +108,28 @@ export type SchrankOrientierung = "quer" | "hoch";
  *  • leichter Rahmen als Schnittkante: 0.4pt #999, ein paar mm vom Rand
  *  • Inhalt innerhalb des Rahmens mit Padding
  *  • beide Orientierungen (quer 150×120, hoch 120×150) passen auf A4 hoch
+ *  • optionaler Stellplatz-QR oben rechts (gleicher Mechanismus wie die Colli-
+ *    Etiketten: genQrSvg → SVG-Data-URI-<img>), darunter der Stellplatz als Text
  *  • innerHtml MUSS bereits serverseitig sanitized sein (sanitizeSchrank)
  */
-export function writeSchrankBeschriftung(
+export async function writeSchrankBeschriftung(
   w: Window,
   innerHtml: string,
   orientierung: SchrankOrientierung = "quer",
-): void {
+  qrAktiv = false,
+  stellplatz = "",
+): Promise<void> {
   const [pw, ph] = orientierung === "hoch" ? ["120mm", "150mm"] : ["150mm", "120mm"];
+
+  // QR oben rechts — schwebt (float:right), damit der Text darunter/daneben
+  // wieder die volle Breite nutzt und NICHT unter den QR läuft.
+  const platz = stellplatz.trim();
+  const zeigeQr = qrAktiv && platz.length > 0;
+  const qrHtml = zeigeQr
+    ? `<div class="qrbox"><img class="qrimg" src="${await genQrSvg(platz)}" alt="" /><div class="qrlbl">${escapeHtml(platz)}</div></div>`
+    : "";
+  // Stellplatz zusätzlich als Klartext unten rechts in der Box.
+  const splatzHtml = zeigeQr ? `<div class="splatzBR">${escapeHtml(platz)}</div>` : "";
 
   const css = `
     @page { size: A4; margin: 0; }
@@ -126,6 +140,10 @@ export function writeSchrankBeschriftung(
     .frame   { position: absolute; inset: 4mm; border: 0.4pt solid #999; }
     .content { position: absolute; inset: 4mm; padding: 5mm; overflow: hidden; }
     .content > :first-child { margin-top: 0; }
+    .qrbox { float: right; width: 30mm; margin: 0 0 2mm 3mm; text-align: center; }
+    .qrimg { display: block; width: 28mm; height: 28mm; margin: 0 auto; }
+    .qrlbl { margin-top: 1mm; font-size: 8pt; line-height: 1.1; word-break: break-all; }
+    .splatzBR { position: absolute; right: 3mm; bottom: 2mm; max-width: 60mm; text-align: right; font-size: 8pt; line-height: 1.1; word-break: break-all; }
     .content h1 { font-size: 22pt; margin: 0 0 2.5mm; line-height: 1.15; }
     .content h2 { font-size: 17pt; margin: 0 0 2mm;   line-height: 1.15; }
     .content h3 { font-size: 13pt; margin: 0 0 1.5mm; line-height: 1.15; }
@@ -136,7 +154,7 @@ export function writeSchrankBeschriftung(
     .content em { font-style: italic; }
   `;
 
-  const body = `<div class="sheet"><div class="page"><div class="content">${innerHtml}</div><div class="frame"></div></div></div>`;
+  const body = `<div class="sheet"><div class="page"><div class="content">${qrHtml}${innerHtml}${splatzHtml}</div><div class="frame"></div></div></div>`;
 
   w.document.open();
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${body}${PRINT_SCRIPT}</body></html>`);

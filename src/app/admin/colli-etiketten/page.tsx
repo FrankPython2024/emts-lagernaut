@@ -108,6 +108,9 @@ export default function ColliEtikettenPage() {
   const [schrankOrient, setSchrankOrient] = useState<SchrankOrientierung>("quer");
   const [schrankResetKey, setSchrankResetKey] = useState(0);
   const schrankBereit = htmlHasContent(schrankHtml);
+  // Stellplatz-QR (nur Schrank): aktivierbar, Stellplatz frei eintippbar.
+  const [qrAktiv, setQrAktiv] = useState(false);
+  const [stellplatz, setStellplatz] = useState("ETL-Mobilgeräte-1");
 
   const taId       = useId();
   const zusatzId   = useId();
@@ -139,7 +142,7 @@ export default function ColliEtikettenPage() {
     if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
     try {
       const { html } = await sanitizeSchrank.mutateAsync({ html: schrankHtml });
-      writeSchrankBeschriftung(w, html, schrankOrient);
+      await writeSchrankBeschriftung(w, html, schrankOrient, qrAktiv, stellplatz);
       logDruck("schrank", 1);
     } catch {
       w.close();
@@ -246,6 +249,53 @@ export default function ColliEtikettenPage() {
               Leeren
             </button>
           </div>
+
+          {/* Stellplatz-QR */}
+          <div className="space-y-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-4">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={qrAktiv}
+                onChange={(e) => setQrAktiv(e.target.checked)}
+                className="h-4 w-4 accent-[#0064d2]"
+              />
+              <span className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Stellplatz-QR anzeigen</span>
+            </label>
+
+            {qrAktiv && (
+              <div className="space-y-2">
+                <input
+                  value={stellplatz}
+                  onChange={(e) => setStellplatz(e.target.value)}
+                  spellCheck={false}
+                  autoComplete="off"
+                  placeholder="z. B. ETL-Mobilgeräte-1"
+                  aria-label="Stellplatz"
+                  className="w-full px-4 py-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm outline-none focus:border-[#0064d2] focus:ring-2 focus:ring-[#0064d2]/30 transition-colors min-h-[44px]"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Schnellwahl:</span>
+                  {[1, 2, 3, 4, 5, 6].map((n) => {
+                    const wert = `ETL-Mobilgeräte-${n}`;
+                    const aktiv = stellplatz === wert;
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setStellplatz(wert)}
+                        aria-pressed={aktiv}
+                        title={wert}
+                        className={`h-9 w-9 rounded-lg border text-sm font-bold transition-colors ${aktiv ? "bg-[#0064d2] text-white border-[#0064d2]" : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
+                      >
+                        {n}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           <SchrankEditor
             key={schrankResetKey}
             html={schrankHtml}
@@ -254,6 +304,8 @@ export default function ColliEtikettenPage() {
             previewKind="schrank"
             orientierung={schrankOrient}
             onOrientierung={setSchrankOrient}
+            qrAktiv={qrAktiv}
+            stellplatz={stellplatz}
           />
         </div>
       ) : modus === "colli" ? (

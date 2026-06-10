@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { QRCodeSVG } from "qrcode.react";
 import type { SchrankOrientierung } from "@/lib/print/colliEtikett";
 
 // WYSIWYG-Editor auf Basis von CKEditor 5 (Classic), client-side lazy geladen
@@ -42,11 +43,16 @@ type Props = {
   previewKind:    "schrank" | "text";
   orientierung?:  SchrankOrientierung;            // nur previewKind="schrank"
   onOrientierung?: (o: SchrankOrientierung) => void;
+  qrAktiv?:       boolean;                         // nur previewKind="schrank"
+  stellplatz?:    string;
 };
 
 export function SchrankEditor({
   html, onHtmlChange, toolbar = "voll", previewKind, orientierung = "quer", onOrientierung,
+  qrAktiv = false, stellplatz = "",
 }: Props) {
+  const platz = stellplatz.trim();
+  const zeigeQr = previewKind === "schrank" && qrAktiv && platz.length > 0;
   // [pw, ph] in mm — Bildschirm rendert mm via 96dpi, identisch zum @page-Druck,
   // daher 1:1-WYSIWYG inkl. pt-Schriftgrößen.
   const [pw, ph] =
@@ -119,8 +125,28 @@ export function SchrankEditor({
               <div
                 className="schrank-doc absolute"
                 style={{ inset: "4mm", padding: "5mm", overflow: "hidden" }}
-                dangerouslySetInnerHTML={{ __html: html }}
-              />
+              >
+                {/* Stellplatz-QR oben rechts (float, damit Text nicht darunter läuft) */}
+                {zeigeQr && (
+                  <div style={{ float: "right", width: "30mm", margin: "0 0 2mm 3mm", textAlign: "center" }}>
+                    <QRCodeSVG
+                      value={platz}
+                      level="M"
+                      bgColor="#ffffff"
+                      fgColor="#000000"
+                      size={120}
+                      style={{ display: "block", width: "28mm", height: "28mm", margin: "0 auto" }}
+                      title={`Stellplatz-QR ${platz}`}
+                    />
+                    <div style={{ marginTop: "1mm", fontSize: "8pt", lineHeight: 1.1, wordBreak: "break-all" }}>{platz}</div>
+                  </div>
+                )}
+                <div dangerouslySetInnerHTML={{ __html: html }} />
+                {/* Stellplatz zusätzlich als Klartext unten rechts */}
+                {zeigeQr && (
+                  <div style={{ position: "absolute", right: "3mm", bottom: "2mm", maxWidth: "60mm", textAlign: "right", fontSize: "8pt", lineHeight: 1.1, wordBreak: "break-all" }}>{platz}</div>
+                )}
+              </div>
               {/* Schnittkante: dünne, helle Linie ein paar mm vom Rand */}
               <div className="absolute pointer-events-none" style={{ inset: "4mm", border: "0.4pt solid #999" }} />
             </div>
