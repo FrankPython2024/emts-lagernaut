@@ -102,9 +102,12 @@ export type SchrankOrientierung = "quer" | "hoch";
  * window.open() geöffnet werden (Popup-Blocker), danach wird das HTML server-
  * seitig sanitized und erst dann hier eingesetzt — daher kein window.open hier.
  *
- *  • @page exakt 150mm × 120mm (quer) bzw. 120mm × 150mm (hoch), margin 0
+ *  • Gedruckt wird auf A4 (@page A4, margin 0); die 150×120-mm-Box wird MITTIG
+ *    auf der A4-Seite platziert. So schneidet der Drucker den Rahmen nicht ab
+ *    (kein randloser Custom-Druck) und es entsteht keine Extralinie/zweite Seite.
  *  • leichter Rahmen als Schnittkante: 0.4pt #999, ein paar mm vom Rand
  *  • Inhalt innerhalb des Rahmens mit Padding
+ *  • beide Orientierungen (quer 150×120, hoch 120×150) passen auf A4 hoch
  *  • innerHtml MUSS bereits serverseitig sanitized sein (sanitizeSchrank)
  */
 export function writeSchrankBeschriftung(
@@ -115,10 +118,11 @@ export function writeSchrankBeschriftung(
   const [pw, ph] = orientierung === "hoch" ? ["120mm", "150mm"] : ["150mm", "120mm"];
 
   const css = `
-    @page { size: ${pw} ${ph}; margin: 0; }
+    @page { size: A4; margin: 0; }
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     html, body { margin: 0; padding: 0; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
-    .page    { position: relative; width: ${pw}; height: ${ph}; overflow: hidden; page-break-after: avoid; }
+    .sheet   { width: 210mm; height: 297mm; display: flex; align-items: center; justify-content: center; overflow: hidden; page-break-after: avoid; }
+    .page    { position: relative; width: ${pw}; height: ${ph}; overflow: hidden; }
     .frame   { position: absolute; inset: 4mm; border: 0.4pt solid #999; }
     .content { position: absolute; inset: 4mm; padding: 5mm; overflow: hidden; }
     .content > :first-child { margin-top: 0; }
@@ -132,7 +136,36 @@ export function writeSchrankBeschriftung(
     .content em { font-style: italic; }
   `;
 
-  const body = `<div class="page"><div class="content">${innerHtml}</div><div class="frame"></div></div>`;
+  const body = `<div class="sheet"><div class="page"><div class="content">${innerHtml}</div><div class="frame"></div></div></div>`;
+
+  w.document.open();
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${body}${PRINT_SCRIPT}</body></html>`);
+  w.document.close();
+}
+
+/**
+ * Schreibt ein einzelnes Freitext-Label (55 × 30 mm) mit WYSIWYG-Inhalt in ein
+ * BEREITS geöffnetes Fenster und druckt. Gleiche 55×30mm-Mechanik wie die
+ * Colli-/Blanko-Etiketten, aber der Inhalt ist die serverseitig sanitizte HTML
+ * (fett/kursiv/Schriftgröße), zentriert. innerHtml MUSS sanitized sein.
+ */
+export function writeTextLabel(w: Window, innerHtml: string): void {
+  const css = `
+    @page { size: 55mm 30mm; margin: 0; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { margin: 0; padding: 0; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+    .lw  { width: 55mm; height: 30mm; overflow: hidden; page-break-after: avoid; }
+    .tw  { width: 55mm; height: 30mm; padding: 2mm; display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
+    .doc { max-height: 100%; overflow: hidden; line-height: 1.2; }
+    .doc > :first-child { margin-top: 0; }
+    .doc p { font-size: 12pt; margin: 0 0 0.8mm; }
+    .doc ul, .doc ol { font-size: 12pt; margin: 0 0 0.8mm; padding-left: 5mm; text-align: left; }
+    .doc h1 { font-size: 16pt; margin: 0 0 0.8mm; } .doc h2 { font-size: 14pt; margin: 0 0 0.8mm; } .doc h3 { font-size: 12pt; margin: 0 0 0.8mm; }
+    .doc strong { font-weight: bold; }
+    .doc em { font-style: italic; }
+  `;
+
+  const body = `<div class="lw"><div class="tw"><div class="doc">${innerHtml}</div></div></div>`;
 
   w.document.open();
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${body}${PRINT_SCRIPT}</body></html>`);

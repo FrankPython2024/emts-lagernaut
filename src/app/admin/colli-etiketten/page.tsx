@@ -5,8 +5,8 @@ import { QRCodeSVG } from "qrcode.react";
 import { Printer, Plus } from "lucide-react";
 import {
   printColliEtiketten,
-  printTextEtiketten,
   writeSchrankBeschriftung,
+  writeTextLabel,
   type SchrankOrientierung,
 } from "@/lib/print/colliEtikett";
 import { SchrankEditor } from "@/components/ui/SchrankEditor";
@@ -15,30 +15,14 @@ import { api } from "@/trpc/react";
 
 type Modus = "colli" | "text" | "schrank";
 
-// Hat die Schrank-Beschriftung echten Inhalt? (Tags/Whitespace ignorieren.)
-function schrankHasContent(html: string): boolean {
+// Hat das WYSIWYG-HTML echten Inhalt? (Tags/Whitespace ignorieren.)
+function htmlHasContent(html: string): boolean {
   return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim().length > 0;
 }
 
 // Colli-Nummern: eine pro Zeile, zusätzlich Komma/Semikolon als Trenner.
 function parseColli(input: string): string[] {
   return input.split(/[\n,;]+/).map((s) => s.trim()).filter((s) => s.length > 0);
-}
-
-// Text-Etiketten: NUR zeilenweise trennen (Text darf Komma/Semikolon enthalten).
-function parseTextLines(input: string): string[] {
-  return input.split(/\n/).map((s) => s.trim()).filter((s) => s.length > 0);
-}
-
-// Vorschau-Schriftgröße (px) fürs Text-Etikett — gespiegelt zur Druck-Logik
-// (textEtikettFontPt), nur in px für die ~260px breite Vorschaukachel.
-function previewTextFontPx(len: number): number {
-  if (len <= 6)  return 34;
-  if (len <= 12) return 26;
-  if (len <= 20) return 19;
-  if (len <= 35) return 14;
-  if (len <= 60) return 11;
-  return 9;
 }
 
 // ── Colli-Etikett (55:30) — QR links, rechts optional Zusatztext + Nummer ──────
@@ -90,44 +74,6 @@ function ColliEtikett({ nummer, zusatz, onPrint }: { nummer: string; zusatz: str
   );
 }
 
-// ── Text-Etikett (55:30, blanko) — nur Text, zentriert, Auto-Fit ──────────────
-function TextEtikett({ text, onPrint }: { text: string; onPrint: () => void }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div
-        role="img"
-        aria-label={`Text-Etikett ${text}`}
-        className="bg-white border border-[#ced4da] rounded-md overflow-hidden"
-        style={{ aspectRatio: "55 / 30" }}
-      >
-        <div className="flex h-full w-full items-center justify-center text-center p-2 overflow-hidden">
-          <div
-            className="font-bold text-black"
-            style={{
-              fontSize:     `${previewTextFontPx(text.length)}px`,
-              lineHeight:   1.15,
-              wordBreak:    "break-word",
-              overflowWrap: "anywhere",
-              maxHeight:    "100%",
-              overflow:     "hidden",
-            }}
-          >
-            {text}
-          </div>
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={onPrint}
-        aria-label={`Text-Etikett „${text}" drucken`}
-        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#0064d2] dark:text-[#45bdff] text-xs font-bold hover:bg-[#0064d2]/10 transition-colors min-h-[40px]"
-      >
-        <Printer size={14} aria-hidden /> Drucken
-      </button>
-    </div>
-  );
-}
-
 export default function ColliEtikettenPage() {
   const { has, isLoading: permsLoading } = usePermissions();
 
@@ -152,23 +98,23 @@ export default function ColliEtikettenPage() {
   const nummern   = useMemo(() => parseColli(text), [text]);
   const effZusatz = zusatzAktiv ? zusatz.trim() : "";
 
-  // Text-Modus
-  const [blanko, setBlanko] = useState("");
-  const texte = useMemo(() => parseTextLines(blanko), [blanko]);
+  // Text-Modus (WYSIWYG-Freitext-Label, 55×30 mm — ein Label)
+  const [textHtml, setTextHtml] = useState("");
+  const [textResetKey, setTextResetKey] = useState(0);
+  const textBereit = htmlHasContent(textHtml);
 
   // Schrank-Modus
   const [schrankHtml, setSchrankHtml] = useState("");
   const [schrankOrient, setSchrankOrient] = useState<SchrankOrientierung>("quer");
   const [schrankResetKey, setSchrankResetKey] = useState(0);
-  const schrankBereit = schrankHasContent(schrankHtml);
+  const schrankBereit = htmlHasContent(schrankHtml);
 
   const taId       = useId();
   const zusatzId   = useId();
-  const blankoId   = useId();
 
   const anzahl =
     modus === "colli" ? nummern.length :
-    modus === "text"  ? texte.length :
+    modus === "text"  ? (textBereit ? 1 : 0) :
     schrankBereit ? 1 : 0;
 
   // Zugriff: eigenes Recht COLLI_ETIKETTEN_VIEW (ADMIN via SYSTEM_ADMIN inklusive).
@@ -184,8 +130,9 @@ export default function ColliEtikettenPage() {
     );
   }
 
-  // Schrank-Beschriftung drucken: Fenster SYNCHRON öffnen (Popup-Blocker),
-  // dann serverseitig sanitizen, erst danach ins Fenster schreiben.
+  // WYSIWYG-Druck (Schrank & Text): Fenster SYNCHRON öffnen (Popup-Blocker),
+  // dann serverseitig sanitizen (gleiche Allowlist), erst danach ins Fenster
+  // schreiben.
   async function druckeSchrank() {
     if (!schrankBereit) return;
     const w = window.open("", "_blank", "width=640,height=520");
@@ -199,9 +146,22 @@ export default function ColliEtikettenPage() {
     }
   }
 
+  async function druckeText() {
+    if (!textBereit) return;
+    const w = window.open("", "_blank", "width=400,height=250");
+    if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
+    try {
+      const { html } = await sanitizeSchrank.mutateAsync({ html: textHtml });
+      writeTextLabel(w, html);
+      logDruck("text", 1);
+    } catch {
+      w.close();
+    }
+  }
+
   function druckeAlle() {
     if (modus === "colli") { printColliEtiketten(nummern, effZusatz); logDruck("colli", nummern.length); }
-    else if (modus === "text") { printTextEtiketten(texte); logDruck("text", texte.length); }
+    else if (modus === "text") { void druckeText(); }
     else { void druckeSchrank(); }
   }
 
@@ -290,6 +250,8 @@ export default function ColliEtikettenPage() {
             key={schrankResetKey}
             html={schrankHtml}
             onHtmlChange={setSchrankHtml}
+            toolbar="voll"
+            previewKind="schrank"
             orientierung={schrankOrient}
             onOrientierung={setSchrankOrient}
           />
@@ -356,60 +318,55 @@ export default function ColliEtikettenPage() {
           )}
         </div>
       ) : (
-        <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 space-y-3">
-          <label htmlFor={blankoId} className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
-            Text-Etiketten eingeben
-          </label>
-          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-            Eine Zeile = ein Etikett (nur Text, kein QR/keine Nummer). Lange Texte werden automatisch verkleinert.
-          </p>
-          <textarea
-            id={blankoId}
-            value={blanko}
-            onChange={(e) => setBlanko(e.target.value)}
-            rows={6}
-            spellCheck={false}
-            autoComplete="off"
-            placeholder={"Prio\nZerbrechlich\nRetoure"}
-            className="w-full px-4 py-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm outline-none focus:border-[#0064d2] focus:ring-2 focus:ring-[#0064d2]/30 transition-colors resize-y min-h-[140px]"
+        <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                Freitext-Label (55 × 30 mm)
+              </h2>
+              <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+                Ein Label mit formatiertem Freitext (kein QR/keine Nummer). Fett, kursiv und Schriftgröße möglich.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setTextHtml(""); setTextResetKey((k) => k + 1); }}
+              disabled={!textBereit}
+              className="px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] text-sm font-semibold hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] disabled:opacity-40 transition-colors min-h-[44px]"
+            >
+              Leeren
+            </button>
+          </div>
+          <SchrankEditor
+            key={textResetKey}
+            html={textHtml}
+            onHtmlChange={setTextHtml}
+            toolbar="reduziert"
+            previewKind="text"
           />
-          <button
-            type="button"
-            onClick={() => setBlanko("")}
-            disabled={blanko.length === 0}
-            className="px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] text-sm font-semibold hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] disabled:opacity-40 transition-colors min-h-[44px]"
-          >
-            Leeren
-          </button>
         </div>
       )}
 
-      {/* Live-Vorschau (Schrank-Modus bringt seine eigene 1:1-Vorschau mit) */}
-      {modus !== "schrank" && (
+      {/* Live-Vorschau (Text- & Schrank-Modus bringen ihre eigene 1:1-Vorschau mit) */}
+      {modus === "colli" && (
       <div className="space-y-3">
         <h2 className="text-sm font-black uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">
           Vorschau
         </h2>
         {anzahl === 0 ? (
           <div className="text-center py-16 text-[#65676b] dark:text-[#b0b3b8] border border-dashed border-[#ced4da] dark:border-[#3e4042] rounded-2xl">
-            {modus === "colli"
-              ? "Noch keine Colli-Nummern — oben eingeben, um Etiketten zu sehen."
-              : "Noch kein Text — oben eingeben, um Etiketten zu sehen."}
+            Noch keine Colli-Nummern — oben eingeben, um Etiketten zu sehen.
           </div>
         ) : (
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
-            {modus === "colli"
-              ? nummern.map((nr, i) => (
-                  <ColliEtikett
-                    key={`${i}-${nr}`}
-                    nummer={nr}
-                    zusatz={effZusatz}
-                    onPrint={() => { printColliEtiketten([nr], effZusatz); logDruck("colli", 1); }}
-                  />
-                ))
-              : texte.map((t, i) => (
-                  <TextEtikett key={`${i}-${t}`} text={t} onPrint={() => { printTextEtiketten([t]); logDruck("text", 1); }} />
-                ))}
+            {nummern.map((nr, i) => (
+              <ColliEtikett
+                key={`${i}-${nr}`}
+                nummer={nr}
+                zusatz={effZusatz}
+                onPrint={() => { printColliEtiketten([nr], effZusatz); logDruck("colli", 1); }}
+              />
+            ))}
           </div>
         )}
       </div>

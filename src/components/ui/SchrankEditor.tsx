@@ -6,15 +6,20 @@ import type { SchrankOrientierung } from "@/lib/print/colliEtikett";
 
 // Schlanker contentEditable-WYSIWYG-Editor (KEINE externe Editor-Abhängigkeit,
 // React-19-sicher). Formatierung via document.execCommand: fett, kursiv,
-// Aufzählung/Nummerierung, Überschrift/Schriftgröße. Das erzeugte HTML wird
-// VOR dem Druck serverseitig sanitized (nur erlaubte Tags überleben).
+// Aufzählung/Nummerierung, Überschrift sowie eine Schriftgröße (span[style]).
+// Das erzeugte HTML wird VOR dem Druck serverseitig sanitized (nur erlaubte
+// Tags überleben).
+//
+// Wird in ZWEI Formaten genutzt:
+//   • Schrank-Beschriftung (150 × 120 mm) — volle Toolbar, Vorschau mit Rahmen
+//   • Freitext-Label (55 × 30 mm)         — reduzierte Toolbar, kleine Vorschau
 //
 // Bewusst un-controlled: initiales HTML wird EINMAL beim Mount gesetzt, danach
 // nur via onInput nach oben gemeldet — sonst springt der Cursor. Zum Leeren
 // von außen den `key` der Komponente wechseln (erzwingt Remount).
 
-// Dieselben Regeln wie das Druck-Template (writeSchrankBeschriftung) — damit die
-// Vorschau im echten Format exakt dem Druck entspricht (echtes WYSIWYG).
+// Dieselben Regeln wie das Druck-Template — damit die Vorschau im echten Format
+// exakt dem Druck entspricht (echtes WYSIWYG).
 const PREVIEW_CSS = `
 .schrank-doc > :first-child { margin-top: 0; }
 .schrank-doc h1 { font-size: 22pt; margin: 0 0 2.5mm; line-height: 1.15; }
@@ -28,17 +33,31 @@ const PREVIEW_CSS = `
 .schrank-edit:empty::before { content: attr(data-placeholder); color: #90939a; }
 `;
 
+// Auswahl-Schriftgrößen (pt) — landen als span[style="font-size:…pt"] (Allowlist).
+const FONT_SIZES = [
+  { label: "Klein",     pt: "9pt" },
+  { label: "Normal",    pt: "12pt" },
+  { label: "Groß",      pt: "18pt" },
+  { label: "Sehr groß", pt: "24pt" },
+];
+
 type Props = {
-  html:          string;
-  onHtmlChange:  (html: string) => void;
-  orientierung:  SchrankOrientierung;
-  onOrientierung: (o: SchrankOrientierung) => void;
+  html:           string;
+  onHtmlChange:   (html: string) => void;
+  toolbar?:       "voll" | "reduziert";
+  previewKind:    "schrank" | "text";
+  orientierung?:  SchrankOrientierung;            // nur previewKind="schrank"
+  onOrientierung?: (o: SchrankOrientierung) => void;
 };
 
 const btn =
   "inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-sm font-semibold text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors";
+const selCls =
+  "h-9 px-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-sm font-semibold text-[#65676b] dark:text-[#b0b3b8]";
 
-export function SchrankEditor({ html, onHtmlChange, orientierung, onOrientierung }: Props) {
+export function SchrankEditor({
+  html, onHtmlChange, toolbar = "voll", previewKind, orientierung = "quer", onOrientierung,
+}: Props) {
   const editRef = useRef<HTMLDivElement>(null);
 
   // initiales HTML einmalig setzen (Remount via key liefert leeres html)
@@ -59,62 +78,109 @@ export function SchrankEditor({ html, onHtmlChange, orientierung, onOrientierung
     sync();
   }
 
+  // Schriftgröße: bewusst NICHT via execCommand('fontSize') (erzeugt <font>/Keyword-
+  // Größen, die die Sanitize-Allowlist verwirft), sondern als span[style="font-size"].
+  function applyFontSize(pt: string) {
+    editRef.current?.focus();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const span = document.createElement("span");
+    span.style.fontSize = pt;
+    try {
+      range.surroundContents(span);
+    } catch {
+      // Auswahl über mehrere Knoten: extrahieren + umschließen
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+    }
+    sel.removeAllRanges();
+    const r = document.createRange();
+    r.selectNodeContents(span);
+    sel.addRange(r);
+    sync();
+  }
+
   // [pw, ph] in mm — Bildschirm rendert mm via 96dpi, identisch zum @page-Druck,
   // daher 1:1-WYSIWYG inkl. pt-Schriftgrößen.
-  const [pw, ph] = orientierung === "hoch" ? ["120mm", "150mm"] : ["150mm", "120mm"];
+  const [pw, ph] =
+    previewKind === "text"      ? ["55mm", "30mm"] :
+    orientierung === "hoch"     ? ["120mm", "150mm"] :
+                                  ["150mm", "120mm"];
 
   return (
     <div className="space-y-4">
       <style>{PREVIEW_CSS}</style>
 
-      {/* Orientierung */}
-      <div role="group" aria-label="Orientierung" className="inline-flex rounded-lg overflow-hidden border border-[#ced4da] dark:border-[#3e4042]">
-        <button
-          type="button"
-          aria-pressed={orientierung === "quer"}
-          onClick={() => onOrientierung("quer")}
-          className={`px-4 h-9 text-sm font-bold transition-colors ${orientierung === "quer" ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8]"}`}
-        >
-          Quer (15 × 12)
-        </button>
-        <button
-          type="button"
-          aria-pressed={orientierung === "hoch"}
-          onClick={() => onOrientierung("hoch")}
-          className={`px-4 h-9 text-sm font-bold border-l border-[#ced4da] dark:border-[#3e4042] transition-colors ${orientierung === "hoch" ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8]"}`}
-        >
-          Hoch (12 × 15)
-        </button>
-      </div>
+      {/* Orientierung — nur Schrank */}
+      {previewKind === "schrank" && onOrientierung && (
+        <div role="group" aria-label="Orientierung" className="inline-flex rounded-lg overflow-hidden border border-[#ced4da] dark:border-[#3e4042]">
+          <button
+            type="button"
+            aria-pressed={orientierung === "quer"}
+            onClick={() => onOrientierung("quer")}
+            className={`px-4 h-9 text-sm font-bold transition-colors ${orientierung === "quer" ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8]"}`}
+          >
+            Quer (15 × 12)
+          </button>
+          <button
+            type="button"
+            aria-pressed={orientierung === "hoch"}
+            onClick={() => onOrientierung("hoch")}
+            className={`px-4 h-9 text-sm font-bold border-l border-[#ced4da] dark:border-[#3e4042] transition-colors ${orientierung === "hoch" ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8]"}`}
+          >
+            Hoch (12 × 15)
+          </button>
+        </div>
+      )}
 
       <div className="grid gap-5" style={{ gridTemplateColumns: "minmax(320px, 1fr) auto" }}>
         {/* ── Editor ── */}
         <div className="space-y-2 min-w-0">
-          {/* Toolbar — onMouseDown preventDefault, damit die Auswahl erhalten bleibt */}
-          <div className="flex flex-wrap items-center gap-2" onMouseDown={(e) => e.preventDefault()}>
-            <button type="button" className={btn} onClick={() => exec("bold")} aria-label="Fett" title="Fett">
+          {/* Toolbar — Buttons mit preventDefault, damit die Auswahl erhalten bleibt.
+              Das <select> bewusst OHNE preventDefault (sonst öffnet es nicht). */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={() => exec("bold")} aria-label="Fett" title="Fett">
               <Bold size={16} aria-hidden />
             </button>
-            <button type="button" className={btn} onClick={() => exec("italic")} aria-label="Kursiv" title="Kursiv">
+            <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={() => exec("italic")} aria-label="Kursiv" title="Kursiv">
               <Italic size={16} aria-hidden />
             </button>
-            <button type="button" className={btn} onClick={() => exec("insertUnorderedList")} aria-label="Aufzählung" title="Aufzählung">
-              <List size={16} aria-hidden />
-            </button>
-            <button type="button" className={btn} onClick={() => exec("insertOrderedList")} aria-label="Nummerierte Liste" title="Nummerierte Liste">
-              <ListOrdered size={16} aria-hidden />
-            </button>
+
+            {toolbar === "voll" && (
+              <>
+                <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={() => exec("insertUnorderedList")} aria-label="Aufzählung" title="Aufzählung">
+                  <List size={16} aria-hidden />
+                </button>
+                <button type="button" className={btn} onMouseDown={(e) => e.preventDefault()} onClick={() => exec("insertOrderedList")} aria-label="Nummerierte Liste" title="Nummerierte Liste">
+                  <ListOrdered size={16} aria-hidden />
+                </button>
+                <select
+                  aria-label="Format"
+                  defaultValue=""
+                  onChange={(e) => { const v = e.target.value; if (v) exec("formatBlock", v); e.target.value = ""; }}
+                  className={selCls}
+                >
+                  <option value="" disabled>Format…</option>
+                  <option value="H1">Überschrift groß</option>
+                  <option value="H2">Überschrift mittel</option>
+                  <option value="H3">Überschrift klein</option>
+                  <option value="P">Normaler Text</option>
+                </select>
+              </>
+            )}
+
+            {/* Schriftgröße — span[style=font-size], in beiden Toolbars verfügbar */}
             <select
-              aria-label="Format / Schriftgröße"
+              aria-label="Schriftgröße"
               defaultValue=""
-              onChange={(e) => { const v = e.target.value; if (v) exec("formatBlock", v); e.target.value = ""; }}
-              className="h-9 px-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-sm font-semibold text-[#65676b] dark:text-[#b0b3b8]"
+              onChange={(e) => { const v = e.target.value; if (v) applyFontSize(v); e.target.value = ""; }}
+              className={selCls}
             >
-              <option value="" disabled>Format / Größe…</option>
-              <option value="H1">Überschrift groß</option>
-              <option value="H2">Überschrift mittel</option>
-              <option value="H3">Überschrift klein</option>
-              <option value="P">Normaler Text</option>
+              <option value="" disabled>Schriftgröße…</option>
+              {FONT_SIZES.map((f) => (
+                <option key={f.pt} value={f.pt}>{f.label}</option>
+              ))}
             </select>
           </div>
 
@@ -124,35 +190,50 @@ export function SchrankEditor({ html, onHtmlChange, orientierung, onOrientierung
             suppressContentEditableWarning
             role="textbox"
             aria-multiline="true"
-            aria-label="Schrank-Beschriftung bearbeiten"
-            data-placeholder="Inhalt eingeben — z. B. Schrank-Name und Liste der Ersatzteile…"
+            aria-label="Label-Inhalt bearbeiten"
+            data-placeholder={previewKind === "text"
+              ? "Label-Text eingeben…"
+              : "Inhalt eingeben — z. B. Schrank-Name und Liste der Ersatzteile…"}
             onInput={sync}
-            className="schrank-doc schrank-edit w-full min-h-[260px] px-4 py-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] focus:ring-2 focus:ring-[#0064d2]/30 transition-colors overflow-auto"
+            className="schrank-doc schrank-edit w-full min-h-[200px] px-4 py-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] focus:ring-2 focus:ring-[#0064d2]/30 transition-colors overflow-auto"
           />
           <p className="text-xs text-[#90939a] dark:text-[#6b6e73]">
-            Fett, kursiv, Aufzählung und Überschriften möglich. Die Vorschau rechts zeigt das echte Druckformat.
+            {previewKind === "text"
+              ? "Fett, kursiv und Schriftgröße möglich. Die Vorschau rechts zeigt das echte Druckformat."
+              : "Fett, kursiv, Aufzählung und Überschriften möglich. Die Vorschau rechts zeigt das echte Druckformat."}
           </p>
         </div>
 
-        {/* ── Live-Vorschau im echten Format (mit Schnittkanten-Rahmen) ── */}
+        {/* ── Live-Vorschau im echten Format ── */}
         <div className="space-y-2">
           <span className="block text-xs font-black uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">
             Vorschau — 1:1 Druck
           </span>
-          <div
-            role="img"
-            aria-label="Vorschau der Schrank-Beschriftung im echten Format"
-            className="relative bg-white shadow-sm"
-            style={{ width: pw, height: ph, color: "#000", fontFamily: "Arial, Helvetica, sans-serif", overflow: "hidden" }}
-          >
+          {previewKind === "text" ? (
             <div
-              className="schrank-doc absolute"
-              style={{ inset: "4mm", padding: "5mm", overflow: "hidden" }}
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
-            {/* Schnittkante: dünne, helle Linie ein paar mm vom Rand */}
-            <div className="absolute pointer-events-none" style={{ inset: "4mm", border: "0.4pt solid #999" }} />
-          </div>
+              role="img"
+              aria-label="Vorschau des Labels im echten Format"
+              className="bg-white border border-[#ced4da] shadow-sm flex items-center justify-center text-center"
+              style={{ width: pw, height: ph, color: "#000", fontFamily: "Arial, Helvetica, sans-serif", overflow: "hidden", padding: "2mm" }}
+            >
+              <div className="schrank-doc" style={{ maxHeight: "100%", overflow: "hidden" }} dangerouslySetInnerHTML={{ __html: html }} />
+            </div>
+          ) : (
+            <div
+              role="img"
+              aria-label="Vorschau der Schrank-Beschriftung im echten Format"
+              className="relative bg-white shadow-sm"
+              style={{ width: pw, height: ph, color: "#000", fontFamily: "Arial, Helvetica, sans-serif", overflow: "hidden" }}
+            >
+              <div
+                className="schrank-doc absolute"
+                style={{ inset: "4mm", padding: "5mm", overflow: "hidden" }}
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
+              {/* Schnittkante: dünne, helle Linie ein paar mm vom Rand */}
+              <div className="absolute pointer-events-none" style={{ inset: "4mm", border: "0.4pt solid #999" }} />
+            </div>
+          )}
         </div>
       </div>
     </div>
