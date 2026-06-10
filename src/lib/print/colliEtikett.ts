@@ -13,15 +13,15 @@ import QRCode from "qrcode";
 // QR als SVG-Data-URI — identische Erzeugung wie genQrSvg im Auslagerbeleg,
 // aber mit dem ROHEN Inhalt (kein Präfix, keine URL). SVG = gestochen scharf.
 //
-// forceByteUtf8: kodiert den Inhalt explizit als UTF-8-Byte-Segment. Damit
-// landen Umlaute (z. B. "ä" → C3 A4) korrekt im QR, unabhängig davon wie die
-// qrcode-Version Strings intern in Bytes wandelt (ältere Versionen nutzten
-// Latin-1/charCodeAt → einzelnes 0xE4, das ein UTF-8-Scanner verschluckt).
+// forceByteLatin1: kodiert den Inhalt explizit als ISO-8859-1-(Latin-1-)Byte-
+// Segment — jedes Zeichen als EIN Byte (charCodeAt & 0xFF, "ä" → 0xE4). Das ist
+// der QR-Byte-Default (ISO-8859-1, KEIN ECI). Nötig für den Schrank-QR, weil der
+// USB-Funkscanner (ReForm-Umbuchung) Umlaute nur in Latin-1 sauber liest.
 // Für reine ASCII-Inhalte (Colli-Nummern) ist das Ergebnis identisch; dort
-// bleibt die Auto-Erkennung aktiv (forceByteUtf8=false).
-async function genQrSvg(content: string, forceByteUtf8 = false): Promise<string> {
-  const input = forceByteUtf8
-    ? [{ mode: "byte" as const, data: new TextEncoder().encode(content) }]
+// bleibt die Auto-Erkennung aktiv (forceByteLatin1=false).
+async function genQrSvg(content: string, forceByteLatin1 = false): Promise<string> {
+  const input = forceByteLatin1
+    ? [{ mode: "byte" as const, data: Uint8Array.from(content, (c) => c.charCodeAt(0) & 0xff) }]
     : content;
   const svg = await QRCode.toString(input, {
     type:                 "svg",
@@ -30,6 +30,13 @@ async function genQrSvg(content: string, forceByteUtf8 = false): Promise<string>
     color:                { dark: "#000000", light: "#ffffff" },
   });
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+}
+
+// Schrank-Stellplatz-QR als SVG-Data-URI (ISO-8859-1). EINZIGE Quelle für den
+// Schrank-QR — Druck UND Vorschau nutzen sie, damit beide byte-identisch sind
+// ("was man sieht = was man scannt").
+export function stellplatzQrDataUri(stellplatz: string): Promise<string> {
+  return genQrSvg(stellplatz.trim(), true);
 }
 
 // Auto-Print im neuen Fenster — wortgleich zu printAuslagerBeleg.
@@ -133,12 +140,12 @@ export async function writeSchrankBeschriftung(
 
   // QR oben rechts — schwebt (float:right), damit der Text darunter/daneben
   // wieder die volle Breite nutzt und NICHT unter den QR läuft.
-  // QR bekommt den ROHEN Stellplatz-String (UTF-8 Byte-Modus); escapeHtml NUR
-  // für den angezeigten Klartext unter dem QR, niemals für den QR-Payload.
+  // QR bekommt den ROHEN Stellplatz-String (ISO-8859-1 Byte-Modus); escapeHtml
+  // NUR für den angezeigten Klartext unter dem QR, niemals für den QR-Payload.
   const platz = stellplatz.trim();
   const zeigeQr = qrAktiv && platz.length > 0;
   const qrHtml = zeigeQr
-    ? `<div class="qrbox"><img class="qrimg" src="${await genQrSvg(platz, true)}" alt="" /><div class="qrlbl">${escapeHtml(platz)}</div></div>`
+    ? `<div class="qrbox"><img class="qrimg" src="${await stellplatzQrDataUri(platz)}" alt="" /><div class="qrlbl">${escapeHtml(platz)}</div></div>`
     : "";
 
   const css = `

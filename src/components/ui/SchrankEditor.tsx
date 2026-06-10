@@ -1,8 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { QRCodeSVG } from "qrcode.react";
-import type { SchrankOrientierung } from "@/lib/print/colliEtikett";
+import { useEffect, useState } from "react";
+import { stellplatzQrDataUri, type SchrankOrientierung } from "@/lib/print/colliEtikett";
 
 // WYSIWYG-Editor auf Basis von CKEditor 5 (Classic), client-side lazy geladen
 // (dynamic import, ssr:false — CKEditor braucht window/document). Schnittstelle
@@ -53,6 +53,17 @@ export function SchrankEditor({
 }: Props) {
   const platz = stellplatz.trim();
   const zeigeQr = previewKind === "schrank" && qrAktiv && platz.length > 0;
+
+  // Stellplatz-QR über DENSELBEN Pfad wie der Druck (stellplatzQrDataUri,
+  // ISO-8859-1) — so ist die Vorschau byte-identisch zum gedruckten QR.
+  const [qrUri, setQrUri] = useState<string | null>(null);
+  useEffect(() => {
+    if (!zeigeQr) { setQrUri(null); return; }
+    let aktiv = true;
+    stellplatzQrDataUri(platz).then((uri) => { if (aktiv) setQrUri(uri); }).catch(() => {});
+    return () => { aktiv = false; };
+  }, [zeigeQr, platz]);
+
   // [pw, ph] in mm — Bildschirm rendert mm via 96dpi, identisch zum @page-Druck,
   // daher 1:1-WYSIWYG inkl. pt-Schriftgrößen.
   const [pw, ph] =
@@ -126,17 +137,14 @@ export function SchrankEditor({
                 className="schrank-doc absolute"
                 style={{ inset: "4mm", padding: "5mm", overflow: "hidden" }}
               >
-                {/* Stellplatz-QR oben rechts (float, damit Text nicht darunter läuft) */}
-                {zeigeQr && (
+                {/* Stellplatz-QR oben rechts (float, damit Text nicht darunter läuft).
+                    Gleiche SVG-Quelle wie der Druck (ISO-8859-1) → byte-identisch. */}
+                {zeigeQr && qrUri && (
                   <div style={{ float: "right", width: "30mm", margin: "0 0 2mm 3mm", textAlign: "center" }}>
-                    <QRCodeSVG
-                      value={platz}
-                      level="M"
-                      bgColor="#ffffff"
-                      fgColor="#000000"
-                      size={120}
+                    <img
+                      src={qrUri}
+                      alt={`Stellplatz-QR ${platz}`}
                       style={{ display: "block", width: "28mm", height: "28mm", margin: "0 auto" }}
-                      title={`Stellplatz-QR ${platz}`}
                     />
                     <div style={{ marginTop: "1mm", fontSize: "8pt", lineHeight: 1.1, wordBreak: "break-all" }}>{platz}</div>
                   </div>
