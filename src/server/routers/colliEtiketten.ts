@@ -3,11 +3,11 @@ import sanitizeHtml from "sanitize-html";
 import { createTRPCRouter, protectedProcedure, permissionProcedure } from "@/server/trpc";
 import type { SessionUser } from "@/core/types";
 
-// Sanitize-Konfiguration für die Schrank-Beschriftung. Bewusst SEHR eng:
-// nur die im Editor erzeugbaren Block-/Inline-Tags. Alles andere (script, img,
-// style, font, a, …) wird verworfen, der Textinhalt bleibt erhalten.
-// b/i werden auf strong/em normalisiert (manche Browser liefern via execCommand
-// noch b/i). span ist nur mit reinem font-size-Style erlaubt.
+// Sanitize-Konfiguration für die WYSIWYG-Labels (Schrank + Freitext). Bewusst
+// SEHR eng: nur die von CKEditor 5 erzeugbaren Block-/Inline-Tags. Alles andere
+// (script, img, style, font, a, …) wird verworfen, der Textinhalt bleibt erhalten.
+// CKEditor: fett=<strong>, kursiv=<i> → i/b werden auf em/strong normalisiert.
+// span ist nur mit reinem font-size-Style erlaubt (FontSize supportAllValues=px).
 const SCHRANK_SANITIZE: sanitizeHtml.IOptions = {
   allowedTags: ["p", "br", "strong", "em", "b", "i", "ul", "ol", "li", "h1", "h2", "h3", "span"],
   allowedAttributes: { span: ["style"] },
