@@ -94,6 +94,51 @@ export async function printColliEtiketten(nummern: string[], zusatztext = ""): P
   w.document.close();
 }
 
+export type SchrankOrientierung = "quer" | "hoch";
+
+/**
+ * Schreibt eine Schrank-Beschriftung (150 × 120 mm) in ein BEREITS geöffnetes
+ * Fenster und löst den Druck aus. Das Fenster muss vom Aufrufer SYNCHRON via
+ * window.open() geöffnet werden (Popup-Blocker), danach wird das HTML server-
+ * seitig sanitized und erst dann hier eingesetzt — daher kein window.open hier.
+ *
+ *  • @page exakt 150mm × 120mm (quer) bzw. 120mm × 150mm (hoch), margin 0
+ *  • leichter Rahmen als Schnittkante: 0.4pt #999, ein paar mm vom Rand
+ *  • Inhalt innerhalb des Rahmens mit Padding
+ *  • innerHtml MUSS bereits serverseitig sanitized sein (sanitizeSchrank)
+ */
+export function writeSchrankBeschriftung(
+  w: Window,
+  innerHtml: string,
+  orientierung: SchrankOrientierung = "quer",
+): void {
+  const [pw, ph] = orientierung === "hoch" ? ["120mm", "150mm"] : ["150mm", "120mm"];
+
+  const css = `
+    @page { size: ${pw} ${ph}; margin: 0; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { margin: 0; padding: 0; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+    .page    { position: relative; width: ${pw}; height: ${ph}; overflow: hidden; page-break-after: avoid; }
+    .frame   { position: absolute; inset: 4mm; border: 0.4pt solid #999; }
+    .content { position: absolute; inset: 4mm; padding: 5mm; overflow: hidden; }
+    .content > :first-child { margin-top: 0; }
+    .content h1 { font-size: 22pt; margin: 0 0 2.5mm; line-height: 1.15; }
+    .content h2 { font-size: 17pt; margin: 0 0 2mm;   line-height: 1.15; }
+    .content h3 { font-size: 13pt; margin: 0 0 1.5mm; line-height: 1.15; }
+    .content p  { font-size: 11pt; margin: 0 0 1.5mm; line-height: 1.3; }
+    .content ul, .content ol { font-size: 11pt; line-height: 1.3; margin: 0 0 1.5mm; padding-left: 6mm; }
+    .content li { margin: 0 0 0.6mm; }
+    .content strong { font-weight: bold; }
+    .content em { font-style: italic; }
+  `;
+
+  const body = `<div class="page"><div class="content">${innerHtml}</div><div class="frame"></div></div>`;
+
+  w.document.open();
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${body}${PRINT_SCRIPT}</body></html>`);
+  w.document.close();
+}
+
 /**
  * Druckt Blanko-Text-Etiketten — gleiche 55×30mm-Mechanik/Seitengröße, aber KEIN
  * QR und KEINE Nummer: nur der Text, groß zentriert, mit Auto-Fit + Umbruch.

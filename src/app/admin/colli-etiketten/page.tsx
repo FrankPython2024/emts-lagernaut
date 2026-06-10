@@ -3,11 +3,22 @@
 import { useId, useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Printer, Plus } from "lucide-react";
-import { printColliEtiketten, printTextEtiketten } from "@/lib/print/colliEtikett";
+import {
+  printColliEtiketten,
+  printTextEtiketten,
+  writeSchrankBeschriftung,
+  type SchrankOrientierung,
+} from "@/lib/print/colliEtikett";
+import { SchrankEditor } from "@/components/ui/SchrankEditor";
 import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
 
-type Modus = "colli" | "text";
+type Modus = "colli" | "text" | "schrank";
+
+// Hat die Schrank-Beschriftung echten Inhalt? (Tags/Whitespace ignorieren.)
+function schrankHasContent(html: string): boolean {
+  return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim().length > 0;
+}
 
 // Colli-Nummern: eine pro Zeile, zusätzlich Komma/Semikolon als Trenner.
 function parseColli(input: string): string[] {
@@ -129,6 +140,9 @@ export default function ColliEtikettenPage() {
     try { protokolliere.mutate({ modus: m, anzahl: n }); } catch { /* still */ }
   }
 
+  // Schrank-HTML wird VOR dem Druck serverseitig sanitized.
+  const sanitizeSchrank = api.colliEtiketten.sanitizeSchrank.useMutation();
+
   const [modus, setModus] = useState<Modus>("colli");
 
   // Colli-Modus
@@ -142,11 +156,20 @@ export default function ColliEtikettenPage() {
   const [blanko, setBlanko] = useState("");
   const texte = useMemo(() => parseTextLines(blanko), [blanko]);
 
+  // Schrank-Modus
+  const [schrankHtml, setSchrankHtml] = useState("");
+  const [schrankOrient, setSchrankOrient] = useState<SchrankOrientierung>("quer");
+  const [schrankResetKey, setSchrankResetKey] = useState(0);
+  const schrankBereit = schrankHasContent(schrankHtml);
+
   const taId       = useId();
   const zusatzId   = useId();
   const blankoId   = useId();
 
-  const anzahl = modus === "colli" ? nummern.length : texte.length;
+  const anzahl =
+    modus === "colli" ? nummern.length :
+    modus === "text"  ? texte.length :
+    schrankBereit ? 1 : 0;
 
   // Zugriff: eigenes Recht COLLI_ETIKETTEN_VIEW (ADMIN via SYSTEM_ADMIN inklusive).
   // Rein clientseitig — keine Schreib-/adminProcedure.
@@ -161,9 +184,25 @@ export default function ColliEtikettenPage() {
     );
   }
 
+  // Schrank-Beschriftung drucken: Fenster SYNCHRON öffnen (Popup-Blocker),
+  // dann serverseitig sanitizen, erst danach ins Fenster schreiben.
+  async function druckeSchrank() {
+    if (!schrankBereit) return;
+    const w = window.open("", "_blank", "width=640,height=520");
+    if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
+    try {
+      const { html } = await sanitizeSchrank.mutateAsync({ html: schrankHtml });
+      writeSchrankBeschriftung(w, html, schrankOrient);
+      logDruck("schrank", 1);
+    } catch {
+      w.close();
+    }
+  }
+
   function druckeAlle() {
     if (modus === "colli") { printColliEtiketten(nummern, effZusatz); logDruck("colli", nummern.length); }
-    else { printTextEtiketten(texte); logDruck("text", texte.length); }
+    else if (modus === "text") { printTextEtiketten(texte); logDruck("text", texte.length); }
+    else { void druckeSchrank(); }
   }
 
   return (
@@ -173,7 +212,9 @@ export default function ColliEtikettenPage() {
         <div>
           <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">🏷️ Label Tool</h1>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
-            55 × 30 mm-Label-Format (gleicher Drucker wie die Auslagerbelege).
+            {modus === "schrank"
+              ? "Schrank-Beschriftung 15 × 12 cm (gleicher Drucker wie die Etiketten)."
+              : "55 × 30 mm-Label-Format (gleicher Drucker wie die Auslagerbelege)."}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -181,7 +222,9 @@ export default function ColliEtikettenPage() {
             aria-live="polite"
             className="px-3 py-2 rounded-xl bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] text-sm font-bold"
           >
-            {anzahl} {anzahl === 1 ? "Etikett" : "Etiketten"}
+            {modus === "schrank"
+              ? (anzahl === 1 ? "1 Beschriftung" : "Keine Beschriftung")
+              : `${anzahl} ${anzahl === 1 ? "Etikett" : "Etiketten"}`}
           </span>
           <button
             type="button"
@@ -212,10 +255,46 @@ export default function ColliEtikettenPage() {
         >
           📝 Text-Etikett
         </button>
+        <button
+          type="button"
+          aria-pressed={modus === "schrank"}
+          onClick={() => setModus("schrank")}
+          className={`px-5 text-sm font-bold border-l border-[#ced4da] dark:border-[#3e4042] transition-colors min-h-[56px] ${modus === "schrank" ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
+        >
+          🗄️ Schrank-Beschriftung
+        </button>
       </div>
 
       {/* Eingabe */}
-      {modus === "colli" ? (
+      {modus === "schrank" ? (
+        <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                Schrank-Beschriftung (15 × 12 cm)
+              </h2>
+              <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+                Freitext zum Auflisten von Gegenständen / Ersatzteilen. Druckt als ganze 150 × 120 mm-Seite mit Schnittkanten-Rahmen.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setSchrankHtml(""); setSchrankResetKey((k) => k + 1); }}
+              disabled={!schrankBereit}
+              className="px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] text-sm font-semibold hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] disabled:opacity-40 transition-colors min-h-[44px]"
+            >
+              Leeren
+            </button>
+          </div>
+          <SchrankEditor
+            key={schrankResetKey}
+            html={schrankHtml}
+            onHtmlChange={setSchrankHtml}
+            orientierung={schrankOrient}
+            onOrientierung={setSchrankOrient}
+          />
+        </div>
+      ) : modus === "colli" ? (
         <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 space-y-3">
           <label htmlFor={taId} className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
             Colli-Nummern eingeben
@@ -305,7 +384,8 @@ export default function ColliEtikettenPage() {
         </div>
       )}
 
-      {/* Live-Vorschau */}
+      {/* Live-Vorschau (Schrank-Modus bringt seine eigene 1:1-Vorschau mit) */}
+      {modus !== "schrank" && (
       <div className="space-y-3">
         <h2 className="text-sm font-black uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">
           Vorschau
@@ -333,6 +413,7 @@ export default function ColliEtikettenPage() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

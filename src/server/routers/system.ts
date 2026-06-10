@@ -291,10 +291,12 @@ type ColliNutzerZeile = {
   vorgaenge:      number;       // Anzahl Druckvorgänge (Events)
   etiketten:      number;       // Summe gedruckter Etiketten
   letzteNutzung:  Date | null;
-  colliVorgaenge: number;
-  colliEtiketten: number;
-  textVorgaenge:  number;
-  textEtiketten:  number;
+  colliVorgaenge:   number;
+  colliEtiketten:   number;
+  textVorgaenge:    number;
+  textEtiketten:    number;
+  schrankVorgaenge: number;
+  schrankEtiketten: number;
 };
 
 export const systemRouter = createTRPCRouter({
@@ -335,14 +337,16 @@ export const systemRouter = createTRPCRouter({
           userId: g.userId, name: u?.name ?? "—", kuerzel: u?.kuerzel ?? "—",
           vorgaenge: 0, etiketten: 0, letzteNutzung: null,
           colliVorgaenge: 0, colliEtiketten: 0, textVorgaenge: 0, textEtiketten: 0,
+          schrankVorgaenge: 0, schrankEtiketten: 0,
         };
         byUser.set(g.userId, row);
       }
       row.vorgaenge += vorg;
       row.etiketten += etik;
       if (max && (!row.letzteNutzung || max > row.letzteNutzung)) row.letzteNutzung = max;
-      if (g.modus === "text") { row.textVorgaenge += vorg; row.textEtiketten += etik; }
-      else                    { row.colliVorgaenge += vorg; row.colliEtiketten += etik; }
+      if      (g.modus === "text")    { row.textVorgaenge    += vorg; row.textEtiketten    += etik; }
+      else if (g.modus === "schrank") { row.schrankVorgaenge += vorg; row.schrankEtiketten += etik; }
+      else                            { row.colliVorgaenge   += vorg; row.colliEtiketten   += etik; }
     }
 
     const nutzer = [...byUser.values()].sort((a, b) => b.vorgaenge - a.vorgaenge);

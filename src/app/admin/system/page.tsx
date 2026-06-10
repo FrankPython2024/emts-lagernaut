@@ -584,7 +584,7 @@ function ColliNutzungWidget() {
                       <span className="font-bold text-[#0064d2] dark:text-[#45bdff]">{n.kuerzel}</span>
                       <span className="text-[#65676b] dark:text-[#b0b3b8]"> · {n.name}</span>
                       <div className="text-[10px] text-[#65676b] dark:text-[#b0b3b8]">
-                        Colli {fmtNum(n.colliVorgaenge)} · Text {fmtNum(n.textVorgaenge)}
+                        Colli {fmtNum(n.colliVorgaenge)} · Text {fmtNum(n.textVorgaenge)} · Schrank {fmtNum(n.schrankVorgaenge)}
                       </div>
                     </td>
                     <td className="text-right py-2 px-2 font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{fmtNum(n.vorgaenge)}</td>

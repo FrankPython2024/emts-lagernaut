@@ -79,7 +79,12 @@
       "Bash(ls src/app/admin/kompatibilitaet)",
       "Bash(sed -n '1,20p' src/components/ui/ArtikelLabel.tsx)",
       "Bash(sed -n '156,165p' src/components/ui/ArtikelLabel.tsx)",
-      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'lagerplatz|Umlagern|umlagern|UmlagernModal|ArtikelLabel' | Select-Object -First 40)"
+      "PowerShell($out = npx tsc --noEmit -p tsconfig.json 2>&1; \"Total TS errors: \" + \\(\\($out | Select-String -Pattern 'error TS'\\).Count\\); $out | Select-String -Pattern 'lagerplatz|Umlagern|umlagern|UmlagernModal|ArtikelLabel' | Select-Object -First 40)",
+      "Bash(git *)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 30)",
+      "PowerShell(npx prisma version; Write-Output \"----VALIDATE----\"; npx prisma validate)",
+      "Bash(npm ls *)",
+      "Bash(npm -v)"
     ]
   }
 }
