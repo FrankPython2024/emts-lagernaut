@@ -12,8 +12,18 @@ import QRCode from "qrcode";
 
 // QR als SVG-Data-URI — identische Erzeugung wie genQrSvg im Auslagerbeleg,
 // aber mit dem ROHEN Inhalt (kein Präfix, keine URL). SVG = gestochen scharf.
-async function genQrSvg(content: string): Promise<string> {
-  const svg = await QRCode.toString(content, {
+//
+// forceByteUtf8: kodiert den Inhalt explizit als UTF-8-Byte-Segment. Damit
+// landen Umlaute (z. B. "ä" → C3 A4) korrekt im QR, unabhängig davon wie die
+// qrcode-Version Strings intern in Bytes wandelt (ältere Versionen nutzten
+// Latin-1/charCodeAt → einzelnes 0xE4, das ein UTF-8-Scanner verschluckt).
+// Für reine ASCII-Inhalte (Colli-Nummern) ist das Ergebnis identisch; dort
+// bleibt die Auto-Erkennung aktiv (forceByteUtf8=false).
+async function genQrSvg(content: string, forceByteUtf8 = false): Promise<string> {
+  const input = forceByteUtf8
+    ? [{ mode: "byte" as const, data: new TextEncoder().encode(content) }]
+    : content;
+  const svg = await QRCode.toString(input, {
     type:                 "svg",
     margin:               1,              // Ruhezone (Quiet Zone)
     errorCorrectionLevel: "M",
@@ -123,13 +133,13 @@ export async function writeSchrankBeschriftung(
 
   // QR oben rechts — schwebt (float:right), damit der Text darunter/daneben
   // wieder die volle Breite nutzt und NICHT unter den QR läuft.
+  // QR bekommt den ROHEN Stellplatz-String (UTF-8 Byte-Modus); escapeHtml NUR
+  // für den angezeigten Klartext unter dem QR, niemals für den QR-Payload.
   const platz = stellplatz.trim();
   const zeigeQr = qrAktiv && platz.length > 0;
   const qrHtml = zeigeQr
-    ? `<div class="qrbox"><img class="qrimg" src="${await genQrSvg(platz)}" alt="" /><div class="qrlbl">${escapeHtml(platz)}</div></div>`
+    ? `<div class="qrbox"><img class="qrimg" src="${await genQrSvg(platz, true)}" alt="" /><div class="qrlbl">${escapeHtml(platz)}</div></div>`
     : "";
-  // Stellplatz zusätzlich als Klartext unten rechts in der Box.
-  const splatzHtml = zeigeQr ? `<div class="splatzBR">${escapeHtml(platz)}</div>` : "";
 
   const css = `
     @page { size: A4; margin: 0; }
@@ -143,7 +153,6 @@ export async function writeSchrankBeschriftung(
     .qrbox { float: right; width: 30mm; margin: 0 0 2mm 3mm; text-align: center; }
     .qrimg { display: block; width: 28mm; height: 28mm; margin: 0 auto; }
     .qrlbl { margin-top: 1mm; font-size: 8pt; line-height: 1.1; word-break: break-all; }
-    .splatzBR { position: absolute; right: 3mm; bottom: 2mm; max-width: 60mm; text-align: right; font-size: 8pt; line-height: 1.1; word-break: break-all; }
     .content h1 { font-size: 22pt; margin: 0 0 2.5mm; line-height: 1.15; }
     .content h2 { font-size: 17pt; margin: 0 0 2mm;   line-height: 1.15; }
     .content h3 { font-size: 13pt; margin: 0 0 1.5mm; line-height: 1.15; }
@@ -154,7 +163,7 @@ export async function writeSchrankBeschriftung(
     .content em { font-style: italic; }
   `;
 
-  const body = `<div class="sheet"><div class="page"><div class="content">${qrHtml}${innerHtml}${splatzHtml}</div><div class="frame"></div></div></div>`;
+  const body = `<div class="sheet"><div class="page"><div class="content">${qrHtml}${innerHtml}</div><div class="frame"></div></div></div>`;
 
   w.document.open();
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${body}${PRINT_SCRIPT}</body></html>`);

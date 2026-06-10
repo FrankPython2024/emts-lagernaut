@@ -142,10 +142,6 @@ export function SchrankEditor({
                   </div>
                 )}
                 <div dangerouslySetInnerHTML={{ __html: html }} />
-                {/* Stellplatz zusätzlich als Klartext unten rechts */}
-                {zeigeQr && (
-                  <div style={{ position: "absolute", right: "3mm", bottom: "2mm", maxWidth: "60mm", textAlign: "right", fontSize: "8pt", lineHeight: 1.1, wordBreak: "break-all" }}>{platz}</div>
-                )}
               </div>
               {/* Schnittkante: dünne, helle Linie ein paar mm vom Rand */}
               <div className="absolute pointer-events-none" style={{ inset: "4mm", border: "0.4pt solid #999" }} />
