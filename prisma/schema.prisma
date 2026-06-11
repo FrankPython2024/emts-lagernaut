@@ -517,3 +517,19 @@ model PickupPosition {
   @@index([auftragId, logId])
   @@index([logId])
 }
+
+// Speicherbare Vorlagen fürs Label-Tool (geteilt & dauerhaft). Nur für die
+// Formate "schrank" und "text"; Colli bleibt ohne Vorlagen.
+model LabelVorlage {
+  id           String   @id @default(cuid())
+  typ          String                      // "schrank" | "text"
+  name         String
+  html         String   @db.Text           // WYSIWYG-Inhalt (kann lang sein!)
+  orientierung String?                      // nur schrank: "quer" | "hoch"
+  qrAktiv      Boolean  @default(false)     // nur schrank
+  stellplatz   String?                      // nur schrank
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([typ, name])                     // Name eindeutig je Typ
+}

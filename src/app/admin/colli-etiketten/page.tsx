@@ -25,6 +25,109 @@ function parseColli(input: string): string[] {
   return input.split(/[\n,;]+/).map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
+type GeladeneVorlage = { html: string; orientierung: string | null; qrAktiv: boolean; stellplatz: string | null };
+
+// ── Gemeinsamer Vorlagen-Bereich (Schrank & Text) ─────────────────────────────
+// Speichern (Upsert mit Überschreib-Rückfrage), Laden und Löschen — alles nach
+// typ gefiltert. Die aktuellen Editor-Werte kommen via Props; onLoad wendet eine
+// geladene Vorlage an.
+function VorlagenBereich({
+  typ, html, orientierung, qrAktiv, stellplatz, onLoad,
+}: {
+  typ: "schrank" | "text";
+  html: string;
+  orientierung?: SchrankOrientierung;
+  qrAktiv?: boolean;
+  stellplatz?: string;
+  onLoad: (v: GeladeneVorlage) => void;
+}) {
+  const utils = api.useUtils();
+  const liste = api.colliEtiketten.vorlagenListe.useQuery({ typ });
+  const [name, setName]   = useState("");
+  const [selId, setSelId] = useState("");
+
+  const speichern = api.colliEtiketten.vorlageSpeichern.useMutation({
+    onSuccess: () => { void utils.colliEtiketten.vorlagenListe.invalidate({ typ }); },
+  });
+  const loeschen = api.colliEtiketten.vorlageLoeschen.useMutation({
+    onSuccess: () => { setSelId(""); void utils.colliEtiketten.vorlagenListe.invalidate({ typ }); },
+  });
+
+  const vorlagen = liste.data ?? [];
+
+  function onSpeichern() {
+    const n = name.trim();
+    if (!n) return;
+    if (vorlagen.some((v) => v.name === n) && !window.confirm(`Vorlage „${n}" überschreiben?`)) return;
+    speichern.mutate(
+      typ === "schrank"
+        ? { typ, name: n, html, orientierung, qrAktiv, stellplatz }
+        : { typ, name: n, html },
+    );
+  }
+
+  async function onLaden() {
+    if (!selId) return;
+    const v = await utils.colliEtiketten.vorlageLaden.fetch({ id: selId });
+    if (v) onLoad(v);
+  }
+
+  function onLoeschen() {
+    if (!selId) return;
+    const v = vorlagen.find((x) => x.id === selId);
+    if (!window.confirm(`Vorlage „${v?.name ?? ""}" löschen?`)) return;
+    loeschen.mutate({ id: selId });
+  }
+
+  const inputCls = "px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm outline-none focus:border-[#0064d2] focus:ring-2 focus:ring-[#0064d2]/30 transition-colors min-h-[44px]";
+  const btnSec   = "px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] text-sm font-semibold hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] disabled:opacity-40 transition-colors min-h-[44px]";
+
+  return (
+    <div className="space-y-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-4">
+      <h3 className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Vorlagen</h3>
+
+      {/* Speichern */}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={120}
+          spellCheck={false}
+          autoComplete="off"
+          placeholder="Vorlagenname"
+          aria-label="Vorlagenname"
+          className={`${inputCls} flex-1 min-w-[200px]`}
+        />
+        <button
+          type="button"
+          onClick={onSpeichern}
+          disabled={name.trim().length === 0 || html.trim().length === 0 || speichern.isPending}
+          className="px-4 py-2.5 rounded-xl bg-[#0064d2] text-white text-sm font-bold hover:bg-[#0056b3] disabled:opacity-40 transition-colors min-h-[44px]"
+        >
+          Speichern
+        </button>
+      </div>
+
+      {/* Laden / Löschen */}
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={selId}
+          onChange={(e) => setSelId(e.target.value)}
+          aria-label="Gespeicherte Vorlage"
+          className={`${inputCls} flex-1 min-w-[200px]`}
+        >
+          <option value="">{vorlagen.length === 0 ? "Keine Vorlagen" : "Vorlage wählen…"}</option>
+          {vorlagen.map((v) => (
+            <option key={v.id} value={v.id}>{v.name}</option>
+          ))}
+        </select>
+        <button type="button" onClick={onLaden} disabled={!selId} className={btnSec}>Laden</button>
+        <button type="button" onClick={onLoeschen} disabled={!selId || loeschen.isPending} className={btnSec}>Löschen</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Colli-Etikett (55:30) — QR links, rechts optional Zusatztext + Nummer ──────
 function ColliEtikett({ nummer, zusatz, onPrint }: { nummer: string; zusatz: string; onPrint: () => void }) {
   return (
@@ -296,6 +399,21 @@ export default function ColliEtikettenPage() {
             )}
           </div>
 
+          <VorlagenBereich
+            typ="schrank"
+            html={schrankHtml}
+            orientierung={schrankOrient}
+            qrAktiv={qrAktiv}
+            stellplatz={stellplatz}
+            onLoad={(v) => {
+              setSchrankHtml(v.html);
+              setSchrankOrient(v.orientierung === "hoch" ? "hoch" : "quer");
+              setQrAktiv(v.qrAktiv);
+              setStellplatz(v.stellplatz ?? "");
+              setSchrankResetKey((k) => k + 1);
+            }}
+          />
+
           <SchrankEditor
             key={schrankResetKey}
             html={schrankHtml}
@@ -389,6 +507,13 @@ export default function ColliEtikettenPage() {
               Leeren
             </button>
           </div>
+
+          <VorlagenBereich
+            typ="text"
+            html={textHtml}
+            onLoad={(v) => { setTextHtml(v.html); setTextResetKey((k) => k + 1); }}
+          />
+
           <SchrankEditor
             key={textResetKey}
             html={textHtml}

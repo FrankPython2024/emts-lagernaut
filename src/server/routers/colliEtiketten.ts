@@ -49,4 +49,58 @@ export const colliEtikettenRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       return { html: sanitizeHtml(input.html, SCHRANK_SANITIZE) };
     }),
+
+  // ── Speicherbare Label-Vorlagen (geteilt & dauerhaft) — nur Schrank + Text ──
+  // Alle nach typ gefiltert, gleiche Zugriffsgrenze wie das Tool.
+
+  // Liste der Vorlagen eines Typs (id, name, updatedAt), nach Name sortiert.
+  vorlagenListe: permissionProcedure("COLLI_ETIKETTEN_VIEW")
+    .input(z.object({ typ: z.enum(["schrank", "text"]) }))
+    .query(async ({ input, ctx }) => {
+      return ctx.prisma.labelVorlage.findMany({
+        where:   { typ: input.typ },
+        select:  { id: true, name: true, updatedAt: true },
+        orderBy: { name: "asc" },
+      });
+    }),
+
+  // Vorlage speichern — upsert per (typ, name): existierender Name wird überschrieben.
+  vorlageSpeichern: permissionProcedure("COLLI_ETIKETTEN_VIEW")
+    .input(z.object({
+      typ:          z.enum(["schrank", "text"]),
+      name:         z.string().trim().min(1).max(120),
+      html:         z.string().max(100_000),
+      orientierung: z.enum(["quer", "hoch"]).optional(),
+      qrAktiv:      z.boolean().optional(),
+      stellplatz:   z.string().max(200).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const daten = {
+        html:         input.html,
+        orientierung: input.orientierung ?? null,
+        qrAktiv:      input.qrAktiv ?? false,
+        stellplatz:   input.stellplatz ?? null,
+      };
+      return ctx.prisma.labelVorlage.upsert({
+        where:  { typ_name: { typ: input.typ, name: input.name } },
+        update: daten,
+        create: { typ: input.typ, name: input.name, ...daten },
+        select: { id: true, name: true },
+      });
+    }),
+
+  // Eine Vorlage vollständig laden.
+  vorlageLaden: permissionProcedure("COLLI_ETIKETTEN_VIEW")
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input, ctx }) => {
+      return ctx.prisma.labelVorlage.findUnique({ where: { id: input.id } });
+    }),
+
+  // Vorlage löschen.
+  vorlageLoeschen: permissionProcedure("COLLI_ETIKETTEN_VIEW")
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      await ctx.prisma.labelVorlage.delete({ where: { id: input.id } });
+      return { ok: true };
+    }),
 });
