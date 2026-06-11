@@ -86,7 +86,9 @@
       "Bash(npm ls *)",
       "Bash(npm -v)",
       "Bash(DATABASE_URL=\"mysql://u:p@localhost:3306/db\" npx prisma validate)",
-      "Bash(DATABASE_URL=\"mysql://u:p@localhost:3306/db\" npx prisma generate)"
+      "Bash(DATABASE_URL=\"mysql://u:p@localhost:3306/db\" npx prisma generate)",
+      "Bash(rm -f src/components/ui/CKEditorClient.tsx)",
+      "Bash(npm uninstall *)"
     ]
   }
 }

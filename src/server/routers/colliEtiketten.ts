@@ -4,10 +4,10 @@ import { createTRPCRouter, protectedProcedure, permissionProcedure } from "@/ser
 import type { SessionUser } from "@/core/types";
 
 // Sanitize-Konfiguration für die WYSIWYG-Labels (Schrank + Freitext). Bewusst
-// SEHR eng: nur die von CKEditor 5 erzeugbaren Block-/Inline-Tags. Alles andere
+// SEHR eng: nur die von TipTap erzeugbaren Block-/Inline-Tags. Alles andere
 // (script, img, style, font, a, …) wird verworfen, der Textinhalt bleibt erhalten.
-// CKEditor: fett=<strong>, kursiv=<i> → i/b werden auf em/strong normalisiert.
-// span ist nur mit reinem font-size-Style erlaubt (FontSize supportAllValues=px).
+// TipTap: fett=<strong>, kursiv=<em>; b/i werden zur Sicherheit auf strong/em
+// normalisiert. span ist nur mit reinem font-size-Style erlaubt (FontSize → px).
 const SCHRANK_SANITIZE: sanitizeHtml.IOptions = {
   allowedTags: ["p", "br", "strong", "em", "b", "i", "ul", "ol", "li", "h1", "h2", "h3", "span"],
   allowedAttributes: { span: ["style"] },

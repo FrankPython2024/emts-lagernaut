@@ -1,30 +1,17 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
+import LabelTiptap from "@/components/ui/LabelTiptap";
 import { stellplatzQrDataUri, type SchrankOrientierung } from "@/lib/print/colliEtikett";
 
-// WYSIWYG-Editor auf Basis von CKEditor 5 (Classic), client-side lazy geladen
-// (dynamic import, ssr:false — CKEditor braucht window/document). Schnittstelle
-// wie bisher: html/onHtmlChange (HTML-String) + toolbar + previewKind. Die
-// Vorschau bleibt im echten Format (150×120 mm bzw. 55×30 mm).
-//
-// Das HTML wird VOR dem Druck serverseitig sanitized (sanitizeSchrank).
-
-const CKEditorClient = dynamic(() => import("./CKEditorClient"), {
-  ssr: false,
-  loading: () => (
-    <div className="min-h-[220px] flex items-center justify-center rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-sm text-[#90939a]">
-      Editor lädt…
-    </div>
-  ),
-});
+// WYSIWYG-Editor auf Basis von TipTap (eigene Toolbar). Schnittstelle wie bisher:
+// html/onHtmlChange (HTML-String) + toolbar + previewKind. Die Vorschau bleibt
+// im echten Format (150×120 mm bzw. 55×30 mm). Das HTML wird VOR dem Druck
+// serverseitig sanitized (sanitizeSchrank).
 
 // Vorschau-Regeln = Druck-Regeln (writeSchrankBeschriftung / writeTextLabel),
-// damit die 1:1-Vorschau exakt dem Druck entspricht. Zusätzlich eine sinnvolle
-// Mindesthöhe für die CKEditor-Eingabefläche.
+// damit die 1:1-Vorschau exakt dem Druck entspricht.
 const PREVIEW_CSS = `
-.ck-editor__editable_inline { min-height: 220px; }
 .schrank-doc > :first-child { margin-top: 0; }
 .schrank-doc h1 { font-size: 22pt; margin: 0 0 2.5mm; line-height: 1.15; }
 .schrank-doc h2 { font-size: 17pt; margin: 0 0 2mm;   line-height: 1.15; }
@@ -98,11 +85,11 @@ export function SchrankEditor({
       )}
 
       <div className="grid gap-5" style={{ gridTemplateColumns: "minmax(320px, 1fr) auto" }}>
-        {/* ── Editor (CKEditor 5, lazy) ── */}
+        {/* ── Editor (TipTap, eigene Toolbar) ── */}
         <div className="space-y-2 min-w-0">
-          <CKEditorClient
-            value={html}
-            onChange={onHtmlChange}
+          <LabelTiptap
+            html={html}
+            onHtmlChange={onHtmlChange}
             toolbar={toolbar}
           />
           <p className="text-xs text-[#90939a] dark:text-[#6b6e73]">
