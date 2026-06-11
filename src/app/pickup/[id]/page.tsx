@@ -137,6 +137,7 @@ export default function PickupScanPage() {
   // unter vollständig wird der Trigger wieder scharf gestellt.
   const vollstaendig = !!data && data.gesamt > 0 && data.gefunden === data.gesamt;
   const offen        = data ? data.gesamt - data.gefunden : 0;
+  const istColli     = data?.typ === "COLLI"; // Colli-Auftrag: nach Stellplatz gruppieren
   useEffect(() => {
     if (!data) return;
     const istVoll = data.gesamt > 0 && data.gefunden === data.gesamt;
@@ -145,22 +146,24 @@ export default function PickupScanPage() {
     prevVollRef.current = istVoll;
   }, [data]);
 
-  // Positionen nach Colli gruppieren — STABILE, deterministische Sortierung
-  // (Colli natürlich aufsteigend, ohne Colli zuletzt; intern Stellplatz, dann LogId).
+  // Positionen gruppieren — STABILE, deterministische Sortierung.
+  // LogID-Auftrag: nach Colli. Colli-Auftrag (Stellplatz-Prüfung): nach Stellplatz.
   const gruppen = useMemo(() => {
     const positionen = data?.positionen ?? [];
+    const nachStellplatz = data?.typ === "COLLI";
+    const keyOf = (p: (typeof positionen)[number]) => (nachStellplatz ? (p.stellplatz ?? "") : (p.colli ?? ""));
     const map = new Map<string, typeof positionen>();
     for (const p of positionen) {
-      const key = p.colli ?? "";
+      const key = keyOf(p);
       const arr = map.get(key);
       if (arr) arr.push(p); else map.set(key, [p]);
     }
-    const out = [...map.entries()].map(([colli, items]) => ({ colli, items }));
+    const out = [...map.entries()].map(([key, items]) => ({ key, items }));
     out.sort((a, b) => {
-      if (a.colli === "" && b.colli === "") return 0;
-      if (a.colli === "") return 1;
-      if (b.colli === "") return -1;
-      return a.colli.localeCompare(b.colli, "de", { numeric: true });
+      if (a.key === "" && b.key === "") return 0;
+      if (a.key === "") return 1;
+      if (b.key === "") return -1;
+      return a.key.localeCompare(b.key, "de", { numeric: true });
     });
     for (const g of out) {
       g.items.sort((x, y) => {
@@ -190,7 +193,7 @@ export default function PickupScanPage() {
 
   return (
     <div className="space-y-5">
-        <ModusBanner modus="logid" switchHref="/pickup/stellplatz" switchLabel="Colli-Suche" />
+        <ModusBanner modus={istColli ? "colli" : "logid"} />
 
         {/* Kopf */}
         <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -257,7 +260,7 @@ export default function PickupScanPage() {
             {/* Scan-Feld (prominent, autofokussiert) */}
             <form onSubmit={(e) => { e.preventDefault(); handleScan(); }} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-4 space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <label htmlFor="scan-input" className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">LogID scannen</label>
+                <label htmlFor="scan-input" className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">{istColli ? "Colli-Nummer scannen" : "LogID scannen"}</label>
                 <GeraeteUmschalter device={mode} onChange={(d) => { setMode(d); inputRef.current?.focus(); }} />
               </div>
               <div className="flex gap-2">
@@ -272,7 +275,7 @@ export default function PickupScanPage() {
                   inputMode={tastatur ? "numeric" : "none"}
                   enterKeyHint="done"
                   spellCheck={false}
-                  placeholder="LogID scannen…"
+                  placeholder={istColli ? "Colli-Nummer scannen…" : "LogID scannen…"}
                   className="flex-1 min-w-0 px-4 rounded-xl border-2 border-[#008BD2]/40 bg-[#f0f2f5] dark:bg-[#18191a] text-2xl font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] outline-none focus:border-[#008BD2] focus:ring-2 focus:ring-[#008BD2]/30 transition-colors min-h-[56px]"
                 />
                 {tastatur && (
@@ -294,10 +297,11 @@ export default function PickupScanPage() {
             <div className="space-y-4">
               {gruppen.map((g) => {
                 const gefunden = g.items.filter((p) => p.status === "GEFUNDEN").length;
+                const leer = istColli ? "— (ohne Stellplatz)" : "— (ohne Colli)";
                 return (
-                  <div key={g.colli || "__ohne__"} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
+                  <div key={g.key || "__ohne__"} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
                     <div className="flex items-center justify-between gap-2 px-5 py-3 bg-[#f0f2f5] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042]">
-                      <h2 className="font-black text-sm text-[#202F61] dark:text-[#e4e6eb]">📦 Colli {g.colli || "— (ohne Colli)"}</h2>
+                      <h2 className="font-black text-sm text-[#202F61] dark:text-[#e4e6eb]">{istColli ? "🧭 Stellplatz" : "📦 Colli"} {g.key || leer}</h2>
                       <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff]">{gefunden}/{g.items.length}</span>
                     </div>
                     <div className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">

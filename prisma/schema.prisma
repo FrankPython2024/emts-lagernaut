@@ -484,9 +484,17 @@ model ColliDruckLog {
 // Lagernaut ist hier reine Scan-/Nachweis-Hilfe: KEINE Umbuchung, KEIN Bestands-
 // einfluss (das passiert in ReForm). Aufträge + Positionen bleiben dauerhaft als
 // Nachweis erhalten.
+// Pickup-Auftragstyp: LogID-Suche (Geräte) vs. Colli-Suche (Stellplatz-Prüfung).
+// Default LOGID hält bestehende Aufträge gültig (rein additiv).
+enum PickupTyp {
+  LOGID
+  COLLI
+}
+
 model PickupAuftrag {
   id              Int       @id @default(autoincrement())
   name            String
+  typ             PickupTyp @default(LOGID)
   bemerkung       String?   @db.Text // optionaler Freitext (z.B. Verkäufer-Reservierungsnummer)
   status          String    @default("offen") // 'offen' | 'abgeschlossen'
   erstelltVon     Int

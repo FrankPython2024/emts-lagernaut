@@ -11,9 +11,9 @@ import type { ScannerDevice } from "@/lib/pickup/useScannerMode";
 export function ModusBanner({
   modus, switchHref, switchLabel,
 }: {
-  modus:       "logid" | "colli";
-  switchHref:  string;
-  switchLabel: string;
+  modus:        "logid" | "colli";
+  switchHref?:  string;  // optional: ohne Switch reiner Indikator
+  switchLabel?: string;
 }) {
   const istLog = modus === "logid";
   const bg     = istLog ? "#008BD2" : "#7c3aed"; // Blau vs. Violett — klar verschieden
@@ -34,14 +34,30 @@ export function ModusBanner({
             </div>
           </div>
         </div>
-        <Link
-          href={switchHref}
-          className="inline-flex items-center gap-1.5 px-4 rounded-lg bg-white/15 hover:bg-white/25 text-sm font-bold transition-colors min-h-[44px] flex-shrink-0"
-        >
-          ⇄ {switchLabel}
-        </Link>
+        {switchHref && (
+          <Link
+            href={switchHref}
+            className="inline-flex items-center gap-1.5 px-4 rounded-lg bg-white/15 hover:bg-white/25 text-sm font-bold transition-colors min-h-[44px] flex-shrink-0"
+          >
+            ⇄ {switchLabel}
+          </Link>
+        )}
       </div>
     </div>
+  );
+}
+
+// Kleiner Typ-Badge für Auftragslisten (LogID blau / Colli violett) — gleiche
+// Farblogik wie der ModusBanner.
+export function TypBadge({ typ }: { typ: "LOGID" | "COLLI" }) {
+  const colli = typ === "COLLI";
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black flex-shrink-0"
+      style={{ background: colli ? "rgba(124,58,237,0.12)" : "rgba(0,139,210,0.12)", color: colli ? "#7c3aed" : "#008BD2" }}
+    >
+      {colli ? "🧭 Colli" : "🏷️ LogID"}
+    </span>
   );
 }
 

@@ -81,6 +81,7 @@ export const pickupRouter = createTRPCRouter({
     return auftraege.map((a) => ({
       id:              a.id,
       name:            a.name,
+      typ:             a.typ,
       bemerkung:       a.bemerkung,
       status:          a.status,
       createdAt:       a.createdAt,
@@ -111,6 +112,7 @@ export const pickupRouter = createTRPCRouter({
   erstellen: pickupManage
     .input(z.object({
       name:       z.string().trim().min(1).max(200),
+      typ:        z.enum(["LOGID", "COLLI"]).default("LOGID"),
       bemerkung:  z.string().max(2000).optional(),
       positionen: z.array(positionInput).min(1),
     }))
@@ -138,7 +140,7 @@ export const pickupRouter = createTRPCRouter({
 
       const auftrag = await prisma.$transaction(async (tx) => {
         const a = await tx.pickupAuftrag.create({
-          data: { name: input.name.trim(), bemerkung, status: "offen", erstelltVon: user.id },
+          data: { name: input.name.trim(), typ: input.typ, bemerkung, status: "offen", erstelltVon: user.id },
         });
         await tx.pickupPosition.createMany({
           data: positionen.map((p) => ({ ...p, auftragId: a.id })),
@@ -183,6 +185,7 @@ export const pickupRouter = createTRPCRouter({
     return auftraege.map((a) => ({
       id:        a.id,
       name:      a.name,
+      typ:       a.typ,
       bemerkung: a.bemerkung,
       createdAt: a.createdAt,
       ...(zaehler.get(a.id) ?? { gesamt: 0, gefunden: 0 }),
@@ -202,6 +205,7 @@ export const pickupRouter = createTRPCRouter({
       return {
         id:        auftrag.id,
         name:      auftrag.name,
+        typ:       auftrag.typ,
         bemerkung: auftrag.bemerkung,
         status:    auftrag.status,
         createdAt: auftrag.createdAt,

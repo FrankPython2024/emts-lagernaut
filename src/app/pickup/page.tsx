@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePermissions } from "@/hooks/usePermissions";
+import { TypBadge } from "@/components/pickup/ModusBanner";
 import { api } from "@/trpc/react";
 
 function fmtDatum(d: Date | string): string {
@@ -28,22 +29,8 @@ export default function PickupHomePage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">Offene Aufträge</h1>
-        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">Auftrag antippen, um mit dem Scannen zu beginnen (LogID-Suche).</p>
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">Auftrag antippen, um mit dem Scannen zu beginnen.</p>
       </div>
-
-      {/* Anderer Scan-Zweck: Stellplatz-Prüfung (Colli-Suche) */}
-      <Link
-        href="/pickup/stellplatz"
-        className="block rounded-2xl border-2 border-[#7c3aed]/40 bg-[#7c3aed]/5 p-4 hover:bg-[#7c3aed]/10 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/40 min-h-[56px]"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-2xl" aria-hidden>🧭</span>
-          <div className="min-w-0">
-            <div className="font-black text-[#7c3aed] dark:text-[#b794f6]">Stellplatz-Prüfung (Colli-Suche)</div>
-            <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">CSV laden und Collis eines Stellplatzes per Scan abgleichen.</div>
-          </div>
-        </div>
-      </Link>
 
       {isLoading ? (
         <div className="py-16 text-center text-[#65676b] dark:text-[#b0b3b8]">Lade Aufträge…</div>
@@ -62,7 +49,10 @@ export default function PickupHomePage() {
                 className="block bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 hover:border-[#008BD2] hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-[#008BD2]/40 min-h-[56px]"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <h2 className="font-black text-xl text-[#202F61] dark:text-[#e4e6eb] truncate">{a.name}</h2>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <TypBadge typ={a.typ} />
+                    <h2 className="font-black text-xl text-[#202F61] dark:text-[#e4e6eb] truncate">{a.name}</h2>
+                  </div>
                   <span className="text-base font-black text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">{a.gefunden}/{a.gesamt}</span>
                 </div>
                 {a.bemerkung && (

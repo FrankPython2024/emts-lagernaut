@@ -5,10 +5,11 @@ import Link from "next/link";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS } from "@/modules/realtime/events";
+import { TypBadge } from "@/components/pickup/ModusBanner";
 import { api } from "@/trpc/react";
 
 type Auftrag = {
-  id: number; name: string; bemerkung: string | null; status: string;
+  id: number; name: string; typ: "LOGID" | "COLLI"; bemerkung: string | null; status: string;
   createdAt: Date | string; abgeschlossenAm: Date | string | null;
   ersteller: string; gesamt: number; gefunden: number; offen: number;
 };
@@ -36,7 +37,10 @@ function AuftragKarte({ a }: { a: Auftrag }) {
       className="block bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 hover:border-[#008BD2] hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-[#008BD2]/40"
     >
       <div className="flex items-start justify-between gap-3 mb-1">
-        <h2 className="font-black text-[#202F61] dark:text-[#e4e6eb] truncate">{a.name}</h2>
+        <div className="flex items-center gap-2 min-w-0">
+          <TypBadge typ={a.typ} />
+          <h2 className="font-black text-[#202F61] dark:text-[#e4e6eb] truncate">{a.name}</h2>
+        </div>
         <StatusBadge status={a.status} nichtGefunden={a.gesamt - a.gefunden} />
       </div>
       {a.bemerkung ? (
