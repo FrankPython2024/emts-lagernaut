@@ -7,6 +7,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
 import { formatLogId } from "@/lib/pickup/logId";
 import { playScanSound, playComplete, type ScanResult } from "@/lib/pickup/scanSound";
+import { useScannerMode } from "@/lib/pickup/useScannerMode";
+import { ModusBanner, GeraeteUmschalter } from "@/components/pickup/ModusBanner";
 
 type Feedback = {
   result:   ScanResult;
@@ -91,7 +93,9 @@ export default function PickupScanPage() {
   const [eingabe, setEingabe]       = useState("");
   const [feedback, setFeedback]     = useState<Feedback | null>(null);
   const [fremdScans, setFremdScans] = useState<{ logId: string; zeit: Date }[]>([]);
-  const [tastatur, setTastatur]     = useState(false); // Soft-Tastatur erlauben (Default: aus)
+  // Geräteerkennung: Mobil ⇒ Soft-Tastatur/Touch, Handscanner ⇒ fokussiertes Feld.
+  const { mode, setMode, onInputKeyDown } = useScannerMode();
+  const tastatur = mode === "mobil";
   const [abschlussDialog, setAbschlussDialog] = useState(false); // Vollständig abschließen (aus Banner)
   const [unvollDialog, setUnvollDialog]       = useState(false); // Als nicht komplett melden
   const [abschlussErgebnis, setAbschlussErgebnis] = useState<{ name: string; gesamt: number; gefunden: number; nichtGefunden: number } | null>(null);
@@ -186,6 +190,8 @@ export default function PickupScanPage() {
 
   return (
     <div className="space-y-5">
+        <ModusBanner modus="logid" switchHref="/pickup/stellplatz" switchLabel="Colli-Suche" />
+
         {/* Kopf */}
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="min-w-0">
@@ -250,19 +256,9 @@ export default function PickupScanPage() {
 
             {/* Scan-Feld (prominent, autofokussiert) */}
             <form onSubmit={(e) => { e.preventDefault(); handleScan(); }} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-4 space-y-2">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <label htmlFor="scan-input" className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">LogID scannen</label>
-                <button
-                  type="button"
-                  onClick={() => { setTastatur((v) => !v); inputRef.current?.focus(); }}
-                  aria-pressed={tastatur}
-                  title="Soft-Tastatur für manuelle Eingabe ein-/ausschalten"
-                  className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors min-h-[44px] ${tastatur
-                    ? "bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff] border border-[#008BD2]/40"
-                    : "text-[#65676b] dark:text-[#b0b3b8] border border-[#ced4da] dark:border-[#3e4042] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
-                >
-                  ⌨ Tastatur {tastatur ? "an" : "aus"}
-                </button>
+                <GeraeteUmschalter device={mode} onChange={(d) => { setMode(d); inputRef.current?.focus(); }} />
               </div>
               <div className="flex gap-2">
                 <input
@@ -270,6 +266,7 @@ export default function PickupScanPage() {
                   ref={inputRef}
                   value={eingabe}
                   onChange={(e) => setEingabe(e.target.value)}
+                  onKeyDown={onInputKeyDown}
                   autoFocus
                   autoComplete="off"
                   inputMode={tastatur ? "numeric" : "none"}

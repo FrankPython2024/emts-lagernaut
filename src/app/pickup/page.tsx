@@ -28,8 +28,22 @@ export default function PickupHomePage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">Offene Aufträge</h1>
-        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">Auftrag antippen, um mit dem Scannen zu beginnen.</p>
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">Auftrag antippen, um mit dem Scannen zu beginnen (LogID-Suche).</p>
       </div>
+
+      {/* Anderer Scan-Zweck: Stellplatz-Prüfung (Colli-Suche) */}
+      <Link
+        href="/pickup/stellplatz"
+        className="block rounded-2xl border-2 border-[#7c3aed]/40 bg-[#7c3aed]/5 p-4 hover:bg-[#7c3aed]/10 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/40 min-h-[56px]"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-2xl" aria-hidden>🧭</span>
+          <div className="min-w-0">
+            <div className="font-black text-[#7c3aed] dark:text-[#b794f6]">Stellplatz-Prüfung (Colli-Suche)</div>
+            <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">CSV laden und Collis eines Stellplatzes per Scan abgleichen.</div>
+          </div>
+        </div>
+      </Link>
 
       {isLoading ? (
         <div className="py-16 text-center text-[#65676b] dark:text-[#b0b3b8]">Lade Aufträge…</div>
