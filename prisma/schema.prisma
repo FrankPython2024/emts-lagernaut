@@ -518,6 +518,58 @@ model PickupPosition {
   @@index([logId])
 }
 
+// ── Smartphone Refurbishment – Ersatzteile ────────────────────────────────────
+// Eigenständiges Modul, unabhängig von den Notebook-Teilen (Artikel etc.).
+
+enum SmartphoneTeilStatus {
+  VERFUEGBAR
+  RESERVIERT
+  VERBAUT
+  AUSGESONDERT
+}
+
+model SmartphoneArtikel {
+  id          String              @id @default(cuid())
+  aan         String              @unique
+  bezeichnung String?
+  marke       String?
+  modell      String?
+  teiletyp    String?
+  qualitaet   String?
+  farbe       String?
+  bauteile    SmartphoneBauteil[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model SmartphoneColli {
+  id         String              @id @default(cuid())
+  nr         String              @unique
+  typ        String?
+  stellplatz String?
+  bauteile   SmartphoneBauteil[]
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+}
+
+model SmartphoneBauteil {
+  id           String               @id @default(cuid())
+  logId        String               @unique
+  artikelId    String
+  artikel      SmartphoneArtikel    @relation(fields: [artikelId], references: [id])
+  colliId      String?
+  colli        SmartphoneColli?     @relation(fields: [colliId], references: [id])
+  seriennummer String?
+  bestellungPo String?
+  status       SmartphoneTeilStatus @default(VERFUEGBAR)
+  anfrageId    String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([artikelId, status])
+  @@index([colliId])
+}
+
 // Speicherbare Vorlagen fürs Label-Tool (geteilt & dauerhaft). Nur für die
 // Formate "schrank" und "text"; Colli bleibt ohne Vorlagen.
 model LabelVorlage {

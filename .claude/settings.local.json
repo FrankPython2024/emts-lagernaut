@@ -84,7 +84,9 @@
       "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 30)",
       "PowerShell(npx prisma version; Write-Output \"----VALIDATE----\"; npx prisma validate)",
       "Bash(npm ls *)",
-      "Bash(npm -v)"
+      "Bash(npm -v)",
+      "Bash(DATABASE_URL=\"mysql://u:p@localhost:3306/db\" npx prisma validate)",
+      "Bash(DATABASE_URL=\"mysql://u:p@localhost:3306/db\" npx prisma generate)"
     ]
   }
 }
