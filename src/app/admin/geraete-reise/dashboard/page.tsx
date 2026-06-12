@@ -19,6 +19,15 @@ const AGING_FARBE: Record<string, string> = {
   ">365":    "#EF4444",
 };
 
+// Bucket → Alters-Range (für den Drilldown in /liste).
+const AGING_RANGE: Record<string, { von: number; bis?: number }> = {
+  "0–30":    { von: 0,   bis: 30 },
+  "31–90":   { von: 31,  bis: 90 },
+  "91–180":  { von: 91,  bis: 180 },
+  "181–365": { von: 181, bis: 365 },
+  ">365":    { von: 366 },
+};
+
 function nf(n: number): string {
   return n.toLocaleString("de-DE");
 }
@@ -128,12 +137,23 @@ export default function GeraeteReiseDashboardPage() {
           <div className={`${cardCls} overflow-hidden`}>
             <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042]">
               <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Verbleib-Verteilung</h2>
+              <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">Balken anklicken für Geräteliste</p>
             </div>
             <div className="p-4 text-[#1a1a1a] dark:text-[#e4e6eb]">
               {data.verbleibVerteilung.length === 0 ? (
                 <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] text-center py-6">Keine Daten</p>
               ) : (
-                <BalkenChart data={data.verbleibVerteilung} dataKey="anzahl" labelKey="verbleib" einfarbig="#008BD2" />
+                <BalkenChart
+                  data={data.verbleibVerteilung}
+                  dataKey="anzahl"
+                  labelKey="verbleib"
+                  einfarbig="#008BD2"
+                  onSelect={(v) => router.push(
+                    v === "ohne Verbleib"
+                      ? "/admin/geraete-reise/liste?ohneVerbleib=1"
+                      : `/admin/geraete-reise/liste?verbleib=${encodeURIComponent(v)}`,
+                  )}
+                />
               )}
             </div>
           </div>
@@ -143,9 +163,21 @@ export default function GeraeteReiseDashboardPage() {
             <div className={`${cardCls} overflow-hidden`}>
               <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042]">
                 <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Aging (Verweildauer)</h2>
+                <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">Balken anklicken für Geräteliste</p>
               </div>
               <div className="p-4 text-[#1a1a1a] dark:text-[#e4e6eb]">
-                <BalkenChart data={data.agingBuckets} dataKey="anzahl" labelKey="bucket" />
+                <BalkenChart
+                  data={data.agingBuckets}
+                  dataKey="anzahl"
+                  labelKey="bucket"
+                  onSelect={(bucket) => {
+                    const r = AGING_RANGE[bucket];
+                    if (!r) return;
+                    const p = new URLSearchParams({ alterVon: String(r.von) });
+                    if (r.bis != null) p.set("alterBis", String(r.bis));
+                    router.push(`/admin/geraete-reise/liste?${p.toString()}`);
+                  }}
+                />
               </div>
             </div>
 
@@ -210,12 +242,21 @@ export default function GeraeteReiseDashboardPage() {
             <div className={`${cardCls} overflow-hidden`}>
               <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042]">
                 <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Lager</h2>
+                <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">Balken anklicken für Geräteliste</p>
               </div>
               <div className="p-4 text-[#1a1a1a] dark:text-[#e4e6eb]">
                 {data.lagerVerteilung.length === 0 ? (
                   <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] text-center py-6">Keine Daten</p>
                 ) : (
-                  <BalkenChart data={data.lagerVerteilung} dataKey="anzahl" labelKey="lager" einfarbig="#202F61" />
+                  <BalkenChart
+                    data={data.lagerVerteilung}
+                    dataKey="anzahl"
+                    labelKey="lager"
+                    einfarbig="#202F61"
+                    onSelect={(l) => {
+                      if (l !== "ohne Angabe") router.push(`/admin/geraete-reise/liste?lager=${encodeURIComponent(l)}`);
+                    }}
+                  />
                 )}
               </div>
             </div>

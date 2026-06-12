@@ -48,15 +48,20 @@ function GeraeteListe() {
   const stellplatz   = params?.get("stellplatz") ?? undefined;
   const geraeteart   = params?.get("geraeteart") ?? undefined;
   const hersteller   = params?.get("hersteller") ?? undefined;
+  const lager        = params?.get("lager")      ?? undefined;
   const ohneVerbleib = params?.get("ohneVerbleib") === "1";
+  const alterVonRaw  = params?.get("alterVon");
+  const alterBisRaw  = params?.get("alterBis");
+  const alterVon     = alterVonRaw != null && alterVonRaw !== "" ? Number(alterVonRaw) : undefined;
+  const alterBis     = alterBisRaw != null && alterBisRaw !== "" ? Number(alterBisRaw) : undefined;
 
   const [seite, setSeite] = useState(1);
 
   // Filterwechsel (neuer Deep-Link) → zurück auf Seite 1.
-  useEffect(() => { setSeite(1); }, [verbleib, stellplatz, geraeteart, hersteller, ohneVerbleib]);
+  useEffect(() => { setSeite(1); }, [verbleib, stellplatz, geraeteart, hersteller, lager, ohneVerbleib, alterVon, alterBis]);
 
   const { data, isFetching, error } = api.geraeteReise.geraeteListe.useQuery(
-    { verbleib, stellplatz, geraeteart, hersteller, ohneVerbleib, seite, proSeite: PRO_SEITE },
+    { verbleib, stellplatz, geraeteart, hersteller, lager, ohneVerbleib, alterVon, alterBis, seite, proSeite: PRO_SEITE },
     { staleTime: 30_000, placeholderData: (prev) => prev },
   );
 
@@ -64,9 +69,13 @@ function GeraeteListe() {
   const teile: string[] = [];
   if (geraeteart)        teile.push(geraeteart);
   if (hersteller)        teile.push(hersteller);
+  if (lager)             teile.push(lager);
   if (ohneVerbleib)      teile.push("ohne Verbleib");
   else if (verbleib)     teile.push(verbleib);
   if (stellplatz)        teile.push(`Stellplatz ${stellplatz}`);
+  if (alterVon != null && alterBis != null) teile.push(`Alter ${nf(alterVon)}–${nf(alterBis)} Tage`);
+  else if (alterVon != null)                teile.push(`Alter ab ${nf(alterVon)} Tagen`);
+  else if (alterBis != null)                teile.push(`Alter bis ${nf(alterBis)} Tage`);
   const titel = teile.length > 0 ? teile.join(" · ") : "Alle Geräte";
 
   const gesamt = data?.gesamt ?? 0;
@@ -76,6 +85,20 @@ function GeraeteListe() {
 
   function oeffne(logId: string) {
     router.push(`/admin/geraete-reise/geraet?q=${encodeURIComponent(logId)}`);
+  }
+
+  // Export-URL mit den aktuellen Filtern (gesamte Treffermenge, nicht nur Seite).
+  function exportUrl(format: "csv" | "xlsx"): string {
+    const p = new URLSearchParams({ format });
+    if (verbleib)     p.set("verbleib", verbleib);
+    if (stellplatz)   p.set("stellplatz", stellplatz);
+    if (geraeteart)   p.set("geraeteart", geraeteart);
+    if (hersteller)   p.set("hersteller", hersteller);
+    if (lager)        p.set("lager", lager);
+    if (ohneVerbleib) p.set("ohneVerbleib", "1");
+    if (alterVon != null) p.set("alterVon", String(alterVon));
+    if (alterBis != null) p.set("alterBis", String(alterBis));
+    return `/api/geraete-reise/export?${p.toString()}`;
   }
 
   return (
@@ -92,12 +115,30 @@ function GeraeteListe() {
         <h2 className="text-xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">
           {titel} <span className="text-[#0064d2] dark:text-[#45bdff]">({nf(gesamt)})</span>
         </h2>
-        <button
-          onClick={() => router.push("/admin/geraete-reise/auswertungen")}
-          className="text-sm font-bold text-[#65676b] dark:text-[#b0b3b8] hover:text-[#0064d2] dark:hover:text-[#45bdff] transition-colors"
-        >
-          ← Zurück zu Auswertungen
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { window.location.href = exportUrl("csv"); }}
+            disabled={gesamt === 0}
+            className="px-3 py-1.5 text-sm font-bold rounded-lg border border-[#ced4da] dark:border-[#3e4042] hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] disabled:opacity-40 transition-colors"
+            title="Gefilterte Liste als CSV exportieren"
+          >
+            ⬇ CSV
+          </button>
+          <button
+            onClick={() => { window.location.href = exportUrl("xlsx"); }}
+            disabled={gesamt === 0}
+            className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#04B475] text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+            title="Gefilterte Liste als Excel exportieren"
+          >
+            ⬇ Excel
+          </button>
+          <button
+            onClick={() => router.push("/admin/geraete-reise/auswertungen")}
+            className="text-sm font-bold text-[#65676b] dark:text-[#b0b3b8] hover:text-[#0064d2] dark:hover:text-[#45bdff] transition-colors"
+          >
+            ← Zurück
+          </button>
+        </div>
       </div>
 
       {error && <p className="text-sm text-[#fa3e3e]">Fehler beim Laden der Liste.</p>}

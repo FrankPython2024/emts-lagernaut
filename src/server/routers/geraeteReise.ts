@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
+import { buildGeraeteWhere } from "@/modules/geraete-reise/filter";
 
 // Geräte-Reise (LogID-Tracking).
 // Gating über das Recht GERAETE_REISE_VIEW (Admin via SYSTEM_ADMIN-Wildcard).
@@ -271,18 +271,15 @@ export const geraeteReiseRouter = createTRPCRouter({
       ohneVerbleib: z.boolean().optional(),
       geraeteart:   z.string().optional(),
       hersteller:   z.string().optional(),
+      lager:        z.string().optional(),
+      alterVon:     z.number().int().optional(),
+      alterBis:     z.number().int().optional(),
       seite:        z.number().int().min(1).default(1),
       proSeite:     z.number().int().min(1).max(200).default(50),
     }))
     .query(async ({ input }) => {
-      // Alle gesetzten Filter UND-verknüpfen.
-      const filter: Prisma.LogIdStandWhereInput[] = [];
-      if (input.ohneVerbleib)   filter.push({ OR: [{ verbleib: null }, { verbleib: "" }] });
-      else if (input.verbleib)  filter.push({ verbleib: input.verbleib });
-      if (input.stellplatz)     filter.push({ stellplatz: input.stellplatz });
-      if (input.geraeteart)     filter.push({ geraeteart: input.geraeteart });
-      if (input.hersteller)     filter.push({ hersteller: input.hersteller });
-      const where: Prisma.LogIdStandWhereInput = filter.length ? { AND: filter } : {};
+      // Zentraler where-Builder (identisch zum Export-Endpoint).
+      const where = buildGeraeteWhere(input);
 
       const [gesamt, zeilen] = await Promise.all([
         prisma.logIdStand.count({ where }),
