@@ -1,12 +1,20 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList, Legend,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/trpc/react";
 import type { AppRouter } from "@/server/routers";
 import { GeraeteReiseTabs } from "../_tabs";
+
+// Drilldown-Ziel (S5): Verbleib-Stufe bzw. „ohne Verbleib" → Geräte-Liste.
+function listeHrefStufe(verbleib: string): string {
+  return verbleib === "ohne Verbleib"
+    ? "/admin/geraete-reise/liste?ohneVerbleib=1"
+    : `/admin/geraete-reise/liste?verbleib=${encodeURIComponent(verbleib)}`;
+}
 
 // Geräte-Reise — S4: Auswertungen (Alter · Stillstand · Stau). Reine Auswertung,
 // kein Bestandseffekt. Gleiche Aggregations-/Card-/recharts-Muster wie das
@@ -15,8 +23,6 @@ import { GeraeteReiseTabs } from "../_tabs";
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type Auswertungen  = RouterOutputs["geraeteReise"]["auswertungen"];
 type GeraetZeile   = Auswertungen["aeltesteGeraete"][number];
-
-const AFB = ["#008BD2", "#04B475", "#202F61", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16", "#F97316"];
 
 function nf(n: number): string {
   return n.toLocaleString("de-DE");
@@ -42,33 +48,15 @@ function CardHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Einfaches horizontales Balkendiagramm (eine Serie).
-function BalkenChart({
-  data, dataKey, labelKey, einfarbig,
-}: {
-  data:      Record<string, unknown>[];
-  dataKey:   string;
-  labelKey:  string;
-  einfarbig?: string;
-}) {
-  const hoehe = Math.max(120, data.length * 34 + 20);
-  return (
-    <ResponsiveContainer width="100%" height={hoehe}>
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 48, left: 8, bottom: 4 }}>
-        <XAxis type="number" hide allowDecimals={false} />
-        <YAxis type="category" dataKey={labelKey} tick={{ fontSize: 12, fill: "currentColor" }} width={130} interval={0} />
-        <Tooltip formatter={(v) => [nf(Number(v)), "Geräte"]} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-        <Bar dataKey={dataKey} radius={[0, 4, 4, 0]}>
-          {data.map((_, i) => <Cell key={i} fill={einfarbig ?? AFB[i % AFB.length]} />)}
-          <LabelList dataKey={dataKey} position="right" formatter={(v) => nf(Number(v))} style={{ fontSize: 11, fill: "currentColor" }} />
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
-
 // Gestapeltes Balkendiagramm: frisch (grün) vs. „hängt zu lange" (rot) je Stufe.
-function StauChart({ data, schwelle }: { data: Auswertungen["stauNachStufe"]; schwelle: number }) {
+// Klick auf einen Balken → Drilldown-Liste der Stufe.
+function StauChart({
+  data, schwelle, onSelect,
+}: {
+  data:     Auswertungen["stauNachStufe"];
+  schwelle: number;
+  onSelect: (verbleib: string) => void;
+}) {
   const chartData = data.map((s) => ({
     verbleib: s.verbleib,
     frisch:   Math.max(0, s.anzahl - s.anzahlLange),
@@ -77,7 +65,15 @@ function StauChart({ data, schwelle }: { data: Auswertungen["stauNachStufe"]; sc
   const hoehe = Math.max(140, chartData.length * 38 + 30);
   return (
     <ResponsiveContainer width="100%" height={hoehe}>
-      <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+      <BarChart
+        data={chartData}
+        layout="vertical"
+        margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+        onClick={(state: { activeLabel?: string | number }) => {
+          if (state?.activeLabel != null) onSelect(String(state.activeLabel));
+        }}
+        style={{ cursor: "pointer" }}
+      >
         <XAxis type="number" hide allowDecimals={false} />
         <YAxis type="category" dataKey="verbleib" tick={{ fontSize: 12, fill: "currentColor" }} width={140} interval={0} />
         <Tooltip
@@ -128,6 +124,7 @@ function GeraetListe({ geraete }: { geraete: GeraetZeile[] }) {
 }
 
 export default function GeraeteReiseAuswertungenPage() {
+  const router = useRouter();
   const { data, isLoading, error } = api.geraeteReise.auswertungen.useQuery(undefined, { staleTime: 60_000 });
 
   return (
@@ -206,16 +203,20 @@ export default function GeraeteReiseAuswertungenPage() {
                 {data.stauNachStufe.length === 0 ? (
                   <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] text-center py-6">Keine Daten</p>
                 ) : (
-                  <StauChart data={data.stauNachStufe} schwelle={data.schwelleTage} />
+                  <StauChart
+                    data={data.stauNachStufe}
+                    schwelle={data.schwelleTage}
+                    onSelect={(v) => router.push(listeHrefStufe(v))}
+                  />
                 )}
               </div>
             </div>
 
             <div className={`${cardCls} overflow-hidden`}>
               <CardHeader>Stufen im Detail</CardHeader>
-              <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-[#f0f2f5] dark:bg-[#18191a] text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8]">
+                  <thead className="bg-[#f0f2f5] dark:bg-[#18191a] text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8]">
                     <tr>
                       <th className="px-4 py-2 text-left">Stufe</th>
                       <th className="px-4 py-2 text-right">Anzahl</th>
@@ -227,8 +228,12 @@ export default function GeraeteReiseAuswertungenPage() {
                     {data.stauNachStufe.map((s) => {
                       const anteil = s.anzahl > 0 ? s.anzahlLange / s.anzahl : 0;
                       return (
-                        <tr key={s.verbleib} className="border-t border-[#ced4da] dark:border-[#3e4042]">
-                          <td className="px-4 py-2 font-medium text-[#1a1a1a] dark:text-[#e4e6eb]">{s.verbleib}</td>
+                        <tr
+                          key={s.verbleib}
+                          onClick={() => router.push(listeHrefStufe(s.verbleib))}
+                          className="border-t border-[#ced4da] dark:border-[#3e4042] cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
+                        >
+                          <td className="px-4 py-2 font-medium text-[#0064d2] dark:text-[#45bdff]">{s.verbleib}</td>
                           <td className="px-4 py-2 text-right text-[#1a1a1a] dark:text-[#e4e6eb]">{nf(s.anzahl)}</td>
                           <td className="px-4 py-2 text-right font-bold" style={{ color: anteil >= 0.5 ? "#EF4444" : anteil >= 0.2 ? "#F97316" : "#04B475" }}>
                             {nf(s.anzahlLange)}
@@ -256,16 +261,35 @@ export default function GeraeteReiseAuswertungenPage() {
             </div>
           </div>
 
-          {/* Vollste Stellplätze */}
+          {/* Vollste Stellplätze — anklickbar → Drilldown-Liste */}
           <div className={`${cardCls} overflow-hidden`}>
             <CardHeader>Vollste Stellplätze</CardHeader>
-            <div className="p-4 text-[#1a1a1a] dark:text-[#e4e6eb]">
-              {data.vollsteStellplaetze.length === 0 ? (
-                <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] text-center py-6">Keine Daten</p>
-              ) : (
-                <BalkenChart data={data.vollsteStellplaetze} dataKey="anzahl" labelKey="stellplatz" einfarbig="#008BD2" />
-              )}
-            </div>
+            {data.vollsteStellplaetze.length === 0 ? (
+              <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] text-center py-6">Keine Daten</p>
+            ) : (
+              <div className="divide-y divide-[#ced4da] dark:divide-[#3e4042]">
+                {(() => {
+                  const max = data.vollsteStellplaetze[0]?.anzahl ?? 1;
+                  return data.vollsteStellplaetze.map((s) => (
+                    <Link
+                      key={s.stellplatz}
+                      href={`/admin/geraete-reise/liste?stellplatz=${encodeURIComponent(s.stellplatz)}`}
+                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
+                    >
+                      <span className="font-mono font-bold text-sm text-[#0064d2] dark:text-[#45bdff] w-32 flex-shrink-0 truncate">
+                        {s.stellplatz}
+                      </span>
+                      <span className="flex-1 h-3 rounded-full bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden">
+                        <span className="block h-full rounded-full" style={{ width: `${Math.max(4, (s.anzahl / max) * 100)}%`, background: "#008BD2" }} />
+                      </span>
+                      <span className="font-black text-sm text-[#1a1a1a] dark:text-[#e4e6eb] w-16 text-right flex-shrink-0">
+                        {nf(s.anzahl)}
+                      </span>
+                    </Link>
+                  ));
+                })()}
+              </div>
+            )}
           </div>
         </>
       )}

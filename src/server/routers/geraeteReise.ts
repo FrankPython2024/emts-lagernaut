@@ -259,4 +259,40 @@ export const geraeteReiseRouter = createTRPCRouter({
       vollsteStellplaetze,
     };
   }),
+
+  // Drilldown-Liste: alle Geräte einer Stufe / eines Stellplatzes / ohne Verbleib,
+  // paginiert. Filterfelder (verbleib/stellplatz/verweildauerTage) sind indiziert.
+  // Reine Auswertung, kein Bestandseffekt.
+  geraeteListe: permissionProcedure("GERAETE_REISE_VIEW")
+    .input(z.object({
+      verbleib:     z.string().optional(),
+      stellplatz:   z.string().optional(),
+      ohneVerbleib: z.boolean().optional(),
+      seite:        z.number().int().min(1).default(1),
+      proSeite:     z.number().int().min(1).max(200).default(50),
+    }))
+    .query(async ({ input }) => {
+      const where =
+        input.ohneVerbleib ? { OR: [{ verbleib: null }, { verbleib: "" }] }
+        : input.verbleib    ? { verbleib: input.verbleib }
+        : input.stellplatz  ? { stellplatz: input.stellplatz }
+        : {};
+
+      const [gesamt, zeilen] = await Promise.all([
+        prisma.logIdStand.count({ where }),
+        prisma.logIdStand.findMany({
+          where,
+          orderBy: { verweildauerTage: "desc" },
+          skip:    (input.seite - 1) * input.proSeite,
+          take:    input.proSeite,
+          select:  {
+            logId: true, hersteller: true, bezeichnung: true,
+            verweildauerTage: true, verbleib: true, stellplatz: true,
+            inVerbleibSeit: true,
+          },
+        }),
+      ]);
+
+      return { gesamt, zeilen };
+    }),
 });
