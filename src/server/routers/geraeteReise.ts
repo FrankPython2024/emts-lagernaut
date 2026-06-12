@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 
@@ -268,15 +269,20 @@ export const geraeteReiseRouter = createTRPCRouter({
       verbleib:     z.string().optional(),
       stellplatz:   z.string().optional(),
       ohneVerbleib: z.boolean().optional(),
+      geraeteart:   z.string().optional(),
+      hersteller:   z.string().optional(),
       seite:        z.number().int().min(1).default(1),
       proSeite:     z.number().int().min(1).max(200).default(50),
     }))
     .query(async ({ input }) => {
-      const where =
-        input.ohneVerbleib ? { OR: [{ verbleib: null }, { verbleib: "" }] }
-        : input.verbleib    ? { verbleib: input.verbleib }
-        : input.stellplatz  ? { stellplatz: input.stellplatz }
-        : {};
+      // Alle gesetzten Filter UND-verknüpfen.
+      const filter: Prisma.LogIdStandWhereInput[] = [];
+      if (input.ohneVerbleib)   filter.push({ OR: [{ verbleib: null }, { verbleib: "" }] });
+      else if (input.verbleib)  filter.push({ verbleib: input.verbleib });
+      if (input.stellplatz)     filter.push({ stellplatz: input.stellplatz });
+      if (input.geraeteart)     filter.push({ geraeteart: input.geraeteart });
+      if (input.hersteller)     filter.push({ hersteller: input.hersteller });
+      const where: Prisma.LogIdStandWhereInput = filter.length ? { AND: filter } : {};
 
       const [gesamt, zeilen] = await Promise.all([
         prisma.logIdStand.count({ where }),
@@ -294,5 +300,91 @@ export const geraeteReiseRouter = createTRPCRouter({
       ]);
 
       return { gesamt, zeilen };
+    }),
+
+  // Detailanalyse einer Geräteart: Kennzahlen + Hersteller-/Verbleib-Verteilung
+  // + Alters-Buckets. Alles DB-seitig (where geraeteart = X), Promise.all.
+  // Reine Auswertung, kein Bestandseffekt.
+  geraeteartDetail: permissionProcedure("GERAETE_REISE_VIEW")
+    .input(z.object({ geraeteart: z.string().min(1).max(191) }))
+    .query(async ({ input }) => {
+      const art = input.geraeteart;
+      const LADENHUETER_TAGE = 365;
+
+      const [
+        anzahl,
+        avgAgg,
+        ohneVerbleib,
+        blockiert,
+        ladenhueter,
+        herstellerRaw,
+        verbleibRaw,
+        agingRaw,
+      ] = await Promise.all([
+        prisma.logIdStand.count({ where: { geraeteart: art } }),
+        prisma.logIdStand.aggregate({ _avg: { verweildauerTage: true }, where: { geraeteart: art } }),
+        prisma.logIdStand.count({ where: { AND: [{ geraeteart: art }, { OR: [{ verbleib: null }, { verbleib: "" }] }] } }),
+        prisma.logIdStand.count({ where: { geraeteart: art, blockiert: true } }),
+        prisma.logIdStand.count({ where: { geraeteart: art, verweildauerTage: { gt: LADENHUETER_TAGE } } }),
+        prisma.logIdStand.groupBy({ by: ["hersteller"], _count: { _all: true }, where: { geraeteart: art } }),
+        prisma.logIdStand.groupBy({ by: ["verbleib"],   _count: { _all: true }, where: { geraeteart: art } }),
+        prisma.$queryRaw<Array<{ bucket: string; anzahl: bigint }>>`
+          SELECT bucket, COUNT(*) AS anzahl FROM (
+            SELECT CASE
+              WHEN verweildauerTage <= 30  THEN '0–30'
+              WHEN verweildauerTage <= 90  THEN '31–90'
+              WHEN verweildauerTage <= 180 THEN '91–180'
+              WHEN verweildauerTage <= 365 THEN '181–365'
+              ELSE '>365'
+            END AS bucket
+            FROM \`LogIdStand\`
+            WHERE verweildauerTage IS NOT NULL AND geraeteart = ${art}
+          ) t GROUP BY bucket`,
+      ]);
+
+      // null/leer zusammenfassen, absteigend sortieren.
+      function verdichte(rows: { _count: { _all: number } }[], keyOf: (r: never) => string | null, leerLabel: string) {
+        const map = new Map<string, number>();
+        for (const r of rows) {
+          const roh = keyOf(r as never);
+          const label = roh && roh.trim() !== "" ? roh : leerLabel;
+          map.set(label, (map.get(label) ?? 0) + r._count._all);
+        }
+        return [...map.entries()].map(([label, anzahl]) => ({ label, anzahl })).sort((a, b) => b.anzahl - a.anzahl);
+      }
+
+      // Hersteller: Top 12, Rest → „Sonstige".
+      const herstellerAlle = verdichte(herstellerRaw, (r: { hersteller: string | null }) => r.hersteller, "ohne Angabe");
+      let herstellerVerteilung: { hersteller: string; anzahl: number }[];
+      if (herstellerAlle.length > 12) {
+        const rest = herstellerAlle.slice(12).reduce((s, x) => s + x.anzahl, 0);
+        herstellerVerteilung = [
+          ...herstellerAlle.slice(0, 12).map((x) => ({ hersteller: x.label, anzahl: x.anzahl })),
+          { hersteller: "Sonstige", anzahl: rest },
+        ];
+      } else {
+        herstellerVerteilung = herstellerAlle.map((x) => ({ hersteller: x.label, anzahl: x.anzahl }));
+      }
+
+      const verbleibVerteilung = verdichte(verbleibRaw, (r: { verbleib: string | null }) => r.verbleib, "ohne Verbleib")
+        .map((x) => ({ verbleib: x.label, anzahl: x.anzahl }));
+
+      const BUCKET_ORDER = ["0–30", "31–90", "91–180", "181–365", ">365"];
+      const agingMap = new Map(agingRaw.map((r) => [r.bucket, Number(r.anzahl)]));
+      const agingBuckets = BUCKET_ORDER.map((bucket) => ({ bucket, anzahl: agingMap.get(bucket) ?? 0 }));
+
+      return {
+        geraeteart: art,
+        kennzahlen: {
+          anzahl,
+          avgVerweildauer: Math.round(avgAgg._avg.verweildauerTage ?? 0),
+          ohneVerbleib,
+          blockiert,
+          ladenhueter,
+        },
+        herstellerVerteilung,
+        verbleibVerteilung,
+        agingBuckets,
+      };
     }),
 });

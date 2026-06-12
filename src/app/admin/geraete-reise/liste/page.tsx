@@ -46,24 +46,28 @@ function GeraeteListe() {
 
   const verbleib     = params?.get("verbleib")   ?? undefined;
   const stellplatz   = params?.get("stellplatz") ?? undefined;
+  const geraeteart   = params?.get("geraeteart") ?? undefined;
+  const hersteller   = params?.get("hersteller") ?? undefined;
   const ohneVerbleib = params?.get("ohneVerbleib") === "1";
 
   const [seite, setSeite] = useState(1);
 
   // Filterwechsel (neuer Deep-Link) → zurück auf Seite 1.
-  useEffect(() => { setSeite(1); }, [verbleib, stellplatz, ohneVerbleib]);
+  useEffect(() => { setSeite(1); }, [verbleib, stellplatz, geraeteart, hersteller, ohneVerbleib]);
 
   const { data, isFetching, error } = api.geraeteReise.geraeteListe.useQuery(
-    { verbleib, stellplatz, ohneVerbleib, seite, proSeite: PRO_SEITE },
+    { verbleib, stellplatz, geraeteart, hersteller, ohneVerbleib, seite, proSeite: PRO_SEITE },
     { staleTime: 30_000, placeholderData: (prev) => prev },
   );
 
-  // Kopfzeile aus dem Filter ableiten.
-  const titel =
-    ohneVerbleib ? "Geräte ohne Verbleib"
-    : verbleib    ? `Geräte in ${verbleib}`
-    : stellplatz  ? `Geräte auf Stellplatz ${stellplatz}`
-    : "Alle Geräte";
+  // Kopfzeile aus allen gesetzten Filtern zusammenbauen (UND-verknüpft).
+  const teile: string[] = [];
+  if (geraeteart)        teile.push(geraeteart);
+  if (hersteller)        teile.push(hersteller);
+  if (ohneVerbleib)      teile.push("ohne Verbleib");
+  else if (verbleib)     teile.push(verbleib);
+  if (stellplatz)        teile.push(`Stellplatz ${stellplatz}`);
+  const titel = teile.length > 0 ? teile.join(" · ") : "Alle Geräte";
 
   const gesamt = data?.gesamt ?? 0;
   const von    = gesamt === 0 ? 0 : (seite - 1) * PRO_SEITE + 1;

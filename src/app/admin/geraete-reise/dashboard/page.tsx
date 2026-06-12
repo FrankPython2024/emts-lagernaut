@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
 import { api } from "@/trpc/react";
 import { GeraeteReiseTabs } from "../_tabs";
@@ -41,18 +42,28 @@ function Kennzahl({ label, value, sub, akzent }: { label: string; value: string;
 }
 
 // Horizontales Balkendiagramm (Label-Achse links, Wert beschriftet).
+// onSelect (optional) macht die Balken anklickbar (→ Drilldown).
 function BalkenChart({
-  data, dataKey, labelKey, einfarbig,
+  data, dataKey, labelKey, einfarbig, onSelect,
 }: {
   data:      Record<string, unknown>[];
   dataKey:   string;
   labelKey:  string;
   einfarbig?: string;
+  onSelect?: (label: string) => void;
 }) {
   const hoehe = Math.max(120, data.length * 34 + 20);
   return (
     <ResponsiveContainer width="100%" height={hoehe}>
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 48, left: 8, bottom: 4 }}>
+      <BarChart
+        data={data}
+        layout="vertical"
+        margin={{ top: 4, right: 48, left: 8, bottom: 4 }}
+        onClick={onSelect ? (state: { activeLabel?: string | number }) => {
+          if (state?.activeLabel != null) onSelect(String(state.activeLabel));
+        } : undefined}
+        style={onSelect ? { cursor: "pointer" } : undefined}
+      >
         <XAxis type="number" hide allowDecimals={false} />
         <YAxis
           type="category"
@@ -77,6 +88,7 @@ function BalkenChart({
 }
 
 export default function GeraeteReiseDashboardPage() {
+  const router = useRouter();
   const { data, isLoading, error } = api.geraeteReise.dashboard.useQuery(undefined, { staleTime: 60_000 });
 
   return (
@@ -176,12 +188,21 @@ export default function GeraeteReiseDashboardPage() {
             <div className={`${cardCls} overflow-hidden`}>
               <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042]">
                 <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Geräteart</h2>
+                <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">Balken anklicken für Detailanalyse</p>
               </div>
               <div className="p-4 text-[#1a1a1a] dark:text-[#e4e6eb]">
                 {data.geraeteartVerteilung.length === 0 ? (
                   <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] text-center py-6">Keine Daten</p>
                 ) : (
-                  <BalkenChart data={data.geraeteartVerteilung} dataKey="anzahl" labelKey="geraeteart" einfarbig="#04B475" />
+                  <BalkenChart
+                    data={data.geraeteartVerteilung}
+                    dataKey="anzahl"
+                    labelKey="geraeteart"
+                    einfarbig="#04B475"
+                    onSelect={(art) => {
+                      if (art !== "ohne Angabe") router.push(`/admin/geraete-reise/geraeteart?art=${encodeURIComponent(art)}`);
+                    }}
+                  />
                 )}
               </div>
             </div>
