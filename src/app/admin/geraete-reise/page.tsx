@@ -1,8 +1,8 @@
 "use client";
 import { useRef, useState } from "react";
-import Link from "next/link";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
+import { GeraeteReiseTabs } from "./_tabs";
 
 // Geräte-Reise (LogID-Tracking) — S1-UI: Datei-Upload + Liste der Importe.
 // KEINE Geräte-Reise-Ansicht / kein Aggregat-Dashboard (das ist S2/S3).
@@ -71,18 +71,7 @@ export default function GeraeteReisePage() {
         </p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-[#ced4da] dark:border-[#3e4042]">
-        <span className="px-4 py-2 text-sm font-bold text-[#0064d2] dark:text-[#45bdff] border-b-2 border-[#0064d2] dark:border-[#45bdff]">
-          Importe
-        </span>
-        <Link
-          href="/admin/geraete-reise/geraet"
-          className="px-4 py-2 text-sm font-bold text-[#65676b] dark:text-[#b0b3b8] hover:text-[#0064d2] dark:hover:text-[#45bdff] border-b-2 border-transparent transition-colors"
-        >
-          Gerät verfolgen
-        </Link>
-      </div>
+      <GeraeteReiseTabs />
 
       {/* Drag & Drop / Upload */}
       <div

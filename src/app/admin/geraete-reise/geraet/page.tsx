@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/trpc/react";
 import type { AppRouter } from "@/server/routers";
+import { GeraeteReiseTabs } from "../_tabs";
 
 // Geräte-Reise — S2: ein Gerät verfolgen (Suche + aktueller Stand + Timeline).
 // Reine Auswertung, kein Bestandseffekt.
@@ -37,23 +38,6 @@ const FELD_LABEL: Record<string, string> = {
   blockiert:        "Blockiert",
 };
 
-// ── Tab-Leiste (geteilt mit der Import-Seite) ───────────────────────────────────
-function Tabs() {
-  return (
-    <div className="flex gap-1 border-b border-[#ced4da] dark:border-[#3e4042]">
-      <Link
-        href="/admin/geraete-reise"
-        className="px-4 py-2 text-sm font-bold text-[#65676b] dark:text-[#b0b3b8] hover:text-[#0064d2] dark:hover:text-[#45bdff] border-b-2 border-transparent transition-colors"
-      >
-        Importe
-      </Link>
-      <span className="px-4 py-2 text-sm font-bold text-[#0064d2] dark:text-[#45bdff] border-b-2 border-[#0064d2] dark:border-[#45bdff]">
-        Gerät verfolgen
-      </span>
-    </div>
-  );
-}
-
 // ── Stand-Zeile (leere Werte ausblenden) ────────────────────────────────────────
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === null || value === undefined || value === "") return null;
@@ -77,7 +61,17 @@ type TimelineItem = {
 };
 
 export default function GeraetVerfolgenPage() {
+  // useSearchParams braucht eine Suspense-Grenze.
+  return (
+    <Suspense fallback={null}>
+      <GeraetVerfolgen />
+    </Suspense>
+  );
+}
+
+function GeraetVerfolgen() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const params = useSearchParams();
   const [input, setInput]         = useState("");
   const [submitted, setSubmitted] = useState("");
 
@@ -86,7 +80,16 @@ export default function GeraetVerfolgenPage() {
     { enabled: submitted.trim().length > 0 },
   );
 
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  // Deep-Link aus dem Dashboard (S3): /admin/geraete-reise/geraet?q={logId}
+  useEffect(() => {
+    const q = params?.get("q");
+    if (q) {
+      setInput(q);
+      setSubmitted(q);
+    } else {
+      inputRef.current?.focus();
+    }
+  }, [params]);
 
   function suchen() {
     const v = input.trim();
@@ -105,7 +108,7 @@ export default function GeraetVerfolgenPage() {
         </p>
       </div>
 
-      <Tabs />
+      <GeraeteReiseTabs />
 
       {/* Suchfeld */}
       <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm">
