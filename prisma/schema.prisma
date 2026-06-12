@@ -593,3 +593,92 @@ model LabelVorlage {
 
   @@unique([typ, name])                     // Name eindeutig je Typ
 }
+
+// ── Geräte-Reise (LogID-Tracking) ────────────────────────────────────────────
+// Reine Auswertung von ReForm-LogID-Snapshots. KEIN Bestandseffekt, kein
+// Eingriff in Ersatzteil-/Pickup-Logik. Additiv, eigenständige Tabellen.
+
+// Aktueller Stand je LogID — 1 Zeile pro Gerät, je Import per Upsert aktualisiert.
+model LogIdStand {
+  logId             String    @id
+
+  hersteller        String?
+  bezeichnung       String?
+  geraeteart        String?
+  unterart          String?
+  seriennummer      String?
+
+  stellplatz        String?
+  stellplatzStatus  String?
+  lager             String?
+  filiale           String?
+
+  colli             String?
+  vorherigesColli   String?
+  statusColli       String?
+
+  verbleib          String?
+  inVerbleibSeit    DateTime?
+  inVerbleibDurch   String?
+
+  aufLagerGebuchtAm DateTime?
+  verweildauerTage  Int?
+  letzteAenderungAm DateTime?
+
+  refurbished       Boolean   @default(false)
+  refurbishDatum    DateTime?
+
+  grading           String?
+  initialesGrading  String?
+  aktuellerZustand  String?
+
+  blockiert         Boolean   @default(false)
+  begruendung       String?   @db.Text
+  blockiertVon      String?
+  blockiertAm       DateTime?
+
+  salestatus        String?
+
+  erstmalsGesehen   DateTime
+  zuletztGesehen    DateTime
+  zuletztImportId   Int
+
+  @@index([verbleib])
+  @@index([lager])
+  @@index([stellplatz])
+  @@index([geraeteart])
+  @@index([verweildauerTage])
+}
+
+// Ein Import-Lauf (eine hochgeladene Datei).
+model LogIdImport {
+  id                 Int      @id @default(autoincrement())
+  dateiname          String
+  importiertAm       DateTime @default(now())
+  status             String   @default("läuft")   // läuft | fertig | fehler
+  anzahlZeilen       Int      @default(0)
+  anzahlNeu          Int      @default(0)
+  anzahlAktualisiert Int      @default(0)
+  anzahlBewegungen   Int      @default(0)
+  verarbeitet        Int      @default(0)          // Fortschritt
+  fehlerText         String?  @db.Text
+  erstelltVon        Int?
+}
+
+// Änderungs-Ereignis je LogID-Feld. Wird ab dem 2. Import befüllt
+// (beim 1. Import sind alle LogIds neu → keine Bewegung).
+model LogIdBewegung {
+  id         Int      @id @default(autoincrement())
+  logId      String
+  feld       String
+  vonWert    String?
+  nachWert   String?
+  zeitpunkt  DateTime
+  bearbeiter String?
+  importId   Int
+  createdAt  DateTime @default(now())
+
+  @@index([logId, zeitpunkt])
+  @@index([feld])
+  @@index([importId])
+}

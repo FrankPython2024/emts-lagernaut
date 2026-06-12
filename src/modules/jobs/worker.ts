@@ -24,6 +24,7 @@ let _queues: {
   notify:           Queue;
   artikelGenerator: Queue;
   reprocessGeraete: Queue;
+  logidImport:      Queue;
 } | null = null;
 
 function initQueues() {
@@ -34,6 +35,7 @@ function initQueues() {
     notify:           new Queue("notify",            { connection }),
     artikelGenerator: new Queue("artikel-generator", { connection }),
     reprocessGeraete: new Queue("reprocess-geraete", { connection }),
+    logidImport:      new Queue("logid-import",      { connection }),
   };
   return _queues;
 }
@@ -44,6 +46,7 @@ export const queues = {
   get notify()           { return initQueues().notify; },
   get artikelGenerator() { return initQueues().artikelGenerator; },
   get reprocessGeraete() { return initQueues().reprocessGeraete; },
+  get logidImport()      { return initQueues().logidImport; },
 };
 
 // ── Job-Handler ───────────────────────────────────────────────────────────────
@@ -359,6 +362,19 @@ async function handleReprocessJob(job: any) {
   return { updates, deletes, finalCount };
 }
 
+// ── Geräte-Reise: LogID-Import ──────────────────────────────────────────────────
+// Streamt die hochgeladene ReForm-CSV und pflegt LogIdStand + LogIdBewegung.
+// Reine Auswertung, kein Bestandseffekt. Logik liegt im Modul (Trennung).
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleLogIdImportJob(job: any) {
+  const tmpPath  = job.data.tmpPath  as string;
+  const importId = job.data.importId as number;
+  console.log(`[BullMQ:logid-import] Job #${job.id} — Import #${importId}`);
+  const { runLogIdImport } = await import("@/modules/geraete-reise/import");
+  await runLogIdImport(tmpPath, importId);
+}
+
 // ── startWorkers() — NUR in server.ts aufrufen, NIE in Next.js Pages/Routes ──
 
 export function startWorkers(): void {
@@ -413,10 +429,24 @@ export function startWorkers(): void {
     console.error(`[BullMQ:reprocess-geraete] Job #${job?.id} Fehler:`, err.message),
   );
 
+  const logidImportWorker = new Worker(
+    "logid-import",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (job: any) => handleLogIdImportJob(job),
+    { connection, concurrency: 1 }, // schwergewichtig — nur einer gleichzeitig
+  );
+  logidImportWorker.on("completed", (job) =>
+    console.log(`[BullMQ:logid-import] Job #${job.id} abgeschlossen`),
+  );
+  logidImportWorker.on("failed", (job, err) =>
+    console.error(`[BullMQ:logid-import] Job #${job?.id} Fehler:`, err.message),
+  );
+
   console.log("[BullMQ] Workers gestartet:");
   console.log("  • belege            (concurrency: 2)");
   console.log("  • meilisearch       (concurrency: 1)");
   console.log("  • notify            (concurrency: 5)");
   console.log("  • artikel-generator (concurrency: 1)");
   console.log("  • reprocess-geraete (concurrency: 1)");
+  console.log("  • logid-import      (concurrency: 1)");
 }

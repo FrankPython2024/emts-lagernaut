@@ -51,6 +51,9 @@ const PERMISSIONS = [
   { key: "USER_PASSWORT_RESET", kategorie: "Verwaltung",  bezeichnung: "Passwörter zurücksetzen" },
   { key: "ROLLE_EDIT",          kategorie: "Verwaltung",  bezeichnung: "Rollen + Rechte verwalten" },
 
+  // Auswertung
+  { key: "GERAETE_REISE_VIEW",  kategorie: "Auswertung",  bezeichnung: "Geräte-Reise (LogID-Tracking) einsehen & importieren" },
+
   // System
   { key: "STRESSTEST_RUN",      kategorie: "System",      bezeichnung: "Stresstest ausführen" },
   { key: "SYSTEM_ADMIN",        kategorie: "System",      bezeichnung: "Voll-Administrator (alle Rechte)" },

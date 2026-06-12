@@ -55,6 +55,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/admin/bestellempfehlung", label: "Bestell-Empfehlungen", icon: "🛒", permission: "ANFRAGE_VIEW_ALL" },
       { href: "/admin/geraete-lookup", label: "LogID Suche",    icon: "🔍", permission: "ARTIKEL_VIEW" },
       { href: "/admin/geraete-import", label: "Geräte Import",  icon: "📥", permission: "MODELL_EDIT" },
+      { href: "/admin/geraete-reise",  label: "Geräte-Reise",   icon: "🧭", permission: "GERAETE_REISE_VIEW" },
       { href: "/admin/import-sandbox", label: "Import-Sandbox", icon: "🧪", permission: "MODELL_VIEW" },
       { href: "/admin/import-ab-test", label: "Import A/B-Test", icon: "⚖️", permission: "SYSTEM_ADMIN" },
     ],
