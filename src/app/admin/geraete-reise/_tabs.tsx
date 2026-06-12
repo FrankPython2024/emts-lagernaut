@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/admin/geraete-reise/dashboard",     label: "Übersicht" },
   { href: "/admin/geraete-reise/auswertungen",  label: "Auswertungen" },
+  { href: "/admin/geraete-reise/ausgeschieden", label: "Ausgeschieden" },
   { href: "/admin/geraete-reise",               label: "Importe" },
   { href: "/admin/geraete-reise/geraet",        label: "Gerät verfolgen" },
 ];

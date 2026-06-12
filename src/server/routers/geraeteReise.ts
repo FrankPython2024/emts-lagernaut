@@ -68,14 +68,14 @@ export const geraeteReiseRouter = createTRPCRouter({
       topLadenhueter,
       letzterImport,
     ] = await Promise.all([
-      prisma.logIdStand.count(),
-      prisma.logIdStand.count({ where: { OR: [{ verbleib: null }, { verbleib: "" }] } }),
-      prisma.logIdStand.count({ where: { blockiert: true } }),
-      prisma.logIdStand.count({ where: { verweildauerTage: { gt: LADENHUETER_TAGE } } }),
-      prisma.logIdStand.aggregate({ _avg: { verweildauerTage: true } }),
-      prisma.logIdStand.groupBy({ by: ["verbleib"],    _count: { _all: true } }),
-      prisma.logIdStand.groupBy({ by: ["geraeteart"],  _count: { _all: true } }),
-      prisma.logIdStand.groupBy({ by: ["lager"],       _count: { _all: true } }),
+      prisma.logIdStand.count({ where: { ausgeschieden: false } }),
+      prisma.logIdStand.count({ where: { AND: [{ ausgeschieden: false }, { OR: [{ verbleib: null }, { verbleib: "" }] }] } }),
+      prisma.logIdStand.count({ where: { ausgeschieden: false, blockiert: true } }),
+      prisma.logIdStand.count({ where: { ausgeschieden: false, verweildauerTage: { gt: LADENHUETER_TAGE } } }),
+      prisma.logIdStand.aggregate({ _avg: { verweildauerTage: true }, where: { ausgeschieden: false } }),
+      prisma.logIdStand.groupBy({ by: ["verbleib"],    _count: { _all: true }, where: { ausgeschieden: false } }),
+      prisma.logIdStand.groupBy({ by: ["geraeteart"],  _count: { _all: true }, where: { ausgeschieden: false } }),
+      prisma.logIdStand.groupBy({ by: ["lager"],       _count: { _all: true }, where: { ausgeschieden: false } }),
       prisma.$queryRaw<Array<{ bucket: string; anzahl: bigint }>>`
         SELECT bucket, COUNT(*) AS anzahl FROM (
           SELECT CASE
@@ -86,10 +86,10 @@ export const geraeteReiseRouter = createTRPCRouter({
             ELSE '>365'
           END AS bucket
           FROM \`LogIdStand\`
-          WHERE verweildauerTage IS NOT NULL
+          WHERE verweildauerTage IS NOT NULL AND ausgeschieden = false
         ) t GROUP BY bucket`,
       prisma.logIdStand.findMany({
-        where:   { verweildauerTage: { not: null } },
+        where:   { verweildauerTage: { not: null }, ausgeschieden: false },
         orderBy: { verweildauerTage: "desc" },
         take:    20,
         select:  {
@@ -189,7 +189,7 @@ export const geraeteReiseRouter = createTRPCRouter({
     ] = await Promise.all([
       // Älteste Geräte (höchste Verweildauer)
       prisma.logIdStand.findMany({
-        where:   { verweildauerTage: { not: null } },
+        where:   { verweildauerTage: { not: null }, ausgeschieden: false },
         orderBy: { verweildauerTage: "desc" },
         take:    20,
         select:  listSelect,
@@ -199,7 +199,7 @@ export const geraeteReiseRouter = createTRPCRouter({
       prisma.$queryRaw<Array<{ anzahl: bigint }>>`
         SELECT COUNT(*) AS anzahl
         FROM \`LogIdStand\` s
-        WHERE NOT EXISTS (
+        WHERE s.ausgeschieden = false AND NOT EXISTS (
           SELECT 1 FROM \`LogIdBewegung\` b WHERE b.logId = s.logId
         )`,
 
@@ -207,7 +207,7 @@ export const geraeteReiseRouter = createTRPCRouter({
       prisma.$queryRaw<GeraetZeile[]>`
         SELECT s.logId, s.hersteller, s.bezeichnung, s.verweildauerTage, s.verbleib, s.stellplatz
         FROM \`LogIdStand\` s
-        WHERE NOT EXISTS (
+        WHERE s.ausgeschieden = false AND NOT EXISTS (
           SELECT 1 FROM \`LogIdBewegung\` b WHERE b.logId = s.logId
         )
         AND s.verweildauerTage IS NOT NULL
@@ -223,6 +223,7 @@ export const geraeteReiseRouter = createTRPCRouter({
           SUM(CASE WHEN inVerbleibSeit IS NOT NULL AND inVerbleibSeit < ${stauCutoff} THEN 1 ELSE 0 END) AS anzahlLange,
           ROUND(AVG(CASE WHEN inVerbleibSeit IS NOT NULL THEN DATEDIFF(NOW(), inVerbleibSeit) END)) AS avgTage
         FROM \`LogIdStand\`
+        WHERE ausgeschieden = false
         GROUP BY COALESCE(NULLIF(verbleib, ''), '')
         ORDER BY anzahlLange DESC`,
 
@@ -230,7 +231,7 @@ export const geraeteReiseRouter = createTRPCRouter({
       prisma.logIdStand.groupBy({
         by:      ["stellplatz"],
         _count:  { _all: true },
-        where:   { AND: [{ stellplatz: { not: null } }, { stellplatz: { not: "" } }] },
+        where:   { AND: [{ ausgeschieden: false }, { stellplatz: { not: null } }, { stellplatz: { not: "" } }] },
       }),
     ]);
 
@@ -274,6 +275,7 @@ export const geraeteReiseRouter = createTRPCRouter({
       lager:        z.string().optional(),
       alterVon:     z.number().int().optional(),
       alterBis:     z.number().int().optional(),
+      ausgeschieden: z.boolean().optional(),
       seite:        z.number().int().min(1).default(1),
       proSeite:     z.number().int().min(1).max(200).default(50),
     }))
@@ -291,7 +293,7 @@ export const geraeteReiseRouter = createTRPCRouter({
           select:  {
             logId: true, hersteller: true, bezeichnung: true,
             verweildauerTage: true, verbleib: true, stellplatz: true,
-            inVerbleibSeit: true,
+            inVerbleibSeit: true, ausgeschiedenAm: true,
           },
         }),
       ]);
@@ -318,13 +320,13 @@ export const geraeteReiseRouter = createTRPCRouter({
         verbleibRaw,
         agingRaw,
       ] = await Promise.all([
-        prisma.logIdStand.count({ where: { geraeteart: art } }),
-        prisma.logIdStand.aggregate({ _avg: { verweildauerTage: true }, where: { geraeteart: art } }),
-        prisma.logIdStand.count({ where: { AND: [{ geraeteart: art }, { OR: [{ verbleib: null }, { verbleib: "" }] }] } }),
-        prisma.logIdStand.count({ where: { geraeteart: art, blockiert: true } }),
-        prisma.logIdStand.count({ where: { geraeteart: art, verweildauerTage: { gt: LADENHUETER_TAGE } } }),
-        prisma.logIdStand.groupBy({ by: ["hersteller"], _count: { _all: true }, where: { geraeteart: art } }),
-        prisma.logIdStand.groupBy({ by: ["verbleib"],   _count: { _all: true }, where: { geraeteart: art } }),
+        prisma.logIdStand.count({ where: { geraeteart: art, ausgeschieden: false } }),
+        prisma.logIdStand.aggregate({ _avg: { verweildauerTage: true }, where: { geraeteart: art, ausgeschieden: false } }),
+        prisma.logIdStand.count({ where: { AND: [{ geraeteart: art }, { ausgeschieden: false }, { OR: [{ verbleib: null }, { verbleib: "" }] }] } }),
+        prisma.logIdStand.count({ where: { geraeteart: art, ausgeschieden: false, blockiert: true } }),
+        prisma.logIdStand.count({ where: { geraeteart: art, ausgeschieden: false, verweildauerTage: { gt: LADENHUETER_TAGE } } }),
+        prisma.logIdStand.groupBy({ by: ["hersteller"], _count: { _all: true }, where: { geraeteart: art, ausgeschieden: false } }),
+        prisma.logIdStand.groupBy({ by: ["verbleib"],   _count: { _all: true }, where: { geraeteart: art, ausgeschieden: false } }),
         prisma.$queryRaw<Array<{ bucket: string; anzahl: bigint }>>`
           SELECT bucket, COUNT(*) AS anzahl FROM (
             SELECT CASE
@@ -335,7 +337,7 @@ export const geraeteReiseRouter = createTRPCRouter({
               ELSE '>365'
             END AS bucket
             FROM \`LogIdStand\`
-            WHERE verweildauerTage IS NOT NULL AND geraeteart = ${art}
+            WHERE verweildauerTage IS NOT NULL AND ausgeschieden = false AND geraeteart = ${art}
           ) t GROUP BY bucket`,
       ]);
 
@@ -384,4 +386,61 @@ export const geraeteReiseRouter = createTRPCRouter({
         agingBuckets,
       };
     }),
+
+  // Übersicht der ausgeschiedenen Geräte (das System verlassen). Kennzahlen,
+  // Verteilung nach letztem Verbleib (Abgang-Grund-Hinweis), letzte Stellplätze
+  // + die zuletzt ausgeschiedenen Geräte. Reine Auswertung, kein Bestandseffekt.
+  ausgeschiedeneUebersicht: permissionProcedure("GERAETE_REISE_VIEW").query(async () => {
+    const [gesamt, letzterImport, verbleibRaw, stellplatzRaw, liste] = await Promise.all([
+      prisma.logIdStand.count({ where: { ausgeschieden: true } }),
+      prisma.logIdImport.findFirst({
+        where:   { status: "fertig" },
+        orderBy: { importiertAm: "desc" },
+        select:  { importiertAm: true, anzahlAusgeschieden: true },
+      }),
+      prisma.logIdStand.groupBy({ by: ["verbleib"], _count: { _all: true }, where: { ausgeschieden: true } }),
+      prisma.logIdStand.groupBy({
+        by:     ["stellplatz"],
+        _count: { _all: true },
+        where:  { AND: [{ ausgeschieden: true }, { stellplatz: { not: null } }, { stellplatz: { not: "" } }] },
+      }),
+      prisma.logIdStand.findMany({
+        where:   { ausgeschieden: true },
+        orderBy: { ausgeschiedenAm: "desc" },
+        take:    100,
+        select:  {
+          logId: true, hersteller: true, bezeichnung: true,
+          stellplatz: true, verbleib: true, ausgeschiedenAm: true,
+        },
+      }),
+    ]);
+
+    function verdichte(rows: { _count: { _all: number } }[], keyOf: (r: never) => string | null, leerLabel: string) {
+      const map = new Map<string, number>();
+      for (const r of rows) {
+        const roh = keyOf(r as never);
+        const label = roh && roh.trim() !== "" ? roh : leerLabel;
+        map.set(label, (map.get(label) ?? 0) + r._count._all);
+      }
+      return [...map.entries()].map(([label, anzahl]) => ({ label, anzahl })).sort((a, b) => b.anzahl - a.anzahl);
+    }
+
+    const verbleibVerteilung = verdichte(verbleibRaw, (r: { verbleib: string | null }) => r.verbleib, "ohne Verbleib")
+      .map((x) => ({ verbleib: x.label, anzahl: x.anzahl }));
+
+    const topStellplaetze = verdichte(stellplatzRaw, (r: { stellplatz: string | null }) => r.stellplatz, "ohne Angabe")
+      .slice(0, 15)
+      .map((x) => ({ stellplatz: x.label, anzahl: x.anzahl }));
+
+    return {
+      kennzahlen: {
+        gesamt,
+        neuImLetztenImport: letzterImport?.anzahlAusgeschieden ?? 0,
+      },
+      letzterImport: letzterImport?.importiertAm ?? null,
+      verbleibVerteilung,
+      topStellplaetze,
+      liste,
+    };
+  }),
 });

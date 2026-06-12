@@ -643,11 +643,16 @@ model LogIdStand {
   zuletztGesehen    DateTime
   zuletztImportId   Int
 
+  // Abgang: LogID fehlt im neuesten Voll-Snapshot → hat das System verlassen.
+  ausgeschieden     Boolean   @default(false)
+  ausgeschiedenAm   DateTime?
+
   @@index([verbleib])
   @@index([lager])
   @@index([stellplatz])
   @@index([geraeteart])
   @@index([verweildauerTage])
+  @@index([ausgeschieden])
 }
 
 // Ein Import-Lauf (eine hochgeladene Datei).
@@ -660,6 +665,7 @@ model LogIdImport {
   anzahlNeu          Int      @default(0)
   anzahlAktualisiert Int      @default(0)
   anzahlBewegungen   Int      @default(0)
+  anzahlAusgeschieden Int     @default(0)          // im Snapshot fehlende LogIDs
   verarbeitet        Int      @default(0)          // Fortschritt
   fehlerText         String?  @db.Text
   erstelltVon        Int?

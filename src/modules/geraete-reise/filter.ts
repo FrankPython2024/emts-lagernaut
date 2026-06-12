@@ -13,12 +13,16 @@ export type GeraeteListeFilter = {
   ohneVerbleib?: boolean;
   alterVon?:     number;   // verweildauerTage >= alterVon
   alterBis?:     number;   // verweildauerTage <= alterBis
+  ausgeschieden?: boolean; // Default false = nur „noch im System"
 };
 
 // Baut die where-Klausel: alle gesetzten Filter UND-verknüpft.
 // Alters-Range filtert über verweildauerTage (NULL fällt dabei automatisch raus).
+// ausgeschieden wird IMMER gefiltert (Default false = nur Geräte im System).
 export function buildGeraeteWhere(f: GeraeteListeFilter): Prisma.LogIdStandWhereInput {
   const and: Prisma.LogIdStandWhereInput[] = [];
+
+  and.push({ ausgeschieden: f.ausgeschieden ?? false });
 
   if (f.ohneVerbleib)      and.push({ OR: [{ verbleib: null }, { verbleib: "" }] });
   else if (f.verbleib)     and.push({ verbleib: f.verbleib });
@@ -63,5 +67,6 @@ export function filterFromQuery(q: Partial<Record<string, string | string[]>>): 
     ohneVerbleib: qstr(q.ohneVerbleib) === "1",
     alterVon:     qnum(q.alterVon),
     alterBis:     qnum(q.alterBis),
+    ausgeschieden: qstr(q.ausgeschieden) === "1",
   };
 }

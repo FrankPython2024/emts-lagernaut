@@ -50,6 +50,7 @@ function GeraeteListe() {
   const hersteller   = params?.get("hersteller") ?? undefined;
   const lager        = params?.get("lager")      ?? undefined;
   const ohneVerbleib = params?.get("ohneVerbleib") === "1";
+  const ausgeschieden = params?.get("ausgeschieden") === "1";
   const alterVonRaw  = params?.get("alterVon");
   const alterBisRaw  = params?.get("alterBis");
   const alterVon     = alterVonRaw != null && alterVonRaw !== "" ? Number(alterVonRaw) : undefined;
@@ -58,15 +59,16 @@ function GeraeteListe() {
   const [seite, setSeite] = useState(1);
 
   // Filterwechsel (neuer Deep-Link) → zurück auf Seite 1.
-  useEffect(() => { setSeite(1); }, [verbleib, stellplatz, geraeteart, hersteller, lager, ohneVerbleib, alterVon, alterBis]);
+  useEffect(() => { setSeite(1); }, [verbleib, stellplatz, geraeteart, hersteller, lager, ohneVerbleib, ausgeschieden, alterVon, alterBis]);
 
   const { data, isFetching, error } = api.geraeteReise.geraeteListe.useQuery(
-    { verbleib, stellplatz, geraeteart, hersteller, lager, ohneVerbleib, alterVon, alterBis, seite, proSeite: PRO_SEITE },
+    { verbleib, stellplatz, geraeteart, hersteller, lager, ohneVerbleib, ausgeschieden, alterVon, alterBis, seite, proSeite: PRO_SEITE },
     { staleTime: 30_000, placeholderData: (prev) => prev },
   );
 
   // Kopfzeile aus allen gesetzten Filtern zusammenbauen (UND-verknüpft).
   const teile: string[] = [];
+  if (ausgeschieden)     teile.push("Ausgeschieden");
   if (geraeteart)        teile.push(geraeteart);
   if (hersteller)        teile.push(hersteller);
   if (lager)             teile.push(lager);
@@ -96,6 +98,7 @@ function GeraeteListe() {
     if (hersteller)   p.set("hersteller", hersteller);
     if (lager)        p.set("lager", lager);
     if (ohneVerbleib) p.set("ohneVerbleib", "1");
+    if (ausgeschieden) p.set("ausgeschieden", "1");
     if (alterVon != null) p.set("alterVon", String(alterVon));
     if (alterBis != null) p.set("alterBis", String(alterBis));
     return `/api/geraete-reise/export?${p.toString()}`;
@@ -154,12 +157,13 @@ function GeraeteListe() {
                 <th className="px-4 py-2.5 text-left">Verbleib</th>
                 <th className="px-4 py-2.5 text-left">Stellplatz</th>
                 <th className="px-4 py-2.5 text-left">in Verbleib seit</th>
+                {ausgeschieden && <th className="px-4 py-2.5 text-left">Ausgeschieden am</th>}
               </tr>
             </thead>
             <tbody>
               {data && data.zeilen.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-[#65676b] dark:text-[#b0b3b8]">
+                  <td colSpan={ausgeschieden ? 7 : 6} className="px-4 py-8 text-center text-[#65676b] dark:text-[#b0b3b8]">
                     Keine Geräte für diesen Filter.
                   </td>
                 </tr>
@@ -180,6 +184,15 @@ function GeraeteListe() {
                   <td className="px-4 py-2.5 text-[#65676b] dark:text-[#b0b3b8]">{g.verbleib || "—"}</td>
                   <td className="px-4 py-2.5 text-[#65676b] dark:text-[#b0b3b8]">{g.stellplatz || "—"}</td>
                   <td className="px-4 py-2.5 text-[#65676b] dark:text-[#b0b3b8] whitespace-nowrap">{fmtDate(g.inVerbleibSeit)}</td>
+                  {ausgeschieden && (
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      {g.ausgeschiedenAm ? (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-[#ffe0e0] text-[#b3261e] dark:bg-[#3a1414] dark:text-[#ff8a8a]">
+                          {fmtDate(g.ausgeschiedenAm)}
+                        </span>
+                      ) : "—"}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -154,15 +154,45 @@ export async function runLogIdImport(tmpPath: string, importId: number): Promise
       });
     });
 
+    // ── Abgangs-Erkennung (greift ab dem 2. Import) ──────────────────────────────
+    // LogIDs, die in DIESEM Voll-Snapshot fehlen (zuletztImportId < importId) und
+    // noch nicht ausgeschieden, haben das System verlassen. Set-basiert.
+    let anzahlAusgeschieden = 0;
+    {
+      // 1) Je Abgang eine Bewegung schreiben — VOR dem Flag-Update (liest den
+      //    letzten Verbleib + ausgeschieden=false). „von" = letzter Verbleib bzw.
+      //    „im System", „nach" = „ausgeschieden".
+      await prisma.$executeRaw`
+        INSERT INTO \`LogIdBewegung\` (logId, feld, vonWert, nachWert, zeitpunkt, bearbeiter, importId, createdAt)
+        SELECT logId, 'ausgeschieden', COALESCE(NULLIF(verbleib, ''), 'im System'), 'ausgeschieden', ${importiertAm}, NULL, ${importId}, NOW()
+        FROM \`LogIdStand\`
+        WHERE zuletztImportId < ${importId} AND ausgeschieden = false`;
+
+      // 2) Flag setzen.
+      const abgang = await prisma.logIdStand.updateMany({
+        where: { zuletztImportId: { lt: importId }, ausgeschieden: false },
+        data:  { ausgeschieden: true, ausgeschiedenAm: importiertAm },
+      });
+      anzahlAusgeschieden = abgang.count;
+      bewegungen += abgang.count;
+
+      // 3) Wieder aufgetauchte Geräte (in DIESEM Import gesehen) zurücksetzen.
+      await prisma.logIdStand.updateMany({
+        where: { zuletztImportId: importId, ausgeschieden: true },
+        data:  { ausgeschieden: false, ausgeschiedenAm: null },
+      });
+    }
+
     await prisma.logIdImport.update({
       where: { id: importId },
       data: {
-        status:             "fertig",
-        anzahlZeilen:       zeilen,
-        anzahlNeu:          neu,
-        anzahlAktualisiert: aktualisiert,
-        anzahlBewegungen:   bewegungen,
-        verarbeitet:        zeilen,
+        status:              "fertig",
+        anzahlZeilen:        zeilen,
+        anzahlNeu:           neu,
+        anzahlAktualisiert:  aktualisiert,
+        anzahlBewegungen:    bewegungen,
+        anzahlAusgeschieden,
+        verarbeitet:         zeilen,
       },
     });
   } catch (e) {
