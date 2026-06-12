@@ -102,6 +102,17 @@ export function parseBool(v: string | undefined): boolean {
   return ["ja", "true", "1", "x", "yes", "y", "wahr"].includes(t.toLowerCase());
 }
 
+// Default-Längengrenze für Plain-VARCHAR-Spalten in Prisma/MySQL.
+const VARCHAR_MAX = 191;
+
+// Wie str(), aber defensiv auf VARCHAR(191) gekappt — damit ein überlanger
+// Ausreißer in einer VARCHAR-Spalte den Import nicht crasht. NICHT für TEXT-
+// Spalten (bezeichnung, begruendung) verwenden — die bleiben voll.
+function strKurz(v: string | undefined): string | null {
+  const t = str(v);
+  return t === null ? null : t.slice(0, VARCHAR_MAX);
+}
+
 // ── Header-Mapping ──────────────────────────────────────────────────────────────
 // CSV-Header → Lookup. Toleriert führende/abschließende Leerzeichen in Headern.
 
@@ -116,38 +127,40 @@ export function mappeZeile(raw: Record<string, string>): GemappteZeile | null {
   if (!logId) return null;
 
   // "vorheriges Colli" == "0" gilt als „kein vorheriges Colli".
-  const vorherigesColliRoh = str(pick(raw, "vorheriges Colli"));
+  const vorherigesColliRoh = strKurz(pick(raw, "vorheriges Colli"));
   const vorherigesColli = vorherigesColliRoh === "0" ? null : vorherigesColliRoh;
 
+  // Plain-VARCHAR(191)-Felder via strKurz (defensiv gekappt). Nur bezeichnung
+  // und begruendung sind TEXT-Spalten → str() (volle Länge).
   const felder: StandFelder = {
-    hersteller:        str(pick(raw, "Hersteller")),
+    hersteller:        strKurz(pick(raw, "Hersteller")),
     bezeichnung:       str(pick(raw, "Bezeichnung")),
-    geraeteart:        str(pick(raw, "Geräteart")),
-    unterart:          str(pick(raw, "Unterart")),
-    seriennummer:      str(pick(raw, "Seriennummer")),
-    stellplatz:        str(pick(raw, "Stellplatz")),
-    stellplatzStatus:  str(pick(raw, "Stellplatz-Status")),
-    lager:             str(pick(raw, "Lager")),
-    filiale:           str(pick(raw, "Filiale")),
-    colli:             str(pick(raw, "Colli")),
+    geraeteart:        strKurz(pick(raw, "Geräteart")),
+    unterart:          strKurz(pick(raw, "Unterart")),
+    seriennummer:      strKurz(pick(raw, "Seriennummer")),
+    stellplatz:        strKurz(pick(raw, "Stellplatz")),
+    stellplatzStatus:  strKurz(pick(raw, "Stellplatz-Status")),
+    lager:             strKurz(pick(raw, "Lager")),
+    filiale:           strKurz(pick(raw, "Filiale")),
+    colli:             strKurz(pick(raw, "Colli")),
     vorherigesColli,
-    statusColli:       str(pick(raw, "Status Colli")),
-    verbleib:          str(pick(raw, "Verbleib")),
+    statusColli:       strKurz(pick(raw, "Status Colli")),
+    verbleib:          strKurz(pick(raw, "Verbleib")),
     inVerbleibSeit:    parseDatum(pick(raw, "in Verbleib seit")),
-    inVerbleibDurch:   str(pick(raw, "in Verbleib durch")),
+    inVerbleibDurch:   strKurz(pick(raw, "in Verbleib durch")),
     aufLagerGebuchtAm: parseDatum(pick(raw, "auf Lager gebucht am")),
     verweildauerTage:  parseGanzzahl(pick(raw, "Verweildauer auf Lager")),
     letzteAenderungAm: parseDatum(pick(raw, "Letzte Änderung am")),
     refurbished:       parseBool(pick(raw, "refurbished?")),
     refurbishDatum:    parseDatum(pick(raw, "Refurbish-Datum")),
-    grading:           str(pick(raw, "Grading")),
-    initialesGrading:  str(pick(raw, "Initiales Grading")),
-    aktuellerZustand:  str(pick(raw, "Aktueller Zustand")),
+    grading:           strKurz(pick(raw, "Grading")),
+    initialesGrading:  strKurz(pick(raw, "Initiales Grading")),
+    aktuellerZustand:  strKurz(pick(raw, "Aktueller Zustand")),
     blockiert:         parseBool(pick(raw, "Blockiert")),
     begruendung:       str(pick(raw, "Begründung")),
-    blockiertVon:      str(pick(raw, "Blockiert von")),
+    blockiertVon:      strKurz(pick(raw, "Blockiert von")),
     blockiertAm:       parseDatum(pick(raw, "Blockiert am")),
-    salestatus:        str(pick(raw, "Salestatus")),
+    salestatus:        strKurz(pick(raw, "Salestatus")),
   };
 
   return { logId, felder };

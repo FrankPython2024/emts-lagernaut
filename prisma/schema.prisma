@@ -603,7 +603,7 @@ model LogIdStand {
   logId             String    @id
 
   hersteller        String?
-  bezeichnung       String?
+  bezeichnung       String?   @db.Text
   geraeteart        String?
   unterart          String?
   seriennummer      String?
