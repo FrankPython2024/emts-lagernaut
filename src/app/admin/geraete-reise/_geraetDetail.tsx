@@ -10,6 +10,7 @@ type RouterOutputs = inferRouterOutputs<AppRouter>;
 type GeraetGefunden = Extract<RouterOutputs["geraeteReise"]["geraet"], { kind: "found" }>;
 export type StandData    = GeraetGefunden["stand"];
 export type BewegungData = GeraetGefunden["bewegungen"];
+export type FehlteilData = NonNullable<RouterOutputs["fehlteile"]["detail"]>;
 
 export function fmtDateTime(d: Date | string | null | undefined): string {
   if (!d) return "";
@@ -206,6 +207,34 @@ export function GeraetDetailInhalt({ stand, bewegungen }: { stand: StandData; be
             </ol>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Fehlteil-Karte (gleicher Stil wie „Aktueller Stand") ────────────────────────
+// Für LogIDs, die als Fehlteil verbucht sind (FehlteilStand). Liegt oft NICHT in
+// LogIdStand → wird im Popup eigenständig (auch ohne Geräte-Reise) angezeigt.
+export function FehlteilKarte({ fehlteil: f }: { fehlteil: FehlteilData }) {
+  const geraeteart = [f.geraeteart, f.unterart].filter(Boolean).join(" · ") || null;
+  return (
+    <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042] flex items-center gap-2">
+        <span aria-hidden>🧩</span>
+        <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Fehlteil</h2>
+      </div>
+      <div className="px-5 py-2">
+        <Row label="LogID"            value={<span className="font-mono font-bold text-[#0064d2] dark:text-[#45bdff]">{f.logId}</span>} />
+        <Row label="Hersteller"       value={f.hersteller} />
+        <Row label="Bezeichnung"      value={f.bezeichnung} />
+        <Row label="Geräteart"        value={geraeteart} />
+        <Row label="Aktueller Zustand" value={f.aktuellerZustand} />
+        <Row label="Grading"          value={f.grading} />
+        <Row label="Sortiment"        value={f.sortiment} />
+        <Row label="AAN"              value={f.aan} />
+        <Row label="als Fehlteil verbucht seit" value={fmtDate(f.inVerbleibSeit) || null} />
+        <Row label="durch"            value={f.inVerbleibDurch} />
+        <Row label="Lager"            value={f.lager} />
       </div>
     </div>
   );

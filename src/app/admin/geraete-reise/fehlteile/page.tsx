@@ -4,10 +4,13 @@ import { useDebounce } from "use-debounce";
 import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/trpc/react";
 import type { AppRouter } from "@/server/routers";
+import { GeraeteReiseTabs } from "../_tabs";
+import { useGeraetModal } from "../_geraetModal";
 
-// Fehlteile — eigene Admin-Liste (Tabelle FehlteilStand). Suche, Filter, Export.
-// Gegated über FEHLTEILE_VIEW (serverseitig in den Procedures). Fehlteile sind
-// ALLE Artikelarten — kein Hersteller-Filter wie beim regulären Geräte-Import.
+// Fehlteile — Teil von Lagerfuchs (Tabelle FehlteilStand). Suche, Filter, Export.
+// Gegated über GERAETE_REISE_VIEW (serverseitig). Fehlteile sind ALLE Artikel-
+// arten — kein Hersteller-Filter wie beim regulären Geräte-Import. LogID öffnet
+// das Lagerfuchs-Detail-Popup.
 
 const NAVY  = "#202F61";
 const BLAU  = "#008BD2";
@@ -50,6 +53,8 @@ function FilterSelect({
 }
 
 export default function FehlteilePage() {
+  const { oeffneGeraet } = useGeraetModal();
+
   const [input, setInput]       = useState("");
   const [debInput]              = useDebounce(input, 300);
   const [geraeteart, setGa]     = useState("");
@@ -109,6 +114,8 @@ export default function FehlteilePage() {
           Geräte mit Verbleib „Fehlteile" — alle Artikelarten, durchsuchbar &amp; exportierbar
         </p>
       </div>
+
+      <GeraeteReiseTabs />
 
       {/* Kopf-Statistik */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -225,7 +232,15 @@ export default function FehlteilePage() {
                 <tr><td colSpan={10} className="px-4 py-8 text-center text-[#65676b] dark:text-[#b0b3b8]">Keine Fehlteile für diesen Filter.</td></tr>
               ) : rows.map((g: Zeile) => (
                 <tr key={g.logId} className="border-t border-[#ced4da] dark:border-[#3e4042]">
-                  <td className="px-4 py-3 font-mono font-bold text-[#0064d2] dark:text-[#45bdff] whitespace-nowrap">{g.logId}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <button
+                      onClick={() => oeffneGeraet(g.logId)}
+                      className="font-mono font-bold text-[#0064d2] dark:text-[#45bdff] hover:underline"
+                      title="Detail-Popup öffnen"
+                    >
+                      {g.logId}
+                    </button>
+                  </td>
                   <td className="px-4 py-3 text-[#1a1a1a] dark:text-[#e4e6eb]">{g.hersteller || "—"}</td>
                   <td className="px-4 py-3 text-[#1a1a1a] dark:text-[#e4e6eb]"><span className="block truncate max-w-[260px]" title={g.bezeichnung ?? ""}>{g.bezeichnung || "—"}</span></td>
                   <td className="px-4 py-3 text-[#65676b] dark:text-[#b0b3b8]">{g.geraeteart || "—"}</td>

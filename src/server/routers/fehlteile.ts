@@ -4,10 +4,10 @@ import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import { buildFehlteilWhere } from "@/modules/fehlteile/filter";
 
-// Fehlteile (Verbleib = "Fehlteile") — eigene Liste/Suche/Filter aus FehlteilStand.
-// Gating über das Recht FEHLTEILE_VIEW. Reine Auswertung, kein Bestandseffekt.
-// Fehlteile sind ALLE Artikelarten (Apple, Software, Akkus/Zubehör, Sonstige) —
-// KEIN Hersteller-Filter wie im regulären Geräte-Import.
+// Fehlteile (Verbleib = "Fehlteile") — Liste/Suche/Filter aus FehlteilStand.
+// Teil von Lagerfuchs → Gating über GERAETE_REISE_VIEW. Reine Auswertung, kein
+// Bestandseffekt. Fehlteile sind ALLE Artikelarten (Apple, Software, Akkus/
+// Zubehör, Sonstige) — KEIN Hersteller-Filter wie im regulären Geräte-Import.
 
 const filterInput = {
   suche:           z.string().optional(),
@@ -21,7 +21,7 @@ const filterInput = {
 
 export const fehlteileRouter = createTRPCRouter({
   // Paginierte, gefilterte Liste. Sortierung: inVerbleibSeit absteigend.
-  liste: permissionProcedure("FEHLTEILE_VIEW")
+  liste: permissionProcedure("GERAETE_REISE_VIEW")
     .input(z.object({
       ...filterInput,
       page:     z.number().int().min(1).default(1),
@@ -47,7 +47,7 @@ export const fehlteileRouter = createTRPCRouter({
     }),
 
   // Distinct, nicht-leere Werte (+ Anzahl) für die Filter-Dropdowns.
-  filterWerte: permissionProcedure("FEHLTEILE_VIEW").query(async () => {
+  filterWerte: permissionProcedure("GERAETE_REISE_VIEW").query(async () => {
     async function distinct(feld: "geraeteart" | "hersteller" | "sortiment" | "inVerbleibDurch") {
       const rows = await prisma.fehlteilStand.groupBy({
         by:     [feld],
@@ -68,8 +68,23 @@ export const fehlteileRouter = createTRPCRouter({
     return { geraeteart, hersteller, sortiment, inVerbleibDurch };
   }),
 
+  // Detail einer einzelnen Fehlteil-LogID (für das Lagerfuchs-Popup) — Zeile
+  // oder null (Fehlteile liegen oft NICHT in LogIdStand).
+  detail: permissionProcedure("GERAETE_REISE_VIEW")
+    .input(z.object({ logId: z.string().trim().min(1).max(200) }))
+    .query(async ({ input }) => {
+      return prisma.fehlteilStand.findUnique({
+        where:  { logId: input.logId },
+        select: {
+          logId: true, seriennummer: true, hersteller: true, bezeichnung: true,
+          geraeteart: true, unterart: true, aktuellerZustand: true, grading: true,
+          sortiment: true, aan: true, inVerbleibSeit: true, inVerbleibDurch: true, lager: true,
+        },
+      });
+    }),
+
   // Kopf-Statistik: Gesamtzahl + Anzahl je Geräteart.
-  kennzahlen: permissionProcedure("FEHLTEILE_VIEW").query(async () => {
+  kennzahlen: permissionProcedure("GERAETE_REISE_VIEW").query(async () => {
     const [gesamt, proRaw] = await Promise.all([
       prisma.fehlteilStand.count(),
       prisma.fehlteilStand.groupBy({ by: ["geraeteart"], _count: { _all: true } }),

@@ -41,8 +41,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user) return res.status(401).json({ error: "Nicht angemeldet" });
   const user  = session.user as SessionUser;
   const perms = await getMeinePermissions(user.rolle, user.id);
-  if (!hasPermission(perms, "FEHLTEILE_VIEW")) {
-    return res.status(403).json({ error: "Keine Berechtigung (FEHLTEILE_VIEW)" });
+  if (!hasPermission(perms, "GERAETE_REISE_VIEW")) {
+    return res.status(403).json({ error: "Keine Berechtigung (GERAETE_REISE_VIEW)" });
   }
 
   const format = (Array.isArray(req.query.format) ? req.query.format[0] : req.query.format) === "xlsx" ? "xlsx" : "csv";

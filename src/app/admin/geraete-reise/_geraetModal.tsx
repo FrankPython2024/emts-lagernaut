@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "@/trpc/react";
-import { GeraetDetailInhalt } from "./_geraetDetail";
+import { GeraetDetailInhalt, FehlteilKarte } from "./_geraetDetail";
 
 // Geräte-Reise — Detail-Popup. Statt zu einer eigenen Seite zu navigieren (und
 // damit die aktuelle Liste/Auswahl zu verlieren), öffnet sich die Geräte-Reise
@@ -35,8 +35,14 @@ export function GeraetModalProvider({ children }: { children: React.ReactNode })
 function GeraetModal({ initialQ, onClose }: { initialQ: string; onClose: () => void }) {
   // Eigener Such-State, damit eine Seriennummer-Auswahl IM Popup bleibt.
   const [q, setQ] = useState(initialQ);
-  const query = api.geraeteReise.geraet.useQuery({ query: q }, { enabled: q.trim().length > 0 });
+  const aktiv = q.trim().length > 0;
+  const query = api.geraeteReise.geraet.useQuery({ query: q }, { enabled: aktiv });
+  // Fehlteil-Daten parallel laden (logId-exakt). Fehlteile liegen oft NICHT in
+  // LogIdStand → robust: einfach nur die Fehlteil-Karte zeigen, wenn vorhanden.
+  const fehlteilQ = api.fehlteile.detail.useQuery({ logId: q }, { enabled: aktiv });
   const data = query.data;
+  const fehlteil = fehlteilQ.data;
+  const laedt = query.isFetching || fehlteilQ.isFetching;
 
   // Schließen per Escape + Body-Scroll sperren, solange offen.
   useEffect(() => {
@@ -73,26 +79,15 @@ function GeraetModal({ initialQ, onClose }: { initialQ: string; onClose: () => v
 
         {/* Inhalt — nur hier wird gescrollt */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5" aria-live="polite">
-          {query.isFetching && (
+          {laedt && (
             <div className="flex items-center gap-3 p-5 bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042]">
               <div className="w-5 h-5 border-2 border-[#0064d2]/20 border-t-[#0064d2] rounded-full animate-spin flex-shrink-0" />
               <span className="text-[#65676b] dark:text-[#b0b3b8]">Lädt…</span>
             </div>
           )}
 
-          {!query.isFetching && data?.kind === "none" && (
-            <div className="p-5 bg-white dark:bg-[#242526] rounded-xl border-2 border-[#f7b928]/40 flex items-center gap-3">
-              <span className="text-2xl" aria-hidden>⚠️</span>
-              <div>
-                <p className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Nicht gefunden</p>
-                <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
-                  Kein Gerät mit LogID oder Seriennummer <span className="font-mono">{q}</span>.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {!query.isFetching && data?.kind === "treffer" && (
+          {/* Mehrere Seriennummer-Treffer → erst Gerät wählen */}
+          {!laedt && data?.kind === "treffer" && (
             <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] overflow-hidden">
               <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042]">
                 <p className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{data.treffer.length} Treffer — bitte Gerät wählen</p>
@@ -112,8 +107,25 @@ function GeraetModal({ initialQ, onClose }: { initialQ: string; onClose: () => v
             </div>
           )}
 
-          {!query.isFetching && data?.kind === "found" && (
-            <GeraetDetailInhalt stand={data.stand} bewegungen={data.bewegungen} />
+          {/* Fehlteil-Karte (falls als Fehlteil verbucht) + Geräte-Reise (falls in
+              LogIdStand). Beides möglich; mind. eines davon wird gezeigt. */}
+          {!laedt && data?.kind !== "treffer" && (
+            <div className="space-y-6">
+              {fehlteil && <FehlteilKarte fehlteil={fehlteil} />}
+              {data?.kind === "found" && <GeraetDetailInhalt stand={data.stand} bewegungen={data.bewegungen} />}
+
+              {!fehlteil && data?.kind === "none" && (
+                <div className="p-5 bg-white dark:bg-[#242526] rounded-xl border-2 border-[#f7b928]/40 flex items-center gap-3">
+                  <span className="text-2xl" aria-hidden>⚠️</span>
+                  <div>
+                    <p className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Nicht gefunden</p>
+                    <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
+                      Kein Gerät und kein Fehlteil mit LogID oder Seriennummer <span className="font-mono">{q}</span>.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
