@@ -8,6 +8,7 @@
 // zum bestehenden parsePickupCsv.
 
 import Papa from "papaparse";
+import { nurZiffern } from "@/lib/format/ziffern";
 
 export type ColliZeile = {
   nummer:       string;        // roh, getrimmt (z.B. "3.183.906")
@@ -32,11 +33,12 @@ export type ColliPruefungResult = {
 
 /**
  * Colli-Nummer auf reine Ziffern normalisieren — damit Scanner mit ODER ohne
- * Punkte passen ("3.183.906" und "3183906" sind gleich). Float-Artefakt aus
- * Excel/CSV ("3183906.0") zuerst entfernen.
+ * Punkte passen ("3.183.906" und "3183906" sind gleich). Eine abschließende
+ * "000"-Gruppe bleibt erhalten; Excel/CSV-Float-Artefakte ("3183906.0") werden
+ * entfernt (gemeinsame Basis: nurZiffern).
  */
 export function normalizeColliNummer(raw: unknown): string {
-  return String(raw ?? "").trim().replace(/\.0+$/, "").replace(/\D/g, "");
+  return nurZiffern(raw);
 }
 
 // Header case-insensitive matchen: exakt zuerst, sonst "enthält"-Fallback.

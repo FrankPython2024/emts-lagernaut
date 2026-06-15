@@ -7,17 +7,16 @@
 //     Projekt-Formatierer (Single Source of Truth) wieder.
 
 import { normalizeLogId as formatProjektLogId } from "@/lib/format/logId";
+import { nurZiffern } from "@/lib/format/ziffern";
 
 /**
  * Normalisiert eine rohe LogID auf reine Ziffern.
  *   "209.761.402"  → "209761402"
- *   "209761402.0"  → "209761402"   (Float-Artefakt: trailing ".0+" zuerst weg)
+ *   "212.757.000"  → "212757000"   (abschließende "000"-Gruppe bleibt erhalten)
+ *   "209761402.0"  → "209761402"   (Excel/CSV-Float-Artefakt)
  */
 export function normalizeLogId(raw: unknown): string {
-  return String(raw ?? "")
-    .trim()
-    .replace(/\.0+$/, "")  // Float-Artefakt aus Excel/CSV entfernen
-    .replace(/\D/g, "");   // alle Nicht-Ziffern entfernen
+  return nurZiffern(raw);
 }
 
 /**
