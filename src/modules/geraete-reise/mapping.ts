@@ -17,6 +17,7 @@ export type StandFelder = {
   stellplatz:        string | null;
   stellplatzStatus:  string | null;
   lager:             string | null;
+  lagernummer:       string | null;
   filiale:           string | null;
   colli:             string | null;
   vorherigesColli:   string | null;
@@ -44,7 +45,7 @@ export type GemappteZeile = { logId: string; felder: StandFelder };
 // Alle Stand-Felder (für Change-Detection beim Upsert).
 export const STAND_FELDER: (keyof StandFelder)[] = [
   "hersteller", "bezeichnung", "geraeteart", "unterart", "seriennummer",
-  "stellplatz", "stellplatzStatus", "lager", "filiale",
+  "stellplatz", "stellplatzStatus", "lager", "lagernummer", "filiale",
   "colli", "vorherigesColli", "statusColli",
   "verbleib", "inVerbleibSeit", "inVerbleibDurch",
   "aufLagerGebuchtAm", "verweildauerTage", "letzteAenderungAm",
@@ -141,6 +142,7 @@ export function mappeZeile(raw: Record<string, string>): GemappteZeile | null {
     stellplatz:        strKurz(pick(raw, "Stellplatz")),
     stellplatzStatus:  strKurz(pick(raw, "Stellplatz-Status")),
     lager:             strKurz(pick(raw, "Lager")),
+    lagernummer:       strKurz(pick(raw, "Lagernummer")),
     filiale:           strKurz(pick(raw, "Filiale")),
     colli:             strKurz(pick(raw, "Colli")),
     vorherigesColli,

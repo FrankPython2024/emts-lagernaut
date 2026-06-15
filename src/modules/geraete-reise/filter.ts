@@ -5,15 +5,17 @@ import { Prisma } from "@prisma/client";
 // exakt dieselbe Treffermenge liefern. Reine Auswertung, kein Bestandseffekt.
 
 export type GeraeteListeFilter = {
-  verbleib?:     string;
-  stellplatz?:   string;
-  geraeteart?:   string;
-  hersteller?:   string;
-  lager?:        string;
-  ohneVerbleib?: boolean;
-  alterVon?:     number;   // verweildauerTage >= alterVon
-  alterBis?:     number;   // verweildauerTage <= alterBis
-  ausgeschieden?: boolean; // Default false = nur „noch im System"
+  verbleib?:        string;
+  stellplatz?:      string;  // exakt
+  stellplatzPrefix?: string; // stellplatz startsWith (LIKE 'X%', nutzt den Index)
+  geraeteart?:      string;
+  hersteller?:      string;
+  lager?:           string;
+  lagernummer?:     string;
+  ohneVerbleib?:    boolean;
+  alterVon?:        number;  // verweildauerTage >= alterVon
+  alterBis?:        number;  // verweildauerTage <= alterBis
+  ausgeschieden?:   boolean; // Default false = nur „noch im System"
 };
 
 // Baut die where-Klausel: alle gesetzten Filter UND-verknüpft.
@@ -27,9 +29,13 @@ export function buildGeraeteWhere(f: GeraeteListeFilter): Prisma.LogIdStandWhere
   if (f.ohneVerbleib)      and.push({ OR: [{ verbleib: null }, { verbleib: "" }] });
   else if (f.verbleib)     and.push({ verbleib: f.verbleib });
   if (f.stellplatz)        and.push({ stellplatz: f.stellplatz });
+  // Präfix nutzt LIKE 'X%' → der stellplatz-Index greift. MySQL-Default-Collation
+  // ist case-insensitiv, daher kein mode:"insensitive" nötig (auf MySQL ohnehin n/a).
+  if (f.stellplatzPrefix)  and.push({ stellplatz: { startsWith: f.stellplatzPrefix } });
   if (f.geraeteart)        and.push({ geraeteart: f.geraeteart });
   if (f.hersteller)        and.push({ hersteller: f.hersteller });
   if (f.lager)             and.push({ lager: f.lager });
+  if (f.lagernummer)       and.push({ lagernummer: f.lagernummer });
 
   if (f.alterVon != null || f.alterBis != null) {
     const vd: Prisma.IntNullableFilter = {};
@@ -59,14 +65,16 @@ function qnum(v: QueryVal): number | undefined {
 
 export function filterFromQuery(q: Partial<Record<string, string | string[]>>): GeraeteListeFilter {
   return {
-    verbleib:     qstr(q.verbleib),
-    stellplatz:   qstr(q.stellplatz),
-    geraeteart:   qstr(q.geraeteart),
-    hersteller:   qstr(q.hersteller),
-    lager:        qstr(q.lager),
-    ohneVerbleib: qstr(q.ohneVerbleib) === "1",
-    alterVon:     qnum(q.alterVon),
-    alterBis:     qnum(q.alterBis),
-    ausgeschieden: qstr(q.ausgeschieden) === "1",
+    verbleib:         qstr(q.verbleib),
+    stellplatz:       qstr(q.stellplatz),
+    stellplatzPrefix: qstr(q.stellplatzPrefix),
+    geraeteart:       qstr(q.geraeteart),
+    hersteller:       qstr(q.hersteller),
+    lager:            qstr(q.lager),
+    lagernummer:      qstr(q.lagernummer),
+    ohneVerbleib:     qstr(q.ohneVerbleib) === "1",
+    alterVon:         qnum(q.alterVon),
+    alterBis:         qnum(q.alterBis),
+    ausgeschieden:    qstr(q.ausgeschieden) === "1",
   };
 }

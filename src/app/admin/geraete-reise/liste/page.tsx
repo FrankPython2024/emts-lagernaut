@@ -46,9 +46,11 @@ function GeraeteListe() {
 
   const verbleib     = params?.get("verbleib")   ?? undefined;
   const stellplatz   = params?.get("stellplatz") ?? undefined;
+  const stellplatzPrefix = params?.get("stellplatzPrefix") ?? undefined;
   const geraeteart   = params?.get("geraeteart") ?? undefined;
   const hersteller   = params?.get("hersteller") ?? undefined;
   const lager        = params?.get("lager")      ?? undefined;
+  const lagernummer  = params?.get("lagernummer") ?? undefined;
   const ohneVerbleib = params?.get("ohneVerbleib") === "1";
   const ausgeschieden = params?.get("ausgeschieden") === "1";
   const alterVonRaw  = params?.get("alterVon");
@@ -59,22 +61,24 @@ function GeraeteListe() {
   const [seite, setSeite] = useState(1);
 
   // Filterwechsel (neuer Deep-Link) → zurück auf Seite 1.
-  useEffect(() => { setSeite(1); }, [verbleib, stellplatz, geraeteart, hersteller, lager, ohneVerbleib, ausgeschieden, alterVon, alterBis]);
+  useEffect(() => { setSeite(1); }, [verbleib, stellplatz, stellplatzPrefix, geraeteart, hersteller, lager, lagernummer, ohneVerbleib, ausgeschieden, alterVon, alterBis]);
 
   const { data, isFetching, error } = api.geraeteReise.geraeteListe.useQuery(
-    { verbleib, stellplatz, geraeteart, hersteller, lager, ohneVerbleib, ausgeschieden, alterVon, alterBis, seite, proSeite: PRO_SEITE },
+    { verbleib, stellplatz, stellplatzPrefix, geraeteart, hersteller, lager, lagernummer, ohneVerbleib, ausgeschieden, alterVon, alterBis, seite, proSeite: PRO_SEITE },
     { staleTime: 30_000, placeholderData: (prev) => prev },
   );
 
   // Kopfzeile aus allen gesetzten Filtern zusammenbauen (UND-verknüpft).
   const teile: string[] = [];
   if (ausgeschieden)     teile.push("Ausgeschieden");
+  if (lagernummer)       teile.push(`Lager ${lagernummer}`);
   if (geraeteart)        teile.push(geraeteart);
   if (hersteller)        teile.push(hersteller);
   if (lager)             teile.push(lager);
   if (ohneVerbleib)      teile.push("ohne Verbleib");
   else if (verbleib)     teile.push(verbleib);
   if (stellplatz)        teile.push(`Stellplatz ${stellplatz}`);
+  if (stellplatzPrefix)  teile.push(`Stellplatz ${stellplatzPrefix}*`);
   if (alterVon != null && alterBis != null) teile.push(`Alter ${nf(alterVon)}–${nf(alterBis)} Tage`);
   else if (alterVon != null)                teile.push(`Alter ab ${nf(alterVon)} Tagen`);
   else if (alterBis != null)                teile.push(`Alter bis ${nf(alterBis)} Tage`);
@@ -94,9 +98,11 @@ function GeraeteListe() {
     const p = new URLSearchParams({ format });
     if (verbleib)     p.set("verbleib", verbleib);
     if (stellplatz)   p.set("stellplatz", stellplatz);
+    if (stellplatzPrefix) p.set("stellplatzPrefix", stellplatzPrefix);
     if (geraeteart)   p.set("geraeteart", geraeteart);
     if (hersteller)   p.set("hersteller", hersteller);
     if (lager)        p.set("lager", lager);
+    if (lagernummer)  p.set("lagernummer", lagernummer);
     if (ohneVerbleib) p.set("ohneVerbleib", "1");
     if (ausgeschieden) p.set("ausgeschieden", "1");
     if (alterVon != null) p.set("alterVon", String(alterVon));

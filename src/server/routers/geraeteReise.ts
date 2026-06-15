@@ -267,17 +267,19 @@ export const geraeteReiseRouter = createTRPCRouter({
   // Reine Auswertung, kein Bestandseffekt.
   geraeteListe: permissionProcedure("GERAETE_REISE_VIEW")
     .input(z.object({
-      verbleib:     z.string().optional(),
-      stellplatz:   z.string().optional(),
-      ohneVerbleib: z.boolean().optional(),
-      geraeteart:   z.string().optional(),
-      hersteller:   z.string().optional(),
-      lager:        z.string().optional(),
-      alterVon:     z.number().int().optional(),
-      alterBis:     z.number().int().optional(),
-      ausgeschieden: z.boolean().optional(),
-      seite:        z.number().int().min(1).default(1),
-      proSeite:     z.number().int().min(1).max(200).default(50),
+      verbleib:         z.string().optional(),
+      stellplatz:       z.string().optional(),
+      stellplatzPrefix: z.string().optional(),
+      ohneVerbleib:     z.boolean().optional(),
+      geraeteart:       z.string().optional(),
+      hersteller:       z.string().optional(),
+      lager:            z.string().optional(),
+      lagernummer:      z.string().optional(),
+      alterVon:         z.number().int().optional(),
+      alterBis:         z.number().int().optional(),
+      ausgeschieden:    z.boolean().optional(),
+      seite:            z.number().int().min(1).default(1),
+      proSeite:         z.number().int().min(1).max(200).default(50),
     }))
     .query(async ({ input }) => {
       // Zentraler where-Builder (identisch zum Export-Endpoint).
@@ -374,6 +376,97 @@ export const geraeteReiseRouter = createTRPCRouter({
 
       return {
         geraeteart: art,
+        kennzahlen: {
+          anzahl,
+          avgVerweildauer: Math.round(avgAgg._avg.verweildauerTage ?? 0),
+          ohneVerbleib,
+          blockiert,
+          ladenhueter,
+        },
+        herstellerVerteilung,
+        verbleibVerteilung,
+        agingBuckets,
+      };
+    }),
+
+  // Standort-Analyse: dieselbe tiefe Analyse wie geraeteartDetail, aber scoped
+  // auf Lagernummer und/oder Stellplatz-Präfix. Nutzt den zentralen where-Builder
+  // (ausgeschieden=false wie die übrigen Auswertungen). Reine Auswertung.
+  standortAnalyse: permissionProcedure("GERAETE_REISE_VIEW")
+    .input(z.object({
+      lagernummer:      z.string().min(1).max(191).optional(),
+      stellplatzPrefix: z.string().min(1).max(191).optional(),
+    }).refine((d) => d.lagernummer || d.stellplatzPrefix, {
+      message: "Lagernummer oder Stellplatz angeben.",
+    }))
+    .query(async ({ input }) => {
+      const LADENHUETER_TAGE = 365;
+      // Scope (ausgeschieden=false + lagernummer/stellplatzPrefix) über den
+      // zentralen Builder — identisch zur Drilldown-Liste.
+      const scope = buildGeraeteWhere({
+        lagernummer:      input.lagernummer,
+        stellplatzPrefix: input.stellplatzPrefix,
+        ausgeschieden:    false,
+      });
+      const mit = (extra: object) => ({ AND: [scope, extra] });
+
+      const AGING_RANGES: { bucket: string; range: object }[] = [
+        { bucket: "0–30",    range: { gte: 0,   lte: 30 } },
+        { bucket: "31–90",   range: { gte: 31,  lte: 90 } },
+        { bucket: "91–180",  range: { gte: 91,  lte: 180 } },
+        { bucket: "181–365", range: { gte: 181, lte: 365 } },
+        { bucket: ">365",    range: { gt: 365 } },
+      ];
+
+      // Aging-Counts separat sammeln (Spread in Promise.all würde die Tuple-
+      // Typisierung der übrigen Ergebnisse aushebeln) — bleibt trotzdem parallel.
+      const [
+        [anzahl, avgAgg, ohneVerbleib, blockiert, ladenhueter, herstellerRaw, verbleibRaw],
+        agingCounts,
+      ] = await Promise.all([
+        Promise.all([
+          prisma.logIdStand.count({ where: scope }),
+          prisma.logIdStand.aggregate({ _avg: { verweildauerTage: true }, where: scope }),
+          prisma.logIdStand.count({ where: mit({ OR: [{ verbleib: null }, { verbleib: "" }] }) }),
+          prisma.logIdStand.count({ where: mit({ blockiert: true }) }),
+          prisma.logIdStand.count({ where: mit({ verweildauerTage: { gt: LADENHUETER_TAGE } }) }),
+          prisma.logIdStand.groupBy({ by: ["hersteller"], _count: { _all: true }, where: scope }),
+          prisma.logIdStand.groupBy({ by: ["verbleib"],   _count: { _all: true }, where: scope }),
+        ]),
+        Promise.all(AGING_RANGES.map((b) => prisma.logIdStand.count({ where: mit({ verweildauerTage: b.range }) }))),
+      ]);
+
+      function verdichte(rows: { _count: { _all: number } }[], keyOf: (r: never) => string | null, leerLabel: string) {
+        const map = new Map<string, number>();
+        for (const r of rows) {
+          const roh = keyOf(r as never);
+          const label = roh && roh.trim() !== "" ? roh : leerLabel;
+          map.set(label, (map.get(label) ?? 0) + r._count._all);
+        }
+        return [...map.entries()].map(([label, anzahl]) => ({ label, anzahl })).sort((a, b) => b.anzahl - a.anzahl);
+      }
+
+      // Hersteller: Top 12, Rest → „Sonstige".
+      const herstellerAlle = verdichte(herstellerRaw, (r: { hersteller: string | null }) => r.hersteller, "ohne Angabe");
+      let herstellerVerteilung: { hersteller: string; anzahl: number }[];
+      if (herstellerAlle.length > 12) {
+        const rest = herstellerAlle.slice(12).reduce((s, x) => s + x.anzahl, 0);
+        herstellerVerteilung = [
+          ...herstellerAlle.slice(0, 12).map((x) => ({ hersteller: x.label, anzahl: x.anzahl })),
+          { hersteller: "Sonstige", anzahl: rest },
+        ];
+      } else {
+        herstellerVerteilung = herstellerAlle.map((x) => ({ hersteller: x.label, anzahl: x.anzahl }));
+      }
+
+      const verbleibVerteilung = verdichte(verbleibRaw, (r: { verbleib: string | null }) => r.verbleib, "ohne Verbleib")
+        .map((x) => ({ verbleib: x.label, anzahl: x.anzahl }));
+
+      const agingBuckets = AGING_RANGES.map((b, i) => ({ bucket: b.bucket, anzahl: agingCounts[i] ?? 0 }));
+
+      return {
+        lagernummer:      input.lagernummer ?? null,
+        stellplatzPrefix: input.stellplatzPrefix ?? null,
         kennzahlen: {
           anzahl,
           avgVerweildauer: Math.round(avgAgg._avg.verweildauerTage ?? 0),

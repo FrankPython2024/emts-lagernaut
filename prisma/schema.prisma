@@ -611,6 +611,7 @@ model LogIdStand {
   stellplatz        String?
   stellplatzStatus  String?
   lager             String?
+  lagernummer       String?
   filiale           String?
 
   colli             String?
@@ -649,6 +650,7 @@ model LogIdStand {
 
   @@index([verbleib])
   @@index([lager])
+  @@index([lagernummer])
   @@index([stellplatz])
   @@index([geraeteart])
   @@index([verweildauerTage])
