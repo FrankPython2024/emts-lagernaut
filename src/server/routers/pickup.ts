@@ -4,6 +4,7 @@ import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import type { SessionUser } from "@/core/types";
 import { normalizeLogId } from "@/lib/pickup/logId";
+import { nurZiffern } from "@/lib/format/ziffern";
 import { emitToAdmins } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
 
@@ -244,6 +245,47 @@ export const pickupRouter = createTRPCRouter({
       });
       void emitFortschritt(input.auftragId); // Admin-Live-Update (ohne Ton/Toast)
       return { result: "GEFUNDEN" as const, logId, position: shapePos(updated) };
+    }),
+
+  // Colli-Inhalt akustisch prüfen (nur LOGID-Aufträge). REIN LESEND — ändert
+  // nichts in der DB, hakt nichts ab. Findet die LogIDs eines Collis aus den
+  // Geräte-Reise-Daten (LogIdStand.colli ist gepunktet gespeichert → REPLACE)
+  // und schneidet sie mit den OFFENEN Positionen des Auftrags.
+  colliPruefen: pickupPick
+    .input(z.object({ auftragId: z.number().int().positive(), colliNummer: z.string() }))
+    .query(async ({ input }) => {
+      const ziffern = nurZiffern(input.colliNummer);
+      if (!ziffern) {
+        return { colliZiffern: "", colliBekannt: false, treffer: [], anzahlTreffer: 0 };
+      }
+
+      // LogIDs in diesem Colli (Geräte-Reise-Snapshot). REPLACE entfernt die
+      // Punkte der gespeicherten Colli-Nummer; ohne Index, aber nur gelegentlich.
+      const imColli = await prisma.$queryRaw<Array<{ logId: string; bezeichnung: string | null }>>`
+        SELECT logId, bezeichnung
+        FROM \`LogIdStand\`
+        WHERE REPLACE(colli, '.', '') = ${ziffern}`;
+
+      const colliBekannt = imColli.length > 0;
+
+      // Offene Positionen des Auftrags (logId = reine Ziffern).
+      const offene = await prisma.pickupPosition.findMany({
+        where:  { auftragId: input.auftragId, status: "OFFEN" },
+        select: { logId: true, bezeichnung: true },
+      });
+      const offeneMap = new Map(offene.map((p) => [p.logId, p.bezeichnung]));
+
+      // Schnitt: gesuchte (offene) LogIDs, die in diesem Colli liegen.
+      const treffer: { logId: string; bezeichnung: string | null }[] = [];
+      const seen = new Set<string>();
+      for (const row of imColli) {
+        const d = normalizeLogId(row.logId);
+        if (!offeneMap.has(d) || seen.has(d)) continue;
+        seen.add(d);
+        treffer.push({ logId: d, bezeichnung: row.bezeichnung ?? offeneMap.get(d) ?? null });
+      }
+
+      return { colliZiffern: ziffern, colliBekannt, treffer, anzahlTreffer: treffer.length };
     }),
 
   // Versehentlichen Treffer zurücksetzen: GEFUNDEN → OFFEN.

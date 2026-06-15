@@ -6,25 +6,31 @@ import { useParams, useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
 import { formatLogId } from "@/lib/pickup/logId";
-import { playScanSound, playComplete, type ScanResult } from "@/lib/pickup/scanSound";
+import { playScanSound, playComplete, playNegativeSound, type ScanResult } from "@/lib/pickup/scanSound";
 import { useScannerMode } from "@/lib/pickup/useScannerMode";
-import { ModusBanner, GeraeteUmschalter } from "@/components/pickup/ModusBanner";
+import { GeraeteUmschalter } from "@/components/pickup/ModusBanner";
 
-type Feedback = {
-  result:   ScanResult;
-  logId:    string;
-  position: {
-    id: number; logId: string; colli: string | null; stellplatz: string | null;
-    bezeichnung: string | null; status: string; gefundenVonName: string | null; gefundenAm: Date | string | null;
-  } | null;
+// Farben wie ModusBanner: Blau = LogID, Violett = Colli — Modus IMMER auch über
+// Farbe erkennbar, aber nie NUR über Farbe (zusätzlich Icon + Klartext).
+const BLAU    = "#008BD2";
+const VIOLETT = "#7c3aed";
+
+type ScanPos = {
+  id: number; logId: string; colli: string | null; stellplatz: string | null;
+  bezeichnung: string | null; status: string; gefundenVonName: string | null; gefundenAm: Date | string | null;
 };
+
+// Einheitliches Ergebnis des letzten Scans — LogID-Scan ODER Colli-Prüfung.
+type Feedback =
+  | { kind: "logid"; result: ScanResult; logId: string; position: ScanPos | null }
+  | { kind: "colli"; colliNummer: string; colliBekannt: boolean; treffer: { logId: string; bezeichnung: string | null }[]; anzahlTreffer: number };
 
 function fmtZeit(d: Date | string | null): string {
   if (!d) return "";
   return new Date(d).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 }
 
-// Großes, farbcodiertes Ergebnis-Banner — IMMER Icon + Text (nicht nur Farbe).
+// ── „Zuletzt gescannt" — großer Block, IMMER Icon + Text + Farbe zugleich ──────
 function ErgebnisBanner({ fb }: { fb: Feedback | null }) {
   if (!fb) {
     return (
@@ -33,6 +39,49 @@ function ErgebnisBanner({ fb }: { fb: Feedback | null }) {
       </div>
     );
   }
+
+  // ── Colli-Prüfung ──
+  if (fb.kind === "colli") {
+    if (fb.anzahlTreffer > 0) {
+      return (
+        <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5" style={{ borderColor: "#04B475", background: "rgba(4,180,117,0.10)" }}>
+          <div className="flex items-center gap-4">
+            <span className="text-5xl" aria-hidden>✓</span>
+            <div className="min-w-0">
+              <div className="text-2xl font-black" style={{ color: "#04713f" }}>Im Colli gesucht: {fb.anzahlTreffer}</div>
+              <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">Colli {formatLogId(fb.colliNummer)}</div>
+            </div>
+          </div>
+          <ul className="mt-3 space-y-1">
+            {fb.treffer.map((t) => (
+              <li key={t.logId} className="flex items-center gap-2 text-base">
+                <span aria-hidden>📦</span>
+                <span className="font-mono font-bold text-[#202F61] dark:text-[#e4e6eb]">{formatLogId(t.logId)}</span>
+                <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{t.bezeichnung ?? "—"}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    }
+    // 0 Treffer — bekannt vs. unbekannt klar in Worten
+    return (
+      <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5" style={{ borderColor: "#fa3e3e", background: "rgba(250,62,62,0.10)" }}>
+        <div className="flex items-center gap-4">
+          <span className="text-5xl" aria-hidden>✗</span>
+          <div className="min-w-0">
+            <div className="text-2xl font-black" style={{ color: "#b3261e" }}>Nichts Gesuchtes drin</div>
+            <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">Colli {fb.colliNummer ? formatLogId(fb.colliNummer) : "—"}</div>
+            <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+              {fb.colliBekannt ? "In diesem Colli liegt kein gesuchtes Gerät." : "Dieses Colli ist unbekannt."}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── LogID-Scan ──
   const p = fb.position;
   if (fb.result === "GEFUNDEN") {
     return (
@@ -56,7 +105,7 @@ function ErgebnisBanner({ fb }: { fb: Feedback | null }) {
         <div className="flex items-center gap-4">
           <span className="text-5xl" aria-hidden>⚠</span>
           <div className="min-w-0">
-            <div className="text-2xl font-black" style={{ color: "#BA7517" }}>Schon gescannt</div>
+            <div className="text-2xl font-black" style={{ color: "#BA7517" }}>Schon gefunden</div>
             <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">{formatLogId(fb.logId)}</div>
             <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
               von {p?.gefundenVonName ?? "—"}{p?.gefundenAm ? `, ${fmtZeit(p.gefundenAm)}` : ""}
@@ -72,12 +121,37 @@ function ErgebnisBanner({ fb }: { fb: Feedback | null }) {
       <div className="flex items-center gap-4">
         <span className="text-5xl" aria-hidden>✗</span>
         <div className="min-w-0">
-          <div className="text-2xl font-black" style={{ color: "#b3261e" }}>Nicht auf der Liste</div>
+          <div className="text-2xl font-black" style={{ color: "#b3261e" }}>Gehört nicht dazu</div>
           <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">{fb.logId ? formatLogId(fb.logId) : "—"}</div>
         </div>
       </div>
     </div>
   );
+}
+
+// Gruppiert Positionen (LogID-Auftrag → nach Colli, Colli-Auftrag → nach Stellplatz).
+function gruppiere(positionen: ScanPos[], nachStellplatz: boolean) {
+  const keyOf = (p: ScanPos) => (nachStellplatz ? (p.stellplatz ?? "") : (p.colli ?? ""));
+  const map = new Map<string, ScanPos[]>();
+  for (const p of positionen) {
+    const key = keyOf(p);
+    const arr = map.get(key);
+    if (arr) arr.push(p); else map.set(key, [p]);
+  }
+  const out = [...map.entries()].map(([key, items]) => ({ key, items }));
+  out.sort((a, b) => {
+    if (a.key === "" && b.key === "") return 0;
+    if (a.key === "") return 1;
+    if (b.key === "") return -1;
+    return a.key.localeCompare(b.key, "de", { numeric: true });
+  });
+  for (const g of out) {
+    g.items.sort((x, y) => {
+      const s = (x.stellplatz ?? "").localeCompare(y.stellplatz ?? "", "de", { numeric: true });
+      return s !== 0 ? s : x.logId.localeCompare(y.logId, "de", { numeric: true });
+    });
+  }
+  return out;
 }
 
 export default function PickupScanPage() {
@@ -90,16 +164,21 @@ export default function PickupScanPage() {
   const utils = api.useUtils();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [eingabe, setEingabe]       = useState("");
-  const [feedback, setFeedback]     = useState<Feedback | null>(null);
-  const [fremdScans, setFremdScans] = useState<{ logId: string; zeit: Date }[]>([]);
-  // Geräteerkennung: Mobil ⇒ Soft-Tastatur/Touch, Handscanner ⇒ fokussiertes Feld.
+  const [eingabe, setEingabe]   = useState("");
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  // Session-Liste „Gehört nicht dazu": fremde LogIDs + nicht passende Collis.
+  const [nichtDazu, setNichtDazu] = useState<{ art: "logid" | "colli"; wert: string; zeit: Date }[]>([]);
+  const [zweck, setZweck]   = useState<"scan" | "pruefen">("scan"); // nur LOGID-Auftrag
+  const [ansicht, setAnsicht] = useState<"offen" | "gefunden" | "fremd">("offen");
+  const [colliBusy, setColliBusy] = useState(false);
+
   const { mode, setMode, onInputKeyDown } = useScannerMode();
   const tastatur = mode === "mobil";
-  const [abschlussDialog, setAbschlussDialog] = useState(false); // Vollständig abschließen (aus Banner)
-  const [unvollDialog, setUnvollDialog]       = useState(false); // Als nicht komplett melden
+
+  const [abschlussDialog, setAbschlussDialog] = useState(false);
+  const [unvollDialog, setUnvollDialog]       = useState(false);
   const [abschlussErgebnis, setAbschlussErgebnis] = useState<{ name: string; gesamt: number; gefunden: number; nichtGefunden: number } | null>(null);
-  const prevVollRef = useRef<boolean | null>(null); // vorheriger Vollständig-Stand (für Live-Trigger)
+  const prevVollRef = useRef<boolean | null>(null);
 
   const abschliessen = api.pickup.abschliessen.useMutation({
     onSuccess: (r) => {
@@ -115,10 +194,10 @@ export default function PickupScanPage() {
 
   const scan = api.pickup.scan.useMutation({
     onSuccess: (res, vars) => {
-      setFeedback(res as Feedback);
+      setFeedback({ kind: "logid", result: res.result, logId: res.logId, position: res.position as ScanPos | null });
       playScanSound(res.result);
       if (res.result === "FREMD") {
-        setFremdScans((prev) => [{ logId: res.logId || vars.logIdRaw, zeit: new Date() }, ...prev].slice(0, 50));
+        setNichtDazu((prev) => [{ art: "logid" as const, wert: res.logId || vars.logIdRaw, zeit: new Date() }, ...prev].slice(0, 50));
       }
       void utils.pickup.pickDetails.invalidate({ id });
     },
@@ -132,52 +211,61 @@ export default function PickupScanPage() {
   // Nach jedem Ergebnis Fokus zurück ins Scan-Feld (Handheld-tauglich).
   useEffect(() => { inputRef.current?.focus(); }, [feedback]);
 
-  // Vollständigkeit erkennen. Ton NUR beim Live-Übergang unvollständig→vollständig
-  // (nicht beim Öffnen eines bereits vollständigen Auftrags). Beim Zurückfallen
-  // unter vollständig wird der Trigger wieder scharf gestellt.
   const vollstaendig = !!data && data.gesamt > 0 && data.gefunden === data.gesamt;
   const offen        = data ? data.gesamt - data.gefunden : 0;
-  const istColli     = data?.typ === "COLLI"; // Colli-Auftrag: nach Stellplatz gruppieren
+  const istColli     = data?.typ === "COLLI";
+
+  // Bei COLLI-Auftrag gibt es keinen „Colli prüfen"-Untermodus.
+  const aktiverZweck: "scan" | "pruefen" = istColli ? "scan" : zweck;
+  const aktivFarbe = (istColli || aktiverZweck === "pruefen") ? VIOLETT : BLAU;
+
+  // Live-Abschluss-Fanfare nur beim Übergang unvollständig → vollständig.
   useEffect(() => {
     if (!data) return;
     const istVoll = data.gesamt > 0 && data.gefunden === data.gesamt;
-    if (prevVollRef.current === null) { prevVollRef.current = istVoll; return; } // Initial: nur merken
+    if (prevVollRef.current === null) { prevVollRef.current = istVoll; return; }
     if (istVoll && !prevVollRef.current) playComplete();
     prevVollRef.current = istVoll;
   }, [data]);
 
-  // Positionen gruppieren — STABILE, deterministische Sortierung.
-  // LogID-Auftrag: nach Colli. Colli-Auftrag (Stellplatz-Prüfung): nach Stellplatz.
-  const gruppen = useMemo(() => {
-    const positionen = data?.positionen ?? [];
-    const nachStellplatz = data?.typ === "COLLI";
-    const keyOf = (p: (typeof positionen)[number]) => (nachStellplatz ? (p.stellplatz ?? "") : (p.colli ?? ""));
-    const map = new Map<string, typeof positionen>();
-    for (const p of positionen) {
-      const key = keyOf(p);
-      const arr = map.get(key);
-      if (arr) arr.push(p); else map.set(key, [p]);
+  const offenePositionen   = useMemo(() => (data?.positionen ?? []).filter((p) => p.status !== "GEFUNDEN"), [data]);
+  const gefundenePositionen = useMemo(() => (data?.positionen ?? []).filter((p) => p.status === "GEFUNDEN"), [data]);
+  const gruppenOffen    = useMemo(() => gruppiere(offenePositionen, !!istColli), [offenePositionen, istColli]);
+  const gruppenGefunden = useMemo(() => gruppiere(gefundenePositionen, !!istColli), [gefundenePositionen, istColli]);
+
+  async function pruefeColli(raw: string) {
+    if (colliBusy) return;
+    setColliBusy(true);
+    try {
+      const res = await utils.pickup.colliPruefen.fetch({ auftragId: id, colliNummer: raw });
+      setFeedback({ kind: "colli", colliNummer: res.colliZiffern, colliBekannt: res.colliBekannt, treffer: res.treffer, anzahlTreffer: res.anzahlTreffer });
+      if (res.anzahlTreffer > 0) {
+        playScanSound("GEFUNDEN");
+      } else {
+        playNegativeSound();
+        setNichtDazu((prev) => [{ art: "colli" as const, wert: res.colliZiffern || raw, zeit: new Date() }, ...prev].slice(0, 50));
+      }
+    } catch {
+      playNegativeSound();
+    } finally {
+      setColliBusy(false);
+      setEingabe("");
+      inputRef.current?.focus();
     }
-    const out = [...map.entries()].map(([key, items]) => ({ key, items }));
-    out.sort((a, b) => {
-      if (a.key === "" && b.key === "") return 0;
-      if (a.key === "") return 1;
-      if (b.key === "") return -1;
-      return a.key.localeCompare(b.key, "de", { numeric: true });
-    });
-    for (const g of out) {
-      g.items.sort((x, y) => {
-        const s = (x.stellplatz ?? "").localeCompare(y.stellplatz ?? "", "de", { numeric: true });
-        return s !== 0 ? s : x.logId.localeCompare(y.logId, "de", { numeric: true });
-      });
-    }
-    return out;
-  }, [data]);
+  }
 
   function handleScan() {
     const v = eingabe.trim();
-    if (!v || scan.isPending) return;
-    scan.mutate({ auftragId: id, logIdRaw: v });
+    if (!v) return;
+    if (aktiverZweck === "pruefen") pruefeColli(v);
+    else if (!scan.isPending) scan.mutate({ auftragId: id, logIdRaw: v });
+  }
+
+  function wechsleZweck(z: "scan" | "pruefen") {
+    setZweck(z);
+    setFeedback(null);
+    setEingabe("");
+    inputRef.current?.focus();
   }
 
   if (permsLoading) {
@@ -192,268 +280,363 @@ export default function PickupScanPage() {
   }
 
   return (
-    <div className="space-y-5">
-        <ModusBanner modus={istColli ? "colli" : "logid"} />
+    <div className="space-y-3">
+      {/* Kopf — kompakt */}
+      <div className="flex items-center justify-between gap-2">
+        <Link href="/pickup" className="inline-flex items-center gap-1 text-[#65676b] dark:text-[#b0b3b8] hover:text-[#008BD2] text-sm font-semibold min-h-[44px]">← Aufträge</Link>
+        {data && !vollstaendig && offen > 0 && (
+          <button
+            onClick={() => setUnvollDialog(true)}
+            className="inline-flex items-center px-3 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] text-xs font-bold hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[44px]"
+          >
+            Nicht komplett melden
+          </button>
+        )}
+      </div>
 
-        {/* Kopf */}
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <Link href="/pickup" className="inline-block text-[#65676b] dark:text-[#b0b3b8] hover:text-[#008BD2] text-sm mb-1">← Zur Auftragsliste</Link>
-            <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb] truncate">
-              {isLoading ? "Lade…" : (data?.name ?? "Pickup")}
-            </h1>
-            {data?.bemerkung && (
-              <div className="mt-1 inline-flex items-start gap-2 px-3 py-2 rounded-xl bg-[#008BD2]/10 text-[#202F61] dark:text-[#e4e6eb] text-base font-semibold">
-                <span aria-hidden>📝</span>
-                <span className="whitespace-pre-wrap break-words">{data.bemerkung}</span>
-              </div>
-            )}
-          </div>
-          {data && !vollstaendig && offen > 0 && (
-            <button
-              onClick={() => setUnvollDialog(true)}
-              className="inline-flex items-center gap-1.5 px-3 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] text-xs font-bold hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[44px] flex-shrink-0"
-            >
-              Als nicht komplett melden
-            </button>
-          )}
+      <h1 className="text-xl font-black text-[#202F61] dark:text-[#e4e6eb] truncate">
+        {isLoading ? "Lade…" : (data?.name ?? "Pickup")}
+      </h1>
+      {data?.bemerkung && (
+        <div className="inline-flex items-start gap-2 px-3 py-2 rounded-xl bg-[#008BD2]/10 text-[#202F61] dark:text-[#e4e6eb] text-base font-semibold w-full">
+          <span aria-hidden>📝</span>
+          <span className="whitespace-pre-wrap break-words">{data.bemerkung}</span>
         </div>
+      )}
 
-        {error || (!isLoading && !data) ? (
-          <div className="p-8 text-center text-sm text-[#65676b] dark:text-[#b0b3b8] bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042]">
-            Auftrag nicht gefunden.
+      {error || (!isLoading && !data) ? (
+        <div className="p-8 text-center text-sm text-[#65676b] dark:text-[#b0b3b8] bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042]">
+          Auftrag nicht gefunden.
+        </div>
+      ) : data ? (
+        <>
+          {/* Fortschritt — kompakt: „X von N gefunden" + Balken */}
+          <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-3">
+            <div className="flex items-baseline justify-between">
+              <span className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">
+                {data.gefunden} <span className="text-[#65676b] dark:text-[#b0b3b8]">von</span> {data.gesamt}
+              </span>
+              <span className="text-sm font-bold uppercase tracking-wide text-[#65676b] dark:text-[#b0b3b8]">gefunden</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden mt-2" role="progressbar" aria-valuenow={data.gefunden} aria-valuemin={0} aria-valuemax={data.gesamt}>
+              <div className="h-full rounded-full transition-all" style={{ width: `${data.gesamt > 0 ? Math.round((data.gefunden / data.gesamt) * 100) : 0}%`, background: "#04B475" }} />
+            </div>
           </div>
-        ) : (
-          <>
-            {/* Großer Fortschritts-Zähler (dominant) */}
-            {data && (
-              <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-4 text-center">
-                <div className="text-4xl sm:text-5xl font-black text-[#202F61] dark:text-[#e4e6eb] leading-none">
-                  {data.gefunden} <span className="text-[#65676b] dark:text-[#b0b3b8]">/</span> {data.gesamt}
-                </div>
-                <div className="text-xs font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8] mt-1">gefunden</div>
-                <div className="h-1 w-full rounded-full bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden mt-3" role="progressbar" aria-valuenow={data.gefunden} aria-valuemin={0} aria-valuemax={data.gesamt}>
-                  <div className="h-full rounded-full transition-all" style={{ width: `${data.gesamt > 0 ? Math.round((data.gefunden / data.gesamt) * 100) : 0}%`, background: "#04B475" }} />
+
+          {/* Vollständig-Banner */}
+          {vollstaendig && (
+            <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-4 flex items-center justify-between gap-3 flex-wrap" style={{ borderColor: "#04B475", background: "rgba(4,180,117,0.12)" }}>
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-4xl" aria-hidden>✅</span>
+                <div className="min-w-0">
+                  <div className="text-lg font-black" style={{ color: "#04713f" }}>Alles gefunden</div>
+                  <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">Alle {data.gesamt} Geräte gescannt.</div>
                 </div>
               </div>
-            )}
+              <button
+                onClick={() => setAbschlussDialog(true)}
+                className="inline-flex items-center gap-2 px-5 rounded-xl bg-[#04B475] text-white text-base font-bold hover:bg-[#039c64] transition-colors shadow-sm min-h-[56px] flex-shrink-0"
+              >
+                ✓ Auftrag abschließen
+              </button>
+            </div>
+          )}
 
-            {/* Vollständig-Banner (100 %) — klarer nächster Schritt */}
-            {vollstaendig && data && (
-              <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5 flex items-center justify-between gap-4 flex-wrap" style={{ borderColor: "#04B475", background: "rgba(4,180,117,0.12)" }}>
-                <div className="flex items-center gap-4 min-w-0">
-                  <span className="text-5xl" aria-hidden>✅</span>
-                  <div className="min-w-0">
-                    <div className="text-xl font-black" style={{ color: "#04713f" }}>Vollständig</div>
-                    <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">Alle {data.gesamt} Geräte gescannt!</div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setAbschlussDialog(true)}
-                  className="inline-flex items-center gap-2 px-5 rounded-xl bg-[#04B475] text-white text-base font-bold hover:bg-[#039c64] transition-colors shadow-sm min-h-[56px] flex-shrink-0"
-                >
-                  ✓ Auftrag abschließen
-                </button>
-              </div>
-            )}
-
-            {/* Scan-Feld (prominent, autofokussiert) */}
-            <form onSubmit={(e) => { e.preventDefault(); handleScan(); }} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-4 space-y-2">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <label htmlFor="scan-input" className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">{istColli ? "Colli-Nummer scannen" : "LogID scannen"}</label>
-                <GeraeteUmschalter device={mode} onChange={(d) => { setMode(d); inputRef.current?.focus(); }} />
-              </div>
-              <div className="flex gap-2">
-                <input
-                  id="scan-input"
-                  ref={inputRef}
-                  value={eingabe}
-                  onChange={(e) => setEingabe(e.target.value)}
-                  onKeyDown={onInputKeyDown}
-                  autoFocus
-                  autoComplete="off"
-                  inputMode={tastatur ? "numeric" : "none"}
-                  enterKeyHint="done"
-                  spellCheck={false}
-                  placeholder={istColli ? "Colli-Nummer scannen…" : "LogID scannen…"}
-                  className="flex-1 min-w-0 px-4 rounded-xl border-2 border-[#008BD2]/40 bg-[#f0f2f5] dark:bg-[#18191a] text-2xl font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] outline-none focus:border-[#008BD2] focus:ring-2 focus:ring-[#008BD2]/30 transition-colors min-h-[56px]"
-                />
-                {tastatur && (
-                  <button
-                    type="submit"
-                    disabled={!eingabe.trim() || scan.isPending}
-                    className="px-6 rounded-xl bg-[#008BD2] text-white text-base font-bold hover:bg-[#0077b5] disabled:opacity-40 transition-colors min-h-[56px] min-w-[56px]"
-                  >
-                    Prüfen
-                  </button>
-                )}
-              </div>
-            </form>
-
-            {/* Ergebnis des letzten Scans */}
-            <ErgebnisBanner fb={feedback} />
-
-            {/* Live-Liste nach Colli */}
-            <div className="space-y-4">
-              {gruppen.map((g) => {
-                const gefunden = g.items.filter((p) => p.status === "GEFUNDEN").length;
-                const leer = istColli ? "— (ohne Stellplatz)" : "— (ohne Colli)";
+          {/* Scan-Zweck — nur LOGID-Auftrag: LogID scannen / Colli prüfen */}
+          {!istColli && (
+            <div role="group" aria-label="Was möchtest du tun?" className="grid grid-cols-2 gap-2">
+              {([
+                { z: "scan",    label: "LogID scannen", icon: "🏷️", farbe: BLAU },
+                { z: "pruefen", label: "Colli prüfen",  icon: "🧭", farbe: VIOLETT },
+              ] as const).map(({ z, label, icon, farbe }) => {
+                const aktiv = aktiverZweck === z;
                 return (
-                  <div key={g.key || "__ohne__"} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
-                    <div className="flex items-center justify-between gap-2 px-5 py-3 bg-[#f0f2f5] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042]">
-                      <h2 className="font-black text-sm text-[#202F61] dark:text-[#e4e6eb]">{istColli ? "🧭 Stellplatz" : "📦 Colli"} {g.key || leer}</h2>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff]">{gefunden}/{g.items.length}</span>
-                    </div>
-                    <div className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
-                      {g.items.map((p) => {
-                        const ok = p.status === "GEFUNDEN";
-                        return (
-                          <div key={p.id} className={`flex items-center gap-3 px-5 py-3 flex-wrap gap-y-1 ${ok ? "bg-[#04B475]/5" : ""}`}>
-                            <span className="text-lg w-6 text-center" aria-hidden>{ok ? "✓" : "○"}</span>
-                            <div className="font-mono font-black text-base min-w-[120px]" style={{ color: ok ? "#04713f" : undefined }}>
-                              {formatLogId(p.logId)}
-                            </div>
-                            <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] min-w-[80px]">{p.stellplatz ?? "—"}</div>
-                            <div className="flex-1 min-w-0 text-sm truncate" title={p.bezeichnung ?? ""}>{p.bezeichnung ?? "—"}</div>
-                            {ok ? (
-                              <div className="flex items-center gap-2">
-                                <span className="text-[11px] text-[#04713f] font-semibold whitespace-nowrap">
-                                  {p.gefundenVonName ?? ""}{p.gefundenAm ? ` · ${fmtZeit(p.gefundenAm)}` : ""}
-                                </span>
-                                <button
-                                  onClick={() => zuruecksetzen.mutate({ positionId: p.id })}
-                                  disabled={zuruecksetzen.isPending}
-                                  className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] underline disabled:opacity-50"
-                                  aria-label={`Treffer ${formatLogId(p.logId)} zurücksetzen`}
-                                >
-                                  Zurücksetzen
-                                </button>
-                              </div>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#65676b]/10 text-[#65676b] dark:text-[#b0b3b8]">Offen</span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <button
+                    key={z}
+                    onClick={() => wechsleZweck(z)}
+                    aria-pressed={aktiv}
+                    className="rounded-xl border-2 font-black text-base flex items-center justify-center gap-2 min-h-[56px] transition-colors"
+                    style={aktiv
+                      ? { background: farbe, borderColor: farbe, color: "white" }
+                      : { borderColor: "#ced4da", color: "#65676b" }}
+                  >
+                    <span aria-hidden>{icon}</span> {label}
+                  </button>
                 );
               })}
             </div>
+          )}
 
-            {/* Fremd-Scans dieser Sitzung — kompakt, ganz unten */}
-            {fremdScans.length > 0 && (
-              <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#fa3e3e]/30 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-bold text-[#b3261e]">✗ Fremd-Scans (Sitzung): {fremdScans.length}</span>
-                  <button onClick={() => setFremdScans([])} className="text-xs text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] min-h-[44px] px-1">Leeren</button>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {fremdScans.slice(0, 20).map((f, i) => (
-                    <span key={i} className="px-2 py-1 rounded-lg bg-[#fa3e3e]/10 text-[#b3261e] text-xs font-mono font-bold">
-                      {f.logId ? formatLogId(f.logId) : "—"} · {f.zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
-                    </span>
+          {/* Modus-Indikator (auch für COLLI-Auftrag) — Farbe + Icon + Text */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-white font-bold text-sm" style={{ background: aktivFarbe }} role="status">
+            <span aria-hidden>{aktiverZweck === "pruefen" || istColli ? "🧭" : "🏷️"}</span>
+            <span>
+              {istColli ? "Colli scannen" : aktiverZweck === "pruefen" ? "Colli prüfen" : "LogID scannen"}
+            </span>
+          </div>
+
+          {/* Scan-Feld */}
+          <form onSubmit={(e) => { e.preventDefault(); handleScan(); }} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <label htmlFor="scan-input" className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
+                {istColli ? "Colli-Nummer scannen" : aktiverZweck === "pruefen" ? "Colli-Nummer scannen" : "LogID scannen"}
+              </label>
+              <GeraeteUmschalter device={mode} onChange={(d) => { setMode(d); inputRef.current?.focus(); }} />
+            </div>
+            <div className="flex gap-2">
+              <input
+                id="scan-input"
+                ref={inputRef}
+                value={eingabe}
+                onChange={(e) => setEingabe(e.target.value)}
+                onKeyDown={onInputKeyDown}
+                autoFocus
+                autoComplete="off"
+                inputMode={tastatur ? "numeric" : "none"}
+                enterKeyHint="done"
+                spellCheck={false}
+                placeholder={aktiverZweck === "pruefen" || istColli ? "Colli scannen…" : "LogID scannen…"}
+                className="flex-1 min-w-0 px-4 rounded-xl border-2 bg-[#f0f2f5] dark:bg-[#18191a] text-2xl font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] outline-none transition-colors min-h-[56px]"
+                style={{ borderColor: aktivFarbe }}
+              />
+              {tastatur && (
+                <button
+                  type="submit"
+                  disabled={!eingabe.trim() || scan.isPending || colliBusy}
+                  className="px-6 rounded-xl text-white text-base font-bold disabled:opacity-40 transition-colors min-h-[56px] min-w-[72px]"
+                  style={{ background: aktivFarbe }}
+                >
+                  {aktiverZweck === "pruefen" ? "Prüfen" : "OK"}
+                </button>
+              )}
+            </div>
+            {aktiverZweck === "pruefen" && (
+              <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                ℹ️ Prüfung nutzt die Geräte-Reise-Daten (Stand: letzter Import). Es wird nichts abgehakt.
+              </p>
+            )}
+          </form>
+
+          {/* „Zuletzt gescannt" */}
+          <ErgebnisBanner fb={feedback} />
+
+          {/* Drei Bereiche — kompakt umschaltbar (Segmented Control) */}
+          <div role="group" aria-label="Listen umschalten" className="grid grid-cols-3 gap-1.5">
+            {([
+              { k: "offen",    label: "Noch suchen",      n: offenePositionen.length,   farbe: "#BA7517" },
+              { k: "gefunden", label: "Gefunden",         n: gefundenePositionen.length, farbe: "#04713f" },
+              { k: "fremd",    label: "Gehört nicht dazu", n: nichtDazu.length,           farbe: "#b3261e" },
+            ] as const).map(({ k, label, n, farbe }) => {
+              const aktiv = ansicht === k;
+              return (
+                <button
+                  key={k}
+                  aria-pressed={aktiv}
+                  aria-label={`${label}: ${n}`}
+                  onClick={() => setAnsicht(k)}
+                  className={`rounded-xl border-2 px-2 py-2 min-h-[56px] flex flex-col items-center justify-center transition-colors ${aktiv ? "bg-white dark:bg-[#242526]" : "bg-transparent"}`}
+                  style={{ borderColor: aktiv ? farbe : "#ced4da" }}
+                >
+                  <span className="text-lg font-black leading-none" style={{ color: farbe }}>{n}</span>
+                  <span className="text-[11px] font-bold text-center leading-tight mt-0.5 text-[#1a1a1a] dark:text-[#e4e6eb]">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Bereich-Inhalt */}
+          {ansicht === "offen" && (
+            <PositionsListe gruppen={gruppenOffen} istColli={!!istColli} leerText="Nichts mehr offen – alles gefunden!" />
+          )}
+          {ansicht === "gefunden" && (
+            <PositionsListe gruppen={gruppenGefunden} istColli={!!istColli} leerText="Noch nichts gefunden." zeigeReset
+              onReset={(positionId) => zuruecksetzen.mutate({ positionId })} resetBusy={zuruecksetzen.isPending} />
+          )}
+          {ansicht === "fremd" && (
+            <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-3">
+              {nichtDazu.length === 0 ? (
+                <p className="text-center text-[#65676b] dark:text-[#b0b3b8] py-4">Nichts Falsches gescannt.</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-bold text-[#b3261e]">✗ Gehört nicht dazu: {nichtDazu.length}</span>
+                    <button onClick={() => setNichtDazu([])} className="text-xs text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] min-h-[44px] px-2">Liste leeren</button>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {nichtDazu.slice(0, 30).map((f, i) => (
+                      <li key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#fa3e3e]/10 text-[#b3261e]">
+                        <span aria-hidden>{f.art === "colli" ? "🧭" : "🏷️"}</span>
+                        <span className="font-mono font-bold">{f.wert ? formatLogId(f.wert) : "—"}</span>
+                        <span className="text-xs ml-auto">{f.zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+        </>
+      ) : null}
+
+      {/* Erfolgsmeldung → Redirect */}
+      {abschlussErgebnis && (
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div role="status" aria-live="assertive" className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md px-6 py-8 text-center space-y-3">
+            {abschlussErgebnis.nichtGefunden === 0 ? (
+              <>
+                <div className="text-5xl" aria-hidden>✅</div>
+                <h2 className="font-black text-xl text-[#202F61] dark:text-[#e4e6eb]">Auftrag abgeschlossen</h2>
+                <p className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">Alle {abschlussErgebnis.gesamt} Geräte gescannt.</p>
+              </>
+            ) : (
+              <>
+                <div className="text-5xl" aria-hidden>⚠️</div>
+                <h2 className="font-black text-xl" style={{ color: "#BA7517" }}>Als nicht komplett gemeldet</h2>
+                <p className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">{abschlussErgebnis.nichtGefunden} von {abschlussErgebnis.gesamt} fehlen.</p>
+              </>
+            )}
+            <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Weiter zur Auftragsliste…</p>
+          </div>
+        </div>
+      )}
+
+      {/* Bestätigung: vollständig abschließen */}
+      {abschlussDialog && !abschlussErgebnis && data && (
+        <div role="dialog" aria-modal="true" aria-labelledby="pickup-voll-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => { if (!abschliessen.isPending) setAbschlussDialog(false); }}>
+          <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 pt-6 pb-4 text-center space-y-3">
+              <div className="text-4xl" aria-hidden>✓</div>
+              <h2 id="pickup-voll-title" className="font-black text-lg text-[#202F61] dark:text-[#e4e6eb]">Auftrag abschließen?</h2>
+              <div className="px-4 py-3 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                <strong>{data.gefunden}</strong> von <strong>{data.gesamt}</strong> Geräten gefunden.
+              </div>
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <button onClick={() => setAbschlussDialog(false)} disabled={abschliessen.isPending}
+                className="flex-1 text-sm text-[#65676b] dark:text-[#b0b3b8] font-semibold border border-[#ced4da] dark:border-[#3e4042] rounded-xl hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[56px] disabled:opacity-50">
+                Abbrechen
+              </button>
+              <button onClick={() => abschliessen.mutate({ id })} disabled={abschliessen.isPending}
+                className="flex-1 bg-[#04B475] text-white text-sm font-bold rounded-xl hover:bg-[#039c64] disabled:opacity-50 transition-colors min-h-[56px]">
+                {abschliessen.isPending ? "Schließe ab…" : "Ja, abschließen"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bestätigung: als nicht komplett melden */}
+      {unvollDialog && !abschlussErgebnis && data && (() => {
+        const fehlende = data.positionen
+          .filter((p) => p.status !== "GEFUNDEN")
+          .sort((a, b) => {
+            const c = (a.colli ?? "").localeCompare(b.colli ?? "", "de", { numeric: true });
+            if (c !== 0) return c;
+            const s = (a.stellplatz ?? "").localeCompare(b.stellplatz ?? "", "de", { numeric: true });
+            return s !== 0 ? s : a.logId.localeCompare(b.logId, "de", { numeric: true });
+          });
+        return (
+          <div role="dialog" aria-modal="true" aria-labelledby="pickup-unvoll-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => { if (!abschliessen.isPending) setUnvollDialog(false); }}>
+            <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="px-6 pt-6 pb-3 space-y-2">
+                <div className="text-4xl text-center" aria-hidden>⚠️</div>
+                <h2 id="pickup-unvoll-title" className="font-black text-lg text-center text-[#202F61] dark:text-[#e4e6eb]">Auftrag als nicht komplett melden?</h2>
+                <p className="text-sm text-center text-[#65676b] dark:text-[#b0b3b8]">Die fehlenden Geräte werden für den Admin festgehalten.</p>
+                <div className="text-sm font-bold text-[#b3261e] pt-1">Diese {fehlende.length} Geräte fehlen:</div>
+              </div>
+              <div className="px-6 overflow-y-auto flex-1 min-h-[80px]">
+                <div className="rounded-xl border border-[#fa3e3e]/30 overflow-hidden divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+                  {fehlende.map((p) => (
+                    <div key={p.id} className="flex items-center gap-3 px-3 py-2 flex-wrap gap-y-0.5 text-sm">
+                      <span className="font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] min-w-[100px]">{formatLogId(p.logId)}</span>
+                      <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Colli {p.colli ?? "—"}</span>
+                      <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{p.stellplatz ?? "—"}</span>
+                      <span className="flex-1 min-w-0 truncate text-[#1a1a1a] dark:text-[#e4e6eb]" title={p.bezeichnung ?? ""}>{p.bezeichnung ?? "—"}</span>
+                    </div>
                   ))}
                 </div>
               </div>
-            )}
-          </>
-        )}
-
-        {/* Erfolgsmeldung (beide Wege) → danach Redirect auf /pickup */}
-        {abschlussErgebnis && (
-          <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-            <div role="status" aria-live="assertive" className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md px-6 py-8 text-center space-y-3">
-              {abschlussErgebnis.nichtGefunden === 0 ? (
-                <>
-                  <div className="text-5xl" aria-hidden>✅</div>
-                  <h2 className="font-black text-xl text-[#202F61] dark:text-[#e4e6eb]">Auftrag abgeschlossen</h2>
-                  <p className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">Alle {abschlussErgebnis.gesamt} Geräte gescannt.</p>
-                </>
-              ) : (
-                <>
-                  <div className="text-5xl" aria-hidden>⚠️</div>
-                  <h2 className="font-black text-xl" style={{ color: "#BA7517" }}>Als nicht komplett gemeldet</h2>
-                  <p className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">{abschlussErgebnis.nichtGefunden} von {abschlussErgebnis.gesamt} fehlen.</p>
-                </>
-              )}
-              <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Weiter zur Auftragsliste…</p>
-            </div>
-          </div>
-        )}
-
-        {/* Bestätigung: vollständig abschließen (aus dem Vollständig-Banner) */}
-        {abschlussDialog && !abschlussErgebnis && data && (
-          <div role="dialog" aria-modal="true" aria-labelledby="pickup-voll-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-            onClick={() => { if (!abschliessen.isPending) setAbschlussDialog(false); }}>
-            <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-              <div className="px-6 pt-6 pb-4 text-center space-y-3">
-                <div className="text-4xl" aria-hidden>✓</div>
-                <h2 id="pickup-voll-title" className="font-black text-lg text-[#202F61] dark:text-[#e4e6eb]">Auftrag abschließen?</h2>
-                <div className="px-4 py-3 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-                  <strong>{data.gefunden}</strong> von <strong>{data.gesamt}</strong> Geräten gefunden.
-                </div>
-              </div>
-              <div className="flex gap-3 px-6 pb-6">
-                <button onClick={() => setAbschlussDialog(false)} disabled={abschliessen.isPending}
+              <div className="flex gap-3 px-6 py-5">
+                <button onClick={() => setUnvollDialog(false)} disabled={abschliessen.isPending}
                   className="flex-1 text-sm text-[#65676b] dark:text-[#b0b3b8] font-semibold border border-[#ced4da] dark:border-[#3e4042] rounded-xl hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[56px] disabled:opacity-50">
                   Abbrechen
                 </button>
                 <button onClick={() => abschliessen.mutate({ id })} disabled={abschliessen.isPending}
-                  className="flex-1 bg-[#04B475] text-white text-sm font-bold rounded-xl hover:bg-[#039c64] disabled:opacity-50 transition-colors min-h-[56px]">
-                  {abschliessen.isPending ? "Schließe ab…" : "Ja, abschließen"}
+                  className="flex-1 bg-[#BA7517] text-white text-sm font-bold rounded-xl hover:bg-[#9c6213] disabled:opacity-50 transition-colors min-h-[56px]">
+                  {abschliessen.isPending ? "Melde…" : "Als nicht komplett melden"}
                 </button>
               </div>
             </div>
           </div>
-        )}
+        );
+      })()}
+    </div>
+  );
+}
 
-        {/* Bestätigung: als nicht komplett melden — listet die fehlenden Geräte */}
-        {unvollDialog && !abschlussErgebnis && data && (() => {
-          const fehlende = data.positionen
-            .filter((p) => p.status !== "GEFUNDEN")
-            .sort((a, b) => {
-              const c = (a.colli ?? "").localeCompare(b.colli ?? "", "de", { numeric: true });
-              if (c !== 0) return c;
-              const s = (a.stellplatz ?? "").localeCompare(b.stellplatz ?? "", "de", { numeric: true });
-              return s !== 0 ? s : a.logId.localeCompare(b.logId, "de", { numeric: true });
-            });
-          return (
-            <div role="dialog" aria-modal="true" aria-labelledby="pickup-unvoll-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-              onClick={() => { if (!abschliessen.isPending) setUnvollDialog(false); }}>
-              <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-                <div className="px-6 pt-6 pb-3 space-y-2">
-                  <div className="text-4xl text-center" aria-hidden>⚠️</div>
-                  <h2 id="pickup-unvoll-title" className="font-black text-lg text-center text-[#202F61] dark:text-[#e4e6eb]">Auftrag als nicht komplett melden?</h2>
-                  <p className="text-sm text-center text-[#65676b] dark:text-[#b0b3b8]">Die fehlenden Geräte werden für den Admin festgehalten.</p>
-                  <div className="text-sm font-bold text-[#b3261e] pt-1">Diese {fehlende.length} Geräte fehlen:</div>
-                </div>
-                <div className="px-6 overflow-y-auto flex-1 min-h-[80px]">
-                  <div className="rounded-xl border border-[#fa3e3e]/30 overflow-hidden divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
-                    {fehlende.map((p) => (
-                      <div key={p.id} className="flex items-center gap-3 px-3 py-2 flex-wrap gap-y-0.5 text-sm">
-                        <span className="font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] min-w-[100px]">{formatLogId(p.logId)}</span>
-                        <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Colli {p.colli ?? "—"}</span>
-                        <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{p.stellplatz ?? "—"}</span>
-                        <span className="flex-1 min-w-0 truncate text-[#1a1a1a] dark:text-[#e4e6eb]" title={p.bezeichnung ?? ""}>{p.bezeichnung ?? "—"}</span>
-                      </div>
-                    ))}
+// ── Gruppierte Positions-Liste (für „Noch suchen" + „Gefunden") ────────────────
+function PositionsListe({
+  gruppen, istColli, leerText, zeigeReset, onReset, resetBusy,
+}: {
+  gruppen: { key: string; items: ScanPos[] }[];
+  istColli: boolean;
+  leerText: string;
+  zeigeReset?: boolean;
+  onReset?: (positionId: number) => void;
+  resetBusy?: boolean;
+}) {
+  if (gruppen.length === 0) {
+    return (
+      <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-6 text-center text-[#65676b] dark:text-[#b0b3b8]">
+        {leerText}
+      </div>
+    );
+  }
+  const leer = istColli ? "— (ohne Stellplatz)" : "— (ohne Colli)";
+  return (
+    <div className="space-y-3">
+      {gruppen.map((g) => (
+        <div key={g.key || "__ohne__"} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-[#f0f2f5] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042]">
+            <h2 className="font-black text-sm text-[#202F61] dark:text-[#e4e6eb]">{istColli ? "🧭 Stellplatz" : "📦 Colli"} {g.key || leer}</h2>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff]">{g.items.length}</span>
+          </div>
+          <div className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+            {g.items.map((p) => {
+              const ok = p.status === "GEFUNDEN";
+              return (
+                <div key={p.id} className={`flex items-center gap-3 px-4 py-3 flex-wrap gap-y-1 ${ok ? "bg-[#04B475]/5" : ""}`}>
+                  <span className="text-lg w-6 text-center" aria-hidden>{ok ? "✓" : "○"}</span>
+                  <div className="font-mono font-black text-base min-w-[120px]" style={{ color: ok ? "#04713f" : undefined }}>
+                    {formatLogId(p.logId)}
                   </div>
+                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] min-w-[80px]">{p.stellplatz ?? "—"}</div>
+                  <div className="flex-1 min-w-0 text-sm truncate" title={p.bezeichnung ?? ""}>{p.bezeichnung ?? "—"}</div>
+                  {ok && zeigeReset ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-[#04713f] font-semibold whitespace-nowrap">
+                        {p.gefundenVonName ?? ""}{p.gefundenAm ? ` · ${fmtZeit(p.gefundenAm)}` : ""}
+                      </span>
+                      <button
+                        onClick={() => onReset?.(p.id)}
+                        disabled={resetBusy}
+                        className="text-xs text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] underline disabled:opacity-50 min-h-[44px] px-1"
+                        aria-label={`Treffer ${formatLogId(p.logId)} zurücksetzen`}
+                      >
+                        Zurücksetzen
+                      </button>
+                    </div>
+                  ) : !ok ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#65676b]/10 text-[#65676b] dark:text-[#b0b3b8]">Offen</span>
+                  ) : null}
                 </div>
-                <div className="flex gap-3 px-6 py-5">
-                  <button onClick={() => setUnvollDialog(false)} disabled={abschliessen.isPending}
-                    className="flex-1 text-sm text-[#65676b] dark:text-[#b0b3b8] font-semibold border border-[#ced4da] dark:border-[#3e4042] rounded-xl hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[56px] disabled:opacity-50">
-                    Abbrechen
-                  </button>
-                  <button onClick={() => abschliessen.mutate({ id })} disabled={abschliessen.isPending}
-                    className="flex-1 bg-[#BA7517] text-white text-sm font-bold rounded-xl hover:bg-[#9c6213] disabled:opacity-50 transition-colors min-h-[56px]">
-                    {abschliessen.isPending ? "Melde…" : "Als nicht komplett melden"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

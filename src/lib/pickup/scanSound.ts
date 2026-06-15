@@ -59,6 +59,27 @@ export function playComplete(): void {
   }
 }
 
+// Negativ-Signal für die Colli-Inhaltsprüfung (0 Treffer / Colli unbekannt).
+// Bewusst HÖRBAR ANDERS als die LogID-Scan-Töne: zwei klar absteigende Töne
+// (G4 → C4) statt des tiefen FREMD-Buzz — „kein Treffer hier".
+export function playNegativeSound(): void {
+  try {
+    const ctx = getCtx();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    ton(ctx, 392, t,        0.16, "triangle", 0.22); // G4
+    ton(ctx, 261, t + 0.16, 0.22, "triangle", 0.22); // C4 (tiefer → absteigend)
+  } catch {
+    /* Audio nicht verfügbar — bewusst ignorieren */
+  }
+}
+
+// Positiv-Signal für die Colli-Inhaltsprüfung (≥1 Treffer). Wiederverwendung des
+// freundlichen GEFUNDEN-Doppeltons (steigend) für ein konsistentes „Treffer".
+export function playPositiveSound(): void {
+  playScanSound("GEFUNDEN");
+}
+
 export type ScanResult = "GEFUNDEN" | "FREMD" | "SCHON";
 
 export function playScanSound(result: ScanResult): void {
