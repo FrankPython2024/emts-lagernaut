@@ -19,6 +19,11 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   "fehler": { label: "fehler", cls: "bg-[#ffe0e0] text-[#b3261e] dark:bg-[#3a1414] dark:text-[#ff8a8a]" },
 };
 
+const TYP_BADGE: Record<string, { label: string; cls: string }> = {
+  LAGERFUCHS: { label: "🦊 Lagerfuchs", cls: "bg-[#e7f0fd] text-[#0064d2] dark:bg-[#11243d] dark:text-[#45bdff]" },
+  FEHLTEILE:  { label: "🧩 Fehlteile",  cls: "bg-[#f3e8ff] text-[#7c3aed] dark:bg-[#2a1b3d] dark:text-[#c4a3ff]" },
+};
+
 export default function GeraeteReisePage() {
   const { show } = useToast();
   const fileRef  = useRef<HTMLInputElement>(null);
@@ -122,7 +127,8 @@ export default function GeraeteReisePage() {
         ) : (
           <div className="divide-y divide-[#ced4da] dark:divide-[#3e4042]">
             {importeQ.data!.map((imp) => {
-              const st = STATUS[imp.status] ?? { label: imp.status, cls: "bg-gray-100 text-gray-600" };
+              const st  = STATUS[imp.status] ?? { label: imp.status, cls: "bg-gray-100 text-gray-600" };
+              const typ = TYP_BADGE[imp.typ] ?? { label: imp.typ, cls: "bg-gray-100 text-gray-600" };
               const pct = imp.anzahlZeilen > 0
                 ? Math.round((imp.verarbeitet / imp.anzahlZeilen) * 100)
                 : null;
@@ -137,9 +143,14 @@ export default function GeraeteReisePage() {
                         #{imp.id} · {fmtDatum(imp.importiertAm)}
                       </div>
                     </div>
-                    <span className={`flex-shrink-0 text-xs font-black px-2.5 py-1 rounded-full ${st.cls}`}>
-                      {st.label}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span className={`text-xs font-black px-2.5 py-1 rounded-full ${typ.cls}`}>
+                        {typ.label}
+                      </span>
+                      <span className={`text-xs font-black px-2.5 py-1 rounded-full ${st.cls}`}>
+                        {st.label}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Fortschritt während des Laufs */}

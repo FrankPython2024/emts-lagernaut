@@ -53,6 +53,7 @@ const PERMISSIONS = [
 
   // Auswertung
   { key: "GERAETE_REISE_VIEW",  kategorie: "Auswertung",  bezeichnung: "Geräte-Reise (LogID-Tracking) einsehen & importieren" },
+  { key: "FEHLTEILE_VIEW",      kategorie: "Auswertung",  bezeichnung: "Fehlteile einsehen" },
 
   // System
   { key: "STRESSTEST_RUN",      kategorie: "System",      bezeichnung: "Stresstest ausführen" },

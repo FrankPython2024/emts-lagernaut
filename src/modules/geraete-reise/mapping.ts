@@ -117,8 +117,21 @@ function strKurz(v: string | undefined): string | null {
 // ── Header-Mapping ──────────────────────────────────────────────────────────────
 // CSV-Header → Lookup. Toleriert führende/abschließende Leerzeichen in Headern.
 
-function pick(raw: Record<string, string>, header: string): string | undefined {
+export function pick(raw: Record<string, string>, header: string): string | undefined {
   return raw[header] ?? raw[header.trim()];
+}
+
+// Marker für die Fehlteile-CSV: ALLE Zeilen haben Verbleib = "Fehlteile".
+export const FEHLTEILE_MARKER = "fehlteile";
+
+// LogID einer Rohzeile (getrimmt) — für die Typ-Erkennung / Zeilenzählung.
+export function logIdRoh(raw: Record<string, string>): string {
+  return (pick(raw, "LogID") ?? "").trim();
+}
+
+// True, wenn die Rohzeile als Fehlteil markiert ist (Verbleib == "Fehlteile").
+export function istFehlteilZeile(raw: Record<string, string>): boolean {
+  return (pick(raw, "Verbleib") ?? "").trim().toLowerCase() === FEHLTEILE_MARKER;
 }
 
 // Übersetzt eine CSV-Zeile in { logId, felder }. logId leer → null (Zeile wird
@@ -186,4 +199,52 @@ export function darstellen(v: unknown): string | null {
   if (typeof v === "boolean") return v ? "ja" : "nein";
   if (v instanceof Date) return v.toISOString();
   return String(v);
+}
+
+// ── Fehlteile-Mapping ─────────────────────────────────────────────────────────
+// Eigene Felder für FehlteilStand (KEINE Diff-/Bewegungs-Logik). logId/
+// zuletztImportId/zuletztGesehen werden vom Importer gesetzt.
+
+export type FehlteilFelder = {
+  seriennummer:      string | null;
+  hersteller:        string | null;
+  bezeichnung:       string | null;
+  geraeteart:        string | null;
+  unterart:          string | null;
+  aktuellerZustand:  string | null;
+  grading:           string | null;
+  sortiment:         string | null;
+  aan:               string | null;
+  inVerbleibSeit:    Date | null;
+  inVerbleibDurch:   string | null;
+  aufLagerGebuchtAm: Date | null;
+  verweildauerTage:  number | null;
+  lager:             string | null;
+};
+
+export type GemappteFehlteilZeile = { logId: string; felder: FehlteilFelder };
+
+// Übersetzt eine Fehlteil-CSV-Zeile. logId leer → null (Zeile übersprungen).
+export function mappeFehlteil(raw: Record<string, string>): GemappteFehlteilZeile | null {
+  const logId = str(pick(raw, "LogID"));
+  if (!logId) return null;
+  return {
+    logId,
+    felder: {
+      seriennummer:      strKurz(pick(raw, "Seriennummer")),
+      hersteller:        strKurz(pick(raw, "Hersteller")),
+      bezeichnung:       str(pick(raw, "Bezeichnung")),       // TEXT → volle Länge
+      geraeteart:        strKurz(pick(raw, "Geräteart")),
+      unterart:          strKurz(pick(raw, "Unterart")),
+      aktuellerZustand:  strKurz(pick(raw, "Aktueller Zustand")),
+      grading:           strKurz(pick(raw, "Grading")),
+      sortiment:         strKurz(pick(raw, "Sortiment")),
+      aan:               strKurz(pick(raw, "AAN")),
+      inVerbleibSeit:    parseDatum(pick(raw, "in Verbleib seit")),
+      inVerbleibDurch:   strKurz(pick(raw, "in Verbleib durch")),
+      aufLagerGebuchtAm: parseDatum(pick(raw, "auf Lager gebucht am")),
+      verweildauerTage:  parseGanzzahl(pick(raw, "Verweildauer auf Lager")),
+      lager:             strKurz(pick(raw, "Lager")),
+    },
+  };
 }
