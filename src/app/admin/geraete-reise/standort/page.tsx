@@ -1,15 +1,16 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useDebounce } from "use-debounce";
 import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/trpc/react";
 import type { AppRouter } from "@/server/routers";
+import { parseStellplatzSuche } from "@/modules/geraete-reise/filter";
 import { GeraeteReiseTabs } from "../_tabs";
+import { useGeraetModal } from "../_geraetModal";
 
-// Geräte-Reise — Stellplatz Analyse: STELLPLATZ-basierte Suche (Freitext-
-// Teiltreffer + auto-erkannte Bereiche), optionaler Lagernummer-Filter.
-// Reine Auswertung, kein Bestandseffekt.
+// Geräte-Reise — Stellplatz Analyse: intelligentes Freitextfeld (versteht auch
+// „Lagernummer-Stellplatz"), Bereich-Chips, Stellplatz-Warenkorb (Mehrfach-
+// auswahl) + CSV/Excel-Export. Reine Auswertung, kein Bestandseffekt.
 
 // AfB-Farben
 const NAVY  = "#202F61";
@@ -55,49 +56,51 @@ function Chip({
 }
 
 export default function StellplatzAnalysePage() {
-  const router = useRouter();
+  const { oeffneGeraet } = useGeraetModal();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [input, setInput]           = useState("");
   const [debInput]                  = useDebounce(input, 300);
-  const [lagernummer, setLagernr]   = useState("");          // "" = alle
+  const [lagernummer, setLagernr]   = useState("");           // Dropdown, "" = alle
   const [selBereich, setSelBereich] = useState<string | null>(null);
-  const [selStellplatz, setSelStp]  = useState<string | null>(null);
+  const [korb, setKorb]             = useState<string[]>([]);  // exakte Stellplatz-Strings (Mehrfachauswahl)
   const [seite, setSeite]           = useState(1);
 
-  const suche = debInput.trim();
+  // Intelligentes Freitext-Parsing: erkennt „120-ETL-0-0-0" usw.
+  const parsed        = useMemo(() => parseStellplatzSuche(debInput), [debInput]);
+  const sucheContains = parsed.stellplatzContains;             // "" wenn leer
+  // Lagernummer aus dem Freitext hat Vorrang vor dem Dropdown.
+  const effLager      = parsed.lagernummer ?? (lagernummer || undefined);
 
   // ── Datenquellen ─────────────────────────────────────────────────────────
   const bereicheQ = api.geraeteReise.stellplatzBereiche.useQuery(
-    { suche: suche || undefined, lagernummer: lagernummer || undefined },
+    { suche: sucheContains || undefined, lagernummer: effLager },
     { staleTime: 30_000, placeholderData: (p) => p },
   );
   const lagernummernQ = api.geraeteReise.lagernummern.useQuery(undefined, { staleTime: 60_000 });
   const hatLagernummern = (lagernummernQ.data?.length ?? 0) > 0;
 
-  // Scope für die Geräte-Liste: konkreter Stellplatz > Bereich > Freitext.
-  const scope: { stellplatz?: string; bereich?: string; stellplatzContains?: string } | null =
-    selStellplatz ? { stellplatz: selStellplatz }
-    : selBereich  ? { bereich: selBereich }
-    : suche       ? { stellplatzContains: suche }
+  // Scope der Ergebnis-Liste: Warenkorb > Bereich > Freitext.
+  const scope: { stellplaetze?: string[]; bereich?: string; stellplatzContains?: string } | null =
+    korb.length    ? { stellplaetze: korb }
+    : selBereich   ? { bereich: selBereich }
+    : sucheContains ? { stellplatzContains: sucheContains }
     : null;
   const hatScope = scope !== null;
 
   const listeQ = api.geraeteReise.geraeteListe.useQuery(
-    { ...(scope ?? {}), lagernummer: lagernummer || undefined, seite, proSeite: PRO_SEITE },
+    { ...(scope ?? {}), lagernummer: effLager, seite, proSeite: PRO_SEITE },
     { enabled: hatScope, staleTime: 15_000, placeholderData: (p) => p },
   );
 
   // Filterwechsel → zurück auf Seite 1.
-  useEffect(() => { setSeite(1); }, [selStellplatz, selBereich, suche, lagernummer]);
+  useEffect(() => { setSeite(1); }, [korb, selBereich, sucheContains, effLager]);
 
-  // Beim Verfeinern der Suche eine ungültig gewordene Auswahl lösen.
   const bereiche = bereicheQ.data?.bereiche ?? [];
+  // Beim Verfeinern der Suche eine ungültig gewordene Bereichsauswahl lösen
+  // (der Warenkorb bleibt bewusst erhalten).
   useEffect(() => {
-    if (selBereich && !bereiche.some((b) => b.bereich === selBereich)) {
-      setSelBereich(null);
-      setSelStp(null);
-    }
+    if (selBereich && !bereiche.some((b) => b.bereich === selBereich)) setSelBereich(null);
   }, [bereiche, selBereich]);
 
   const aktiverBereich = useMemo(
@@ -110,16 +113,32 @@ export default function StellplatzAnalysePage() {
   const bis      = Math.min(seite * PRO_SEITE, gesamt);
   const maxSeite = Math.max(1, Math.ceil(gesamt / PRO_SEITE));
 
-  // Klartext-Beschreibung des aktuellen Scopes (für Überschrift + aria-live).
   const scopeLabel =
-    selStellplatz ? `Stellplatz ${selStellplatz}`
-    : selBereich  ? `Bereich ${selBereich}`
-    : suche       ? `Suche „${suche}"`
+    korb.length    ? `${nf(korb.length)} ${korb.length === 1 ? "Stellplatz" : "Stellplätze"} (Warenkorb)`
+    : selBereich   ? `Bereich ${selBereich}`
+    : sucheContains ? `Suche „${sucheContains}"`
     : "";
 
-  function alleZuruecksetzen() {
-    setSelBereich(null);
-    setSelStp(null);
+  // ── Warenkorb-Helfer ───────────────────────────────────────────────────────
+  function toggleKorb(stellplatz: string) {
+    setKorb((prev) => prev.includes(stellplatz) ? prev.filter((s) => s !== stellplatz) : [...prev, stellplatz]);
+  }
+  function bereichHinzufuegen() {
+    if (!aktiverBereich) return;
+    const neu = aktiverBereich.stellplaetze.map((s) => s.stellplatz);
+    setKorb((prev) => [...new Set([...prev, ...neu])]);
+  }
+
+  // ── Export (vorhandener Modul-Endpoint, gleicher Spaltensatz/Format) ────────
+  const hatExportScope = korb.length > 0 || !!selBereich || !!sucheContains;
+  function exportUrl(format: "csv" | "xlsx"): string {
+    const p = new URLSearchParams();
+    p.set("format", format);
+    if (korb.length)         korb.forEach((s) => p.append("stellplaetze", s));
+    else if (selBereich)     p.set("bereich", selBereich);
+    else if (sucheContains)  p.set("stellplatzContains", sucheContains);
+    if (effLager)            p.set("lagernummer", effLager);
+    return `/api/geraete-reise/export?${p.toString()}`;
   }
 
   return (
@@ -127,7 +146,7 @@ export default function StellplatzAnalysePage() {
       <div>
         <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">🧭 Stellplatz Analyse</h1>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
-          Geräte nach Stellplatz oder Bereich finden
+          Geräte nach Stellplatz, Bereich oder mehreren Stellplätzen (Warenkorb) finden
         </p>
       </div>
 
@@ -145,7 +164,7 @@ export default function StellplatzAnalysePage() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="z. B. ETL, HL-01, Recycler …"
+            placeholder="z. B. ETL · HL-01 · Broker · 120-ETL-0-0-0"
             className="w-full px-4 text-lg font-bold rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#008BD2] dark:focus:border-[#45bdff] transition-colors min-h-[56px]"
           />
           {input && (
@@ -159,7 +178,8 @@ export default function StellplatzAnalysePage() {
           )}
         </div>
         <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8]">
-          Tippe einen Teil des Stellplatzes — Groß-/Kleinschreibung egal. Oder wähle unten einen Bereich.
+          Teil des Stellplatzes tippen (Groß-/Kleinschreibung egal). „Lagernummer-Stellplatz" wird automatisch erkannt
+          {parsed.lagernummer && <> — erkannt: <strong>Lager {parsed.lagernummer}</strong>, Stellplatz „{sucheContains}"</>}.
         </p>
 
         {/* Lagernummer-Filter — nur wenn Werte existieren */}
@@ -170,7 +190,9 @@ export default function StellplatzAnalysePage() {
               id="lagernr"
               value={lagernummer}
               onChange={(e) => setLagernr(e.target.value)}
-              className="px-3 rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] font-bold min-h-[56px]"
+              disabled={!!parsed.lagernummer}
+              title={parsed.lagernummer ? "Lagernummer kommt aus dem Suchfeld" : undefined}
+              className="px-3 rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] font-bold min-h-[56px] disabled:opacity-50"
             >
               <option value="">Alle Lager</option>
               {lagernummernQ.data!.map((l) => (
@@ -187,18 +209,54 @@ export default function StellplatzAnalysePage() {
         )}
       </div>
 
+      {/* Warenkorb-Leiste */}
+      {korb.length > 0 && (
+        <div className={`${cardCls} p-4`} style={{ borderColor: GRUEN, borderWidth: 2 }}>
+          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+            <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] flex items-center gap-2">
+              <span aria-hidden>🛒</span> Warenkorb
+              <span aria-live="polite">
+                <span className="text-[#65676b] dark:text-[#b0b3b8] font-normal">
+                  {" "}— {nf(korb.length)} {korb.length === 1 ? "Stellplatz" : "Stellplätze"} · {nf(gesamt)} Geräte
+                </span>
+              </span>
+            </h2>
+            <button
+              onClick={() => setKorb([])}
+              className="text-sm font-bold text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] min-h-[44px] px-2"
+            >
+              Warenkorb leeren
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {korb.map((s) => (
+              <button
+                key={s}
+                onClick={() => toggleKorb(s)}
+                aria-label={`${s} aus Warenkorb entfernen`}
+                className="inline-flex items-center gap-2 px-4 rounded-xl border-2 font-bold text-base min-h-[56px] transition-colors"
+                style={{ background: GRUEN, borderColor: GRUEN, color: "white" }}
+              >
+                <span className="truncate max-w-[180px]">{s}</span>
+                <span aria-hidden className="text-lg leading-none">✕</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Bereiche */}
       <div className={`${cardCls} p-4`}>
         <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
           <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
             Bereiche {bereicheQ.data && <span className="text-[#65676b] dark:text-[#b0b3b8] font-normal">({bereiche.length})</span>}
           </h2>
-          {(selBereich || selStellplatz) && (
+          {selBereich && (
             <button
-              onClick={alleZuruecksetzen}
+              onClick={() => setSelBereich(null)}
               className="text-sm font-bold text-[#008BD2] dark:text-[#45bdff] hover:underline min-h-[44px] px-2"
             >
-              ← Auswahl zurücksetzen
+              ← Bereich schließen
             </button>
           )}
         </div>
@@ -209,7 +267,7 @@ export default function StellplatzAnalysePage() {
           </div>
         ) : bereiche.length === 0 ? (
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] py-2">
-            {suche ? `Kein Bereich passt zu „${suche}".` : "Keine Stellplätze vorhanden."}
+            {sucheContains ? `Kein Bereich passt zu „${sucheContains}".` : "Keine Stellplätze vorhanden."}
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -220,32 +278,38 @@ export default function StellplatzAnalysePage() {
                 anzahl={b.anzahl}
                 aktiv={selBereich === b.bereich}
                 farbe={NAVY}
-                onClick={() => {
-                  const neu = selBereich === b.bereich ? null : b.bereich;
-                  setSelBereich(neu);
-                  setSelStp(null);
-                }}
+                onClick={() => setSelBereich(selBereich === b.bereich ? null : b.bereich)}
               />
             ))}
           </div>
         )}
 
-        {/* Zweite Ebene: konkrete Stellplätze des gewählten Bereichs */}
+        {/* Zweite Ebene: konkrete Stellplätze des gewählten Bereichs → Warenkorb */}
         {aktiverBereich && (
           <div className="mt-4 pt-4 border-t border-[#ced4da] dark:border-[#3e4042]">
-            <h3 className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-2">
-              Stellplätze in <span style={{ color: NAVY }}>{aktiverBereich.bereich}</span>
-              <span className="text-[#65676b] dark:text-[#b0b3b8] font-normal"> ({aktiverBereich.stellplaetze.length})</span>
-            </h3>
+            <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+              <h3 className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                Stellplätze in <span style={{ color: NAVY }}>{aktiverBereich.bereich}</span>
+                <span className="text-[#65676b] dark:text-[#b0b3b8] font-normal"> ({aktiverBereich.stellplaetze.length})</span>
+                <span className="block text-[11px] font-normal text-[#65676b] dark:text-[#b0b3b8]">Antippen = in den Warenkorb legen</span>
+              </h3>
+              <button
+                onClick={bereichHinzufuegen}
+                className="inline-flex items-center gap-1.5 px-4 rounded-xl text-white font-bold text-sm min-h-[56px]"
+                style={{ background: GRUEN }}
+              >
+                <span aria-hidden>＋</span> Ganzen Bereich hinzufügen
+              </button>
+            </div>
             <div className="flex flex-wrap gap-2 max-h-[260px] overflow-y-auto">
               {aktiverBereich.stellplaetze.map((s) => (
                 <Chip
                   key={s.stellplatz}
                   label={s.stellplatz}
                   anzahl={s.anzahl}
-                  aktiv={selStellplatz === s.stellplatz}
-                  farbe={BLAU}
-                  onClick={() => setSelStp(selStellplatz === s.stellplatz ? null : s.stellplatz)}
+                  aktiv={korb.includes(s.stellplatz)}
+                  farbe={GRUEN}
+                  onClick={() => toggleKorb(s.stellplatz)}
                 />
               ))}
             </div>
@@ -261,15 +325,31 @@ export default function StellplatzAnalysePage() {
       {!hatScope ? (
         <div className={`${cardCls} p-8 text-center text-[#65676b] dark:text-[#b0b3b8]`}>
           <div className="text-3xl mb-2" aria-hidden>🔎</div>
-          Suche oben einen Stellplatz oder tippe einen Bereich an.
+          Suche oben einen Stellplatz, tippe einen Bereich an oder lege Stellplätze in den Warenkorb.
         </div>
       ) : (
         <div className={`${cardCls} overflow-hidden`}>
-          <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042] flex items-center justify-between gap-2 flex-wrap">
+          <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042] flex items-center justify-between gap-3 flex-wrap">
             <h2 className="font-black text-[#1a1a1a] dark:text-[#e4e6eb]">
               {scopeLabel} <span style={{ color: BLAU }}>— {nf(gesamt)} Geräte</span>
             </h2>
-            {listeQ.isFetching && <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Lädt…</span>}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { if (hatExportScope) window.location.href = exportUrl("csv"); }}
+                disabled={!hatExportScope || gesamt === 0}
+                className="inline-flex items-center gap-1.5 px-4 rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] font-bold text-sm min-h-[56px] disabled:opacity-40 hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
+              >
+                <span aria-hidden>⬇</span> CSV
+              </button>
+              <button
+                onClick={() => { if (hatExportScope) window.location.href = exportUrl("xlsx"); }}
+                disabled={!hatExportScope || gesamt === 0}
+                className="inline-flex items-center gap-1.5 px-4 rounded-xl text-white font-bold text-sm min-h-[56px] disabled:opacity-40 transition-opacity hover:opacity-90"
+                style={{ background: GRUEN }}
+              >
+                <span aria-hidden>⬇</span> Excel
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -290,7 +370,7 @@ export default function StellplatzAnalysePage() {
                 {listeQ.data?.zeilen.map((g: Zeile) => (
                   <tr
                     key={g.logId}
-                    onClick={() => router.push(`/admin/geraete-reise/geraet?q=${encodeURIComponent(g.logId)}`)}
+                    onClick={() => oeffneGeraet(g.logId)}
                     className="border-t border-[#ced4da] dark:border-[#3e4042] cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
                     style={{ minHeight: 56 }}
                   >

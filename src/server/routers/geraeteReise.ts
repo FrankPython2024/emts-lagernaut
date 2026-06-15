@@ -271,6 +271,7 @@ export const geraeteReiseRouter = createTRPCRouter({
       stellplatz:         z.string().optional(),
       stellplatzPrefix:   z.string().optional(),
       stellplatzContains: z.string().optional(),
+      stellplaetze:       z.array(z.string()).optional(),
       bereich:            z.string().optional(),
       ohneVerbleib:       z.boolean().optional(),
       geraeteart:         z.string().optional(),

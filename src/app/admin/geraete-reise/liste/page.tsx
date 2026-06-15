@@ -5,6 +5,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/trpc/react";
 import type { AppRouter } from "@/server/routers";
 import { GeraeteReiseTabs } from "../_tabs";
+import { useGeraetModal } from "../_geraetModal";
 
 // Geräte-Reise — S5: Drilldown-Liste (Stufe / Stellplatz / ohne Verbleib),
 // paginiert. Reine Auswertung, kein Bestandseffekt.
@@ -42,6 +43,7 @@ export default function GeraeteReiseListePage() {
 
 function GeraeteListe() {
   const router = useRouter();
+  const { oeffneGeraet } = useGeraetModal();
   const params = useSearchParams();
 
   const verbleib     = params?.get("verbleib")   ?? undefined;
@@ -90,7 +92,7 @@ function GeraeteListe() {
   const maxSeite = Math.max(1, Math.ceil(gesamt / PRO_SEITE));
 
   function oeffne(logId: string) {
-    router.push(`/admin/geraete-reise/geraet?q=${encodeURIComponent(logId)}`);
+    oeffneGeraet(logId);
   }
 
   // Export-URL mit den aktuellen Filtern (gesamte Treffermenge, nicht nur Seite).

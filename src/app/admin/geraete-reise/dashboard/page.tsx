@@ -1,9 +1,9 @@
 "use client";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
 import { api } from "@/trpc/react";
 import { GeraeteReiseTabs } from "../_tabs";
+import { useGeraetModal } from "../_geraetModal";
 
 // Geräte-Reise — S3: Aggregat-Dashboard über alle Geräte (Stand letzter Import).
 // Reine Auswertung, kein Bestandseffekt.
@@ -98,6 +98,7 @@ function BalkenChart({
 
 export default function GeraeteReiseDashboardPage() {
   const router = useRouter();
+  const { oeffneGeraet } = useGeraetModal();
   const { data, isLoading, error } = api.geraeteReise.dashboard.useQuery(undefined, { staleTime: 60_000 });
 
   return (
@@ -190,10 +191,10 @@ export default function GeraeteReiseDashboardPage() {
               ) : (
                 <div className="divide-y divide-[#ced4da] dark:divide-[#3e4042] max-h-[420px] overflow-y-auto">
                   {data.topLadenhueter.map((g) => (
-                    <Link
+                    <button
                       key={g.logId}
-                      href={`/admin/geraete-reise/geraet?q=${encodeURIComponent(g.logId)}`}
-                      className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
+                      onClick={() => oeffneGeraet(g.logId)}
+                      className="w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
                     >
                       <div className="min-w-0">
                         <div className="font-mono font-bold text-sm text-[#0064d2] dark:text-[#45bdff]">{g.logId}</div>
@@ -208,7 +209,7 @@ export default function GeraeteReiseDashboardPage() {
                         <div className="font-black text-[#F97316]">{nf(g.verweildauerTage ?? 0)}</div>
                         <div className="text-[11px] text-[#65676b] dark:text-[#b0b3b8]">Tage</div>
                       </div>
-                    </Link>
+                    </button>
                   ))}
                 </div>
               )}

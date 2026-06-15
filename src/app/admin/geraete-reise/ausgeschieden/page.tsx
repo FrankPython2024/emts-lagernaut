@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
 import { api } from "@/trpc/react";
 import { GeraeteReiseTabs } from "../_tabs";
+import { useGeraetModal } from "../_geraetModal";
 
 // Geräte-Reise — S8: Ausgeschiedene Geräte (haben das System verlassen).
 // Reine Auswertung, kein Bestandseffekt.
@@ -67,6 +68,7 @@ function BalkenChart({
 
 export default function AusgeschiedenePage() {
   const router = useRouter();
+  const { oeffneGeraet } = useGeraetModal();
   const { data, isLoading, error } = api.geraeteReise.ausgeschiedeneUebersicht.useQuery(undefined, { staleTime: 60_000 });
 
   const BASIS = "/admin/geraete-reise/liste?ausgeschieden=1";
@@ -176,7 +178,7 @@ export default function AusgeschiedenePage() {
                     {data.liste.map((g) => (
                       <tr
                         key={g.logId}
-                        onClick={() => router.push(`/admin/geraete-reise/geraet?q=${encodeURIComponent(g.logId)}`)}
+                        onClick={() => oeffneGeraet(g.logId)}
                         className="border-t border-[#ced4da] dark:border-[#3e4042] cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
                       >
                         <td className="px-4 py-2.5 font-mono font-bold text-[#0064d2] dark:text-[#45bdff] whitespace-nowrap">{g.logId}</td>

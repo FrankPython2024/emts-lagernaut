@@ -9,6 +9,7 @@ export type GeraeteListeFilter = {
   stellplatz?:      string;  // exakt
   stellplatzPrefix?: string; // stellplatz startsWith (LIKE 'X%', nutzt den Index)
   stellplatzContains?: string; // stellplatz enthält (LIKE '%X%', case-insensitive via MySQL-Collation)
+  stellplaetze?:    string[]; // stellplatz IN (...) — für die Mehrfachauswahl (Warenkorb)
   bereich?:         string;  // Stellplatz-Bereich: stellplatz == bereich ODER startsWith "bereich-"
   geraeteart?:      string;
   hersteller?:      string;
@@ -34,6 +35,18 @@ export function stellplatzBereich(stellplatz: string): string {
   return fuehrend.length > 0 ? fuehrend.join("-") : stellplatz;
 }
 
+// Intelligentes Freitext-Parsing für die Stellplatz-Suche.
+//   "120-ETL-0-0-0" → { lagernummer: "120", stellplatzContains: "ETL-0-0-0" }
+//   "123-Broker"    → { lagernummer: "123", stellplatzContains: "Broker" }
+//   "ETL", "Broker", "ETL-0-0-0" → { stellplatzContains: <text> }
+// Eine so erkannte Lagernummer hat Vorrang vor dem optionalen Dropdown.
+export function parseStellplatzSuche(text: string): { lagernummer?: string; stellplatzContains: string } {
+  const t = text.trim();
+  const m = t.match(/^\s*(\d+)\s*-\s*(.+)$/);
+  if (m) return { lagernummer: m[1], stellplatzContains: m[2]!.trim() };
+  return { stellplatzContains: t };
+}
+
 // Baut die where-Klausel: alle gesetzten Filter UND-verknüpft.
 // Alters-Range filtert über verweildauerTage (NULL fällt dabei automatisch raus).
 // ausgeschieden wird IMMER gefiltert (Default false = nur Geräte im System).
@@ -49,6 +62,8 @@ export function buildGeraeteWhere(f: GeraeteListeFilter): Prisma.LogIdStandWhere
   // ist case-insensitiv, daher kein mode:"insensitive" nötig (auf MySQL ohnehin n/a).
   if (f.stellplatzPrefix)  and.push({ stellplatz: { startsWith: f.stellplatzPrefix } });
   if (f.stellplatzContains) and.push({ stellplatz: { contains: f.stellplatzContains } });
+  // Mehrfachauswahl (Warenkorb): genau diese Stellplätze.
+  if (f.stellplaetze && f.stellplaetze.length > 0) and.push({ stellplatz: { in: f.stellplaetze } });
   // Bereich = exakter Treffer ODER beginnt mit "bereich-" (grenzt „WE" sauber
   // gegen „WED" ab, im Gegensatz zum reinen Präfix).
   if (f.bereich)           and.push({ OR: [{ stellplatz: f.bereich }, { stellplatz: { startsWith: `${f.bereich}-` } }] });
@@ -82,6 +97,12 @@ function qnum(v: QueryVal): number | undefined {
   const n = parseInt(s, 10);
   return Number.isNaN(n) ? undefined : n;
 }
+// Mehrfach-Query-Param (?stellplaetze=A&stellplaetze=B) → string[].
+function qarr(v: QueryVal): string[] | undefined {
+  if (v === undefined) return undefined;
+  const arr = (Array.isArray(v) ? v : [v]).map((s) => s.trim()).filter(Boolean);
+  return arr.length ? arr : undefined;
+}
 
 export function filterFromQuery(q: Partial<Record<string, string | string[]>>): GeraeteListeFilter {
   return {
@@ -89,6 +110,7 @@ export function filterFromQuery(q: Partial<Record<string, string | string[]>>): 
     stellplatz:         qstr(q.stellplatz),
     stellplatzPrefix:   qstr(q.stellplatzPrefix),
     stellplatzContains: qstr(q.stellplatzContains),
+    stellplaetze:       qarr(q.stellplaetze),
     bereich:            qstr(q.bereich),
     geraeteart:         qstr(q.geraeteart),
     hersteller:       qstr(q.hersteller),

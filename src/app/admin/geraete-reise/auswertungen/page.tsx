@@ -8,6 +8,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/trpc/react";
 import type { AppRouter } from "@/server/routers";
 import { GeraeteReiseTabs } from "../_tabs";
+import { useGeraetModal } from "../_geraetModal";
 
 // Drilldown-Ziel (S5): Verbleib-Stufe bzw. „ohne Verbleib" → Geräte-Liste.
 function listeHrefStufe(verbleib: string): string {
@@ -91,18 +92,19 @@ function StauChart({
   );
 }
 
-// Kompakte, anklickbare Geräte-Liste → Deep-Link in die Geräte-Ansicht (S2).
+// Kompakte, anklickbare Geräte-Liste → öffnet die Geräte-Reise als Popup.
 function GeraetListe({ geraete }: { geraete: GeraetZeile[] }) {
+  const { oeffneGeraet } = useGeraetModal();
   if (geraete.length === 0) {
     return <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] text-center py-6">Keine Daten</p>;
   }
   return (
     <div className="divide-y divide-[#ced4da] dark:divide-[#3e4042] max-h-[420px] overflow-y-auto">
       {geraete.map((g) => (
-        <Link
+        <button
           key={g.logId}
-          href={`/admin/geraete-reise/geraet?q=${encodeURIComponent(g.logId)}`}
-          className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
+          onClick={() => oeffneGeraet(g.logId)}
+          className="w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
         >
           <div className="min-w-0">
             <div className="font-mono font-bold text-sm text-[#0064d2] dark:text-[#45bdff]">{g.logId}</div>
@@ -117,7 +119,7 @@ function GeraetListe({ geraete }: { geraete: GeraetZeile[] }) {
             <div className="font-black" style={{ color: tageFarbe(g.verweildauerTage) }}>{nf(g.verweildauerTage ?? 0)}</div>
             <div className="text-[11px] text-[#65676b] dark:text-[#b0b3b8]">Tage</div>
           </div>
-        </Link>
+        </button>
       ))}
     </div>
   );
@@ -125,6 +127,7 @@ function GeraetListe({ geraete }: { geraete: GeraetZeile[] }) {
 
 export default function GeraeteReiseAuswertungenPage() {
   const router = useRouter();
+  const { oeffneGeraet } = useGeraetModal();
   const { data, isLoading, error } = api.geraeteReise.auswertungen.useQuery(undefined, { staleTime: 60_000 });
 
   return (
@@ -152,9 +155,9 @@ export default function GeraeteReiseAuswertungenPage() {
           <div className="grid sm:grid-cols-3 gap-3">
             {/* Ältestes Gerät — anklickbar → S2 */}
             {data.aeltestesGeraet ? (
-              <Link
-                href={`/admin/geraete-reise/geraet?q=${encodeURIComponent(data.aeltestesGeraet.logId)}`}
-                className={`${cardCls} p-4 hover:border-[#0064d2] dark:hover:border-[#45bdff] transition-colors block`}
+              <button
+                onClick={() => oeffneGeraet(data.aeltestesGeraet!.logId)}
+                className={`${cardCls} p-4 hover:border-[#0064d2] dark:hover:border-[#45bdff] transition-colors block w-full text-left`}
               >
                 <div className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase tracking-wide">Ältestes Gerät</div>
                 <div className="font-mono font-black text-lg text-[#0064d2] dark:text-[#45bdff] mt-1">{data.aeltestesGeraet.logId}</div>
@@ -164,7 +167,7 @@ export default function GeraeteReiseAuswertungenPage() {
                 <div className="mt-2 font-black" style={{ color: tageFarbe(data.aeltestesGeraet.verweildauerTage) }}>
                   {nf(data.aeltestesGeraet.verweildauerTage ?? 0)} <span className="text-xs font-bold">Tage</span>
                 </div>
-              </Link>
+              </button>
             ) : (
               <div className={`${cardCls} p-4`}>
                 <div className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase tracking-wide">Ältestes Gerät</div>
