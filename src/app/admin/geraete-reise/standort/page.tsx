@@ -1,20 +1,25 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
+import { useDebounce } from "use-debounce";
+import type { inferRouterOutputs } from "@trpc/server";
 import { api } from "@/trpc/react";
+import type { AppRouter } from "@/server/routers";
 import { GeraeteReiseTabs } from "../_tabs";
 
-// Geräte-Reise — S9: Standort-Suche & -Analyse (Lagernummer + Stellplatz-Präfix).
+// Geräte-Reise — Stellplatz Analyse: STELLPLATZ-basierte Suche (Freitext-
+// Teiltreffer + auto-erkannte Bereiche), optionaler Lagernummer-Filter.
 // Reine Auswertung, kein Bestandseffekt.
 
-const AGING_FARBE: Record<string, string> = {
-  "0–30":    "#04B475",
-  "31–90":   "#84CC16",
-  "91–180":  "#F59E0B",
-  "181–365": "#F97316",
-  ">365":    "#EF4444",
-};
+// AfB-Farben
+const NAVY  = "#202F61";
+const BLAU  = "#008BD2";
+const GRUEN = "#04B475";
+
+const PRO_SEITE = 50;
+
+type RouterOutputs = inferRouterOutputs<AppRouter>;
+type Zeile = RouterOutputs["geraeteReise"]["geraeteListe"]["zeilen"][number];
 
 function nf(n: number): string {
   return n.toLocaleString("de-DE");
@@ -22,239 +27,310 @@ function nf(n: number): string {
 
 const cardCls = "bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm";
 
-// Eingabe parsen: nur Ziffern → Lagernummer; mit „-" und numerischem ersten
-// Teil → Lagernummer + Stellplatz-Präfix; sonst ganzer String → Stellplatz-Präfix.
-function parseEingabe(raw: string): { lagernummer?: string; stellplatzPrefix?: string } {
-  const s = raw.trim();
-  if (!s) return {};
-  if (/^\d+$/.test(s)) return { lagernummer: s };
-  if (s.includes("-")) {
-    const idx = s.indexOf("-");
-    const erster = s.slice(0, idx);
-    const rest = s.slice(idx + 1).trim();
-    if (/^\d+$/.test(erster)) {
-      return { lagernummer: erster, stellplatzPrefix: rest || undefined };
-    }
-  }
-  return { stellplatzPrefix: s };
-}
-
-function Kennzahl({ label, value, sub, akzent }: { label: string; value: string; sub?: string; akzent?: string }) {
+// Antippbarer Chip (Bereich / Stellplatz). Status nie nur über Farbe: aktiv
+// zeigt zusätzlich ein ✓ + Klartext.
+function Chip({
+  label, anzahl, aktiv, onClick, farbe,
+}: { label: string; anzahl: number; aktiv: boolean; onClick: () => void; farbe: string }) {
   return (
-    <div className={`${cardCls} p-4`}>
-      <div className="text-2xl sm:text-3xl font-black" style={{ color: akzent ?? "#0064d2" }}>{value}</div>
-      <div className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mt-1 uppercase tracking-wide">{label}</div>
-      {sub && <div className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">{sub}</div>}
-    </div>
-  );
-}
-
-function BalkenChart({
-  data, dataKey, labelKey, einfarbig, farben, onSelect,
-}: {
-  data:      Record<string, unknown>[];
-  dataKey:   string;
-  labelKey:  string;
-  einfarbig?: string;
-  farben?:   Record<string, string>;
-  onSelect?: (label: string) => void;
-}) {
-  const hoehe = Math.max(120, data.length * 34 + 20);
-  return (
-    <ResponsiveContainer width="100%" height={hoehe}>
-      <BarChart
-        data={data}
-        layout="vertical"
-        margin={{ top: 4, right: 48, left: 8, bottom: 4 }}
-        onClick={onSelect ? (state: { activeLabel?: string | number }) => {
-          if (state?.activeLabel != null) onSelect(String(state.activeLabel));
-        } : undefined}
-        style={onSelect ? { cursor: "pointer" } : undefined}
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={aktiv}
+      className="inline-flex items-center gap-2 px-4 rounded-xl border-2 font-bold text-base min-h-[56px] transition-colors"
+      style={aktiv
+        ? { background: farbe, borderColor: farbe, color: "white" }
+        : { borderColor: "#ced4da", color: "inherit" }}
+    >
+      <span aria-hidden>{aktiv ? "✓" : "📦"}</span>
+      <span className="truncate max-w-[180px]">{label}</span>
+      <span
+        className="text-sm font-black px-2 py-0.5 rounded-full"
+        style={aktiv ? { background: "rgba(255,255,255,0.25)" } : { background: "rgba(0,0,0,0.06)" }}
       >
-        <XAxis type="number" hide allowDecimals={false} />
-        <YAxis type="category" dataKey={labelKey} tick={{ fontSize: 12, fill: "currentColor" }} width={150} interval={0} />
-        <Tooltip formatter={(v) => [nf(Number(v)), "Geräte"]} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-        <Bar dataKey={dataKey} radius={[0, 4, 4, 0]}>
-          {data.map((d, i) => (
-            <Cell key={i} fill={farben?.[String(d[labelKey])] ?? einfarbig ?? "#008BD2"} />
-          ))}
-          <LabelList dataKey={dataKey} position="right" formatter={(v) => nf(Number(v))} style={{ fontSize: 11, fill: "currentColor" }} />
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+        {nf(anzahl)}
+      </span>
+    </button>
   );
 }
 
-export default function StandortPage() {
+export default function StellplatzAnalysePage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [input, setInput]         = useState("");
-  const [submitted, setSubmitted] = useState("");
 
-  const parsed = parseEingabe(submitted);
-  const hatScope = !!(parsed.lagernummer || parsed.stellplatzPrefix);
+  const [input, setInput]           = useState("");
+  const [debInput]                  = useDebounce(input, 300);
+  const [lagernummer, setLagernr]   = useState("");          // "" = alle
+  const [selBereich, setSelBereich] = useState<string | null>(null);
+  const [selStellplatz, setSelStp]  = useState<string | null>(null);
+  const [seite, setSeite]           = useState(1);
 
-  const { data, isFetching, error } = api.geraeteReise.standortAnalyse.useQuery(
-    { lagernummer: parsed.lagernummer, stellplatzPrefix: parsed.stellplatzPrefix },
-    { enabled: hatScope, staleTime: 60_000 },
+  const suche = debInput.trim();
+
+  // ── Datenquellen ─────────────────────────────────────────────────────────
+  const bereicheQ = api.geraeteReise.stellplatzBereiche.useQuery(
+    { suche: suche || undefined, lagernummer: lagernummer || undefined },
+    { staleTime: 30_000, placeholderData: (p) => p },
+  );
+  const lagernummernQ = api.geraeteReise.lagernummern.useQuery(undefined, { staleTime: 60_000 });
+  const hatLagernummern = (lagernummernQ.data?.length ?? 0) > 0;
+
+  // Scope für die Geräte-Liste: konkreter Stellplatz > Bereich > Freitext.
+  const scope: { stellplatz?: string; bereich?: string; stellplatzContains?: string } | null =
+    selStellplatz ? { stellplatz: selStellplatz }
+    : selBereich  ? { bereich: selBereich }
+    : suche       ? { stellplatzContains: suche }
+    : null;
+  const hatScope = scope !== null;
+
+  const listeQ = api.geraeteReise.geraeteListe.useQuery(
+    { ...(scope ?? {}), lagernummer: lagernummer || undefined, seite, proSeite: PRO_SEITE },
+    { enabled: hatScope, staleTime: 15_000, placeholderData: (p) => p },
   );
 
-  function suchen() {
-    const v = input.trim();
-    if (v) setSubmitted(v);
+  // Filterwechsel → zurück auf Seite 1.
+  useEffect(() => { setSeite(1); }, [selStellplatz, selBereich, suche, lagernummer]);
+
+  // Beim Verfeinern der Suche eine ungültig gewordene Auswahl lösen.
+  const bereiche = bereicheQ.data?.bereiche ?? [];
+  useEffect(() => {
+    if (selBereich && !bereiche.some((b) => b.bereich === selBereich)) {
+      setSelBereich(null);
+      setSelStp(null);
+    }
+  }, [bereiche, selBereich]);
+
+  const aktiverBereich = useMemo(
+    () => bereiche.find((b) => b.bereich === selBereich) ?? null,
+    [bereiche, selBereich],
+  );
+
+  const gesamt   = listeQ.data?.gesamt ?? 0;
+  const von      = gesamt === 0 ? 0 : (seite - 1) * PRO_SEITE + 1;
+  const bis      = Math.min(seite * PRO_SEITE, gesamt);
+  const maxSeite = Math.max(1, Math.ceil(gesamt / PRO_SEITE));
+
+  // Klartext-Beschreibung des aktuellen Scopes (für Überschrift + aria-live).
+  const scopeLabel =
+    selStellplatz ? `Stellplatz ${selStellplatz}`
+    : selBereich  ? `Bereich ${selBereich}`
+    : suche       ? `Suche „${suche}"`
+    : "";
+
+  function alleZuruecksetzen() {
+    setSelBereich(null);
+    setSelStp(null);
   }
-
-  // Drilldown-Basis (/liste) aus dem aktuellen Scope.
-  const sp = new URLSearchParams();
-  if (parsed.lagernummer)      sp.set("lagernummer", parsed.lagernummer);
-  if (parsed.stellplatzPrefix) sp.set("stellplatzPrefix", parsed.stellplatzPrefix);
-  const listeBasis = `/admin/geraete-reise/liste?${sp.toString()}`;
-
-  const scopeLabel = [
-    parsed.lagernummer      ? `Lager ${parsed.lagernummer}` : null,
-    parsed.stellplatzPrefix ? `Stellplatz ${parsed.stellplatzPrefix}*` : null,
-  ].filter(Boolean).join(" · ");
 
   return (
     <div className="max-w-5xl space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">🧭 Geräte-Reise</h1>
-        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">Standort-Suche &amp; -Analyse</p>
+        <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">🧭 Stellplatz Analyse</h1>
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
+          Geräte nach Stellplatz oder Bereich finden
+        </p>
       </div>
 
       <GeraeteReiseTabs />
 
-      {/* Suchfeld */}
-      <div className={`${cardCls} p-5`}>
+      {/* Suche + optionaler Lagernummer-Filter */}
+      <div className={`${cardCls} p-5 space-y-3`}>
+        <label htmlFor="stp-suche" className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+          Stellplatz suchen
+        </label>
         <div className="relative">
           <input
+            id="stp-suche"
             ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") suchen(); }}
-            placeholder="Lagernummer oder Stellplatz — z. B. 120, 120-ETL, 120-ETL-0-0-0, ETL-0-0-0"
-            className="w-full px-4 py-4 text-lg font-bold font-mono rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] dark:focus:border-[#45bdff] transition-colors"
+            placeholder="z. B. ETL, HL-01, Recycler …"
+            className="w-full px-4 text-lg font-bold rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#008BD2] dark:focus:border-[#45bdff] transition-colors min-h-[56px]"
           />
           {input && (
             <button
               onClick={() => { setInput(""); inputRef.current?.focus(); }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-[#65676b] hover:text-[#fa3e3e] text-2xl font-bold transition-colors"
-              aria-label="Eingabe löschen"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#65676b] hover:text-[#fa3e3e] text-2xl font-bold min-h-[44px] min-w-[44px]"
+              aria-label="Suche löschen"
             >
               ✕
             </button>
           )}
         </div>
-        <button
-          onClick={suchen}
-          disabled={!input.trim()}
-          className="mt-3 w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#0064d2] dark:bg-[#45bdff] text-white font-bold disabled:opacity-50 hover:opacity-90 transition-opacity"
-        >
-          🔍 Standort analysieren
-        </button>
-        <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-2">
-          Lagernummer 120 = AfB Sömmerda · 123 = Verkaufslager. Stellplatz-Suche per Präfix (z. B. „ETL").
+        <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8]">
+          Tippe einen Teil des Stellplatzes — Groß-/Kleinschreibung egal. Oder wähle unten einen Bereich.
         </p>
+
+        {/* Lagernummer-Filter — nur wenn Werte existieren */}
+        {hatLagernummern ? (
+          <div className="flex items-center gap-2 flex-wrap">
+            <label htmlFor="lagernr" className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Lager</label>
+            <select
+              id="lagernr"
+              value={lagernummer}
+              onChange={(e) => setLagernr(e.target.value)}
+              className="px-3 rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] font-bold min-h-[56px]"
+            >
+              <option value="">Alle Lager</option>
+              {lagernummernQ.data!.map((l) => (
+                <option key={l.lagernummer} value={l.lagernummer}>
+                  {l.lagernummer} ({nf(l.anzahl)})
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] flex items-center gap-1.5">
+            <span aria-hidden>ℹ️</span> Lagernummer-Filter füllt sich nach dem nächsten Import.
+          </p>
+        )}
       </div>
 
-      {hatScope && (
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">
-            {scopeLabel} {data && <span className="text-[#0064d2] dark:text-[#45bdff]">— {nf(data.kennzahlen.anzahl)} Geräte</span>}
+      {/* Bereiche */}
+      <div className={`${cardCls} p-4`}>
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+          <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+            Bereiche {bereicheQ.data && <span className="text-[#65676b] dark:text-[#b0b3b8] font-normal">({bereiche.length})</span>}
           </h2>
-          {data && data.kennzahlen.anzahl > 0 && (
+          {(selBereich || selStellplatz) && (
             <button
-              onClick={() => router.push(listeBasis)}
-              className="px-4 py-2 rounded-xl bg-[#0064d2] dark:bg-[#45bdff] text-white text-sm font-bold hover:opacity-90 transition-opacity"
+              onClick={alleZuruecksetzen}
+              className="text-sm font-bold text-[#008BD2] dark:text-[#45bdff] hover:underline min-h-[44px] px-2"
             >
-              Alle Geräte anzeigen →
+              ← Auswahl zurücksetzen
             </button>
           )}
         </div>
-      )}
 
-      {isFetching && (
-        <div className="flex items-center gap-3 p-5 text-[#65676b] dark:text-[#b0b3b8]">
-          <div className="w-5 h-5 border-2 border-[#0064d2]/20 border-t-[#0064d2] rounded-full animate-spin" />
-          Lädt Analyse…
-        </div>
-      )}
-      {error && <p className="text-sm text-[#fa3e3e]">Fehler beim Laden der Analyse.</p>}
-
-      {data && !isFetching && (
-        data.kennzahlen.anzahl === 0 ? (
-          <div className={`${cardCls} p-8 text-center text-[#65676b] dark:text-[#b0b3b8]`}>
-            Keine Geräte für <span className="font-bold">{scopeLabel}</span> gefunden.
+        {bereicheQ.isLoading ? (
+          <div className="flex items-center gap-3 py-4 text-[#65676b] dark:text-[#b0b3b8]">
+            <div className="w-5 h-5 border-2 border-[#008BD2]/20 border-t-[#008BD2] rounded-full animate-spin" /> Lädt Bereiche…
           </div>
+        ) : bereiche.length === 0 ? (
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] py-2">
+            {suche ? `Kein Bereich passt zu „${suche}".` : "Keine Stellplätze vorhanden."}
+          </p>
         ) : (
-          <>
-            {/* Kennzahl-Karten */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <Kennzahl label="Anzahl"         value={nf(data.kennzahlen.anzahl)} />
-              <Kennzahl label="Ø Verweildauer" value={nf(data.kennzahlen.avgVerweildauer)} sub="Tage" akzent="#202F61" />
-              <Kennzahl label="ohne Verbleib"  value={nf(data.kennzahlen.ohneVerbleib)} akzent="#F59E0B" />
-              <Kennzahl label="Ladenhüter"     value={nf(data.kennzahlen.ladenhueter)} sub=">365 Tage" akzent="#F97316" />
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {bereiche.map((b) => (
+              <Chip
+                key={b.bereich}
+                label={b.bereich}
+                anzahl={b.anzahl}
+                aktiv={selBereich === b.bereich}
+                farbe={NAVY}
+                onClick={() => {
+                  const neu = selBereich === b.bereich ? null : b.bereich;
+                  setSelBereich(neu);
+                  setSelStp(null);
+                }}
+              />
+            ))}
+          </div>
+        )}
 
-            {/* Hersteller + Verbleib */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              <div className={`${cardCls} overflow-hidden`}>
-                <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042]">
-                  <h3 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Hersteller</h3>
-                  <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">Balken anklicken für Geräteliste</p>
-                </div>
-                <div className="p-4 text-[#1a1a1a] dark:text-[#e4e6eb]">
-                  {data.herstellerVerteilung.length === 0 ? (
-                    <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] text-center py-6">Keine Daten</p>
-                  ) : (
-                    <BalkenChart
-                      data={data.herstellerVerteilung}
-                      dataKey="anzahl"
-                      labelKey="hersteller"
-                      einfarbig="#04B475"
-                      onSelect={(h) => router.push(
-                        h === "Sonstige" || h === "ohne Angabe" ? listeBasis : `${listeBasis}&hersteller=${encodeURIComponent(h)}`,
-                      )}
-                    />
-                  )}
-                </div>
-              </div>
-
-              <div className={`${cardCls} overflow-hidden`}>
-                <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042]">
-                  <h3 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Verbleib</h3>
-                  <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">Balken anklicken für Geräteliste</p>
-                </div>
-                <div className="p-4 text-[#1a1a1a] dark:text-[#e4e6eb]">
-                  {data.verbleibVerteilung.length === 0 ? (
-                    <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] text-center py-6">Keine Daten</p>
-                  ) : (
-                    <BalkenChart
-                      data={data.verbleibVerteilung}
-                      dataKey="anzahl"
-                      labelKey="verbleib"
-                      einfarbig="#008BD2"
-                      onSelect={(v) => router.push(
-                        v === "ohne Verbleib" ? `${listeBasis}&ohneVerbleib=1` : `${listeBasis}&verbleib=${encodeURIComponent(v)}`,
-                      )}
-                    />
-                  )}
-                </div>
-              </div>
+        {/* Zweite Ebene: konkrete Stellplätze des gewählten Bereichs */}
+        {aktiverBereich && (
+          <div className="mt-4 pt-4 border-t border-[#ced4da] dark:border-[#3e4042]">
+            <h3 className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-2">
+              Stellplätze in <span style={{ color: NAVY }}>{aktiverBereich.bereich}</span>
+              <span className="text-[#65676b] dark:text-[#b0b3b8] font-normal"> ({aktiverBereich.stellplaetze.length})</span>
+            </h3>
+            <div className="flex flex-wrap gap-2 max-h-[260px] overflow-y-auto">
+              {aktiverBereich.stellplaetze.map((s) => (
+                <Chip
+                  key={s.stellplatz}
+                  label={s.stellplatz}
+                  anzahl={s.anzahl}
+                  aktiv={selStellplatz === s.stellplatz}
+                  farbe={BLAU}
+                  onClick={() => setSelStp(selStellplatz === s.stellplatz ? null : s.stellplatz)}
+                />
+              ))}
             </div>
+          </div>
+        )}
+      </div>
 
-            {/* Alter */}
-            <div className={`${cardCls} overflow-hidden`}>
-              <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042]">
-                <h3 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Alter (Verweildauer)</h3>
-              </div>
-              <div className="p-4 text-[#1a1a1a] dark:text-[#e4e6eb]">
-                <BalkenChart data={data.agingBuckets} dataKey="anzahl" labelKey="bucket" farben={AGING_FARBE} />
-              </div>
+      {/* Ergebnis: Geräte-Liste */}
+      <p aria-live="polite" className="sr-only">
+        {hatScope ? `${nf(gesamt)} Geräte für ${scopeLabel}` : "Bitte Stellplatz oder Bereich wählen."}
+      </p>
+
+      {!hatScope ? (
+        <div className={`${cardCls} p-8 text-center text-[#65676b] dark:text-[#b0b3b8]`}>
+          <div className="text-3xl mb-2" aria-hidden>🔎</div>
+          Suche oben einen Stellplatz oder tippe einen Bereich an.
+        </div>
+      ) : (
+        <div className={`${cardCls} overflow-hidden`}>
+          <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042] flex items-center justify-between gap-2 flex-wrap">
+            <h2 className="font-black text-[#1a1a1a] dark:text-[#e4e6eb]">
+              {scopeLabel} <span style={{ color: BLAU }}>— {nf(gesamt)} Geräte</span>
+            </h2>
+            {listeQ.isFetching && <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Lädt…</span>}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-[#f0f2f5] dark:bg-[#18191a] text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8]">
+                <tr>
+                  <th className="px-4 py-2.5 text-left">LogID</th>
+                  <th className="px-4 py-2.5 text-left">Hersteller / Bezeichnung</th>
+                  <th className="px-4 py-2.5 text-left">Stellplatz</th>
+                  <th className="px-4 py-2.5 text-left">Verbleib</th>
+                  <th className="px-4 py-2.5 text-right">Verweildauer</th>
+                </tr>
+              </thead>
+              <tbody>
+                {listeQ.data && listeQ.data.zeilen.length === 0 && (
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-[#65676b] dark:text-[#b0b3b8]">Keine Geräte hier.</td></tr>
+                )}
+                {listeQ.data?.zeilen.map((g: Zeile) => (
+                  <tr
+                    key={g.logId}
+                    onClick={() => router.push(`/admin/geraete-reise/geraet?q=${encodeURIComponent(g.logId)}`)}
+                    className="border-t border-[#ced4da] dark:border-[#3e4042] cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
+                    style={{ minHeight: 56 }}
+                  >
+                    <td className="px-4 py-3 font-mono font-bold text-[#008BD2] dark:text-[#45bdff] whitespace-nowrap">{g.logId}</td>
+                    <td className="px-4 py-3 text-[#1a1a1a] dark:text-[#e4e6eb]">
+                      <span className="block truncate max-w-[280px]">{[g.hersteller, g.bezeichnung].filter(Boolean).join(" ") || "—"}</span>
+                    </td>
+                    <td className="px-4 py-3 text-[#65676b] dark:text-[#b0b3b8]">{g.stellplatz || "—"}</td>
+                    <td className="px-4 py-3 text-[#65676b] dark:text-[#b0b3b8]">{g.verbleib || "—"}</td>
+                    <td className="px-4 py-3 text-right font-bold whitespace-nowrap" style={{ color: GRUEN }}>
+                      {g.verweildauerTage != null ? `${nf(g.verweildauerTage)} T` : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-[#ced4da] dark:border-[#3e4042] flex-wrap">
+            <span className="text-sm text-[#65676b] dark:text-[#b0b3b8]">{nf(von)}–{nf(bis)} von {nf(gesamt)}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSeite((s) => Math.max(1, s - 1))}
+                disabled={seite <= 1}
+                className="px-4 text-sm font-bold rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] disabled:opacity-40 hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors min-h-[56px]"
+              >
+                ← Zurück
+              </button>
+              <span className="text-sm text-[#65676b] dark:text-[#b0b3b8] tabular-nums">Seite {nf(seite)} / {nf(maxSeite)}</span>
+              <button
+                onClick={() => setSeite((s) => Math.min(maxSeite, s + 1))}
+                disabled={seite >= maxSeite}
+                className="px-4 text-sm font-bold rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] disabled:opacity-40 hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors min-h-[56px]"
+              >
+                Vor →
+              </button>
             </div>
-          </>
-        )
+          </div>
+        </div>
       )}
     </div>
   );

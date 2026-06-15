@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
-import { buildGeraeteWhere } from "@/modules/geraete-reise/filter";
+import { buildGeraeteWhere, stellplatzBereich } from "@/modules/geraete-reise/filter";
 
 // Geräte-Reise (LogID-Tracking).
 // Gating über das Recht GERAETE_REISE_VIEW (Admin via SYSTEM_ADMIN-Wildcard).
@@ -267,11 +267,13 @@ export const geraeteReiseRouter = createTRPCRouter({
   // Reine Auswertung, kein Bestandseffekt.
   geraeteListe: permissionProcedure("GERAETE_REISE_VIEW")
     .input(z.object({
-      verbleib:         z.string().optional(),
-      stellplatz:       z.string().optional(),
-      stellplatzPrefix: z.string().optional(),
-      ohneVerbleib:     z.boolean().optional(),
-      geraeteart:       z.string().optional(),
+      verbleib:           z.string().optional(),
+      stellplatz:         z.string().optional(),
+      stellplatzPrefix:   z.string().optional(),
+      stellplatzContains: z.string().optional(),
+      bereich:            z.string().optional(),
+      ohneVerbleib:       z.boolean().optional(),
+      geraeteart:         z.string().optional(),
       hersteller:       z.string().optional(),
       lager:            z.string().optional(),
       lagernummer:      z.string().optional(),
@@ -479,6 +481,58 @@ export const geraeteReiseRouter = createTRPCRouter({
         agingBuckets,
       };
     }),
+
+  // Stellplatz-Bereiche: distinct Stellplatz + Anzahl, serverseitig nach Bereich
+  // (führende nicht-numerische Segmente) gruppiert. Optionaler Freitext (Teil-
+  // treffer auf Stellplatz) + optionale Lagernummer. Zentraler Filter, ausgeschieden=false.
+  stellplatzBereiche: permissionProcedure("GERAETE_REISE_VIEW")
+    .input(z.object({
+      suche:       z.string().max(191).optional(),
+      lagernummer: z.string().max(191).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const where = buildGeraeteWhere({
+        stellplatzContains: input?.suche?.trim() || undefined,
+        lagernummer:        input?.lagernummer?.trim() || undefined,
+        ausgeschieden:      false,
+      });
+
+      const rows = await prisma.logIdStand.groupBy({
+        by:     ["stellplatz"],
+        _count: { _all: true },
+        where:  { AND: [where, { stellplatz: { not: null } }, { stellplatz: { not: "" } }] },
+      });
+
+      const map = new Map<string, { bereich: string; anzahl: number; stellplaetze: { stellplatz: string; anzahl: number }[] }>();
+      for (const r of rows) {
+        const sp = r.stellplatz;
+        if (!sp) continue;
+        const n = r._count._all;
+        const b = stellplatzBereich(sp);
+        let e = map.get(b);
+        if (!e) { e = { bereich: b, anzahl: 0, stellplaetze: [] }; map.set(b, e); }
+        e.anzahl += n;
+        e.stellplaetze.push({ stellplatz: sp, anzahl: n });
+      }
+      const bereiche = [...map.values()].sort((a, b) => b.anzahl - a.anzahl || a.bereich.localeCompare(b.bereich, "de", { numeric: true }));
+      for (const e of bereiche) {
+        e.stellplaetze.sort((a, b) => b.anzahl - a.anzahl || a.stellplatz.localeCompare(b.stellplatz, "de", { numeric: true }));
+      }
+      return { bereiche, stellplaetzeGesamt: rows.length };
+    }),
+
+  // Distinct, NICHT-null Lagernummern (für das optionale Dropdown). Leer, solange
+  // noch kein Import die Lagernummer befüllt hat.
+  lagernummern: permissionProcedure("GERAETE_REISE_VIEW").query(async () => {
+    const rows = await prisma.logIdStand.groupBy({
+      by:     ["lagernummer"],
+      _count: { _all: true },
+      where:  { AND: [{ ausgeschieden: false }, { lagernummer: { not: null } }, { lagernummer: { not: "" } }] },
+    });
+    return rows
+      .map((r) => ({ lagernummer: r.lagernummer as string, anzahl: r._count._all }))
+      .sort((a, b) => a.lagernummer.localeCompare(b.lagernummer, "de", { numeric: true }));
+  }),
 
   // Übersicht der ausgeschiedenen Geräte (das System verlassen). Kennzahlen,
   // Verteilung nach letztem Verbleib (Abgang-Grund-Hinweis), letzte Stellplätze
