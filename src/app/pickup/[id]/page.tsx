@@ -6,14 +6,21 @@ import { useParams, useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
 import { formatLogId } from "@/lib/pickup/logId";
+import { nurZiffern } from "@/lib/format/ziffern";
 import { playScanSound, playComplete, playNegativeSound, type ScanResult } from "@/lib/pickup/scanSound";
 import { useScannerMode } from "@/lib/pickup/useScannerMode";
 import { GeraeteUmschalter } from "@/components/pickup/ModusBanner";
 
-// Farben wie ModusBanner: Blau = LogID, Violett = Colli — Modus IMMER auch über
-// Farbe erkennbar, aber nie NUR über Farbe (zusätzlich Icon + Klartext).
+// Farben wie ModusBanner: Blau = LogID-Auftrag, Violett = Colli-Auftrag.
+// Status nie NUR über Farbe — immer zusätzlich Icon + Klartext.
 const BLAU    = "#008BD2";
 const VIOLETT = "#7c3aed";
+
+// Auto-Erkennung der Scan-Art an der Ziffernlänge (kein Überlapp: LogIDs sind
+// einheitlich 9-stellig, Collis 6–7-stellig). Leicht anpassbar.
+const LOGID_LEN = 9;
+const COLLI_MIN = 6;
+const COLLI_MAX = 7;
 
 type ScanPos = {
   id: number; logId: string; colli: string | null; stellplatz: string | null;
@@ -23,7 +30,8 @@ type ScanPos = {
 // Einheitliches Ergebnis des letzten Scans — LogID-Scan ODER Colli-Prüfung.
 type Feedback =
   | { kind: "logid"; result: ScanResult; logId: string; position: ScanPos | null }
-  | { kind: "colli"; colliNummer: string; colliBekannt: boolean; treffer: { logId: string; bezeichnung: string | null }[]; anzahlTreffer: number };
+  | { kind: "colli"; colliNummer: string; colliBekannt: boolean; treffer: { logId: string; bezeichnung: string | null }[]; anzahlTreffer: number }
+  | { kind: "unbekannt"; wert: string };
 
 function fmtZeit(d: Date | string | null): string {
   if (!d) return "";
@@ -46,16 +54,19 @@ function ErgebnisBanner({ fb }: { fb: Feedback | null }) {
       return (
         <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5" style={{ borderColor: "#04B475", background: "rgba(4,180,117,0.10)" }}>
           <div className="flex items-center gap-4">
-            <span className="text-5xl" aria-hidden>✓</span>
+            <span className="text-5xl" aria-hidden>📦</span>
             <div className="min-w-0">
-              <div className="text-2xl font-black" style={{ color: "#04713f" }}>Im Colli gesucht: {fb.anzahlTreffer}</div>
+              <div className="text-2xl font-black" style={{ color: "#04713f" }}>Diesen Colli durchscannen</div>
               <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">Colli {formatLogId(fb.colliNummer)}</div>
+              <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                {fb.anzahlTreffer} {fb.anzahlTreffer === 1 ? "gesuchtes Gerät" : "gesuchte Geräte"} hier drin:
+              </div>
             </div>
           </div>
           <ul className="mt-3 space-y-1">
             {fb.treffer.map((t) => (
               <li key={t.logId} className="flex items-center gap-2 text-base">
-                <span aria-hidden>📦</span>
+                <span aria-hidden>🏷️</span>
                 <span className="font-mono font-bold text-[#202F61] dark:text-[#e4e6eb]">{formatLogId(t.logId)}</span>
                 <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{t.bezeichnung ?? "—"}</span>
               </li>
@@ -64,17 +75,34 @@ function ErgebnisBanner({ fb }: { fb: Feedback | null }) {
         </div>
       );
     }
-    // 0 Treffer — bekannt vs. unbekannt klar in Worten
+    // 0 Treffer / unbekannt — weiter zum nächsten Colli
     return (
       <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5" style={{ borderColor: "#fa3e3e", background: "rgba(250,62,62,0.10)" }}>
         <div className="flex items-center gap-4">
-          <span className="text-5xl" aria-hidden>✗</span>
+          <span className="text-5xl" aria-hidden>➡️</span>
           <div className="min-w-0">
-            <div className="text-2xl font-black" style={{ color: "#b3261e" }}>Nichts Gesuchtes drin</div>
-            <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">Colli {fb.colliNummer ? formatLogId(fb.colliNummer) : "—"}</div>
-            <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-              {fb.colliBekannt ? "In diesem Colli liegt kein gesuchtes Gerät." : "Dieses Colli ist unbekannt."}
+            <div className="text-2xl font-black" style={{ color: "#b3261e" }}>Nichts Gesuchtes hier</div>
+            <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb]">Weiter zum nächsten Colli.</div>
+            <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] font-mono">
+              Colli {fb.colliNummer ? formatLogId(fb.colliNummer) : "—"}
+              <span className="font-sans"> · {fb.colliBekannt ? "kein gesuchtes Gerät drin" : "unbekannt"}</span>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Nicht erkannt (falsche Ziffernlänge) ──
+  if (fb.kind === "unbekannt") {
+    return (
+      <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5" style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.10)" }}>
+        <div className="flex items-center gap-4">
+          <span className="text-5xl" aria-hidden>❓</span>
+          <div className="min-w-0">
+            <div className="text-2xl font-black" style={{ color: "#BA7517" }}>Nicht erkannt</div>
+            <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">{fb.wert || "—"}</div>
+            <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">Das ist keine LogID und kein Colli. Bitte erneut scannen.</div>
           </div>
         </div>
       </div>
@@ -168,7 +196,6 @@ export default function PickupScanPage() {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   // Session-Liste „Gehört nicht dazu": fremde LogIDs + nicht passende Collis.
   const [nichtDazu, setNichtDazu] = useState<{ art: "logid" | "colli"; wert: string; zeit: Date }[]>([]);
-  const [zweck, setZweck]   = useState<"scan" | "pruefen">("scan"); // nur LOGID-Auftrag
   const [ansicht, setAnsicht] = useState<"offen" | "gefunden" | "fremd">("offen");
   const [colliBusy, setColliBusy] = useState(false);
 
@@ -215,9 +242,8 @@ export default function PickupScanPage() {
   const offen        = data ? data.gesamt - data.gefunden : 0;
   const istColli     = data?.typ === "COLLI";
 
-  // Bei COLLI-Auftrag gibt es keinen „Colli prüfen"-Untermodus.
-  const aktiverZweck: "scan" | "pruefen" = istColli ? "scan" : zweck;
-  const aktivFarbe = (istColli || aktiverZweck === "pruefen") ? VIOLETT : BLAU;
+  // Farbe nach Auftragstyp (kein Untermodus mehr): Blau = LogID, Violett = Colli.
+  const aktivFarbe = istColli ? VIOLETT : BLAU;
 
   // Live-Abschluss-Fanfare nur beim Übergang unvollständig → vollständig.
   useEffect(() => {
@@ -254,18 +280,48 @@ export default function PickupScanPage() {
     }
   }
 
+  // Lokales Negativ-Feedback ohne Server (z. B. falsche Länge, klar fremd).
+  function meldeUnbekannt(wert: string) {
+    setFeedback({ kind: "unbekannt", wert });
+    playNegativeSound();
+    setEingabe("");
+    inputRef.current?.focus();
+  }
+  function meldeNichtDazu(wert: string, art: "logid" | "colli") {
+    setFeedback({ kind: "logid", result: "FREMD", logId: wert, position: null });
+    playScanSound("FREMD");
+    setNichtDazu((prev) => [{ art, wert, zeit: new Date() }, ...prev].slice(0, 50));
+    setEingabe("");
+    inputRef.current?.focus();
+  }
+
+  // Auto-Routing: Scan-Art an der Ziffernlänge erkennen.
   function handleScan() {
     const v = eingabe.trim();
     if (!v) return;
-    if (aktiverZweck === "pruefen") pruefeColli(v);
-    else if (!scan.isPending) scan.mutate({ auftragId: id, logIdRaw: v });
-  }
+    const ziffern = nurZiffern(v);
+    const len = ziffern.length;
 
-  function wechsleZweck(z: "scan" | "pruefen") {
-    setZweck(z);
-    setFeedback(null);
-    setEingabe("");
-    inputRef.current?.focus();
+    if (istColli) {
+      // Colli-Auftrag: 6–7 → Position-Match; 9 → gehört nicht dazu; sonst nicht erkannt.
+      if (len >= COLLI_MIN && len <= COLLI_MAX) {
+        if (!scan.isPending) scan.mutate({ auftragId: id, logIdRaw: v });
+      } else if (len === LOGID_LEN) {
+        meldeNichtDazu(ziffern, "logid");
+      } else {
+        meldeUnbekannt(ziffern);
+      }
+      return;
+    }
+
+    // LogID-Auftrag: 9 → LogID-Match; 6–7 → Colli-Inhaltsprüfung; sonst nicht erkannt.
+    if (len === LOGID_LEN) {
+      if (!scan.isPending) scan.mutate({ auftragId: id, logIdRaw: v });
+    } else if (len >= COLLI_MIN && len <= COLLI_MAX) {
+      pruefeColli(v);
+    } else {
+      meldeUnbekannt(ziffern);
+    }
   }
 
   if (permsLoading) {
@@ -342,44 +398,17 @@ export default function PickupScanPage() {
             </div>
           )}
 
-          {/* Scan-Zweck — nur LOGID-Auftrag: LogID scannen / Colli prüfen */}
-          {!istColli && (
-            <div role="group" aria-label="Was möchtest du tun?" className="grid grid-cols-2 gap-2">
-              {([
-                { z: "scan",    label: "LogID scannen", icon: "🏷️", farbe: BLAU },
-                { z: "pruefen", label: "Colli prüfen",  icon: "🧭", farbe: VIOLETT },
-              ] as const).map(({ z, label, icon, farbe }) => {
-                const aktiv = aktiverZweck === z;
-                return (
-                  <button
-                    key={z}
-                    onClick={() => wechsleZweck(z)}
-                    aria-pressed={aktiv}
-                    className="rounded-xl border-2 font-black text-base flex items-center justify-center gap-2 min-h-[56px] transition-colors"
-                    style={aktiv
-                      ? { background: farbe, borderColor: farbe, color: "white" }
-                      : { borderColor: "#ced4da", color: "#65676b" }}
-                  >
-                    <span aria-hidden>{icon}</span> {label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Modus-Indikator (auch für COLLI-Auftrag) — Farbe + Icon + Text */}
+          {/* Modus-Indikator — Auftragstyp, Farbe + Icon + Text (nie nur Farbe) */}
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-white font-bold text-sm" style={{ background: aktivFarbe }} role="status">
-            <span aria-hidden>{aktiverZweck === "pruefen" || istColli ? "🧭" : "🏷️"}</span>
-            <span>
-              {istColli ? "Colli scannen" : aktiverZweck === "pruefen" ? "Colli prüfen" : "LogID scannen"}
-            </span>
+            <span aria-hidden>{istColli ? "🧭" : "🏷️"}</span>
+            <span>{istColli ? "Colli-Auftrag" : "LogID-Auftrag"}</span>
           </div>
 
-          {/* Scan-Feld */}
+          {/* Scan-Feld — eine Eingabe, Art wird automatisch erkannt */}
           <form onSubmit={(e) => { e.preventDefault(); handleScan(); }} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-3 space-y-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <label htmlFor="scan-input" className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
-                {istColli ? "Colli-Nummer scannen" : aktiverZweck === "pruefen" ? "Colli-Nummer scannen" : "LogID scannen"}
+                {istColli ? "Colli scannen" : "Scannen"}
               </label>
               <GeraeteUmschalter device={mode} onChange={(d) => { setMode(d); inputRef.current?.focus(); }} />
             </div>
@@ -395,7 +424,7 @@ export default function PickupScanPage() {
                 inputMode={tastatur ? "numeric" : "none"}
                 enterKeyHint="done"
                 spellCheck={false}
-                placeholder={aktiverZweck === "pruefen" || istColli ? "Colli scannen…" : "LogID scannen…"}
+                placeholder={istColli ? "Colli scannen…" : "Colli oder LogID scannen…"}
                 className="flex-1 min-w-0 px-4 rounded-xl border-2 bg-[#f0f2f5] dark:bg-[#18191a] text-2xl font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] outline-none transition-colors min-h-[56px]"
                 style={{ borderColor: aktivFarbe }}
               />
@@ -406,13 +435,14 @@ export default function PickupScanPage() {
                   className="px-6 rounded-xl text-white text-base font-bold disabled:opacity-40 transition-colors min-h-[56px] min-w-[72px]"
                   style={{ background: aktivFarbe }}
                 >
-                  {aktiverZweck === "pruefen" ? "Prüfen" : "OK"}
+                  OK
                 </button>
               )}
             </div>
-            {aktiverZweck === "pruefen" && (
+            {!istColli && (
               <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                ℹ️ Prüfung nutzt die Geräte-Reise-Daten (Stand: letzter Import). Es wird nichts abgehakt.
+                ℹ️ Erst Colli scannen (6–7 Stellen): Du hörst und siehst, ob ein gesuchtes Gerät drin ist.
+                Wenn ja, die LogIDs (9 Stellen) darin scannen. Die Colli-Prüfung nutzt die Geräte-Reise-Daten (Stand: letzter Import).
               </p>
             )}
           </form>
