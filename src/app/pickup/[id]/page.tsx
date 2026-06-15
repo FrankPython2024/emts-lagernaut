@@ -442,7 +442,7 @@ export default function PickupScanPage() {
             {!istColli && (
               <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
                 ℹ️ Erst Colli scannen (6–7 Stellen): Du hörst und siehst, ob ein gesuchtes Gerät drin ist.
-                Wenn ja, die LogIDs (9 Stellen) darin scannen. Die Colli-Prüfung nutzt die Geräte-Reise-Daten (Stand: letzter Import).
+                Wenn ja, die LogIDs (9 Stellen) darin scannen. Die Colli-Prüfung nutzt die Lagerfuchs-Daten (Stand: letzter Import).
               </p>
             )}
           </form>

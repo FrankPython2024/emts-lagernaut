@@ -76,7 +76,7 @@ export default function AusgeschiedenePage() {
   return (
     <div className="max-w-5xl space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">🧭 Geräte-Reise</h1>
+        <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">🦊 Lagerfuchs</h1>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
           Ausgeschiedene Geräte — haben das System verlassen (im letzten Snapshot nicht mehr enthalten)
           {data?.letzterImport && (
@@ -158,7 +158,7 @@ export default function AusgeschiedenePage() {
           <div className={`${cardCls} overflow-hidden`}>
             <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042]">
               <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Zuletzt ausgeschieden</h2>
-              <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">die 100 jüngsten Abgänge — Zeile anklicken für Geräte-Reise</p>
+              <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">die 100 jüngsten Abgänge — Zeile anklicken zum Öffnen</p>
             </div>
             {data.liste.length === 0 ? (
               <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] text-center py-8">Noch keine ausgeschiedenen Geräte.</p>
