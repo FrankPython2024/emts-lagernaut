@@ -10,6 +10,7 @@ import type { AppRouter } from "@/server/routers";
 import { GeraeteReiseTabs } from "../_tabs";
 import { useGeraetModal } from "../_geraetModal";
 import { useColliModal } from "../_colliModal";
+import { formatEuroKurz } from "../_format";
 
 // Drilldown-Ziel (S5): Verbleib-Stufe bzw. „ohne Verbleib" → Geräte-Liste.
 function listeHrefStufe(verbleib: string): string {
@@ -164,7 +165,7 @@ export default function GeraeteReiseAuswertungenPage() {
       {data && (
         <>
           {/* Highlight-Karten */}
-          <div className="grid sm:grid-cols-3 gap-3">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Ältestes Gerät — anklickbar → S2 */}
             {data.aeltestesGeraet ? (
               <button
@@ -208,6 +209,17 @@ export default function GeraeteReiseAuswertungenPage() {
                 <div className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-2">Keine Daten</div>
               )}
             </div>
+
+            {/* Gebundener Wert im Stau — wie viel Kapital in Langliegern steckt */}
+            <div className={`${cardCls} p-4`}>
+              <div className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase tracking-wide">Gebundener Wert im Stau</div>
+              <div className="font-black text-lg sm:text-xl tabular-nums mt-1 break-words leading-tight text-[#EF4444]">
+                {formatEuroKurz(data.gebundenerWertStau)}
+              </div>
+              <div className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
+                Kapital in Langliegern (&gt; {data.schwelleTage} Tage)
+              </div>
+            </div>
           </div>
 
           {/* Stau nach Stufe: Chart + Tabelle */}
@@ -235,7 +247,9 @@ export default function GeraeteReiseAuswertungenPage() {
                     <tr>
                       <th className="px-4 py-2 text-left">Stufe</th>
                       <th className="px-4 py-2 text-right">Anzahl</th>
+                      <th className="px-4 py-2 text-right">Wert</th>
                       <th className="px-4 py-2 text-right">&gt; {data.schwelleTage} T</th>
+                      <th className="px-4 py-2 text-right">&gt; {data.schwelleTage} T Wert</th>
                       <th className="px-4 py-2 text-right">Ø Tage</th>
                     </tr>
                   </thead>
@@ -249,11 +263,13 @@ export default function GeraeteReiseAuswertungenPage() {
                           className="border-t border-[#ced4da] dark:border-[#3e4042] cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
                         >
                           <td className="px-4 py-2 font-medium text-[#0064d2] dark:text-[#45bdff]">{s.verbleib}</td>
-                          <td className="px-4 py-2 text-right text-[#1a1a1a] dark:text-[#e4e6eb]">{nf(s.anzahl)}</td>
-                          <td className="px-4 py-2 text-right font-bold" style={{ color: anteil >= 0.5 ? "#EF4444" : anteil >= 0.2 ? "#F97316" : "#04B475" }}>
+                          <td className="px-4 py-2 text-right text-[#1a1a1a] dark:text-[#e4e6eb] tabular-nums">{nf(s.anzahl)}</td>
+                          <td className="px-4 py-2 text-right text-[#1a1a1a] dark:text-[#e4e6eb] tabular-nums">{formatEuroKurz(s.wert)}</td>
+                          <td className="px-4 py-2 text-right font-bold tabular-nums" style={{ color: anteil >= 0.5 ? "#EF4444" : anteil >= 0.2 ? "#F97316" : "#04B475" }}>
                             {nf(s.anzahlLange)}
                           </td>
-                          <td className="px-4 py-2 text-right text-[#65676b] dark:text-[#b0b3b8]">{nf(s.avgTageInStufe)}</td>
+                          <td className="px-4 py-2 text-right font-bold tabular-nums text-[#EF4444]">{formatEuroKurz(s.wertStau)}</td>
+                          <td className="px-4 py-2 text-right text-[#65676b] dark:text-[#b0b3b8] tabular-nums">{nf(s.avgTageInStufe)}</td>
                         </tr>
                       );
                     })}

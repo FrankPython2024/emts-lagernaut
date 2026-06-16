@@ -55,13 +55,14 @@ function Kennzahl({ label, value, sub, akzent, valueCls }: { label: string; valu
 // Horizontales Balkendiagramm (Label-Achse links, Wert beschriftet).
 // onSelect (optional) macht die Balken anklickbar (→ Drilldown).
 function BalkenChart({
-  data, dataKey, labelKey, einfarbig, onSelect,
+  data, dataKey, labelKey, einfarbig, onSelect, wertKey,
 }: {
   data:      Record<string, unknown>[];
   dataKey:   string;
   labelKey:  string;
   einfarbig?: string;
   onSelect?: (label: string) => void;
+  wertKey?:  string; // wenn gesetzt: zusätzlich der Wert (EUR, kurz) neben der Anzahl
 }) {
   const hoehe = Math.max(120, data.length * 34 + 20);
   return (
@@ -69,7 +70,7 @@ function BalkenChart({
       <BarChart
         data={data}
         layout="vertical"
-        margin={{ top: 4, right: 48, left: 8, bottom: 4 }}
+        margin={{ top: 4, right: wertKey ? 150 : 48, left: 8, bottom: 4 }}
         onClick={onSelect ? (state: { activeLabel?: string | number }) => {
           if (state?.activeLabel != null) onSelect(String(state.activeLabel));
         } : undefined}
@@ -91,7 +92,30 @@ function BalkenChart({
           {data.map((d, i) => (
             <Cell key={i} fill={einfarbig ?? (AGING_FARBE[String(d[labelKey])] ?? AFB[i % AFB.length])} />
           ))}
-          <LabelList dataKey={dataKey} position="right" formatter={(v) => nf(Number(v))} style={{ fontSize: 11, fill: "currentColor" }} />
+          {wertKey ? (
+            <LabelList
+              position="right"
+              content={(props) => {
+                const { x = 0, y = 0, width = 0, height = 0, index = 0 } =
+                  props as { x?: number; y?: number; width?: number; height?: number; index?: number };
+                const row = data[index];
+                if (!row) return null;
+                return (
+                  <text
+                    x={Number(x) + Number(width) + 6}
+                    y={Number(y) + Number(height) / 2}
+                    dy={4}
+                    style={{ fontSize: 11, fontVariantNumeric: "tabular-nums" }}
+                    fill="currentColor"
+                  >
+                    {nf(Number(row[dataKey]))} · {formatEuroKurz(Number(row[wertKey]))}
+                  </text>
+                );
+              }}
+            />
+          ) : (
+            <LabelList dataKey={dataKey} position="right" formatter={(v) => nf(Number(v))} style={{ fontSize: 11, fill: "currentColor" }} />
+          )}
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -129,12 +153,11 @@ export default function GeraeteReiseDashboardPage() {
       {data && (
         <>
           {/* Kennzahl-Karten */}
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <Kennzahl label="Geräte gesamt"   value={nf(data.kennzahlen.gesamt)} />
             <Kennzahl label="Gesamtwert Bestand" value={formatEuroKurz(data.kennzahlen.gesamtwert)} sub="Summe Einkaufswert" akzent="#04B475" valueCls="text-lg sm:text-xl tabular-nums" />
             <Kennzahl label="Ø Verweildauer"  value={nf(data.kennzahlen.avgVerweildauer)} sub="Tage" akzent="#202F61" />
             <Kennzahl label="ohne Verbleib"   value={nf(data.kennzahlen.ohneVerbleib)} akzent="#F59E0B" />
-            <Kennzahl label="blockiert"       value={nf(data.kennzahlen.blockiert)} akzent="#EF4444" />
             <Kennzahl label="Ladenhüter"      value={nf(data.kennzahlen.ladenhueter)} sub=">365 Tage" akzent="#F97316" />
           </div>
 
@@ -142,7 +165,7 @@ export default function GeraeteReiseDashboardPage() {
           <div className={`${cardCls} overflow-hidden`}>
             <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042]">
               <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Verbleib-Verteilung</h2>
-              <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">Balken anklicken für Geräteliste</p>
+              <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">Anzahl · Einkaufswert je Stufe · Balken anklicken für Geräteliste</p>
             </div>
             <div className="p-4 text-[#1a1a1a] dark:text-[#e4e6eb]">
               {data.verbleibVerteilung.length === 0 ? (
@@ -153,6 +176,7 @@ export default function GeraeteReiseDashboardPage() {
                   dataKey="anzahl"
                   labelKey="verbleib"
                   einfarbig="#008BD2"
+                  wertKey="wert"
                   onSelect={(v) => router.push(
                     v === "ohne Verbleib"
                       ? "/admin/geraete-reise/liste?ohneVerbleib=1"

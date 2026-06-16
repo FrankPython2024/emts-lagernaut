@@ -67,7 +67,6 @@ export const geraeteReiseRouter = createTRPCRouter({
     const [
       gesamt,
       ohneVerbleib,
-      blockiert,
       ladenhueter,
       avgAgg,
       wertAgg,
@@ -80,12 +79,12 @@ export const geraeteReiseRouter = createTRPCRouter({
     ] = await Promise.all([
       prisma.logIdStand.count({ where: { ausgeschieden: false } }),
       prisma.logIdStand.count({ where: { AND: [{ ausgeschieden: false }, { OR: [{ verbleib: null }, { verbleib: "" }] }] } }),
-      prisma.logIdStand.count({ where: { ausgeschieden: false, blockiert: true } }),
       prisma.logIdStand.count({ where: { ausgeschieden: false, verweildauerTage: { gt: LADENHUETER_TAGE } } }),
       prisma.logIdStand.aggregate({ _avg: { verweildauerTage: true }, where: { ausgeschieden: false } }),
       // Gesamter Einkaufswert des Bestands (ausgeschieden=false, leere ek = 0).
       prisma.logIdStand.aggregate({ _sum: { ek: true }, where: { ausgeschieden: false } }),
-      prisma.logIdStand.groupBy({ by: ["verbleib"],    _count: { _all: true }, where: { ausgeschieden: false } }),
+      // Verbleib-Verteilung inkl. Wertsumme (ek) je Stufe.
+      prisma.logIdStand.groupBy({ by: ["verbleib"],    _count: { _all: true }, _sum: { ek: true }, where: { ausgeschieden: false } }),
       prisma.logIdStand.groupBy({ by: ["geraeteart"],  _count: { _all: true }, where: { ausgeschieden: false } }),
       prisma.logIdStand.groupBy({ by: ["lager"],       _count: { _all: true }, where: { ausgeschieden: false } }),
       prisma.$queryRaw<Array<{ bucket: string; anzahl: bigint }>>`
@@ -135,9 +134,18 @@ export const geraeteReiseRouter = createTRPCRouter({
       return limit ? arr.slice(0, limit) : arr;
     }
 
-    const verbleibVerteilung = verdichte(
-      verbleibRaw, (r: { verbleib: string | null }) => r.verbleib, "ohne Verbleib",
-    ).map(({ label, anzahl }) => ({ verbleib: label, anzahl }));
+    // Verbleib: Anzahl UND Wertsumme (ek) je Stufe verdichten (null/leer → "ohne Verbleib").
+    const verbleibMap = new Map<string, { anzahl: number; wert: number }>();
+    for (const r of verbleibRaw) {
+      const label = r.verbleib && r.verbleib.trim() !== "" ? r.verbleib : "ohne Verbleib";
+      const e = verbleibMap.get(label) ?? { anzahl: 0, wert: 0 };
+      e.anzahl += r._count._all;
+      e.wert   += ekZahl(r._sum.ek);
+      verbleibMap.set(label, e);
+    }
+    const verbleibVerteilung = [...verbleibMap.entries()]
+      .map(([verbleib, v]) => ({ verbleib, anzahl: v.anzahl, wert: v.wert }))
+      .sort((a, b) => b.anzahl - a.anzahl);
 
     const geraeteartVerteilung = verdichte(
       geraeteartRaw, (r: { geraeteart: string | null }) => r.geraeteart, "ohne Angabe", 12,
@@ -156,7 +164,6 @@ export const geraeteReiseRouter = createTRPCRouter({
       kennzahlen: {
         gesamt,
         ohneVerbleib,
-        blockiert,
         ladenhueter,
         avgVerweildauer: Math.round(avgAgg._avg.verweildauerTage ?? 0),
         gesamtwert: ekZahl(wertAgg._sum.ek),
@@ -200,6 +207,7 @@ export const geraeteReiseRouter = createTRPCRouter({
       ohneBewegungListe,
       stauRaw,
       stellplatzRaw,
+      gebundenerWertStauAgg,
     ] = await Promise.all([
       // Älteste Geräte (höchste Verweildauer)
       prisma.logIdStand.findMany({
@@ -228,14 +236,17 @@ export const geraeteReiseRouter = createTRPCRouter({
         ORDER BY s.verweildauerTage DESC
         LIMIT 20`,
 
-      // Stau je Verbleib-Stufe: gesamt, „hängt > Schwelle", Ø Tage in der Stufe.
+      // Stau je Verbleib-Stufe: gesamt, „hängt > Schwelle", Ø Tage in der Stufe,
+      // Wertsumme (ek) gesamt + Wertsumme der Langlieger (Verweildauer > Schwelle).
       // null/leer wird in der DB zu '' verdichtet (→ „ohne Verbleib" im Client).
-      prisma.$queryRaw<Array<{ verbleib: string; anzahl: bigint; anzahlLange: bigint; avgTage: number | string | null }>>`
+      prisma.$queryRaw<Array<{ verbleib: string; anzahl: bigint; anzahlLange: bigint; avgTage: number | string | null; wert: number | string | null; wertStau: number | string | null }>>`
         SELECT
           COALESCE(NULLIF(verbleib, ''), '') AS verbleib,
           COUNT(*) AS anzahl,
           SUM(CASE WHEN inVerbleibSeit IS NOT NULL AND inVerbleibSeit < ${stauCutoff} THEN 1 ELSE 0 END) AS anzahlLange,
-          ROUND(AVG(CASE WHEN inVerbleibSeit IS NOT NULL THEN DATEDIFF(NOW(), inVerbleibSeit) END)) AS avgTage
+          ROUND(AVG(CASE WHEN inVerbleibSeit IS NOT NULL THEN DATEDIFF(NOW(), inVerbleibSeit) END)) AS avgTage,
+          SUM(ek) AS wert,
+          SUM(CASE WHEN verweildauerTage > ${STAU_SCHWELLE_TAGE} THEN ek ELSE 0 END) AS wertStau
         FROM \`LogIdStand\`
         WHERE ausgeschieden = false
         GROUP BY COALESCE(NULLIF(verbleib, ''), '')
@@ -247,6 +258,12 @@ export const geraeteReiseRouter = createTRPCRouter({
         _count:  { _all: true },
         where:   { AND: [{ ausgeschieden: false }, { stellplatz: { not: null } }, { stellplatz: { not: "" } }] },
       }),
+
+      // Gebundener Wert im Stau: Summe ek aller Langlieger (Verweildauer > Schwelle).
+      prisma.logIdStand.aggregate({
+        _sum:  { ek: true },
+        where: { ausgeschieden: false, verweildauerTage: { gt: STAU_SCHWELLE_TAGE } },
+      }),
     ]);
 
     const stauNachStufe = stauRaw.map((r) => ({
@@ -254,6 +271,8 @@ export const geraeteReiseRouter = createTRPCRouter({
       anzahl:       Number(r.anzahl),
       anzahlLange:  Number(r.anzahlLange),
       avgTageInStufe: r.avgTage == null ? 0 : Math.round(Number(r.avgTage)),
+      wert:         ekZahl(r.wert),
+      wertStau:     ekZahl(r.wertStau),
     }));
 
     const vollsteStellplaetze = stellplatzRaw
@@ -272,6 +291,7 @@ export const geraeteReiseRouter = createTRPCRouter({
       },
       stauNachStufe,
       groessterStau:   stauNachStufe[0] ?? null,
+      gebundenerWertStau: ekZahl(gebundenerWertStauAgg._sum.ek),
       vollsteStellplaetze,
     };
   }),
