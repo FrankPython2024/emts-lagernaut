@@ -6,6 +6,7 @@ import { api } from "@/trpc/react";
 import type { AppRouter } from "@/server/routers";
 import { GeraeteReiseTabs } from "../_tabs";
 import { useGeraetModal } from "../_geraetModal";
+import { useColliModal } from "../_colliModal";
 
 // Geräte-Reise — S5: Drilldown-Liste (Stufe / Stellplatz / ohne Verbleib),
 // paginiert. Reine Auswertung, kein Bestandseffekt.
@@ -44,6 +45,7 @@ export default function GeraeteReiseListePage() {
 function GeraeteListe() {
   const router = useRouter();
   const { oeffneGeraet } = useGeraetModal();
+  const { oeffneColli } = useColliModal();
   const params = useSearchParams();
 
   const verbleib     = params?.get("verbleib")   ?? undefined;
@@ -164,6 +166,7 @@ function GeraeteListe() {
                 <th className="px-4 py-2.5 text-right">Verweildauer</th>
                 <th className="px-4 py-2.5 text-left">Verbleib</th>
                 <th className="px-4 py-2.5 text-left">Stellplatz</th>
+                <th className="px-4 py-2.5 text-left">Colli</th>
                 <th className="px-4 py-2.5 text-left">in Verbleib seit</th>
                 {ausgeschieden && <th className="px-4 py-2.5 text-left">Ausgeschieden am</th>}
               </tr>
@@ -171,7 +174,7 @@ function GeraeteListe() {
             <tbody>
               {data && data.zeilen.length === 0 && (
                 <tr>
-                  <td colSpan={ausgeschieden ? 7 : 6} className="px-4 py-8 text-center text-[#65676b] dark:text-[#b0b3b8]">
+                  <td colSpan={ausgeschieden ? 8 : 7} className="px-4 py-8 text-center text-[#65676b] dark:text-[#b0b3b8]">
                     Keine Geräte für diesen Filter.
                   </td>
                 </tr>
@@ -191,6 +194,19 @@ function GeraeteListe() {
                   </td>
                   <td className="px-4 py-2.5 text-[#65676b] dark:text-[#b0b3b8]">{g.verbleib || "—"}</td>
                   <td className="px-4 py-2.5 text-[#65676b] dark:text-[#b0b3b8]">{g.stellplatz || "—"}</td>
+                  <td className="px-4 py-2.5">
+                    {g.colli ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); oeffneColli(g.colli!); }}
+                        className="inline-flex items-center gap-1 font-mono font-bold text-[#0064d2] dark:text-[#45bdff] hover:underline"
+                        title={`Alle Geräte im Colli ${g.colli} anzeigen`}
+                      >
+                        <span aria-hidden>📦</span>{g.colli}
+                      </button>
+                    ) : (
+                      <span className="text-[#65676b] dark:text-[#b0b3b8]">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5 text-[#65676b] dark:text-[#b0b3b8] whitespace-nowrap">{fmtDate(g.inVerbleibSeit)}</td>
                   {ausgeschieden && (
                     <td className="px-4 py-2.5 whitespace-nowrap">

@@ -297,13 +297,30 @@ export const geraeteReiseRouter = createTRPCRouter({
           take:    input.proSeite,
           select:  {
             logId: true, hersteller: true, bezeichnung: true,
-            verweildauerTage: true, verbleib: true, stellplatz: true,
+            verweildauerTage: true, verbleib: true, stellplatz: true, colli: true,
             inVerbleibSeit: true, ausgeschiedenAm: true,
           },
         }),
       ]);
 
       return { gesamt, zeilen };
+    }),
+
+  // Inhalt eines Collis: alle (nicht ausgeschiedenen) Geräte mit exakt dieser
+  // Colli-Nummer. Für das Colli-Detail-Popup (welche Geräte liegen zusammen?).
+  // Reine Auswertung, kein Bestandseffekt.
+  colliInhalt: permissionProcedure("GERAETE_REISE_VIEW")
+    .input(z.object({ colli: z.string().trim().min(1).max(191) }))
+    .query(async ({ input }) => {
+      const geraete = await prisma.logIdStand.findMany({
+        where:   { colli: input.colli, ausgeschieden: false },
+        orderBy: { logId: "asc" },
+        select:  {
+          logId: true, hersteller: true, bezeichnung: true, geraeteart: true,
+          stellplatz: true, verbleib: true, grading: true, aktuellerZustand: true,
+        },
+      });
+      return { colli: input.colli, anzahl: geraete.length, geraete };
     }),
 
   // Detailanalyse einer Geräteart: Kennzahlen + Hersteller-/Verbleib-Verteilung

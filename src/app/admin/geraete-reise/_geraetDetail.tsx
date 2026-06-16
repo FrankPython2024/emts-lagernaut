@@ -1,6 +1,7 @@
 "use client";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/routers";
+import { useColliModal } from "./_colliModal";
 
 // Geräte-Reise — geteilte Detail-Darstellung eines Geräts (Kopf + aktueller
 // Stand + Reise-Timeline). Wird sowohl von der „Gerät verfolgen"-Seite als auch
@@ -57,11 +58,14 @@ type TimelineItem = {
 };
 
 export function GeraetDetailInhalt({ stand, bewegungen }: { stand: StandData; bewegungen: BewegungData }) {
+  const { oeffneColli } = useColliModal();
+
+  // Colli ist eine eigene, klickbare Zeile (öffnet das Colli-Popup) → daher hier
+  // NICHT mehr in der Station-Zusammenfassung mitführen.
   const station = [
     stand.lager      && `${stand.lager}`,
     stand.filiale    && `Filiale ${stand.filiale}`,
     stand.stellplatz && `Platz ${stand.stellplatz}`,
-    stand.colli      && `Colli ${stand.colli}`,
   ].filter(Boolean).join(" · ");
 
   const verbleibText = stand.verbleib
@@ -156,6 +160,18 @@ export function GeraetDetailInhalt({ stand, bewegungen }: { stand: StandData; be
         </div>
         <div className="px-5 py-2">
           <Row label="Station"           value={station || null} />
+          <Row
+            label="Colli"
+            value={stand.colli ? (
+              <button
+                onClick={() => oeffneColli(stand.colli!)}
+                title={`Alle Geräte im Colli ${stand.colli} anzeigen`}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg font-mono font-bold bg-[#e7f0fd] text-[#0064d2] dark:bg-[#11243d] dark:text-[#45bdff] hover:opacity-90 transition-opacity"
+              >
+                <span aria-hidden>📦</span>{stand.colli}
+              </button>
+            ) : null}
+          />
           <Row label="Verbleib"          value={verbleibText} />
           <Row label="Verweildauer"      value={stand.verweildauerTage != null ? `${stand.verweildauerTage} Tage` : null} />
           <Row label="Auf Lager seit"    value={fmtDate(stand.aufLagerGebuchtAm) || null} />
