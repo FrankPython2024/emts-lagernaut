@@ -7,6 +7,14 @@ import { buildGeraeteWhere, stellplatzBereich } from "@/modules/geraete-reise/fi
 // Gating über das Recht GERAETE_REISE_VIEW (Admin via SYSTEM_ADMIN-Wildcard).
 // Reine Auswertung, kein Bestandseffekt.
 
+// Einkaufswert (Prisma.Decimal | null) → plain number. Leer/null → 0 (superjson
+// serialisiert Decimal nicht sinnvoll → hier immer in eine Zahl wandeln). Der
+// Client formatiert per formatEuro.
+function ekZahl(v: unknown): number {
+  if (v == null) return 0;
+  return typeof v === "number" ? v : Number(v);
+}
+
 export const geraeteReiseRouter = createTRPCRouter({
   // Letzte Importe inkl. Status/Zähler/Fortschritt. Wird im Admin-UI gepollt,
   // solange ein Import „läuft".
@@ -46,7 +54,8 @@ export const geraeteReiseRouter = createTRPCRouter({
         orderBy: [{ zeitpunkt: "asc" }, { id: "asc" }],
       });
 
-      return { kind: "found" as const, stand, bewegungen };
+      // ek als plain number an den Client (leer → 0).
+      return { kind: "found" as const, stand: { ...stand, ek: ekZahl(stand.ek) }, bewegungen };
     }),
 
   // Aggregat-Blick über alle Geräte (= aktueller Snapshot, da LogIdStand je LogID
@@ -61,6 +70,7 @@ export const geraeteReiseRouter = createTRPCRouter({
       blockiert,
       ladenhueter,
       avgAgg,
+      wertAgg,
       verbleibRaw,
       geraeteartRaw,
       lagerRaw,
@@ -73,6 +83,8 @@ export const geraeteReiseRouter = createTRPCRouter({
       prisma.logIdStand.count({ where: { ausgeschieden: false, blockiert: true } }),
       prisma.logIdStand.count({ where: { ausgeschieden: false, verweildauerTage: { gt: LADENHUETER_TAGE } } }),
       prisma.logIdStand.aggregate({ _avg: { verweildauerTage: true }, where: { ausgeschieden: false } }),
+      // Gesamter Einkaufswert des Bestands (ausgeschieden=false, leere ek = 0).
+      prisma.logIdStand.aggregate({ _sum: { ek: true }, where: { ausgeschieden: false } }),
       prisma.logIdStand.groupBy({ by: ["verbleib"],    _count: { _all: true }, where: { ausgeschieden: false } }),
       prisma.logIdStand.groupBy({ by: ["geraeteart"],  _count: { _all: true }, where: { ausgeschieden: false } }),
       prisma.logIdStand.groupBy({ by: ["lager"],       _count: { _all: true }, where: { ausgeschieden: false } }),
@@ -147,6 +159,7 @@ export const geraeteReiseRouter = createTRPCRouter({
         blockiert,
         ladenhueter,
         avgVerweildauer: Math.round(avgAgg._avg.verweildauerTage ?? 0),
+        gesamtwert: ekZahl(wertAgg._sum.ek),
       },
       verbleibVerteilung,
       geraeteartVerteilung,
@@ -289,7 +302,7 @@ export const geraeteReiseRouter = createTRPCRouter({
       // Zentraler where-Builder (identisch zum Export-Endpoint).
       const where = buildGeraeteWhere(input);
 
-      const [gesamt, zeilen] = await Promise.all([
+      const [gesamt, rohZeilen, wertAgg] = await Promise.all([
         prisma.logIdStand.count({ where }),
         prisma.logIdStand.findMany({
           where,
@@ -299,12 +312,15 @@ export const geraeteReiseRouter = createTRPCRouter({
           select:  {
             logId: true, hersteller: true, bezeichnung: true,
             verweildauerTage: true, verbleib: true, stellplatz: true, colli: true,
-            inVerbleibSeit: true, ausgeschiedenAm: true,
+            inVerbleibSeit: true, ausgeschiedenAm: true, ek: true,
           },
         }),
+        // Wertsumme über die GESAMTE Treffermenge (nicht nur die aktuelle Seite).
+        prisma.logIdStand.aggregate({ _sum: { ek: true }, where }),
       ]);
 
-      return { gesamt, zeilen };
+      const zeilen = rohZeilen.map((z) => ({ ...z, ek: ekZahl(z.ek) }));
+      return { gesamt, zeilen, wertSumme: ekZahl(wertAgg._sum.ek) };
     }),
 
   // Inhalt eines Collis: alle (nicht ausgeschiedenen) Geräte mit exakt dieser
@@ -313,15 +329,25 @@ export const geraeteReiseRouter = createTRPCRouter({
   colliInhalt: permissionProcedure("GERAETE_REISE_VIEW")
     .input(z.object({ colli: z.string().trim().min(1).max(191) }))
     .query(async ({ input }) => {
-      const geraete = await prisma.logIdStand.findMany({
-        where:   { colli: input.colli, ausgeschieden: false },
-        orderBy: { logId: "asc" },
-        select:  {
-          logId: true, hersteller: true, bezeichnung: true, geraeteart: true,
-          stellplatz: true, verbleib: true, grading: true, aktuellerZustand: true,
-        },
-      });
-      return { colli: input.colli, anzahl: geraete.length, geraete };
+      const where = { colli: input.colli, ausgeschieden: false };
+      const [rohGeraete, wertAgg] = await Promise.all([
+        prisma.logIdStand.findMany({
+          where,
+          orderBy: { logId: "asc" },
+          select:  {
+            logId: true, hersteller: true, bezeichnung: true, geraeteart: true,
+            stellplatz: true, verbleib: true, grading: true, aktuellerZustand: true, ek: true,
+          },
+        }),
+        prisma.logIdStand.aggregate({ _sum: { ek: true }, where }),
+      ]);
+      const geraete = rohGeraete.map((g) => ({ ...g, ek: ekZahl(g.ek) }));
+      return {
+        colli:      input.colli,
+        anzahl:     geraete.length,
+        wertGesamt: ekZahl(wertAgg._sum.ek),
+        geraete,
+      };
     }),
 
   // Detailanalyse einer Geräteart: Kennzahlen + Hersteller-/Verbleib-Verteilung
@@ -519,19 +545,22 @@ export const geraeteReiseRouter = createTRPCRouter({
       const rows = await prisma.logIdStand.groupBy({
         by:     ["stellplatz"],
         _count: { _all: true },
+        _sum:   { ek: true },
         where:  { AND: [where, { stellplatz: { not: null } }, { stellplatz: { not: "" } }] },
       });
 
-      const map = new Map<string, { bereich: string; anzahl: number; stellplaetze: { stellplatz: string; anzahl: number }[] }>();
+      const map = new Map<string, { bereich: string; anzahl: number; wert: number; stellplaetze: { stellplatz: string; anzahl: number; wert: number }[] }>();
       for (const r of rows) {
         const sp = r.stellplatz;
         if (!sp) continue;
         const n = r._count._all;
+        const w = ekZahl(r._sum.ek);
         const b = stellplatzBereich(sp);
         let e = map.get(b);
-        if (!e) { e = { bereich: b, anzahl: 0, stellplaetze: [] }; map.set(b, e); }
+        if (!e) { e = { bereich: b, anzahl: 0, wert: 0, stellplaetze: [] }; map.set(b, e); }
         e.anzahl += n;
-        e.stellplaetze.push({ stellplatz: sp, anzahl: n });
+        e.wert   += w;
+        e.stellplaetze.push({ stellplatz: sp, anzahl: n, wert: w });
       }
       const bereiche = [...map.values()].sort((a, b) => b.anzahl - a.anzahl || a.bereich.localeCompare(b.bereich, "de", { numeric: true }));
       for (const e of bereiche) {

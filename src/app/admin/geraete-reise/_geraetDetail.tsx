@@ -2,6 +2,7 @@
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/routers";
 import { useColliModal } from "./_colliModal";
+import { formatEuro } from "./_format";
 
 // Geräte-Reise — geteilte Detail-Darstellung eines Geräts (Kopf + aktueller
 // Stand + Reise-Timeline). Wird sowohl von der „Gerät verfolgen"-Seite als auch
@@ -174,6 +175,7 @@ export function GeraetDetailInhalt({ stand, bewegungen }: { stand: StandData; be
           />
           <Row label="Verbleib"          value={verbleibText} />
           <Row label="Verweildauer"      value={stand.verweildauerTage != null ? `${stand.verweildauerTage} Tage` : null} />
+          <Row label="Einkaufswert"      value={<span className="font-bold">{formatEuro(stand.ek)}</span>} />
           <Row label="Auf Lager seit"    value={fmtDate(stand.aufLagerGebuchtAm) || null} />
           <Row label="Grading"           value={gradingText} />
           <Row label="Aktueller Zustand" value={stand.aktuellerZustand} />

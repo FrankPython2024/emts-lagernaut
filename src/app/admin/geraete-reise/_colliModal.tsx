@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "@/trpc/react";
 import { useGeraetModal, nextModalZ } from "./_geraetModal";
+import { formatEuro } from "./_format";
 
 // Geräte-Reise — Colli-Detail-Popup. Zeigt alle Geräte, die im selben Colli
 // liegen. Öffnet sich als Overlay (genau wie das LogID-Popup) und liegt modulweit
@@ -86,7 +87,9 @@ function ColliModal({ colli, onClose }: { colli: string; onClose: () => void }) 
               <span aria-hidden>📦</span> Colli {colli}
             </h2>
             <p className="text-sm text-white/80 mt-0.5">
-              {isFetching ? "Lädt…" : `${anzahl} ${anzahl === 1 ? "Gerät" : "Geräte"} in diesem Colli`}
+              {isFetching
+                ? "Lädt…"
+                : `${anzahl} ${anzahl === 1 ? "Gerät" : "Geräte"} · Wert gesamt: ${formatEuro(data?.wertGesamt)}`}
             </p>
           </div>
           <button
@@ -147,6 +150,7 @@ function ColliModal({ colli, onClose }: { colli: string; onClose: () => void }) 
                       </span>
                       <div className="flex items-center gap-x-4 gap-y-0.5 flex-wrap text-xs text-[#65676b] dark:text-[#b0b3b8]">
                         <span>🗄️ Stellplatz: {g.stellplatz || "—"}</span>
+                        <span>💶 Einkaufswert: {formatEuro(g.ek)}</span>
                         {g.grading && <span>⭐ Grading: {g.grading}</span>}
                         {g.aktuellerZustand && <span>🔧 {g.aktuellerZustand}</span>}
                       </div>

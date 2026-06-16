@@ -8,6 +8,7 @@ import { parseStellplatzSuche } from "@/modules/geraete-reise/filter";
 import { GeraeteReiseTabs } from "../_tabs";
 import { useGeraetModal } from "../_geraetModal";
 import { useColliModal } from "../_colliModal";
+import { formatEuro } from "../_format";
 
 // Geräte-Reise — Stellplatz Analyse: intelligentes Freitextfeld (versteht auch
 // „Lagernummer-Stellplatz"), Bereich-Chips, Stellplatz-Warenkorb (Mehrfach-
@@ -111,6 +112,7 @@ export default function StellplatzAnalysePage() {
   );
 
   const gesamt   = listeQ.data?.gesamt ?? 0;
+  const wert     = listeQ.data?.wertSumme ?? 0;
   const von      = gesamt === 0 ? 0 : (seite - 1) * PRO_SEITE + 1;
   const bis      = Math.min(seite * PRO_SEITE, gesamt);
   const maxSeite = Math.max(1, Math.ceil(gesamt / PRO_SEITE));
@@ -334,6 +336,9 @@ export default function StellplatzAnalysePage() {
           <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042] flex items-center justify-between gap-3 flex-wrap">
             <h2 className="font-black text-[#1a1a1a] dark:text-[#e4e6eb]">
               {scopeLabel} <span style={{ color: BLAU }}>— {nf(gesamt)} Geräte</span>
+              <span className="block text-sm font-bold mt-0.5" style={{ color: GRUEN }}>
+                💶 Wert der Auswahl: {formatEuro(wert)}
+              </span>
             </h2>
             <div className="flex items-center gap-2">
               <button

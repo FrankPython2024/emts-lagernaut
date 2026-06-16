@@ -5,6 +5,7 @@ import { api } from "@/trpc/react";
 import { GeraeteReiseTabs } from "../_tabs";
 import { useGeraetModal } from "../_geraetModal";
 import { useColliModal } from "../_colliModal";
+import { formatEuro } from "../_format";
 
 // Geräte-Reise — S3: Aggregat-Dashboard über alle Geräte (Stand letzter Import).
 // Reine Auswertung, kein Bestandseffekt.
@@ -128,8 +129,9 @@ export default function GeraeteReiseDashboardPage() {
       {data && (
         <>
           {/* Kennzahl-Karten */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
             <Kennzahl label="Geräte gesamt"   value={nf(data.kennzahlen.gesamt)} />
+            <Kennzahl label="Gesamtwert Bestand" value={formatEuro(data.kennzahlen.gesamtwert)} sub="Summe Einkaufswert" akzent="#04B475" />
             <Kennzahl label="Ø Verweildauer"  value={nf(data.kennzahlen.avgVerweildauer)} sub="Tage" akzent="#202F61" />
             <Kennzahl label="ohne Verbleib"   value={nf(data.kennzahlen.ohneVerbleib)} akzent="#F59E0B" />
             <Kennzahl label="blockiert"       value={nf(data.kennzahlen.blockiert)} akzent="#EF4444" />
