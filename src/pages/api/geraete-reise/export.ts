@@ -17,7 +17,7 @@ import type { SessionUser } from "@/core/types";
 
 const SPALTEN = [
   "LogID", "Hersteller", "Bezeichnung", "Geräteart", "Verweildauer (Tage)",
-  "Verbleib", "Stellplatz", "Lager", "In Verbleib seit", "In Verbleib durch",
+  "Verbleib", "Stellplatz", "Colli", "Lager", "In Verbleib seit", "In Verbleib durch",
   "Grading", "Aktueller Zustand",
 ] as const;
 
@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     orderBy: { verweildauerTage: "desc" },
     select: {
       logId: true, hersteller: true, bezeichnung: true, geraeteart: true,
-      verweildauerTage: true, verbleib: true, stellplatz: true, lager: true,
+      verweildauerTage: true, verbleib: true, stellplatz: true, colli: true, lager: true,
       inVerbleibSeit: true, inVerbleibDurch: true, grading: true, aktuellerZustand: true,
     },
   });
@@ -70,6 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     r.verweildauerTage ?? "",
     r.verbleib ?? "",
     r.stellplatz ?? "",
+    r.colli ?? "",
     r.lager ?? "",
     fmtDatum(r.inVerbleibSeit),
     r.inVerbleibDurch ?? "",
