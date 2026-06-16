@@ -94,7 +94,7 @@ export const geraeteReiseRouter = createTRPCRouter({
         take:    20,
         select:  {
           logId: true, hersteller: true, bezeichnung: true,
-          verweildauerTage: true, verbleib: true, stellplatz: true,
+          verweildauerTage: true, verbleib: true, stellplatz: true, colli: true,
         },
       }),
       prisma.logIdImport.findFirst({
@@ -168,7 +168,7 @@ export const geraeteReiseRouter = createTRPCRouter({
     // Auswahl-Felder für die Geräte-Listen (für $queryRaw + Prisma identisch).
     const listSelect = {
       logId: true, hersteller: true, bezeichnung: true,
-      verweildauerTage: true, verbleib: true, stellplatz: true,
+      verweildauerTage: true, verbleib: true, stellplatz: true, colli: true,
     } as const;
 
     type GeraetZeile = {
@@ -178,6 +178,7 @@ export const geraeteReiseRouter = createTRPCRouter({
       verweildauerTage: number | null;
       verbleib:         string | null;
       stellplatz:       string | null;
+      colli:            string | null;
     };
 
     const [
@@ -205,7 +206,7 @@ export const geraeteReiseRouter = createTRPCRouter({
 
       // Die 20 ältesten ohne jede Bewegung (die aussagekräftige Liste)
       prisma.$queryRaw<GeraetZeile[]>`
-        SELECT s.logId, s.hersteller, s.bezeichnung, s.verweildauerTage, s.verbleib, s.stellplatz
+        SELECT s.logId, s.hersteller, s.bezeichnung, s.verweildauerTage, s.verbleib, s.stellplatz, s.colli
         FROM \`LogIdStand\` s
         WHERE s.ausgeschieden = false AND NOT EXISTS (
           SELECT 1 FROM \`LogIdBewegung\` b WHERE b.logId = s.logId
@@ -575,7 +576,7 @@ export const geraeteReiseRouter = createTRPCRouter({
         take:    100,
         select:  {
           logId: true, hersteller: true, bezeichnung: true,
-          stellplatz: true, verbleib: true, ausgeschiedenAm: true,
+          stellplatz: true, colli: true, verbleib: true, ausgeschiedenAm: true,
         },
       }),
     ]);

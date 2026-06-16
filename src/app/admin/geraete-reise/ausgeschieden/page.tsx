@@ -5,6 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelL
 import { api } from "@/trpc/react";
 import { GeraeteReiseTabs } from "../_tabs";
 import { useGeraetModal } from "../_geraetModal";
+import { useColliModal } from "../_colliModal";
 
 // Geräte-Reise — S8: Ausgeschiedene Geräte (haben das System verlassen).
 // Reine Auswertung, kein Bestandseffekt.
@@ -69,6 +70,7 @@ function BalkenChart({
 export default function AusgeschiedenePage() {
   const router = useRouter();
   const { oeffneGeraet } = useGeraetModal();
+  const { oeffneColli } = useColliModal();
   const { data, isLoading, error } = api.geraeteReise.ausgeschiedeneUebersicht.useQuery(undefined, { staleTime: 60_000 });
 
   const BASIS = "/admin/geraete-reise/liste?ausgeschieden=1";
@@ -170,6 +172,7 @@ export default function AusgeschiedenePage() {
                       <th className="px-4 py-2.5 text-left">LogID</th>
                       <th className="px-4 py-2.5 text-left">Hersteller / Bezeichnung</th>
                       <th className="px-4 py-2.5 text-left">Letzter Stellplatz</th>
+                      <th className="px-4 py-2.5 text-left">Colli</th>
                       <th className="px-4 py-2.5 text-left">Letzter Verbleib</th>
                       <th className="px-4 py-2.5 text-left">Ausgeschieden am</th>
                     </tr>
@@ -186,6 +189,19 @@ export default function AusgeschiedenePage() {
                           <span className="block truncate max-w-[280px]">{[g.hersteller, g.bezeichnung].filter(Boolean).join(" ") || "—"}</span>
                         </td>
                         <td className="px-4 py-2.5 text-[#65676b] dark:text-[#b0b3b8]">{g.stellplatz || "—"}</td>
+                        <td className="px-4 py-2.5">
+                          {g.colli ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); oeffneColli(g.colli!); }}
+                              className="inline-flex items-center gap-1 font-mono font-bold text-[#0064d2] dark:text-[#45bdff] hover:underline"
+                              title={`Alle Geräte im Colli ${g.colli} anzeigen`}
+                            >
+                              <span aria-hidden>📦</span>{g.colli}
+                            </button>
+                          ) : (
+                            <span className="text-[#65676b] dark:text-[#b0b3b8]">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-2.5 text-[#65676b] dark:text-[#b0b3b8]">{g.verbleib || "—"}</td>
                         <td className="px-4 py-2.5 text-[#65676b] dark:text-[#b0b3b8] whitespace-nowrap">{fmtDateTime(g.ausgeschiedenAm)}</td>
                       </tr>

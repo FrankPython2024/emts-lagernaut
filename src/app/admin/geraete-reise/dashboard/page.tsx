@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelL
 import { api } from "@/trpc/react";
 import { GeraeteReiseTabs } from "../_tabs";
 import { useGeraetModal } from "../_geraetModal";
+import { useColliModal } from "../_colliModal";
 
 // Geräte-Reise — S3: Aggregat-Dashboard über alle Geräte (Stand letzter Import).
 // Reine Auswertung, kein Bestandseffekt.
@@ -99,6 +100,7 @@ function BalkenChart({
 export default function GeraeteReiseDashboardPage() {
   const router = useRouter();
   const { oeffneGeraet } = useGeraetModal();
+  const { oeffneColli } = useColliModal();
   const { data, isLoading, error } = api.geraeteReise.dashboard.useQuery(undefined, { staleTime: 60_000 });
 
   return (
@@ -191,12 +193,11 @@ export default function GeraeteReiseDashboardPage() {
               ) : (
                 <div className="divide-y divide-[#ced4da] dark:divide-[#3e4042] max-h-[420px] overflow-y-auto">
                   {data.topLadenhueter.map((g) => (
-                    <button
+                    <div
                       key={g.logId}
-                      onClick={() => oeffneGeraet(g.logId)}
-                      className="w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
+                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
                     >
-                      <div className="min-w-0">
+                      <button onClick={() => oeffneGeraet(g.logId)} className="flex-1 min-w-0 text-left">
                         <div className="font-mono font-bold text-sm text-[#0064d2] dark:text-[#45bdff]">{g.logId}</div>
                         <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] truncate">
                           {[g.hersteller, g.bezeichnung].filter(Boolean).join(" ") || "—"}
@@ -204,12 +205,21 @@ export default function GeraeteReiseDashboardPage() {
                         <div className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
                           {g.verbleib || "ohne Verbleib"}{g.stellplatz ? ` · Platz ${g.stellplatz}` : ""}
                         </div>
-                      </div>
+                      </button>
+                      {g.colli && (
+                        <button
+                          onClick={() => oeffneColli(g.colli!)}
+                          className="inline-flex items-center gap-1 flex-shrink-0 font-mono font-bold text-sm text-[#0064d2] dark:text-[#45bdff] hover:underline"
+                          title={`Alle Geräte im Colli ${g.colli} anzeigen`}
+                        >
+                          <span aria-hidden>📦</span>{g.colli}
+                        </button>
+                      )}
                       <div className="text-right flex-shrink-0">
                         <div className="font-black text-[#F97316]">{nf(g.verweildauerTage ?? 0)}</div>
                         <div className="text-[11px] text-[#65676b] dark:text-[#b0b3b8]">Tage</div>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}

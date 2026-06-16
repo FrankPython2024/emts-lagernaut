@@ -7,6 +7,7 @@ import type { AppRouter } from "@/server/routers";
 import { parseStellplatzSuche } from "@/modules/geraete-reise/filter";
 import { GeraeteReiseTabs } from "../_tabs";
 import { useGeraetModal } from "../_geraetModal";
+import { useColliModal } from "../_colliModal";
 
 // Geräte-Reise — Stellplatz Analyse: intelligentes Freitextfeld (versteht auch
 // „Lagernummer-Stellplatz"), Bereich-Chips, Stellplatz-Warenkorb (Mehrfach-
@@ -57,6 +58,7 @@ function Chip({
 
 export default function StellplatzAnalysePage() {
   const { oeffneGeraet } = useGeraetModal();
+  const { oeffneColli } = useColliModal();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [input, setInput]           = useState("");
@@ -359,13 +361,14 @@ export default function StellplatzAnalysePage() {
                   <th className="px-4 py-2.5 text-left">LogID</th>
                   <th className="px-4 py-2.5 text-left">Hersteller / Bezeichnung</th>
                   <th className="px-4 py-2.5 text-left">Stellplatz</th>
+                  <th className="px-4 py-2.5 text-left">Colli</th>
                   <th className="px-4 py-2.5 text-left">Verbleib</th>
                   <th className="px-4 py-2.5 text-right">Verweildauer</th>
                 </tr>
               </thead>
               <tbody>
                 {listeQ.data && listeQ.data.zeilen.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-[#65676b] dark:text-[#b0b3b8]">Keine Geräte hier.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-[#65676b] dark:text-[#b0b3b8]">Keine Geräte hier.</td></tr>
                 )}
                 {listeQ.data?.zeilen.map((g: Zeile) => (
                   <tr
@@ -379,6 +382,19 @@ export default function StellplatzAnalysePage() {
                       <span className="block truncate max-w-[280px]">{[g.hersteller, g.bezeichnung].filter(Boolean).join(" ") || "—"}</span>
                     </td>
                     <td className="px-4 py-3 text-[#65676b] dark:text-[#b0b3b8]">{g.stellplatz || "—"}</td>
+                    <td className="px-4 py-3">
+                      {g.colli ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); oeffneColli(g.colli!); }}
+                          className="inline-flex items-center gap-1 font-mono font-bold text-[#008BD2] dark:text-[#45bdff] hover:underline"
+                          title={`Alle Geräte im Colli ${g.colli} anzeigen`}
+                        >
+                          <span aria-hidden>📦</span>{g.colli}
+                        </button>
+                      ) : (
+                        <span className="text-[#65676b] dark:text-[#b0b3b8]">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-[#65676b] dark:text-[#b0b3b8]">{g.verbleib || "—"}</td>
                     <td className="px-4 py-3 text-right font-bold whitespace-nowrap" style={{ color: GRUEN }}>
                       {g.verweildauerTage != null ? `${nf(g.verweildauerTage)} T` : "—"}
