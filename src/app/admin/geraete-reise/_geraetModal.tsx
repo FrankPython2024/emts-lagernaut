@@ -8,7 +8,15 @@ import { GeraetDetailInhalt, FehlteilKarte } from "./_geraetDetail";
 // eines Geräts als Overlay über der aktuellen Ansicht. Modulweit per Hook
 // nutzbar (Provider liegt im geraete-reise-Layout). Reine Auswertung.
 
-type Ctx = { oeffneGeraet: (q: string) => void };
+// Der Provider liefert NUR Kontext/State (öffnen/schließen). Das Overlay wird
+// separat (GeraetModalOverlay) gerendert — und zwar am innersten Punkt, innerhalb
+// BEIDER Provider, damit es auch auf useColliModal zugreifen kann (klickbarer
+// Colli im Detail) ohne zirkuläre Provider-Schachtelung.
+type Ctx = {
+  oeffneGeraet: (q: string) => void;
+  aktuell:      string | null;
+  schliessen:   () => void;
+};
 const GeraetModalContext = createContext<Ctx | null>(null);
 
 export function useGeraetModal(): Ctx {
@@ -17,24 +25,39 @@ export function useGeraetModal(): Ctx {
   return c;
 }
 
+// Gemeinsamer z-Index-Zähler für die stapelbaren Overlays (LogID + Colli). Jedes
+// Overlay holt sich beim Öffnen den nächsten Wert → das zuletzt geöffnete liegt
+// immer oben, egal in welcher Reihenfolge sie sich gegenseitig öffnen.
+let modalZCounter = 60;
+export function nextModalZ(): number { return ++modalZCounter; }
+
 export function GeraetModalProvider({ children }: { children: React.ReactNode }) {
   const [q, setQ] = useState<string | null>(null);
   const oeffneGeraet = useCallback((wert: string) => {
     const t = wert.trim();
     if (t) setQ(t);
   }, []);
+  const schliessen = useCallback(() => setQ(null), []);
 
   return (
-    <GeraetModalContext.Provider value={{ oeffneGeraet }}>
+    <GeraetModalContext.Provider value={{ oeffneGeraet, aktuell: q, schliessen }}>
       {children}
-      {q !== null && <GeraetModal key={q} initialQ={q} onClose={() => setQ(null)} />}
     </GeraetModalContext.Provider>
   );
+}
+
+// Overlay separat rendern (innerhalb beider Provider) — liest seinen State aus
+// dem Kontext.
+export function GeraetModalOverlay() {
+  const { aktuell, schliessen } = useGeraetModal();
+  if (aktuell === null) return null;
+  return <GeraetModal key={aktuell} initialQ={aktuell} onClose={schliessen} />;
 }
 
 function GeraetModal({ initialQ, onClose }: { initialQ: string; onClose: () => void }) {
   // Eigener Such-State, damit eine Seriennummer-Auswahl IM Popup bleibt.
   const [q, setQ] = useState(initialQ);
+  const [z] = useState(nextModalZ); // beim Öffnen: liegt über vorher Geöffnetem
   const aktiv = q.trim().length > 0;
   const query = api.geraeteReise.geraet.useQuery({ query: q }, { enabled: aktiv });
   // Fehlteil-Daten parallel laden (logId-exakt). Fehlteile liegen oft NICHT in
@@ -58,7 +81,8 @@ function GeraetModal({ initialQ, onClose }: { initialQ: string; onClose: () => v
       role="dialog"
       aria-modal="true"
       aria-label="Lagerfuchs"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+      style={{ zIndex: z }}
+      className="fixed inset-0 flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
     >
       <div

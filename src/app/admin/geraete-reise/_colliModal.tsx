@@ -1,14 +1,21 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "@/trpc/react";
-import { useGeraetModal } from "./_geraetModal";
+import { useGeraetModal, nextModalZ } from "./_geraetModal";
 
 // Geräte-Reise — Colli-Detail-Popup. Zeigt alle Geräte, die im selben Colli
 // liegen. Öffnet sich als Overlay (genau wie das LogID-Popup) und liegt modulweit
 // per Hook bereit. Ein Klick auf ein Gerät öffnet zusätzlich das LogID-Detail-
 // Popup (useGeraetModal) darüber. Reine Auswertung, kein Bestandseffekt.
 
-type Ctx = { oeffneColli: (colli: string) => void };
+// Der Provider liefert NUR Kontext/State. Das Overlay wird separat
+// (ColliModalOverlay) am innersten Punkt gerendert — innerhalb beider Provider,
+// damit es auf useGeraetModal zugreifen kann (klickbares Gerät im Colli-Popup).
+type Ctx = {
+  oeffneColli: (colli: string) => void;
+  aktuell:     string | null;
+  schliessen:  () => void;
+};
 const ColliModalContext = createContext<Ctx | null>(null);
 
 export function useColliModal(): Ctx {
@@ -23,17 +30,26 @@ export function ColliModalProvider({ children }: { children: React.ReactNode }) 
     const t = wert.trim();
     if (t) setColli(t);
   }, []);
+  const schliessen = useCallback(() => setColli(null), []);
 
   return (
-    <ColliModalContext.Provider value={{ oeffneColli }}>
+    <ColliModalContext.Provider value={{ oeffneColli, aktuell: colli, schliessen }}>
       {children}
-      {colli !== null && <ColliModal key={colli} colli={colli} onClose={() => setColli(null)} />}
     </ColliModalContext.Provider>
   );
 }
 
+// Overlay separat rendern (innerhalb beider Provider) — liest seinen State aus
+// dem Kontext.
+export function ColliModalOverlay() {
+  const { aktuell, schliessen } = useColliModal();
+  if (aktuell === null) return null;
+  return <ColliModal key={aktuell} colli={aktuell} onClose={schliessen} />;
+}
+
 function ColliModal({ colli, onClose }: { colli: string; onClose: () => void }) {
   const { oeffneGeraet } = useGeraetModal();
+  const [z] = useState(nextModalZ); // beim Öffnen: liegt über vorher Geöffnetem
   const { data, isFetching } = api.geraeteReise.colliInhalt.useQuery(
     { colli },
     { staleTime: 30_000 },
@@ -55,7 +71,8 @@ function ColliModal({ colli, onClose }: { colli: string; onClose: () => void }) 
       role="dialog"
       aria-modal="true"
       aria-label={`Colli ${colli}`}
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+      style={{ zIndex: z }}
+      className="fixed inset-0 flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
     >
       <div
