@@ -196,7 +196,9 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
       </nav>
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
-      <div className="px-3 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 space-y-1">
+      {/* Kompakt: wenig Außen-/Zwischen-Abstand, Bedienelemente bleiben aber bei
+          min-h-[44px] gut antippbar (nur Weißraum reduziert, nicht die Controls). */}
+      <div className="px-3 py-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 space-y-0.5">
 
         {/* Standort-Switcher (nur Admin) */}
         <StandortSwitcher />
@@ -217,7 +219,7 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
         )}
 
         {/* Schriftgröße */}
-        <div className="flex items-center gap-2 px-3 py-1">
+        <div className="flex items-center gap-2 px-3 py-0.5">
           <span className="text-[11px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide flex-1">Schrift</span>
           <FontSizeToggle />
         </div>

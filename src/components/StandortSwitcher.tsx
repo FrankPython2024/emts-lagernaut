@@ -19,8 +19,8 @@ export function StandortSwitcher() {
   const zeigeAlle = user.alleStandorte === true;
 
   return (
-    <div className="px-3 py-2">
-      <label className="block text-[11px] uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-1.5 font-semibold select-none">
+    <div className="px-3 py-1">
+      <label className="block text-[11px] uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-1 font-semibold select-none">
         Standort
       </label>
       <select

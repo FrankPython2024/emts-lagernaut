@@ -5,7 +5,7 @@ import { api } from "@/trpc/react";
 import { GeraeteReiseTabs } from "../_tabs";
 import { useGeraetModal } from "../_geraetModal";
 import { useColliModal } from "../_colliModal";
-import { formatEuro } from "../_format";
+import { formatEuroKurz } from "../_format";
 
 // Geräte-Reise — S3: Aggregat-Dashboard über alle Geräte (Stand letzter Import).
 // Reine Auswertung, kein Bestandseffekt.
@@ -42,10 +42,10 @@ function fmtDateTime(d: Date | string | null): string {
 
 const cardCls = "bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm";
 
-function Kennzahl({ label, value, sub, akzent }: { label: string; value: string; sub?: string; akzent?: string }) {
+function Kennzahl({ label, value, sub, akzent, valueCls }: { label: string; value: string; sub?: string; akzent?: string; valueCls?: string }) {
   return (
     <div className={`${cardCls} p-4`}>
-      <div className="text-2xl sm:text-3xl font-black" style={{ color: akzent ?? "#0064d2" }}>{value}</div>
+      <div className={`font-black break-words leading-tight ${valueCls ?? "text-2xl sm:text-3xl"}`} style={{ color: akzent ?? "#0064d2" }}>{value}</div>
       <div className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mt-1 uppercase tracking-wide">{label}</div>
       {sub && <div className="text-[11px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">{sub}</div>}
     </div>
@@ -105,7 +105,7 @@ export default function GeraeteReiseDashboardPage() {
   const { data, isLoading, error } = api.geraeteReise.dashboard.useQuery(undefined, { staleTime: 60_000 });
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="max-w-[1600px] space-y-6">
       <div>
         <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">🦊 Lagerfuchs</h1>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
@@ -131,7 +131,7 @@ export default function GeraeteReiseDashboardPage() {
           {/* Kennzahl-Karten */}
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
             <Kennzahl label="Geräte gesamt"   value={nf(data.kennzahlen.gesamt)} />
-            <Kennzahl label="Gesamtwert Bestand" value={formatEuro(data.kennzahlen.gesamtwert)} sub="Summe Einkaufswert" akzent="#04B475" />
+            <Kennzahl label="Gesamtwert Bestand" value={formatEuroKurz(data.kennzahlen.gesamtwert)} sub="Summe Einkaufswert" akzent="#04B475" valueCls="text-lg sm:text-xl tabular-nums" />
             <Kennzahl label="Ø Verweildauer"  value={nf(data.kennzahlen.avgVerweildauer)} sub="Tage" akzent="#202F61" />
             <Kennzahl label="ohne Verbleib"   value={nf(data.kennzahlen.ohneVerbleib)} akzent="#F59E0B" />
             <Kennzahl label="blockiert"       value={nf(data.kennzahlen.blockiert)} akzent="#EF4444" />
