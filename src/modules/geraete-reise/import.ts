@@ -22,9 +22,39 @@ import {
   SCHLUESSEL_FELDER,
   type GemappteZeile,
   type GemappteFehlteilZeile,
+  type StandFelder,
 } from "./mapping";
 
 const CHUNK_GROESSE = 1_000;
+
+// ── Typ-sichere Feld-Gleichheit für die Update-Erkennung ────────────────────────
+// Die meisten Felder vergleicht feldGleich generisch. Zwei Felder brauchen eine
+// Normalisierung, damit der ERSTE Import nach der Schema-Änderung jede Zeile genau
+// einmal aktualisiert (null → Wert), danach aber KEIN Dauer-Churn entsteht:
+//   • ek          — DB liefert Prisma.Decimal, CSV ein number → beide auf 2 Nach-
+//                    kommastellen normalisieren; null/leer beidseitig = gleich.
+//   • lagernummer — String-Vergleich mit null/leer-Normalisierung.
+
+// Decimal | number | string | null → number (2 NK) | null.
+function ekAlsZahl(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = typeof v === "number" ? v : parseFloat(String(v));
+  return Number.isNaN(n) ? null : Math.round(n * 100) / 100;
+}
+
+// string | null → getrimmt; null/leer → null.
+function strNorm(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  const t = String(v).trim();
+  return t === "" ? null : t;
+}
+
+// Feldweise Gleichheit für die Stand-Änderungserkennung (kein Bewegungs-Effekt).
+function standFeldGleich(feld: keyof StandFelder, a: unknown, b: unknown): boolean {
+  if (feld === "ek")          return ekAlsZahl(a) === ekAlsZahl(b);
+  if (feld === "lagernummer") return strNorm(a) === strNorm(b);
+  return feldGleich(a, b);
+}
 
 // Schwellen für die Typ-Erkennung (Anteil Zeilen mit Verbleib="Fehlteile").
 const FEHLTEILE_MIN = 0.95; // ab hier sicher Fehlteile
@@ -230,7 +260,7 @@ async function runLagerfuchsImport(tmpPath: string, importId: number, importiert
 
       // Stand-Änderung: sobald irgendein gemapptes Feld abweicht, die komplette
       // Feldgruppe aktualisieren (Stand bleibt vollständig aktuell).
-      const geaendert = STAND_FELDER.some((k) => !feldGleich(ex[k as keyof typeof ex], felder[k]));
+      const geaendert = STAND_FELDER.some((k) => !standFeldGleich(k, ex[k as keyof typeof ex], felder[k]));
       if (geaendert) {
         geaenderteIds.add(logId);
         aenderungen.push({

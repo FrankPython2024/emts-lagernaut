@@ -38,6 +38,7 @@ export type StandFelder = {
   blockiertVon:      string | null;
   blockiertAm:       Date | null;
   salestatus:        string | null;
+  ek:                number | null;
 };
 
 export type GemappteZeile = { logId: string; felder: StandFelder };
@@ -52,7 +53,7 @@ export const STAND_FELDER: (keyof StandFelder)[] = [
   "refurbished", "refurbishDatum",
   "grading", "initialesGrading", "aktuellerZustand",
   "blockiert", "begruendung", "blockiertVon", "blockiertAm",
-  "salestatus",
+  "salestatus", "ek",
 ];
 
 // Schlüsselfelder, deren Änderung als LogIdBewegung festgehalten wird.
@@ -103,6 +104,19 @@ export function parseBool(v: string | undefined): boolean {
   return ["ja", "true", "1", "x", "yes", "y", "wahr"].includes(t.toLowerCase());
 }
 
+// Einkaufswert im deutschen Zahlenformat → number (2 Nachkommastellen) | null.
+// Punkt = Tausendertrenner, Komma = Dezimaltrenner. Float-Artefakte werden durch
+// das Runden geglättet ("1.841,4999999999998" → 1841.50), negative Werte bleiben
+// erhalten ("-19,14" → -19.14). Beispiele: "9,5"→9.5, "1.025"→1025, "734"→734.
+export function parseEk(v: string | undefined): number | null {
+  const t = str(v);
+  if (!t) return null;
+  const normalisiert = t.replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(normalisiert);
+  if (Number.isNaN(n)) return null;
+  return Math.round(n * 100) / 100;
+}
+
 // Default-Längengrenze für Plain-VARCHAR-Spalten in Prisma/MySQL.
 const VARCHAR_MAX = 191;
 
@@ -121,61 +135,75 @@ export function pick(raw: Record<string, string>, header: string): string | unde
   return raw[header] ?? raw[header.trim()];
 }
 
+// Robust gegen verschiedene Export-Formate: probiert mehrere mögliche Header-
+// Namen in Prioritäts-Reihenfolge (NEUER Name zuerst, ALTER als Fallback) und
+// liefert den ersten tatsächlich vorhandenen Spaltenwert. In einer Datei ist
+// jeweils nur ein Format → nur einer der Header existiert.
+export function spalte(raw: Record<string, string>, namen: string[]): string | undefined {
+  for (const n of namen) {
+    const v = pick(raw, n);
+    if (v !== undefined) return v;
+  }
+  return undefined;
+}
+
 // Marker für die Fehlteile-CSV: ALLE Zeilen haben Verbleib = "Fehlteile".
 export const FEHLTEILE_MARKER = "fehlteile";
 
 // LogID einer Rohzeile (getrimmt) — für die Typ-Erkennung / Zeilenzählung.
 export function logIdRoh(raw: Record<string, string>): string {
-  return (pick(raw, "LogID") ?? "").trim();
+  return (spalte(raw, ["LogId", "LogID"]) ?? "").trim();
 }
 
 // True, wenn die Rohzeile als Fehlteil markiert ist (Verbleib == "Fehlteile").
 export function istFehlteilZeile(raw: Record<string, string>): boolean {
-  return (pick(raw, "Verbleib") ?? "").trim().toLowerCase() === FEHLTEILE_MARKER;
+  return (spalte(raw, ["Verbleib"]) ?? "").trim().toLowerCase() === FEHLTEILE_MARKER;
 }
 
 // Übersetzt eine CSV-Zeile in { logId, felder }. logId leer → null (Zeile wird
-// vom Importer übersprungen).
+// vom Importer übersprungen). Jede Spalte wird über eine Prioritätsliste
+// nachgeschlagen (neuer Header-Name zuerst, alter als Fallback).
 export function mappeZeile(raw: Record<string, string>): GemappteZeile | null {
-  const logId = str(pick(raw, "LogID"));
+  const logId = str(spalte(raw, ["LogId", "LogID"]));
   if (!logId) return null;
 
   // "vorheriges Colli" == "0" gilt als „kein vorheriges Colli".
-  const vorherigesColliRoh = strKurz(pick(raw, "vorheriges Colli"));
+  const vorherigesColliRoh = strKurz(spalte(raw, ["vorheriges Colli"]));
   const vorherigesColli = vorherigesColliRoh === "0" ? null : vorherigesColliRoh;
 
   // Plain-VARCHAR(191)-Felder via strKurz (defensiv gekappt). Nur bezeichnung
   // und begruendung sind TEXT-Spalten → str() (volle Länge).
   const felder: StandFelder = {
-    hersteller:        strKurz(pick(raw, "Hersteller")),
-    bezeichnung:       str(pick(raw, "Bezeichnung")),
-    geraeteart:        strKurz(pick(raw, "Geräteart")),
-    unterart:          strKurz(pick(raw, "Unterart")),
-    seriennummer:      strKurz(pick(raw, "Seriennummer")),
-    stellplatz:        strKurz(pick(raw, "Stellplatz")),
-    stellplatzStatus:  strKurz(pick(raw, "Stellplatz-Status")),
-    lager:             strKurz(pick(raw, "Lager")),
-    lagernummer:       strKurz(pick(raw, "Lagernummer")),
-    filiale:           strKurz(pick(raw, "Filiale")),
-    colli:             strKurz(pick(raw, "Colli")),
+    hersteller:        strKurz(spalte(raw, ["Hersteller"])),
+    bezeichnung:       str(spalte(raw, ["Bezeichnung"])),
+    geraeteart:        strKurz(spalte(raw, ["Geräteart"])),
+    unterart:          strKurz(spalte(raw, ["Unterart"])),
+    seriennummer:      strKurz(spalte(raw, ["Seriennr.", "Seriennummer"])),
+    stellplatz:        strKurz(spalte(raw, ["Stellplatz"])),
+    stellplatzStatus:  strKurz(spalte(raw, ["Stellplatz-Status"])),
+    lager:             strKurz(spalte(raw, ["Lager"])),
+    lagernummer:       strKurz(spalte(raw, ["Lagernummer"])),
+    filiale:           strKurz(spalte(raw, ["Filiale"])),
+    colli:             strKurz(spalte(raw, ["Colli"])),
     vorherigesColli,
-    statusColli:       strKurz(pick(raw, "Status Colli")),
-    verbleib:          strKurz(pick(raw, "Verbleib")),
-    inVerbleibSeit:    parseDatum(pick(raw, "in Verbleib seit")),
-    inVerbleibDurch:   strKurz(pick(raw, "in Verbleib durch")),
-    aufLagerGebuchtAm: parseDatum(pick(raw, "auf Lager gebucht am")),
-    verweildauerTage:  parseGanzzahl(pick(raw, "Verweildauer auf Lager")),
-    letzteAenderungAm: parseDatum(pick(raw, "Letzte Änderung am")),
-    refurbished:       parseBool(pick(raw, "refurbished?")),
-    refurbishDatum:    parseDatum(pick(raw, "Refurbish-Datum")),
-    grading:           strKurz(pick(raw, "Grading")),
-    initialesGrading:  strKurz(pick(raw, "Initiales Grading")),
-    aktuellerZustand:  strKurz(pick(raw, "Aktueller Zustand")),
-    blockiert:         parseBool(pick(raw, "Blockiert")),
-    begruendung:       str(pick(raw, "Begründung")),
-    blockiertVon:      strKurz(pick(raw, "Blockiert von")),
-    blockiertAm:       parseDatum(pick(raw, "Blockiert am")),
-    salestatus:        strKurz(pick(raw, "Salestatus")),
+    statusColli:       strKurz(spalte(raw, ["Status Colli"])),
+    verbleib:          strKurz(spalte(raw, ["Verbleib"])),
+    inVerbleibSeit:    parseDatum(spalte(raw, ["in Verbleib seit"])),
+    inVerbleibDurch:   strKurz(spalte(raw, ["in Verbleib durch"])),
+    aufLagerGebuchtAm: parseDatum(spalte(raw, ["auf Lager gebucht am"])),
+    verweildauerTage:  parseGanzzahl(spalte(raw, ["Lagertage letzter WE", "Verweildauer auf Lager"])),
+    letzteAenderungAm: parseDatum(spalte(raw, ["Letzte Änderung am"])),
+    refurbished:       parseBool(spalte(raw, ["refurbished?"])),
+    refurbishDatum:    parseDatum(spalte(raw, ["Refurbish-Datum"])),
+    grading:           strKurz(spalte(raw, ["Grading"])),
+    initialesGrading:  strKurz(spalte(raw, ["Initiales Grading"])),
+    aktuellerZustand:  strKurz(spalte(raw, ["Zustand aktuell", "Aktueller Zustand"])),
+    blockiert:         parseBool(spalte(raw, ["Blockiert"])),
+    begruendung:       str(spalte(raw, ["Begründung"])),
+    blockiertVon:      strKurz(spalte(raw, ["Blockiert von"])),
+    blockiertAm:       parseDatum(spalte(raw, ["Blockiert am"])),
+    salestatus:        strKurz(spalte(raw, ["Status", "Status LogID", "Salestatus"])),
+    ek:                parseEk(spalte(raw, ["EK"])),
   };
 
   return { logId, felder };
@@ -226,25 +254,25 @@ export type GemappteFehlteilZeile = { logId: string; felder: FehlteilFelder };
 
 // Übersetzt eine Fehlteil-CSV-Zeile. logId leer → null (Zeile übersprungen).
 export function mappeFehlteil(raw: Record<string, string>): GemappteFehlteilZeile | null {
-  const logId = str(pick(raw, "LogID"));
+  const logId = str(spalte(raw, ["LogId", "LogID"]));
   if (!logId) return null;
   return {
     logId,
     felder: {
-      seriennummer:      strKurz(pick(raw, "Seriennummer")),
-      hersteller:        strKurz(pick(raw, "Hersteller")),
-      bezeichnung:       str(pick(raw, "Bezeichnung")),       // TEXT → volle Länge
-      geraeteart:        strKurz(pick(raw, "Geräteart")),
-      unterart:          strKurz(pick(raw, "Unterart")),
-      aktuellerZustand:  strKurz(pick(raw, "Aktueller Zustand")),
-      grading:           strKurz(pick(raw, "Grading")),
-      sortiment:         strKurz(pick(raw, "Sortiment")),
-      aan:               strKurz(pick(raw, "AAN")),
-      inVerbleibSeit:    parseDatum(pick(raw, "in Verbleib seit")),
-      inVerbleibDurch:   strKurz(pick(raw, "in Verbleib durch")),
-      aufLagerGebuchtAm: parseDatum(pick(raw, "auf Lager gebucht am")),
-      verweildauerTage:  parseGanzzahl(pick(raw, "Verweildauer auf Lager")),
-      lager:             strKurz(pick(raw, "Lager")),
+      seriennummer:      strKurz(spalte(raw, ["Seriennr.", "Seriennummer"])),
+      hersteller:        strKurz(spalte(raw, ["Hersteller"])),
+      bezeichnung:       str(spalte(raw, ["Bezeichnung"])),       // TEXT → volle Länge
+      geraeteart:        strKurz(spalte(raw, ["Geräteart"])),
+      unterart:          strKurz(spalte(raw, ["Unterart"])),
+      aktuellerZustand:  strKurz(spalte(raw, ["Zustand aktuell", "Aktueller Zustand"])),
+      grading:           strKurz(spalte(raw, ["Grading"])),
+      sortiment:         strKurz(spalte(raw, ["Sortiment"])),
+      aan:               strKurz(spalte(raw, ["AAN"])),
+      inVerbleibSeit:    parseDatum(spalte(raw, ["in Verbleib seit"])),
+      inVerbleibDurch:   strKurz(spalte(raw, ["in Verbleib durch"])),
+      aufLagerGebuchtAm: parseDatum(spalte(raw, ["auf Lager gebucht am"])),
+      verweildauerTage:  parseGanzzahl(spalte(raw, ["Lagertage letzter WE", "Verweildauer auf Lager"])),
+      lager:             strKurz(spalte(raw, ["Lager"])),
     },
   };
 }

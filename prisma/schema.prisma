@@ -640,6 +640,9 @@ model LogIdStand {
 
   salestatus        String?
 
+  // Einkaufswert (CSV-Spalte "EK"), deutsches Zahlenformat → Decimal(12,2).
+  ek                Decimal?  @db.Decimal(12, 2)
+
   erstmalsGesehen   DateTime
   zuletztGesehen    DateTime
   zuletztImportId   Int
