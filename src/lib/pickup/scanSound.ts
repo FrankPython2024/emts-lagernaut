@@ -80,6 +80,35 @@ export function playPositiveSound(): void {
   playScanSound("GEFUNDEN");
 }
 
+// Hauptcolli-Vorabscan (NUR Colli-Aufträge): „Wegweiser"-Töne, bewusst ANDERS als
+// die normalen Scan-Töne — der Picker hört sofort „das war ein Wagen", nicht „ein
+// Treffer". Es wird nichts abgehakt.
+//   • Treffer (≥1 gesuchter Colli im Wagen) → freundlicher, aufsteigender Dreiklang
+//     (A4-C#5-E5), klar getrennt vom GEFUNDEN-Doppelton.
+//   • Leer (0 gesuchte) → ein einzelner, neutraler Blip (weder auf- noch absteigend).
+export function playWagenTreffer(): void {
+  try {
+    const ctx = getCtx();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const noten = [440, 554.37, 659.25]; // A4 C#5 E5 (Dur-Dreiklang, aufsteigend)
+    noten.forEach((f, i) => ton(ctx, f, t + i * 0.09, 0.13, "sine", 0.2));
+  } catch {
+    /* Audio nicht verfügbar — bewusst ignorieren */
+  }
+}
+
+export function playWagenLeer(): void {
+  try {
+    const ctx = getCtx();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    ton(ctx, 523.25, t, 0.18, "sine", 0.16); // C5, einzeln/neutral — „gesehen, weiter"
+  } catch {
+    /* Audio nicht verfügbar — bewusst ignorieren */
+  }
+}
+
 export type ScanResult = "GEFUNDEN" | "FREMD" | "SCHON";
 
 export function playScanSound(result: ScanResult): void {

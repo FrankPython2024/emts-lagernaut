@@ -288,6 +288,46 @@ export const pickupRouter = createTRPCRouter({
       return { colliZiffern: ziffern, colliBekannt, treffer, anzahlTreffer: treffer.length };
     }),
 
+  // Hauptcolli-Vorabscan: kompakte Wagen-Karte für COLLI-Aufträge. REIN LESEND,
+  // KEIN Status-/Bestand-Effekt. Liefert (a) alle bekannten Hauptcollis + Stell-
+  // platz (Wagen-Erkennung) und (b) die Zuordnung untercolli→hauptcolli NUR für
+  // die Positionen dieses Auftrags. Das Frontend erkennt Hauptcolli-Scans damit
+  // lokal und rechnet die Treffer aus dem Live-Zustand (kein Roundtrip pro Scan).
+  // Für LOGID-Aufträge bewusst leer (Vorabscan gilt nur für Colli-Aufträge).
+  wagenKarte: pickupPick
+    .input(z.object({ auftragId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const auftrag = await prisma.pickupAuftrag.findUnique({
+        where:  { id: input.auftragId },
+        select: { typ: true, positionen: { select: { logId: true } } },
+      });
+      if (!auftrag || auftrag.typ !== "COLLI") {
+        return { hauptcollis: [], zuordnung: [] };
+      }
+
+      // (a) Alle bekannten Hauptcollis + Stellplatz (ein Eintrag je Hauptcolli;
+      //     der ganze Wagen liegt an einem Stellplatz).
+      const wagen = await prisma.lagerwagen.findMany({
+        distinct: ["hauptcolli"],
+        select:   { hauptcolli: true, stellplatz: true },
+      });
+
+      // (b) Zuordnung untercolli→hauptcolli nur für die Positionen dieses Auftrags.
+      //     Bei COLLI-Aufträgen hält position.logId die normalisierte Untercolli-Nr.
+      const untercollis = [...new Set(auftrag.positionen.map((p) => p.logId))];
+      const zuordnung = untercollis.length
+        ? await prisma.lagerwagen.findMany({
+            where:  { untercolli: { in: untercollis } },
+            select: { untercolli: true, hauptcolli: true },
+          })
+        : [];
+
+      return {
+        hauptcollis: wagen.map((w) => ({ hauptcolli: w.hauptcolli, stellplatz: w.stellplatz })),
+        zuordnung:   zuordnung.map((r) => ({ untercolli: r.untercolli, hauptcolli: r.hauptcolli })),
+      };
+    }),
+
   // Versehentlichen Treffer zurücksetzen: GEFUNDEN → OFFEN.
   treffersZuruecksetzen: pickupPick
     .input(z.object({ positionId: z.number().int().positive() }))

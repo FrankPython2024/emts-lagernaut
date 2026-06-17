@@ -7,7 +7,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
 import { formatLogId } from "@/lib/pickup/logId";
 import { nurZiffern } from "@/lib/format/ziffern";
-import { playScanSound, playComplete, playNegativeSound, type ScanResult } from "@/lib/pickup/scanSound";
+import { playScanSound, playComplete, playNegativeSound, playWagenTreffer, playWagenLeer, type ScanResult } from "@/lib/pickup/scanSound";
 import { useScannerMode } from "@/lib/pickup/useScannerMode";
 import { GeraeteUmschalter } from "@/components/pickup/ModusBanner";
 
@@ -31,6 +31,7 @@ type ScanPos = {
 type Feedback =
   | { kind: "logid"; result: ScanResult; logId: string; position: ScanPos | null }
   | { kind: "colli"; colliNummer: string; colliBekannt: boolean; treffer: { logId: string; bezeichnung: string | null }[]; anzahlTreffer: number }
+  | { kind: "vorabscan"; hauptcolli: string; stellplatz: string | null; gesuchte: ScanPos[] }
   | { kind: "unbekannt"; wert: string };
 
 function fmtZeit(d: Date | string | null): string {
@@ -87,6 +88,61 @@ function ErgebnisBanner({ fb }: { fb: Feedback | null }) {
               Colli {fb.colliNummer ? formatLogId(fb.colliNummer) : "—"}
               <span className="font-sans"> · {fb.colliBekannt ? "kein gesuchtes Gerät drin" : "unbekannt"}</span>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Hauptcolli-Vorabscan (Wegweisung am Wagen — hakt NICHTS ab) ──
+  if (fb.kind === "vorabscan") {
+    const hat = fb.gesuchte.length > 0;
+    if (hat) {
+      return (
+        <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5" style={{ borderColor: "#4f46e5", background: "rgba(79,70,229,0.10)" }}>
+          <div className="flex items-start gap-4">
+            <span className="text-5xl" aria-hidden>🚛</span>
+            <div className="min-w-0 flex-1">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wide mb-1" style={{ background: "#4f46e5", color: "#fff" }}>
+                Vorabscan · Wagen
+              </span>
+              <div className="text-2xl font-black" style={{ color: "#04713f" }}>
+                {fb.gesuchte.length} {fb.gesuchte.length === 1 ? "gesuchter Colli" : "gesuchte Collis"} in diesem Wagen
+              </div>
+              <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">
+                Wagen {formatLogId(fb.hauptcolli)}{fb.stellplatz ? ` · ${fb.stellplatz}` : ""}
+              </div>
+              <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                Nichts wird abgehakt. Diese Collis hier herausnehmen und einzeln scannen:
+              </div>
+            </div>
+          </div>
+          <ul className="mt-3 space-y-1">
+            {fb.gesuchte.map((p) => (
+              <li key={p.id} className="flex items-center gap-2 text-base">
+                <span aria-hidden>🧭</span>
+                <span className="font-mono font-bold text-[#202F61] dark:text-[#e4e6eb]">{p.colli ?? formatLogId(p.logId)}</span>
+                <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{p.bezeichnung ?? "—"}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    }
+    // 0 gesuchte — neutral, weiter zum nächsten Wagen
+    return (
+      <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5" style={{ borderColor: "#90939a", background: "rgba(144,147,154,0.12)" }}>
+        <div className="flex items-center gap-4">
+          <span className="text-5xl" aria-hidden>🚛</span>
+          <div className="min-w-0">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wide mb-1" style={{ background: "#65676b", color: "#fff" }}>
+              Vorabscan · Wagen
+            </span>
+            <div className="text-2xl font-black text-[#65676b] dark:text-[#b0b3b8]">Nichts Gesuchtes in diesem Wagen</div>
+            <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">
+              Wagen {formatLogId(fb.hauptcolli)}{fb.stellplatz ? ` · ${fb.stellplatz}` : ""}
+            </div>
+            <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">Weiter zum nächsten Wagen.</div>
           </div>
         </div>
       </div>
@@ -259,6 +315,21 @@ export default function PickupScanPage() {
   const gruppenOffen    = useMemo(() => gruppiere(offenePositionen, !!istColli), [offenePositionen, istColli]);
   const gruppenGefunden = useMemo(() => gruppiere(gefundenePositionen, !!istColli), [gefundenePositionen, istColli]);
 
+  // Hauptcolli-Vorabscan — kompakte Wagen-Karte, NUR für COLLI-Aufträge. Einmal
+  // geladen; die Treffer rechnet das Frontend lokal aus dem Live-Zustand.
+  const wagenKarteQ = api.pickup.wagenKarte.useQuery(
+    { auftragId: id },
+    { enabled: !permsLoading && darfPick && Number.isInteger(id) && id > 0 && !!istColli },
+  );
+  const hauptcolliMap = useMemo(
+    () => new Map((wagenKarteQ.data?.hauptcollis ?? []).map((h) => [h.hauptcolli, h.stellplatz])),
+    [wagenKarteQ.data],
+  );
+  const untercolliZuHaupt = useMemo(
+    () => new Map((wagenKarteQ.data?.zuordnung ?? []).map((m) => [m.untercolli, m.hauptcolli])),
+    [wagenKarteQ.data],
+  );
+
   async function pruefeColli(raw: string) {
     if (colliBusy) return;
     setColliBusy(true);
@@ -295,6 +366,20 @@ export default function PickupScanPage() {
     inputRef.current?.focus();
   }
 
+  // Hauptcolli-Vorabscan (NUR Colli-Aufträge): markiert NICHTS als gefunden.
+  // Gesuchte = offene Positionen dieses Auftrags, deren Untercolli zu diesem
+  // Hauptcolli gehört — aus dem Live-Zustand, aktualisiert sich beim Abhaken.
+  function handleVorabscan(hauptcolli: string) {
+    const stellplatz = hauptcolliMap.get(hauptcolli) ?? null;
+    const gesuchte = (data?.positionen ?? []).filter(
+      (p) => p.status !== "GEFUNDEN" && untercolliZuHaupt.get(p.logId) === hauptcolli,
+    );
+    setFeedback({ kind: "vorabscan", hauptcolli, stellplatz, gesuchte });
+    if (gesuchte.length > 0) playWagenTreffer(); else playWagenLeer();
+    setEingabe("");
+    inputRef.current?.focus();
+  }
+
   // Auto-Routing: Scan-Art an der Ziffernlänge erkennen.
   function handleScan() {
     const v = eingabe.trim();
@@ -303,6 +388,10 @@ export default function PickupScanPage() {
     const len = ziffern.length;
 
     if (istColli) {
+      // Hauptcolli zuerst (Wagen-Vorabscan): Haupt- und Untercolli sind beide
+      // 7-stellig → Unterscheidung NUR über die Lagerwagen-Tabelle, nie über die
+      // Länge. Bekannter Hauptcolli → Wegweisung, hakt nichts ab.
+      if (hauptcolliMap.has(ziffern)) { handleVorabscan(ziffern); return; }
       // Colli-Auftrag: 6–7 → Position-Match; 9 → gehört nicht dazu; sonst nicht erkannt.
       if (len >= COLLI_MIN && len <= COLLI_MAX) {
         if (!scan.isPending) scan.mutate({ auftragId: id, logIdRaw: v });
@@ -443,6 +532,11 @@ export default function PickupScanPage() {
               <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
                 ℹ️ Erst Colli scannen (6–7 Stellen): Du hörst und siehst, ob ein gesuchtes Gerät drin ist.
                 Wenn ja, die LogIDs (9 Stellen) darin scannen. Die Colli-Prüfung nutzt die Lagerfuchs-Daten (Stand: letzter Import).
+              </p>
+            )}
+            {istColli && hauptcolliMap.size > 0 && (
+              <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                🚛 Tipp: Vorne am Wagen den <strong>Hauptcolli</strong> scannen — du siehst sofort, ob und welche gesuchten Collis in diesem Wagen liegen. Das hakt nichts ab.
               </p>
             )}
           </form>
