@@ -104,12 +104,20 @@ export default function PickupListePage() {
             Scan-/Sammel-Aufträge. Keine Umbuchung — die passiert in ReForm.
           </p>
         </div>
-        <Link
-          href="/admin/pickup/neu"
-          className="inline-flex items-center gap-2 px-5 rounded-xl bg-[#008BD2] text-white text-sm font-bold hover:bg-[#0077b5] transition-colors shadow-sm min-h-[56px]"
-        >
-          ＋ Neuer Pickup-Auftrag
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href="/admin/pickup/lagerwagen"
+            className="inline-flex items-center gap-2 px-5 rounded-xl bg-white dark:bg-[#242526] border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] text-sm font-bold hover:border-[#008BD2] transition-colors shadow-sm min-h-[56px]"
+          >
+            🛒 Lagerwagen-Zuordnung
+          </Link>
+          <Link
+            href="/admin/pickup/neu"
+            className="inline-flex items-center gap-2 px-5 rounded-xl bg-[#008BD2] text-white text-sm font-bold hover:bg-[#0077b5] transition-colors shadow-sm min-h-[56px]"
+          >
+            ＋ Neuer Pickup-Auftrag
+          </Link>
+        </div>
       </div>
 
       {isLoading ? (

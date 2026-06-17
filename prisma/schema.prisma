@@ -526,6 +526,22 @@ model PickupPosition {
   @@index([logId])
 }
 
+// ── Lagerwagen-Zuordnung (Untercolli → Hauptcolli + Stellplatz) ───────────────
+// Statischer Snapshot der mobilen Lagerwagen aus der ReForm-"Stellplatz"-Übersicht.
+// Jeder Wagen hat genau EIN vorderes Hauptcolli und N Segment-(Unter-)Collis.
+// Grundlage für den späteren Hauptcolli-Vorabscan im Pickup. Bei jedem Import
+// VOLL ersetzt (die Datei ist der vollständige aktuelle Stand). Reine Zuordnung,
+// KEIN Bestandseffekt.
+model Lagerwagen {
+  untercolli     String   @id            // Segment-Colli, normalisiert (nurZiffern)
+  hauptcolli     String                  // vorderes Colli des Wagens, normalisiert
+  stellplatz     String?
+  lagernummer    String?
+  aktualisiertAm DateTime @updatedAt
+
+  @@index([hauptcolli])
+}
+
 // ── Smartphone Refurbishment – Ersatzteile ────────────────────────────────────
 // Eigenständiges Modul, unabhängig von den Notebook-Teilen (Artikel etc.).
 

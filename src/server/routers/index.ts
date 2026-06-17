@@ -28,6 +28,7 @@ import { datenbankRouter }         from "./datenbank";
 import { importSandboxRouter }     from "./importSandbox";
 import { colliEtikettenRouter }     from "./colliEtiketten";
 import { pickupRouter }             from "./pickup";
+import { lagerwagenRouter }         from "./lagerwagen";
 import { geraeteReiseRouter }       from "./geraeteReise";
 import { fehlteileRouter }          from "./fehlteile";
 
@@ -61,6 +62,7 @@ export const appRouter = createTRPCRouter({
   importSandbox:     importSandboxRouter,
   colliEtiketten:    colliEtikettenRouter,
   pickup:            pickupRouter,
+  lagerwagen:        lagerwagenRouter,
   geraeteReise:      geraeteReiseRouter,
   fehlteile:         fehlteileRouter,
 });
