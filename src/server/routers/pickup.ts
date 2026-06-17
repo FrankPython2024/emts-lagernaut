@@ -288,22 +288,21 @@ export const pickupRouter = createTRPCRouter({
       return { colliZiffern: ziffern, colliBekannt, treffer, anzahlTreffer: treffer.length };
     }),
 
-  // Hauptcolli-Vorabscan: kompakte Wagen-Karte für COLLI-Aufträge. REIN LESEND,
-  // KEIN Status-/Bestand-Effekt. Liefert (a) alle bekannten Hauptcollis + Stell-
-  // platz (Wagen-Erkennung) und (b) die Zuordnung untercolli→hauptcolli NUR für
-  // die Positionen dieses Auftrags. Das Frontend erkennt Hauptcolli-Scans damit
-  // lokal und rechnet die Treffer aus dem Live-Zustand (kein Roundtrip pro Scan).
-  // Für LOGID-Aufträge bewusst leer (Vorabscan gilt nur für Colli-Aufträge).
+  // Hauptcolli-Vorabscan: kompakte Wagen-Karte. REIN LESEND, KEIN Status-/Bestand-
+  // Effekt. Liefert (a) alle bekannten Hauptcollis + Stellplatz (Wagen-Erkennung)
+  // und (b) die Zuordnung Karton(=Untercolli)→hauptcolli NUR für die Positionen
+  // dieses Auftrags. Das Frontend erkennt Hauptcolli-Scans damit lokal und rechnet
+  // die Treffer aus dem Live-Zustand (kein Roundtrip pro Scan).
+  // Gilt für LOGID- UND COLLI-Aufträge — der Picker scannt vorne am Wagen zuerst
+  // den Hauptcolli (Reihenfolge: Hauptcolli → Karton/Colli → LogID).
   wagenKarte: pickupPick
     .input(z.object({ auftragId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const auftrag = await prisma.pickupAuftrag.findUnique({
         where:  { id: input.auftragId },
-        select: { typ: true, positionen: { select: { logId: true } } },
+        select: { typ: true, positionen: { select: { logId: true, colli: true } } },
       });
-      if (!auftrag || auftrag.typ !== "COLLI") {
-        return { hauptcollis: [], zuordnung: [] };
-      }
+      if (!auftrag) return { hauptcollis: [], zuordnung: [] };
 
       // (a) Alle bekannten Hauptcollis + Stellplatz (ein Eintrag je Hauptcolli;
       //     der ganze Wagen liegt an einem Stellplatz).
@@ -312,12 +311,17 @@ export const pickupRouter = createTRPCRouter({
         select:   { hauptcolli: true, stellplatz: true },
       });
 
-      // (b) Zuordnung untercolli→hauptcolli nur für die Positionen dieses Auftrags.
-      //     Bei COLLI-Aufträgen hält position.logId die normalisierte Untercolli-Nr.
-      const untercollis = [...new Set(auftrag.positionen.map((p) => p.logId))];
-      const zuordnung = untercollis.length
+      // (b) Karton-(Untercolli-)Schlüssel je Position — bei LOGID-Aufträgen über
+      //     das Colli-Feld (= Karton, NICHT die LogID!), bei COLLI-Aufträgen über
+      //     logId (= Untercolli). Beide via nurZiffern, Join gegen Lagerwagen.
+      const kartons = [...new Set(
+        auftrag.positionen
+          .map((p) => (auftrag.typ === "COLLI" ? nurZiffern(p.logId) : nurZiffern(p.colli ?? "")))
+          .filter((d) => d.length > 0),
+      )];
+      const zuordnung = kartons.length
         ? await prisma.lagerwagen.findMany({
-            where:  { untercolli: { in: untercollis } },
+            where:  { untercolli: { in: kartons } },
             select: { untercolli: true, hauptcolli: true },
           })
         : [];

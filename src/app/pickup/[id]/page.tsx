@@ -31,7 +31,7 @@ type ScanPos = {
 type Feedback =
   | { kind: "logid"; result: ScanResult; logId: string; position: ScanPos | null }
   | { kind: "colli"; colliNummer: string; colliBekannt: boolean; treffer: { logId: string; bezeichnung: string | null }[]; anzahlTreffer: number }
-  | { kind: "vorabscan"; hauptcolli: string; stellplatz: string | null; gesuchte: ScanPos[] }
+  | { kind: "vorabscan"; hauptcolli: string; stellplatz: string | null; kartons: { karton: string; anzahl: number }[] }
   | { kind: "unbekannt"; wert: string };
 
 function fmtZeit(d: Date | string | null): string {
@@ -40,7 +40,7 @@ function fmtZeit(d: Date | string | null): string {
 }
 
 // ── „Zuletzt gescannt" — großer Block, IMMER Icon + Text + Farbe zugleich ──────
-function ErgebnisBanner({ fb }: { fb: Feedback | null }) {
+function ErgebnisBanner({ fb, istColli }: { fb: Feedback | null; istColli: boolean }) {
   if (!fb) {
     return (
       <div role="status" className="rounded-2xl border-2 border-dashed border-[#ced4da] dark:border-[#3e4042] p-5 text-center text-[#65676b] dark:text-[#b0b3b8] text-lg">
@@ -96,7 +96,7 @@ function ErgebnisBanner({ fb }: { fb: Feedback | null }) {
 
   // ── Hauptcolli-Vorabscan (Wegweisung am Wagen — hakt NICHTS ab) ──
   if (fb.kind === "vorabscan") {
-    const hat = fb.gesuchte.length > 0;
+    const hat = fb.kartons.length > 0;
     if (hat) {
       return (
         <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5" style={{ borderColor: "#4f46e5", background: "rgba(79,70,229,0.10)" }}>
@@ -107,22 +107,24 @@ function ErgebnisBanner({ fb }: { fb: Feedback | null }) {
                 Vorabscan · Wagen
               </span>
               <div className="text-2xl font-black" style={{ color: "#04713f" }}>
-                {fb.gesuchte.length} {fb.gesuchte.length === 1 ? "gesuchter Colli" : "gesuchte Collis"} in diesem Wagen
+                {fb.kartons.length} {fb.kartons.length === 1 ? "gesuchter Colli" : "gesuchte Collis"} in diesem Wagen
               </div>
               <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">
                 Wagen {formatLogId(fb.hauptcolli)}{fb.stellplatz ? ` · ${fb.stellplatz}` : ""}
               </div>
               <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-                Nichts wird abgehakt. Diese Collis hier herausnehmen und einzeln scannen:
+                Nichts wird abgehakt. Diese Collis hier herausnehmen und scannen:
               </div>
             </div>
           </div>
           <ul className="mt-3 space-y-1">
-            {fb.gesuchte.map((p) => (
-              <li key={p.id} className="flex items-center gap-2 text-base">
+            {fb.kartons.map((k) => (
+              <li key={k.karton} className="flex items-center gap-2 text-base">
                 <span aria-hidden>🧭</span>
-                <span className="font-mono font-bold text-[#202F61] dark:text-[#e4e6eb]">{p.colli ?? formatLogId(p.logId)}</span>
-                <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{p.bezeichnung ?? "—"}</span>
+                <span className="font-mono font-bold text-[#202F61] dark:text-[#e4e6eb]">{formatLogId(nurZiffern(k.karton)) || k.karton}</span>
+                {!istColli && (
+                  <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">· {k.anzahl} {k.anzahl === 1 ? "Gerät" : "Geräte"}</span>
+                )}
               </li>
             ))}
           </ul>
@@ -315,11 +317,11 @@ export default function PickupScanPage() {
   const gruppenOffen    = useMemo(() => gruppiere(offenePositionen, !!istColli), [offenePositionen, istColli]);
   const gruppenGefunden = useMemo(() => gruppiere(gefundenePositionen, !!istColli), [gefundenePositionen, istColli]);
 
-  // Hauptcolli-Vorabscan — kompakte Wagen-Karte, NUR für COLLI-Aufträge. Einmal
-  // geladen; die Treffer rechnet das Frontend lokal aus dem Live-Zustand.
+  // Hauptcolli-Vorabscan — kompakte Wagen-Karte für LOGID- UND COLLI-Aufträge.
+  // Einmal geladen; die Treffer rechnet das Frontend lokal aus dem Live-Zustand.
   const wagenKarteQ = api.pickup.wagenKarte.useQuery(
     { auftragId: id },
-    { enabled: !permsLoading && darfPick && Number.isInteger(id) && id > 0 && !!istColli },
+    { enabled: !permsLoading && darfPick && Number.isInteger(id) && id > 0 },
   );
   const hauptcolliMap = useMemo(
     () => new Map((wagenKarteQ.data?.hauptcollis ?? []).map((h) => [h.hauptcolli, h.stellplatz])),
@@ -366,16 +368,31 @@ export default function PickupScanPage() {
     inputRef.current?.focus();
   }
 
-  // Hauptcolli-Vorabscan (NUR Colli-Aufträge): markiert NICHTS als gefunden.
-  // Gesuchte = offene Positionen dieses Auftrags, deren Untercolli zu diesem
-  // Hauptcolli gehört — aus dem Live-Zustand, aktualisiert sich beim Abhaken.
+  // Karton-(Untercolli-)Schlüssel einer Position — bei COLLI-Aufträgen ist die
+  // Position selbst der Untercolli (logId), bei LOGID-Aufträgen steckt der Karton
+  // im colli-Feld (NICHT die LogID!). Beide via nurZiffern → Join gegen Lagerwagen.
+  function kartonKey(p: ScanPos): string {
+    return istColli ? p.logId : nurZiffern(p.colli ?? "");
+  }
+
+  // Hauptcolli-Vorabscan (LOGID + COLLI): markiert NICHTS als gefunden. Gesuchte =
+  // offene Positionen dieses Auftrags, deren Karton/Untercolli zu diesem Hauptcolli
+  // gehört — aus dem Live-Zustand, aktualisiert sich beim Abhaken. Nach Karton
+  // gruppiert (bei LOGID liegen mehrere Geräte im selben Karton).
   function handleVorabscan(hauptcolli: string) {
     const stellplatz = hauptcolliMap.get(hauptcolli) ?? null;
-    const gesuchte = (data?.positionen ?? []).filter(
-      (p) => p.status !== "GEFUNDEN" && untercolliZuHaupt.get(p.logId) === hauptcolli,
-    );
-    setFeedback({ kind: "vorabscan", hauptcolli, stellplatz, gesuchte });
-    if (gesuchte.length > 0) playWagenTreffer(); else playWagenLeer();
+    const proKarton = new Map<string, { karton: string; anzahl: number }>();
+    for (const p of data?.positionen ?? []) {
+      if (p.status === "GEFUNDEN") continue;
+      const key = kartonKey(p);
+      if (!key || untercolliZuHaupt.get(key) !== hauptcolli) continue;
+      const anzeige = (istColli ? p.colli ?? p.logId : p.colli ?? key);
+      const e = proKarton.get(key);
+      if (e) e.anzahl += 1; else proKarton.set(key, { karton: anzeige, anzahl: 1 });
+    }
+    const kartons = [...proKarton.values()].sort((a, b) => a.karton.localeCompare(b.karton, "de", { numeric: true }));
+    setFeedback({ kind: "vorabscan", hauptcolli, stellplatz, kartons });
+    if (kartons.length > 0) playWagenTreffer(); else playWagenLeer();
     setEingabe("");
     inputRef.current?.focus();
   }
@@ -403,10 +420,15 @@ export default function PickupScanPage() {
       return;
     }
 
-    // LogID-Auftrag: 9 → LogID-Match; 6–7 → Colli-Inhaltsprüfung; sonst nicht erkannt.
+    // LogID-Auftrag: 9 → LogID-Match; 6–7 → Hauptcolli-Vorabscan ODER Colli-Prüfung;
+    // sonst nicht erkannt.
     if (len === LOGID_LEN) {
       if (!scan.isPending) scan.mutate({ auftragId: id, logIdRaw: v });
     } else if (len >= COLLI_MIN && len <= COLLI_MAX) {
+      // Hauptcolli zuerst: Haupt- und Untercolli sind beide ~7-stellig → Unter-
+      // scheidung NUR über die Lagerwagen-Tabelle. Bekannter Hauptcolli → Wagen-
+      // Vorabscan (hakt nichts ab); sonst bisherige Colli-/Karton-Prüfung.
+      if (hauptcolliMap.has(ziffern)) { handleVorabscan(ziffern); return; }
       pruefeColli(v);
     } else {
       meldeUnbekannt(ziffern);
@@ -528,21 +550,22 @@ export default function PickupScanPage() {
                 </button>
               )}
             </div>
-            {!istColli && (
+            {hauptcolliMap.size > 0 && (
               <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                ℹ️ Erst Colli scannen (6–7 Stellen): Du hörst und siehst, ob ein gesuchtes Gerät drin ist.
-                Wenn ja, die LogIDs (9 Stellen) darin scannen. Die Colli-Prüfung nutzt die Lagerfuchs-Daten (Stand: letzter Import).
+                🚛 Reihenfolge am Wagen: <strong>Hauptcolli</strong> scannen → du siehst, welche gesuchten Collis im Wagen liegen (hakt nichts ab) →
+                {istColli ? " diese Collis scannen." : " Colli öffnen, dann die LogIDs (9 Stellen) scannen."}
               </p>
             )}
-            {istColli && hauptcolliMap.size > 0 && (
+            {!istColli && (
               <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                🚛 Tipp: Vorne am Wagen den <strong>Hauptcolli</strong> scannen — du siehst sofort, ob und welche gesuchten Collis in diesem Wagen liegen. Das hakt nichts ab.
+                ℹ️ Colli scannen (6–7 Stellen): Du hörst und siehst, ob ein gesuchtes Gerät drin ist.
+                Wenn ja, die LogIDs (9 Stellen) darin scannen. Die Colli-Prüfung nutzt die Lagerfuchs-Daten (Stand: letzter Import).
               </p>
             )}
           </form>
 
           {/* „Zuletzt gescannt" */}
-          <ErgebnisBanner fb={feedback} />
+          <ErgebnisBanner fb={feedback} istColli={!!istColli} />
 
           {/* Drei Bereiche — kompakt umschaltbar (Segmented Control) */}
           <div role="group" aria-label="Listen umschalten" className="grid grid-cols-3 gap-1.5">
