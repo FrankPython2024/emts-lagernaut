@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -10,6 +10,8 @@ import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { formatLogId } from "@/lib/pickup/logId";
 import { exportPickupCsv, printPickupBericht } from "@/lib/pickup/bericht";
+import { parsePickupCsv } from "@/lib/pickup/csvImport";
+import { parseColliPruefungCsv } from "@/lib/pickup/colliPruefung";
 
 function PosStatusBadge({ status }: { status: string }) {
   const gefunden = status === "GEFUNDEN";
@@ -240,6 +242,17 @@ export default function PickupDetailPage() {
         </div>
       )}
 
+      {/* CSV-Update (Merge): neue Positionen dazu, gescannte bleiben erhalten.
+          Nur für noch offene Aufträge — abgeschlossene/archivierte nicht mehr ändern. */}
+      {!abgeschlossen && (
+        <CsvUpdateCard
+          auftragId={id}
+          typ={data.typ}
+          bestehendeLogIds={new Set(data.positionen.map((p) => p.logId))}
+          onDone={() => utils.pickup.details.invalidate({ id })}
+        />
+      )}
+
       {/* Positionen gruppiert nach Colli */}
       <div className="space-y-4">
         {gruppen.map((g) => (
@@ -300,6 +313,177 @@ export default function PickupDetailPage() {
                 {loeschen.isPending ? "Lösche…" : "Endgültig löschen"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CSV-Update (Merge) ─────────────────────────────────────────────────────────
+// Lädt eine neue CSV (gleiches AfB-Format wie beim Anlegen) in einen bestehenden
+// Auftrag. Vereinigung: neue Positionen kommen dazu, bereits gescannte/gefundene
+// bleiben unverändert, nichts wird entfernt. Geparst wird nach dem Auftragstyp;
+// passt die CSV nicht (0 Positionen), gibt es eine klare Fehlermeldung statt
+// Teil-Import. Die Vorschau-Statistik wird lokal aus dem aktuellen Stand berechnet.
+
+type MergePos = { logId: string; colli: string | null; stellplatz: string | null; bezeichnung: string | null };
+type MergeVorschau = { positionen: MergePos[]; neu: number; bereitsVorhanden: number; nichtInCsv: number };
+
+// COLLI → bezeichnung: "Art · N Teile" (analog Anlege-Seite).
+function colliBezeichnung(c: { art: string | null; anzahlTeile: string | null }): string | null {
+  return [c.art, c.anzahlTeile ? `${c.anzahlTeile} Teile` : null].filter(Boolean).join(" · ") || null;
+}
+
+function CsvUpdateCard({
+  auftragId, typ, bestehendeLogIds, onDone,
+}: {
+  auftragId: number;
+  typ: "LOGID" | "COLLI";
+  bestehendeLogIds: Set<string>;
+  onDone: () => void;
+}) {
+  const { show } = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const [fileName, setFileName]   = useState<string | null>(null);
+  const [parsing, setParsing]     = useState(false);
+  const [fehler, setFehler]       = useState<string | null>(null);
+  const [vorschau, setVorschau]   = useState<MergeVorschau | null>(null);
+
+  const aktualisieren = api.pickup.auftragAktualisieren.useMutation({
+    onSuccess: (r) => {
+      show(`✅ Aktualisiert — ${r.neu} neu, ${r.bereitsVorhanden} bereits vorhanden, ${r.nichtInCsvBehalten} behalten · jetzt ${r.gesamtNachher}`, "success");
+      reset();
+      onDone();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
+  function reset() {
+    setFileName(null); setVorschau(null); setFehler(null);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  // Vereinigungs-Statistik lokal aus dem aktuellen Stand (kein Roundtrip vor dem Anwenden).
+  function baueVorschau(positionen: MergePos[]): MergeVorschau {
+    const incoming = new Set(positionen.map((p) => p.logId).filter(Boolean));
+    let neu = 0, bereitsVorhanden = 0;
+    for (const lid of incoming) {
+      if (bestehendeLogIds.has(lid)) bereitsVorhanden += 1; else neu += 1;
+    }
+    let nichtInCsv = 0;
+    for (const lid of bestehendeLogIds) if (!incoming.has(lid)) nichtInCsv += 1;
+    return { positionen, neu, bereitsVorhanden, nichtInCsv };
+  }
+
+  async function handleFile(file: File | null) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) { show("Nur CSV-Dateien erlaubt.", "error"); return; }
+    setFileName(file.name);
+    setVorschau(null); setFehler(null);
+    setParsing(true);
+    try {
+      let positionen: MergePos[];
+      if (typ === "COLLI") {
+        const r = await parseColliPruefungCsv(file);
+        positionen = r.stellplaetze.flatMap((sp) =>
+          sp.collis.map((c) => ({
+            logId:       c.nummerDigits,
+            colli:       c.nummer,
+            stellplatz:  c.stellplatz,
+            bezeichnung: colliBezeichnung(c),
+          })),
+        );
+      } else {
+        const r = await parsePickupCsv(file);
+        positionen = r.positionen.map((p) => ({
+          logId: p.logId, colli: p.colli, stellplatz: p.stellplatz, bezeichnung: p.bezeichnung,
+        }));
+      }
+
+      if (positionen.length === 0) {
+        setFehler(
+          typ === "COLLI"
+            ? "Diese CSV passt nicht zu einem Colli-Auftrag (keine Spalte 'Nummer' / keine gültigen Collis gefunden). Es wurde nichts importiert."
+            : "Diese CSV passt nicht zu einem LogID-Auftrag (keine Spalte 'LogId' / keine gültigen Positionen gefunden). Es wurde nichts importiert.",
+        );
+        return;
+      }
+      setVorschau(baueVorschau(positionen));
+    } catch {
+      setFehler("CSV konnte nicht gelesen werden.");
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  const akzent = typ === "COLLI" ? "#7c3aed" : "#008BD2";
+  const kannAnwenden = !!vorschau && vorschau.neu > 0 && !aktualisieren.isPending;
+
+  return (
+    <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 space-y-3">
+      <div>
+        <h2 className="font-black text-sm uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">🔄 Per CSV aktualisieren</h2>
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
+          Neue {typ === "COLLI" ? "Stellplatz-Export" : "Geräte-Export"}-CSV laden — neue Positionen kommen dazu.
+          <strong> Bereits gescannte bleiben erhalten, es wird nichts entfernt.</strong>
+        </p>
+      </div>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".csv"
+        onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+        className="hidden"
+        aria-label="CSV-Datei auswählen"
+      />
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        className="w-full flex items-center justify-center gap-2 px-5 rounded-xl border-2 border-dashed text-sm font-bold transition-colors min-h-[56px]"
+        style={{ borderColor: `${akzent}66`, background: `${akzent}0d`, color: akzent }}
+      >
+        📄 {fileName ? `Datei: ${fileName} — andere wählen` : "CSV auswählen"}
+      </button>
+
+      {parsing && <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Lese CSV…</div>}
+
+      {fehler && (
+        <div className="text-sm rounded-xl px-4 py-3 bg-[#fa3e3e]/10 text-[#b3261e] dark:text-[#ff8a8a]">
+          ⚠️ {fehler}
+        </div>
+      )}
+
+      {vorschau && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 text-sm">
+            <span className="px-3 py-1.5 rounded-lg bg-[#04B475]/10 text-[#04B475] font-bold">{vorschau.neu} neu</span>
+            <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{vorschau.bereitsVorhanden} bereits vorhanden</span>
+            <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{vorschau.nichtInCsv} nicht in CSV (bleiben)</span>
+          </div>
+          {vorschau.neu === 0 && (
+            <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Keine neuen Positionen — alle aus der CSV sind bereits im Auftrag.</div>
+          )}
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={reset}
+              disabled={aktualisieren.isPending}
+              className="px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] text-sm font-bold hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] disabled:opacity-50 transition-colors min-h-[56px]"
+            >
+              Verwerfen
+            </button>
+            <button
+              type="button"
+              onClick={() => vorschau && aktualisieren.mutate({ auftragId, positionen: vorschau.positionen })}
+              disabled={!kannAnwenden}
+              className="inline-flex items-center gap-2 px-6 rounded-xl text-white text-sm font-bold disabled:opacity-40 transition-colors shadow-sm min-h-[56px]"
+              style={{ background: akzent }}
+            >
+              {aktualisieren.isPending ? "Aktualisiere…" : `${vorschau.neu} Position${vorschau.neu === 1 ? "" : "en"} hinzufügen`}
+            </button>
           </div>
         </div>
       )}

@@ -152,6 +152,72 @@ export const pickupRouter = createTRPCRouter({
       return { id: auftrag.id };
     }),
 
+  // Bestehenden Auftrag per CSV aktualisieren (MERGE / Vereinigung). Die neuen
+  // Positionen kommen vorgeparst (gleicher Mechanismus wie beim Anlegen, Typ-
+  // Prüfung passiert im Frontend → leere Liste = passt nicht). Regeln:
+  //   • Incoming matcht bestehende (gleicher logId) → bestehende KOMPLETT
+  //     unverändert (Scan-/Fund-Status UND Daten bleiben).
+  //   • Incoming ohne Match → neue, ungescannte Position (status OFFEN).
+  //   • Bestehende, die nicht in der CSV ist → BEHALTEN (nichts wird entfernt).
+  // Reine Scan-/Nachweis-Hilfe, KEIN Bestand-Effekt.
+  auftragAktualisieren: pickupManage
+    .input(z.object({
+      auftragId:  z.number().int().positive(),
+      positionen: z.array(positionInput).min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const stats = await prisma.$transaction(async (tx) => {
+        const auftrag = await tx.pickupAuftrag.findUnique({
+          where: { id: input.auftragId }, select: { id: true, status: true },
+        });
+        if (!auftrag) throw new TRPCError({ code: "NOT_FOUND", message: "Pickup-Auftrag nicht gefunden" });
+        // Abgeschlossene/archivierte Aufträge nicht mehr ändern (Schutz auch ohne UI).
+        if (auftrag.status !== "offen") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Auftrag ist abgeschlossen — kein CSV-Update möglich. Zum Ändern erst wieder öffnen.",
+          });
+        }
+
+        const bestehende  = await tx.pickupPosition.findMany({
+          where: { auftragId: input.auftragId }, select: { logId: true },
+        });
+        const vorhanden    = new Set(bestehende.map((p) => p.logId));
+        const gesamtVorher = bestehende.length;
+
+        // Incoming normalisieren + deduppen; Treffer auf Bestand zählen (nicht anlegen).
+        const seen = new Set<string>();
+        let bereitsVorhanden = 0;
+        const neuePositionen = input.positionen.flatMap((p) => {
+          const logId = normalizeLogId(p.logId);
+          if (!logId || seen.has(logId)) return [];
+          seen.add(logId);
+          if (vorhanden.has(logId)) { bereitsVorhanden += 1; return []; } // bestehende bleibt unangetastet
+          return [{
+            auftragId:   input.auftragId,
+            logId,
+            colli:       p.colli?.trim()       || null,
+            stellplatz:  p.stellplatz?.trim()  || null,
+            bezeichnung: p.bezeichnung?.trim() || null,
+            status:      "OFFEN" as const,
+          }];
+        });
+
+        if (neuePositionen.length > 0) {
+          await tx.pickupPosition.createMany({ data: neuePositionen });
+        }
+
+        return {
+          neu:                neuePositionen.length,
+          bereitsVorhanden,                                  // Incoming, die schon da waren
+          nichtInCsvBehalten: gesamtVorher - bereitsVorhanden, // Bestand, der nicht in der CSV ist
+          gesamtNachher:      gesamtVorher + neuePositionen.length,
+        };
+      });
+
+      return stats;
+    }),
+
   // Hartes Delete — Cascade räumt die Positionen.
   loeschen: pickupManage
     .input(z.object({ id: z.number().int().positive() }))
