@@ -31,6 +31,7 @@ import { pickupRouter }             from "./pickup";
 import { lagerwagenRouter }         from "./lagerwagen";
 import { geraeteReiseRouter }       from "./geraeteReise";
 import { fehlteileRouter }          from "./fehlteile";
+import { verbrauchsmaterialRouter }  from "./verbrauchsmaterial";
 
 export const appRouter = createTRPCRouter({
   lager:           lagerRouter,
@@ -65,6 +66,7 @@ export const appRouter = createTRPCRouter({
   lagerwagen:        lagerwagenRouter,
   geraeteReise:      geraeteReiseRouter,
   fehlteile:         fehlteileRouter,
+  verbrauchsmaterial: verbrauchsmaterialRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -743,3 +743,45 @@ model LogIdBewegung {
   @@index([feld])
   @@index([importId])
 }
+
+// ── Verbrauchsmaterial / Kartonage ────────────────────────────────────────────
+// Bestandsführung für Verbrauchsmaterial (heute in Excel). Stammdaten + aktueller
+// Bestand; Code dient später als QR-/Etiketten-Code. Reine Materialwirtschaft,
+// getrennt vom Geräte-/Teile-Lager (KEIN Bestandseffekt dort).
+model VerbrauchsArtikel {
+  id               Int      @id @default(autoincrement())
+  code             String   @unique          // QR-/Etiketten-Code, z.B. "VM-0001"
+  name             String   @db.VarChar(255)
+  merkmale         String?  @db.VarChar(255)
+  kategorie        String?  @db.VarChar(100)
+  mindestbestand   Int      @default(0)
+  aktuellerBestand Int      @default(0)
+  aan              String?  @db.VarChar(100)
+  gebindegroesse   Int?
+  standort         String?  @db.VarChar(191)
+  bemerkung        String?  @db.Text
+  aktiv            Boolean  @default(true)
+  erstelltAm       DateTime @default(now())
+  aktualisiertAm   DateTime @updatedAt
+  zaehlungen       VerbrauchsZaehlung[]
+
+  @@index([kategorie])
+  @@index([aktiv])
+}
+
+// Zählungs-/Bestandshistorie (Grundlage für spätere Verbrauchsauswertung S4).
+model VerbrauchsZaehlung {
+  id         Int      @id @default(autoincrement())
+  artikelId  Int
+  artikel    VerbrauchsArtikel @relation(fields: [artikelId], references: [id], onDelete: Cascade)
+  datum      DateTime @default(now())
+  vorher     Int
+  bestand    Int
+  verbrauch  Int      // max(0, vorher - bestand)
+  benutzer   String?  @db.VarChar(100)
+  bemerkung  String?  @db.VarChar(255)
+  erstelltAm DateTime @default(now())
+
+  @@index([artikelId])
+  @@index([datum])
+}

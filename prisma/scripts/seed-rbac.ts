@@ -31,6 +31,10 @@ const PERMISSIONS = [
   { key: "PICKUP_PICK",          kategorie: "Betrieb",    bezeichnung: "Pickup-Aufträge bearbeiten" },
   { key: "PICKUP_MANAGE",        kategorie: "Betrieb",    bezeichnung: "Pickup-Aufträge anlegen & verwalten" },
 
+  // Verbrauchsmaterial / Kartonage
+  { key: "MATERIAL_VIEW",       kategorie: "Verbrauchsmaterial", bezeichnung: "Verbrauchsmaterial sehen" },
+  { key: "MATERIAL_MANAGE",     kategorie: "Verbrauchsmaterial", bezeichnung: "Verbrauchsmaterial verwalten & importieren" },
+
   // Artikel & Lager
   { key: "ARTIKEL_VIEW",        kategorie: "Lager",       bezeichnung: "Artikel-Liste sehen" },
   { key: "ARTIKEL_EDIT",        kategorie: "Lager",       bezeichnung: "Artikel bearbeiten" },
@@ -65,7 +69,9 @@ const ROLLEN = [
     name:         "ADMIN",
     bezeichnung:  "Administrator",
     beschreibung: "Voller Zugriff auf alle Systemfunktionen",
-    permissions:  ["SYSTEM_ADMIN"],
+    // SYSTEM_ADMIN deckt alles per Wildcard ab; MATERIAL_* zusätzlich explizit,
+    // damit das Recht auch bei abgeleiteten Rollen ohne Wildcard sauber greift.
+    permissions:  ["SYSTEM_ADMIN", "MATERIAL_VIEW", "MATERIAL_MANAGE"],
   },
   {
     name:         "TECHNIKER",
