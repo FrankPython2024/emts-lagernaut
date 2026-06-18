@@ -493,7 +493,7 @@ enum PickupTyp {
 
 model PickupAuftrag {
   id              Int       @id @default(autoincrement())
-  name            String
+  name            String    @db.VarChar(200) // passend zu Zod .max(200) / input maxLength=200
   typ             PickupTyp @default(LOGID)
   bemerkung       String?   @db.Text // optionaler Freitext (z.B. Verkäufer-Reservierungsnummer)
   status          String    @default("offen") // 'offen' | 'abgeschlossen'
@@ -516,7 +516,7 @@ model PickupPosition {
   logId       String    // normalisiert (reine Ziffern)
   colli       String?
   stellplatz  String?
-  bezeichnung String?
+  bezeichnung String?   @db.Text // AfB-Bezeichnungen bis 514+ Zeichen — wie GeraeteLookup/LogIdStand
   status      String    @default("OFFEN") // 'OFFEN' | 'GEFUNDEN'
   gefundenVon Int?
   finder      User?     @relation(fields: [gefundenVon], references: [id])

@@ -4,6 +4,7 @@ import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import type { SessionUser } from "@/core/types";
 import { normalizeLogId } from "@/lib/pickup/logId";
+import { bereinigePositionsFelder } from "@/lib/pickup/position";
 import { nurZiffern } from "@/lib/format/ziffern";
 import { emitToAdmins } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
@@ -128,9 +129,7 @@ export const pickupRouter = createTRPCRouter({
         seen.add(logId);
         return [{
           logId,
-          colli:       p.colli?.trim()       || null,
-          stellplatz:  p.stellplatz?.trim()  || null,
-          bezeichnung: p.bezeichnung?.trim() || null,
+          ...bereinigePositionsFelder(p),
           status:      "OFFEN" as const,
         }];
       });
@@ -196,9 +195,7 @@ export const pickupRouter = createTRPCRouter({
           return [{
             auftragId:   input.auftragId,
             logId,
-            colli:       p.colli?.trim()       || null,
-            stellplatz:  p.stellplatz?.trim()  || null,
-            bezeichnung: p.bezeichnung?.trim() || null,
+            ...bereinigePositionsFelder(p),
             status:      "OFFEN" as const,
           }];
         });
