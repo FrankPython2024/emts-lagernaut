@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -81,9 +81,31 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
   const neueAnfragen = useNeueAnfragenZaehler();
   const [dark, setDark] = useState(false);
 
+  // Einstellungs-Block (Standort, Suche, Schrift, Theme, Hinweise, Test-Modus,
+  // Profil/Logout) ist standardmäßig eingeklappt hinter „⚙️ Funktion".
+  const [funktionOffen, setFunktionOffen] = useState(false);
+  const funktionRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
   }, []);
+
+  // Klick außerhalb / Escape schließt das Funktion-Panel.
+  useEffect(() => {
+    if (!funktionOffen) return;
+    const onPointer = (e: MouseEvent | TouchEvent) => {
+      if (funktionRef.current && !funktionRef.current.contains(e.target as Node)) setFunktionOffen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFunktionOffen(false); };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("touchstart", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("touchstart", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [funktionOffen]);
 
   function toggleTheme() {
     const d = !dark;
@@ -199,7 +221,22 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       {/* Kompakt: wenig Außen-/Zwischen-Abstand, Bedienelemente bleiben aber bei
           min-h-[44px] gut antippbar (nur Weißraum reduziert, nicht die Controls). */}
-      <div className="px-3 py-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 space-y-0.5">
+      <div ref={funktionRef} className="px-3 py-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
+
+        {/* Sammel-Button: klappt den Einstellungs-Block auf/zu (Standard: zu) */}
+        <button
+          onClick={() => setFunktionOffen((o) => !o)}
+          aria-expanded={funktionOffen}
+          aria-controls="funktion-panel"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-colors min-h-[44px]"
+        >
+          <span className="w-5 text-center text-base" aria-hidden>⚙️</span>
+          <span className="flex-1 text-left">Funktion</span>
+          <span className="text-gray-400 dark:text-gray-500 text-xs" aria-hidden>{funktionOffen ? "▲" : "▼"}</span>
+        </button>
+
+        {funktionOffen && (
+          <div id="funktion-panel" className="space-y-0.5 mt-1">
 
         {/* Standort-Switcher (nur Admin) */}
         <StandortSwitcher />
@@ -268,6 +305,8 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
             </LogoutButton>
           </div>
         )}
+          </div>
+        )}
       </div>
     </aside>
   );
@@ -326,6 +365,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { has } = usePermissions();
   const sucheErlaubt = has("SUCHE_GLOBAL");
 
+  const drawerRef    = useRef<HTMLDivElement>(null);
+  const hamburgerRef = useRef<HTMLButtonElement>(null);
+
   // Globaler Ctrl+K / Cmd+K Shortcut — nur wenn User SUCHE_GLOBAL hat
   useEffect(() => {
     if (!sucheErlaubt) return;
@@ -338,6 +380,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [sucheErlaubt]);
+
+  // Mobile-Drawer als Modal: Body-Scroll sperren, Escape schließt, Fokus in den
+  // Drawer beim Öffnen und zurück zum Hamburger beim Schließen.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    drawerRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+      hamburgerRef.current?.focus();
+    };
+  }, [mobileOpen]);
 
   return (
     <ToastProvider>
@@ -358,10 +416,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           />
         </div>
 
-        {/* Mobile Overlay */}
+        {/* Mobile Overlay — Drawer mit denselben rechtebasierten Menüpunkten */}
         {mobileOpen && (
           <div className="fixed inset-0 z-50 flex lg:hidden">
-            <div className="w-64 flex-shrink-0 flex flex-col shadow-2xl">
+            <div
+              ref={drawerRef}
+              id="mobile-drawer"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigationsmenü"
+              tabIndex={-1}
+              className="w-[min(18rem,85vw)] flex-shrink-0 flex flex-col shadow-2xl outline-none"
+            >
               <Sidebar
                 collapsed={false}
                 onClose={() => setMobileOpen(false)}
@@ -369,7 +435,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 onProfile={() => { setMobileOpen(false); setProfilOffen(true); }}
               />
             </div>
-            <div className="flex-1 bg-black/50" onClick={() => setMobileOpen(false)} />
+            <div className="flex-1 bg-black/50" onClick={() => setMobileOpen(false)} aria-hidden />
           </div>
         )}
 
@@ -378,8 +444,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Mobile Topbar */}
           <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
             <button
+              ref={hamburgerRef}
               onClick={() => setMobileOpen(true)}
               aria-label="Menü öffnen"
+              aria-expanded={mobileOpen}
+              aria-controls="mobile-drawer"
+              aria-haspopup="menu"
               className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               ☰
@@ -405,8 +475,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )}
           </div>
 
-          {/* Page Content */}
-          <main className="flex-1 overflow-y-auto p-6">
+          {/* Page Content — mobil volle Breite (schmaleres Padding), Desktop wie gehabt */}
+          <main className="flex-1 overflow-y-auto p-4 lg:p-6">
             {children}
           </main>
         </div>

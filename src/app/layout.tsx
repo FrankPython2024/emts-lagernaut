@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Providers } from "./providers";
 import { SocketInitializer } from "@/components/ui/SocketInitializer";
 import "./globals.css";
@@ -6,6 +6,15 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "EMTS Lagernaut",
   description: "Ersatzteil Management System — AfB Sömmerda",
+};
+
+// Ohne dieses Meta nutzen mobile Browser einen ~980px-Layout-Viewport und
+// skalieren die Seite herunter → Desktop-Breakpoints (md/lg) greifen, die Shell
+// wirkt „Desktop". Mit width=device-width entspricht der Viewport der echten
+// Gerätebreite (~400px) → die mobile Shell (lg-Breakpoint) greift.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
