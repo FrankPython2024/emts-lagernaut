@@ -31,17 +31,26 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// Schriftgröße der Bezeichnung nach Länge — lange Namen bleiben lesbar, brechen
-// um und werden per line-clamp begrenzt, damit nichts überläuft.
-function nameFontSize(len: number): string {
-  if (len <= 18) return "12pt";
-  if (len <= 30) return "10pt";
-  if (len <= 45) return "8.5pt";
-  return "7pt";
-}
-
-// Auto-Print im neuen Fenster — wortgleich zu colliEtikett.ts.
-const PRINT_SCRIPT = `<script>(function(){function p(){window.focus();window.print();}document.readyState==='complete'?p():window.addEventListener('load',p);})();</script>`;
+// Auto-Fit + Auto-Print im neuen Fenster. Pro Etikett wird die Bezeichnung von
+// einer Maximalgröße (13pt) schrittweise verkleinert, bis sie KOMPLETT in ihren
+// Textbereich (.namebox, rechts neben dem 27mm-QR) passt — kein Abschneiden,
+// kein Überlauf. Mindestgröße 5pt; darunter greift zusätzlich der Umbruch
+// (overflow-wrap/word-break/hyphens). Gemessen wird scrollHeight/scrollWidth
+// gegen die Box, nachdem das Layout (inkl. QR-Bilder) steht.
+const FIT_PRINT_SCRIPT = `<script>(function(){
+  function fit(){
+    var names=document.querySelectorAll('.name');
+    for(var i=0;i<names.length;i++){
+      var el=names[i], box=el.parentElement, size=13;
+      el.style.fontSize=size+'pt';
+      while(size>5 && (el.scrollHeight>box.clientHeight+1 || el.scrollWidth>box.clientWidth+1)){
+        size-=0.5; el.style.fontSize=size+'pt';
+      }
+    }
+  }
+  function p(){fit();window.focus();window.print();}
+  document.readyState==='complete'?p():window.addEventListener('load',p);
+})();</script>`;
 
 /**
  * Druckt für jeden Artikel ein 57×32mm-QR-Etikett — eines pro Seite. Fenster wird
@@ -64,10 +73,12 @@ export async function printVerbrauchsmaterialEtiketten(artikel: EtikettArtikel[]
     .lw:last-child { page-break-after: avoid; }
     .et   { width: 57mm; height: 32mm; padding: 2mm; display: flex; align-items: center; gap: 2mm; overflow: hidden; }
     .qr   { width: 27mm; height: 27mm; flex-shrink: 0; display: block; }
-    .right{ flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1mm; }
-    .name { font-weight: bold; color: #000; line-height: 1.15; word-break: break-word; overflow-wrap: anywhere;
-            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-    .code { font-family: "Courier New", monospace; font-size: 8pt; font-weight: bold; color: #000;
+    .right{ flex: 1; min-width: 0; height: 28mm; display: flex; flex-direction: column; justify-content: center; gap: 1mm; overflow: hidden; }
+    /* Namebox: wächst, der Auto-Fit misst die Bezeichnung gegen genau diese Box. */
+    .namebox { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; overflow: hidden; }
+    .name { width: 100%; max-height: 100%; font-weight: bold; color: #000; line-height: 1.1; overflow: hidden;
+            word-break: break-word; overflow-wrap: anywhere; -webkit-hyphens: auto; hyphens: auto; }
+    .code { flex: 0 0 auto; font-family: "Courier New", monospace; font-size: 8pt; font-weight: bold; color: #000;
             letter-spacing: .5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   `;
 
@@ -75,12 +86,12 @@ export async function printVerbrauchsmaterialEtiketten(artikel: EtikettArtikel[]
     <div class="lw"><div class="et">
       <img class="qr" src="${qr}" alt="" />
       <div class="right">
-        <div class="name" style="font-size:${nameFontSize(a.name.length)}">${escapeHtml(a.name)}</div>
+        <div class="namebox"><div class="name" lang="de">${escapeHtml(a.name)}</div></div>
         <div class="code">${escapeHtml(a.code)}</div>
       </div>
     </div></div>`).join("\n");
 
   w.document.open();
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${body}${PRINT_SCRIPT}</body></html>`);
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>${body}${FIT_PRINT_SCRIPT}</body></html>`);
   w.document.close();
 }
