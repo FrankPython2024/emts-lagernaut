@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import type { Prisma } from "@prisma/client";
+import type { SessionUser } from "@/core/types";
 
 // Verbrauchsmaterial / Kartonage. Lesen: MATERIAL_VIEW, Schreiben:
 // MATERIAL_MANAGE. SYSTEM_ADMIN-Wildcard deckt beides ab. Eigene
@@ -129,6 +130,105 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
     const kategorien = [...new Set(rows.map((r) => r.kategorie).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b, "de"));
     const standorte  = [...new Set(rows.map((r) => r.standort).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b, "de"));
     return { kategorien, standorte };
+  }),
+
+  // ── Handheld-Zählflow ───────────────────────────────────────────────────────
+
+  // Scan: Artikel-Code (z.B. "VM-0001") exakt auflösen. code ist @unique, die
+  // MySQL-Default-Collation ist case-insensitive → getrimmter Vergleich genügt.
+  // Unbekannt → { gefunden: false } (kein Throw, damit der Scanflow sauber weiterläuft).
+  artikelByCode: view
+    .input(z.object({ code: z.string().trim().min(1) }))
+    .query(async ({ input }) => {
+      const code = input.code.trim();
+      const a = await prisma.verbrauchsArtikel.findUnique({ where: { code } });
+      if (!a) return { gefunden: false as const, code };
+
+      const letzte = await prisma.verbrauchsZaehlung.findFirst({
+        where: { artikelId: a.id }, orderBy: { datum: "desc" }, select: { datum: true },
+      });
+      return {
+        gefunden: true as const,
+        artikel: {
+          id:                a.id,
+          code:              a.code,
+          name:              a.name,
+          kategorie:         a.kategorie,
+          standort:          a.standort,
+          aktuellerBestand:  a.aktuellerBestand, // = letzter Bestand
+          mindestbestand:    a.mindestbestand,
+          aktiv:             a.aktiv,
+          letztesZaehldatum: letzte?.datum ?? null,
+          status:            status(a.aktuellerBestand, a.mindestbestand),
+        },
+      };
+    }),
+
+  // Zählung speichern: VerbrauchsZaehlung schreiben (vorher = bisheriger Stand,
+  // bestand = neu gezählt, verbrauch = max(0, vorher-neu)) UND aktuellerBestand
+  // setzen — atomar in einer Transaktion.
+  zaehlen: manage
+    .input(z.object({
+      artikelId: z.number().int().positive(),
+      bestand:   z.number().int().min(0),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const user     = ctx.session.user as SessionUser;
+      const benutzer = cap(user.kuerzel ?? user.name ?? null, 100);
+
+      return prisma.$transaction(async (tx) => {
+        const artikel = await tx.verbrauchsArtikel.findUnique({
+          where: { id: input.artikelId }, select: { aktuellerBestand: true },
+        });
+        if (!artikel) throw new TRPCError({ code: "NOT_FOUND", message: "Artikel nicht gefunden" });
+
+        const vorher    = artikel.aktuellerBestand;
+        const neu       = input.bestand;
+        const verbrauch = Math.max(0, vorher - neu);
+
+        await tx.verbrauchsZaehlung.create({
+          data: { artikelId: input.artikelId, datum: new Date(), vorher, bestand: neu, verbrauch, benutzer },
+        });
+        await tx.verbrauchsArtikel.update({
+          where: { id: input.artikelId }, data: { aktuellerBestand: neu },
+        });
+        return { vorher, neu, verbrauch };
+      });
+    }),
+
+  // Diese Woche (ab Montag 00:00) bereits gezählte Artikel — jüngste Zählung je
+  // Artikel — als Fortschritts-/Orientierungsliste.
+  dieseWoche: view.query(async () => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // Mo=0 … So=6
+
+    const [zaehlungen, aktiveGesamt] = await Promise.all([
+      prisma.verbrauchsZaehlung.findMany({
+        where:   { datum: { gte: start } },
+        orderBy: { datum: "desc" },
+        include: { artikel: { select: { name: true, code: true } } },
+      }),
+      prisma.verbrauchsArtikel.count({ where: { aktiv: true } }),
+    ]);
+
+    // Jüngste Zählung je Artikel (Liste ist bereits absteigend sortiert).
+    const gesehen = new Set<number>();
+    const erfasst = [];
+    for (const z of zaehlungen) {
+      if (gesehen.has(z.artikelId)) continue;
+      gesehen.add(z.artikelId);
+      erfasst.push({
+        artikelId: z.artikelId,
+        name:      z.artikel.name,
+        code:      z.artikel.code,
+        bestand:   z.bestand,
+        verbrauch: z.verbrauch,
+        datum:     z.datum,
+        benutzer:  z.benutzer,
+      });
+    }
+    return { erfasst, anzahl: erfasst.length, aktiveGesamt };
   }),
 
   // Neuen Artikel anlegen (Code wird automatisch vergeben).

@@ -98,6 +98,13 @@ export default function VerbrauchsmaterialPage() {
         {darfVerwalten && (
           <div className="flex items-center gap-2">
             <Link
+              href="/admin/verbrauchsmaterial/zaehlen"
+              className="inline-flex items-center gap-2 px-4 rounded-lg font-bold text-white transition-colors min-h-[44px]"
+              style={{ background: "#04B475" }}
+            >
+              📲 Zählen
+            </Link>
+            <Link
               href="/admin/verbrauchsmaterial/import"
               className="inline-flex items-center gap-2 px-4 rounded-lg font-bold text-[#008BD2] border-2 border-[#008BD2]/40 hover:bg-[#008BD2]/10 transition-colors min-h-[44px]"
             >
