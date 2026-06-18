@@ -6,6 +6,7 @@ import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
+import { printVerbrauchsmaterialEtiketten } from "@/lib/print/verbrauchsmaterialEtikett";
 
 const CYAN = "#008BD2";
 
@@ -35,6 +36,7 @@ export default function VerbrauchsmaterialPage() {
   const [zeigeInaktive, setZeigeInaktive] = useState(false);
   const [editArtikel, setEditArtikel]     = useState<Artikel | null>(null);
   const [formOffen, setFormOffen]         = useState(false);
+  const [auswahl, setAuswahl]             = useState<Set<number>>(new Set());
 
   const listeQ = api.verbrauchsmaterial.liste.useQuery(
     {
@@ -62,6 +64,26 @@ export default function VerbrauchsmaterialPage() {
 
   function neu() { setEditArtikel(null); setFormOffen(true); }
   function bearbeiten(a: Artikel) { setEditArtikel(a); setFormOffen(true); }
+
+  function toggle(id: number) {
+    setAuswahl((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  const alleGewaehlt = artikel.length > 0 && artikel.every((a) => auswahl.has(a.id));
+  function toggleAlle() {
+    setAuswahl(alleGewaehlt ? new Set() : new Set(artikel.map((a) => a.id)));
+  }
+  function druckeEinzeln(a: Artikel) {
+    void printVerbrauchsmaterialEtiketten([{ code: a.code, name: a.name }]);
+  }
+  function druckeAuswahl() {
+    const gewaehlt = artikel.filter((a) => auswahl.has(a.id));
+    if (gewaehlt.length === 0) return;
+    void printVerbrauchsmaterialEtiketten(gewaehlt.map((a) => ({ code: a.code, name: a.name })));
+  }
 
   return (
     <div className="space-y-5">
@@ -136,6 +158,30 @@ export default function VerbrauchsmaterialPage() {
         </label>
       </div>
 
+      {/* Bulk-Aktionen */}
+      {auswahl.size > 0 && (
+        <div className="flex items-center justify-between gap-3 flex-wrap rounded-2xl border border-[#008BD2]/40 bg-[#008BD2]/5 px-4 py-3">
+          <span className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
+            {auswahl.size} {auswahl.size === 1 ? "Artikel" : "Artikel"} gewählt
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setAuswahl(new Set())}
+              className="px-4 rounded-lg text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] min-h-[44px]"
+            >
+              Auswahl aufheben
+            </button>
+            <button
+              onClick={druckeAuswahl}
+              className="inline-flex items-center gap-2 px-5 rounded-lg font-bold text-white min-h-[44px]"
+              style={{ background: CYAN }}
+            >
+              🏷️ Etiketten drucken ({auswahl.size})
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tabelle */}
       <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
         {listeQ.isLoading ? (
@@ -149,6 +195,15 @@ export default function VerbrauchsmaterialPage() {
             <table className="w-full text-sm">
               <thead className="bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8]">
                 <tr className="border-b border-[#ced4da] dark:border-[#3e4042]">
+                  <th scope="col" className="w-10 py-2.5 px-4">
+                    <input
+                      type="checkbox"
+                      checked={alleGewaehlt}
+                      onChange={toggleAlle}
+                      aria-label="Alle auswählen"
+                      className="w-5 h-5 accent-[#008BD2] align-middle"
+                    />
+                  </th>
                   <th scope="col" className="text-left py-2.5 px-4 font-bold">Name</th>
                   <th scope="col" className="text-left py-2.5 px-4 font-bold">Kategorie</th>
                   <th scope="col" className="text-left py-2.5 px-4 font-bold">Standort</th>
@@ -156,15 +211,24 @@ export default function VerbrauchsmaterialPage() {
                   <th scope="col" className="text-right py-2.5 px-4 font-bold">Mindest</th>
                   <th scope="col" className="text-left py-2.5 px-4 font-bold">Status</th>
                   <th scope="col" className="text-left py-2.5 px-4 font-bold">Code</th>
-                  {darfVerwalten && <th scope="col" className="text-right py-2.5 px-4 font-bold">Aktion</th>}
+                  <th scope="col" className="text-right py-2.5 px-4 font-bold">Aktion</th>
                 </tr>
               </thead>
               <tbody>
                 {artikel.map((a) => (
                   <tr
                     key={a.id}
-                    className={`border-b border-[#f0f2f5] dark:border-[#3e4042] ${a.aktiv ? "" : "opacity-50"}`}
+                    className={`border-b border-[#f0f2f5] dark:border-[#3e4042] ${a.aktiv ? "" : "opacity-50"} ${auswahl.has(a.id) ? "bg-[#008BD2]/5" : ""}`}
                   >
+                    <td className="py-2.5 px-4">
+                      <input
+                        type="checkbox"
+                        checked={auswahl.has(a.id)}
+                        onChange={() => toggle(a.id)}
+                        aria-label={`${a.name} auswählen`}
+                        className="w-5 h-5 accent-[#008BD2] align-middle"
+                      />
+                    </td>
                     <td className="py-2.5 px-4">
                       <div className="font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">{a.name}</div>
                       {a.merkmale && <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{a.merkmale}</div>}
@@ -175,16 +239,26 @@ export default function VerbrauchsmaterialPage() {
                     <td className="py-2.5 px-4 text-right text-[#65676b] dark:text-[#b0b3b8] tabular-nums">{a.mindestbestand}</td>
                     <td className="py-2.5 px-4"><StatusBadge status={a.status} /></td>
                     <td className="py-2.5 px-4 font-mono text-xs text-[#008BD2] dark:text-[#45bdff]">{a.code}</td>
-                    {darfVerwalten && (
-                      <td className="py-2.5 px-4 text-right">
+                    <td className="py-2.5 px-4">
+                      <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => bearbeiten(a)}
-                          className="px-3 rounded-lg text-[#0064d2] hover:bg-[#0064d2]/10 font-semibold min-h-[40px]"
+                          onClick={() => druckeEinzeln(a)}
+                          title="Etikett drucken"
+                          aria-label={`Etikett für ${a.name} drucken`}
+                          className="px-3 rounded-lg text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] font-semibold min-h-[40px]"
                         >
-                          Bearbeiten
+                          🏷️ Etikett
                         </button>
-                      </td>
-                    )}
+                        {darfVerwalten && (
+                          <button
+                            onClick={() => bearbeiten(a)}
+                            className="px-3 rounded-lg text-[#0064d2] hover:bg-[#0064d2]/10 font-semibold min-h-[40px]"
+                          >
+                            Bearbeiten
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
