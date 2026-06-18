@@ -50,6 +50,10 @@ export default function VerbrauchsmaterialPage() {
   const optionenQ = api.verbrauchsmaterial.filterOptionen.useQuery(undefined, {
     enabled: !permsLoading && has("MATERIAL_VIEW"),
   });
+  const nachbQ = api.verbrauchsmaterial.nachbestellen.useQuery(undefined, {
+    enabled: !permsLoading && has("MATERIAL_VIEW"),
+  });
+  const nachbestellAnzahl = nachbQ.data?.length ?? 0;
 
   if (permsLoading) return <PageLoader />;
   if (!has("MATERIAL_VIEW")) {
@@ -90,13 +94,31 @@ export default function VerbrauchsmaterialPage() {
       {/* Kopf */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">📦 Verbrauchsmaterial</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">📦 Verbrauchsmaterial</h1>
+            {nachbestellAnzahl > 0 && (
+              <Link
+                href="/admin/verbrauchsmaterial/auswertung"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-[#EF4444]/15 text-[#b3261e] hover:bg-[#EF4444]/25 transition-colors"
+                title="Zur Nachbestell-Warnung"
+              >
+                ⚠️ {nachbestellAnzahl} nachzubestellen
+              </Link>
+            )}
+          </div>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
             Bestandsführung für Verbrauchsmaterial &amp; Kartonage. Status warnt bei Unterschreitung des Mindestbestands.
           </p>
         </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href="/admin/verbrauchsmaterial/auswertung"
+            className="inline-flex items-center gap-2 px-4 rounded-lg font-bold text-[#202F61] dark:text-[#e4e6eb] border-2 border-[#ced4da] dark:border-[#3e4042] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[44px]"
+          >
+            📊 Auswertung
+          </Link>
         {darfVerwalten && (
-          <div className="flex items-center gap-2">
+          <>
             <Link
               href="/admin/verbrauchsmaterial/zaehlen"
               className="inline-flex items-center gap-2 px-4 rounded-lg font-bold text-white transition-colors min-h-[44px]"
@@ -117,8 +139,9 @@ export default function VerbrauchsmaterialPage() {
             >
               ＋ Neuer Artikel
             </button>
-          </div>
+          </>
         )}
+        </div>
       </div>
 
       {/* Filterleiste */}

@@ -74,6 +74,19 @@ function status(aktuellerBestand: number, mindestbestand: number): "OK" | "NACHB
   return aktuellerBestand >= mindestbestand ? "OK" : "NACHBESTELLEN";
 }
 
+// Zeitraum-Auswahl für die Auswertung. "all" → kein Datums-Filter.
+const zeitraumEnum = z.enum(["4w", "3m", "12m", "all"]).default("3m");
+
+function seitDatum(zeitraum: z.infer<typeof zeitraumEnum>): Date | null {
+  if (zeitraum === "all") return null;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  if (zeitraum === "4w")  d.setDate(d.getDate() - 28);
+  else if (zeitraum === "3m")  d.setMonth(d.getMonth() - 3);
+  else /* 12m */               d.setMonth(d.getMonth() - 12);
+  return d;
+}
+
 const positionInput = z.object({
   name:             z.string().trim().min(1),
   merkmale:         z.string().nullish(),
@@ -230,6 +243,90 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
     }
     return { erfasst, anzahl: erfasst.length, aktiveGesamt };
   }),
+
+  // ── Auswertung (alles MATERIAL_VIEW) ────────────────────────────────────────
+
+  // Top 10 Artikel nach Summe Verbrauch im Zeitraum.
+  topVerbrauch: view
+    .input(z.object({ zeitraum: zeitraumEnum }).optional())
+    .query(async ({ input }) => {
+      const since = seitDatum(input?.zeitraum ?? "3m");
+      const where: Prisma.VerbrauchsZaehlungWhereInput = since ? { datum: { gte: since } } : {};
+
+      const grouped = await prisma.verbrauchsZaehlung.groupBy({
+        by: ["artikelId"], where, _sum: { verbrauch: true },
+      });
+      const sortiert = grouped
+        .map((g) => ({ artikelId: g.artikelId, verbrauch: g._sum.verbrauch ?? 0 }))
+        .filter((g) => g.verbrauch > 0)
+        .sort((a, b) => b.verbrauch - a.verbrauch)
+        .slice(0, 10);
+
+      const arts = await prisma.verbrauchsArtikel.findMany({
+        where:  { id: { in: sortiert.map((s) => s.artikelId) } },
+        select: { id: true, name: true, code: true, kategorie: true },
+      });
+      const map = new Map(arts.map((a) => [a.id, a]));
+
+      return sortiert.map((s) => ({
+        artikelId: s.artikelId,
+        name:      map.get(s.artikelId)?.name ?? "—",
+        code:      map.get(s.artikelId)?.code ?? "",
+        kategorie: map.get(s.artikelId)?.kategorie ?? null,
+        verbrauch: s.verbrauch,
+      }));
+    }),
+
+  // Verbrauchs-/Bestandsverlauf eines Artikels (chronologisch, je Zählung).
+  verlauf: view
+    .input(z.object({ artikelId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const [artikel, eintraege] = await Promise.all([
+        prisma.verbrauchsArtikel.findUnique({
+          where: { id: input.artikelId }, select: { name: true, code: true },
+        }),
+        prisma.verbrauchsZaehlung.findMany({
+          where:   { artikelId: input.artikelId },
+          orderBy: { datum: "asc" },
+          select:  { datum: true, verbrauch: true, bestand: true },
+        }),
+      ]);
+      return { name: artikel?.name ?? "—", code: artikel?.code ?? "", eintraege };
+    }),
+
+  // Nachbestell-Liste: aktive Artikel unter Mindestbestand, sortiert nach „fehlt".
+  // Spaltenvergleich (aktuellerBestand < mindestbestand) macht Prisma nicht direkt
+  // → mindestbestand>0 vorfiltern, Rest in JS.
+  nachbestellen: view.query(async () => {
+    const arts = await prisma.verbrauchsArtikel.findMany({
+      where:  { aktiv: true, mindestbestand: { gt: 0 } },
+      select: { id: true, name: true, kategorie: true, standort: true, aktuellerBestand: true, mindestbestand: true, aan: true },
+    });
+    return arts
+      .filter((a) => a.aktuellerBestand < a.mindestbestand)
+      .map((a) => ({ ...a, fehlt: a.mindestbestand - a.aktuellerBestand }))
+      .sort((a, b) => b.fehlt - a.fehlt);
+  }),
+
+  // KPIs: aktive Artikel, davon unter Mindestbestand, Gesamtverbrauch im Zeitraum.
+  kpis: view
+    .input(z.object({ zeitraum: zeitraumEnum }).optional())
+    .query(async ({ input }) => {
+      const since = seitDatum(input?.zeitraum ?? "3m");
+      const [aktivGesamt, unterMindestRows, sumAgg] = await Promise.all([
+        prisma.verbrauchsArtikel.count({ where: { aktiv: true } }),
+        prisma.verbrauchsArtikel.findMany({
+          where: { aktiv: true, mindestbestand: { gt: 0 } },
+          select: { aktuellerBestand: true, mindestbestand: true },
+        }),
+        prisma.verbrauchsZaehlung.aggregate({
+          _sum: { verbrauch: true },
+          where: since ? { datum: { gte: since } } : {},
+        }),
+      ]);
+      const unterMindest = unterMindestRows.filter((a) => a.aktuellerBestand < a.mindestbestand).length;
+      return { aktivGesamt, unterMindest, gesamtverbrauch: sumAgg._sum.verbrauch ?? 0 };
+    }),
 
   // Neuen Artikel anlegen (Code wird automatisch vergeben).
   anlegen: manage
