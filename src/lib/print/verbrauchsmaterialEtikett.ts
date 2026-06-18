@@ -72,7 +72,10 @@ export async function printVerbrauchsmaterialEtiketten(artikel: EtikettArtikel[]
     .lw   { width: 57mm; height: 32mm; overflow: hidden; page-break-after: always; }
     .lw:last-child { page-break-after: avoid; }
     .et   { width: 57mm; height: 32mm; padding: 2mm; display: flex; align-items: center; gap: 2mm; overflow: hidden; }
-    .qr   { width: 27mm; height: 27mm; flex-shrink: 0; display: block; }
+    /* Linke Spalte: QR + „EMTS"-Schriftzug zentriert darunter. */
+    .qrcol{ flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8mm; }
+    .qr   { width: 22.5mm; height: 22.5mm; display: block; }
+    .emts { font-weight: bold; font-size: 9pt; line-height: 1; letter-spacing: 1px; text-align: center; color: #202F61; }
     .right{ flex: 1; min-width: 0; height: 28mm; display: flex; flex-direction: column; justify-content: center; gap: 1mm; overflow: hidden; }
     /* Namebox: wächst, der Auto-Fit misst die Bezeichnung gegen genau diese Box. */
     .namebox { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; overflow: hidden; }
@@ -84,7 +87,10 @@ export async function printVerbrauchsmaterialEtiketten(artikel: EtikettArtikel[]
 
   const body = entries.map(({ a, qr }) => `
     <div class="lw"><div class="et">
-      <img class="qr" src="${qr}" alt="" />
+      <div class="qrcol">
+        <img class="qr" src="${qr}" alt="" />
+        <div class="emts">EMTS</div>
+      </div>
       <div class="right">
         <div class="namebox"><div class="name" lang="de">${escapeHtml(a.name)}</div></div>
         <div class="code">${escapeHtml(a.code)}</div>
