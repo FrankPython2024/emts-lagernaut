@@ -39,12 +39,13 @@ function fmtZeit(d: Date | string | null): string {
   return new Date(d).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 }
 
-// ── „Zuletzt gescannt" — großer Block, IMMER Icon + Text + Farbe zugleich ──────
+// ── „Zuletzt gescannt" — kompakt: IMMER Icon + Text + Farbe zugleich ───────────
 function ErgebnisBanner({ fb, istColli }: { fb: Feedback | null; istColli: boolean }) {
   if (!fb) {
     return (
-      <div role="status" className="rounded-2xl border-2 border-dashed border-[#ced4da] dark:border-[#3e4042] p-5 text-center text-[#65676b] dark:text-[#b0b3b8] text-lg">
-        Bereit zum Scannen…
+      <div role="status" className="flex items-center gap-2 rounded-xl px-3 min-h-[56px] bg-[#f0f2f5] dark:bg-[#18191a] border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] text-base">
+        <span aria-hidden>🔍</span>
+        <span>Noch nichts gescannt</span>
       </div>
     );
   }
@@ -167,50 +168,36 @@ function ErgebnisBanner({ fb, istColli }: { fb: Feedback | null; istColli: boole
     );
   }
 
-  // ── LogID-Scan ──
+  // ── LogID-Scan — kompakte Statuszeile (~56px), Icon + Farbe + Klartext ──
   const p = fb.position;
   if (fb.result === "GEFUNDEN") {
     return (
-      <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5" style={{ borderColor: "#04B475", background: "rgba(4,180,117,0.10)" }}>
-        <div className="flex items-center gap-4">
-          <span className="text-5xl" aria-hidden>✓</span>
-          <div className="min-w-0">
-            <div className="text-2xl font-black" style={{ color: "#04713f" }}>Gefunden</div>
-            <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">{formatLogId(fb.logId)}</div>
-            <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-              {p?.bezeichnung ?? "—"} · Colli {p?.colli ?? "—"} · Stellplatz {p?.stellplatz ?? "—"}
-            </div>
-          </div>
-        </div>
+      <div role="status" aria-live="assertive" className="flex items-center gap-3 rounded-xl border-2 px-3 min-h-[56px]" style={{ borderColor: "#04B475", background: "rgba(4,180,117,0.12)" }}>
+        <span className="text-2xl" aria-hidden style={{ color: "#04713f" }}>✓</span>
+        <span className="font-mono font-black text-lg text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">{formatLogId(fb.logId)}</span>
+        <span className="min-w-0 truncate text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+          Colli {p?.colli ?? "—"} · {p?.bezeichnung ?? "—"}
+        </span>
       </div>
     );
   }
   if (fb.result === "SCHON") {
     return (
-      <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5" style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.10)" }}>
-        <div className="flex items-center gap-4">
-          <span className="text-5xl" aria-hidden>⚠</span>
-          <div className="min-w-0">
-            <div className="text-2xl font-black" style={{ color: "#BA7517" }}>Schon gefunden</div>
-            <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">{formatLogId(fb.logId)}</div>
-            <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-              von {p?.gefundenVonName ?? "—"}{p?.gefundenAm ? `, ${fmtZeit(p.gefundenAm)}` : ""}
-            </div>
-          </div>
-        </div>
+      <div role="status" aria-live="assertive" className="flex items-center gap-3 rounded-xl border-2 px-3 min-h-[56px]" style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.12)" }}>
+        <span className="text-2xl" aria-hidden style={{ color: "#BA7517" }}>⚠</span>
+        <span className="font-mono font-black text-lg text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">{formatLogId(fb.logId)}</span>
+        <span className="min-w-0 truncate text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+          Schon gefunden{p?.gefundenVonName ? ` · ${p.gefundenVonName}` : ""}
+        </span>
       </div>
     );
   }
   // FREMD
   return (
-    <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5" style={{ borderColor: "#fa3e3e", background: "rgba(250,62,62,0.10)" }}>
-      <div className="flex items-center gap-4">
-        <span className="text-5xl" aria-hidden>✗</span>
-        <div className="min-w-0">
-          <div className="text-2xl font-black" style={{ color: "#b3261e" }}>Gehört nicht dazu</div>
-          <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">{fb.logId ? formatLogId(fb.logId) : "—"}</div>
-        </div>
-      </div>
+    <div role="status" aria-live="assertive" className="flex items-center gap-3 rounded-xl border-2 px-3 min-h-[56px]" style={{ borderColor: "#fa3e3e", background: "rgba(250,62,62,0.12)" }}>
+      <span className="text-2xl" aria-hidden style={{ color: "#b3261e" }}>✗</span>
+      <span className="font-mono font-black text-lg text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">{fb.logId ? formatLogId(fb.logId) : "—"}</span>
+      <span className="min-w-0 truncate text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">Gehört nicht dazu</span>
     </div>
   );
 }
@@ -267,6 +254,8 @@ export default function PickupScanPage() {
   const [colliOrder, setColliOrder] = useState<string[]>([]);
   // Pulse-Trigger des „Zuletzt gescannt"-Banners (steigt bei jedem Scan).
   const [pulseKey, setPulseKey]     = useState(0);
+  // Hilfe-Texte standardmäßig eingeklappt — kosten sonst dauerhaft Platz im Kopf.
+  const [hilfeAuf, setHilfeAuf]     = useState(false);
 
   const { mode, setMode, onInputKeyDown } = useScannerMode();
   const tastatur = mode === "mobil";
@@ -529,224 +518,227 @@ export default function PickupScanPage() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col h-[calc(100svh-4rem)] -mx-4 sm:-mx-6 -my-4 sm:-my-6">
       <style jsx>{`
-        .pickup-pulse { border-radius: 1rem; animation: pickupPulse 0.6s ease-out; }
+        .pickup-pulse { border-radius: 0.75rem; animation: pickupPulse 0.6s ease-out; }
         @keyframes pickupPulse {
           0%   { box-shadow: 0 0 0 0 var(--pulse, #00bcd4); }
           70%  { box-shadow: 0 0 0 10px transparent; }
           100% { box-shadow: 0 0 0 0 transparent; }
         }
       `}</style>
-      {/* Kopf — kompakt */}
-      <div className="flex items-center justify-between gap-2">
-        <Link href="/pickup" className="inline-flex items-center gap-1 text-[#65676b] dark:text-[#b0b3b8] hover:text-[#008BD2] text-sm font-semibold min-h-[44px]">← Aufträge</Link>
-        {data && !vollstaendig && offen > 0 && (
-          <button
-            onClick={() => setUnvollDialog(true)}
-            className="inline-flex items-center px-3 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] text-xs font-bold hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[44px]"
-          >
-            Nicht komplett melden
-          </button>
+
+      {/* ── FIXER KOPF (scrollt nicht) — so niedrig wie möglich ── */}
+      <div className="shrink-0 px-4 sm:px-6 pt-3 pb-2 space-y-2 bg-[#f0f2f5] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042]">
+        {/* Zeile: Zurück · Auftragsname · Aktion */}
+        <div className="flex items-center gap-2">
+          <Link href="/pickup" aria-label="Zurück zur Auftragsliste" className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg text-xl font-bold text-[#65676b] dark:text-[#b0b3b8] hover:text-[#008BD2] hover:bg-white dark:hover:bg-[#3e4042] transition-colors">←</Link>
+          <h1 className="flex-1 min-w-0 text-base font-black text-[#202F61] dark:text-[#e4e6eb] truncate">
+            {isLoading ? "Lade…" : (data?.name ?? "Pickup")}
+          </h1>
+          {data && vollstaendig ? (
+            <button
+              onClick={() => setAbschlussDialog(true)}
+              className="inline-flex items-center gap-1 px-4 rounded-lg bg-[#04B475] text-white text-sm font-bold hover:bg-[#039c64] transition-colors min-h-[44px] flex-shrink-0"
+            >
+              ✓ Abschließen
+            </button>
+          ) : data && offen > 0 ? (
+            <button
+              onClick={() => setUnvollDialog(true)}
+              className="inline-flex items-center px-3 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] text-xs font-bold hover:bg-white dark:hover:bg-[#3e4042] transition-colors min-h-[44px] flex-shrink-0"
+            >
+              Nicht komplett
+            </button>
+          ) : null}
+        </div>
+
+        {data && (
+          <>
+            {data.bemerkung && (
+              <div className="flex items-center gap-2 px-3 rounded-lg bg-[#008BD2]/10 text-[#202F61] dark:text-[#e4e6eb] text-sm font-semibold min-h-[44px]" title={data.bemerkung}>
+                <span aria-hidden>📝</span>
+                <span className="min-w-0 truncate">{data.bemerkung}</span>
+              </div>
+            )}
+
+            {/* Fortschritt — dünn (keine große Karte) */}
+            <div>
+              <div className="flex items-baseline justify-between text-xs font-bold">
+                <span style={vollstaendig ? { color: "#04713f" } : undefined} className={vollstaendig ? "" : "text-[#65676b] dark:text-[#b0b3b8]"}>
+                  {vollstaendig ? "✓ Alles gefunden" : `${data.gefunden} von ${data.gesamt} gefunden`}
+                </span>
+                <span className="text-[#65676b] dark:text-[#b0b3b8]">{data.gesamt > 0 ? Math.round((data.gefunden / data.gesamt) * 100) : 0}%</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-[#e4e6eb] dark:bg-[#3e4042] overflow-hidden mt-1" role="progressbar" aria-label="Fortschritt" aria-valuenow={data.gefunden} aria-valuemin={0} aria-valuemax={data.gesamt}>
+                <div className="h-full rounded-full transition-all" style={{ width: `${data.gesamt > 0 ? Math.round((data.gefunden / data.gesamt) * 100) : 0}%`, background: "#04B475" }} />
+              </div>
+            </div>
+
+            {/* Scan-Feld: Eingabe-Toggle (Handscanner/Mobil) + Feld + OK */}
+            <form onSubmit={(e) => { e.preventDefault(); handleScan(); }} className="space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <label htmlFor="scan-input" className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
+                  {istColli ? "Colli scannen" : "LogID scannen"}
+                </label>
+                <GeraeteUmschalter device={mode} onChange={(d) => { setMode(d); inputRef.current?.focus(); }} />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  id="scan-input"
+                  ref={inputRef}
+                  value={eingabe}
+                  onChange={(e) => setEingabe(e.target.value)}
+                  onKeyDown={onInputKeyDown}
+                  autoFocus
+                  autoComplete="off"
+                  inputMode={tastatur ? "numeric" : "none"}
+                  enterKeyHint="done"
+                  spellCheck={false}
+                  placeholder={istColli ? "Colli scannen…" : "Colli oder LogID scannen…"}
+                  className="flex-1 min-w-0 px-4 rounded-xl border-2 bg-white dark:bg-[#18191a] text-2xl font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] outline-none transition-colors min-h-[56px]"
+                  style={{ borderColor: aktivFarbe }}
+                />
+                {tastatur && (
+                  <button
+                    type="submit"
+                    disabled={!eingabe.trim() || scan.isPending || colliBusy}
+                    className="px-6 rounded-xl text-white text-base font-bold disabled:opacity-40 transition-colors min-h-[56px] min-w-[72px]"
+                    style={{ background: aktivFarbe }}
+                  >
+                    OK
+                  </button>
+                )}
+              </div>
+              {/* Hilfe — standardmäßig eingeklappt, kostet so keinen Dauer-Platz */}
+              {(hauptcolliMap.size > 0 || !istColli) && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setHilfeAuf((v) => !v)}
+                    aria-expanded={hilfeAuf}
+                    className="inline-flex items-center gap-1 min-h-[56px] px-2 text-xs font-bold text-[#008BD2] dark:text-[#45bdff] hover:underline"
+                  >
+                    <span aria-hidden>ⓘ</span> Hilfe <span aria-hidden>{hilfeAuf ? "▾" : "▸"}</span>
+                  </button>
+                  {hilfeAuf && (
+                    <div className="space-y-1 pb-1">
+                      {hauptcolliMap.size > 0 && (
+                        <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                          🚛 Reihenfolge am Wagen: <strong>Hauptcolli</strong> scannen → du siehst, welche gesuchten Collis im Wagen liegen (hakt nichts ab) →
+                          {istColli ? " diese Collis scannen." : " Colli öffnen, dann die LogIDs (9 Stellen) scannen."}
+                        </p>
+                      )}
+                      {!istColli && (
+                        <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                          ℹ️ Colli scannen (6–7 Stellen): Du hörst und siehst, ob ein gesuchtes Gerät drin ist.
+                          Wenn ja, die LogIDs (9 Stellen) darin scannen. Die Colli-Prüfung nutzt die Lagerfuchs-Daten (Stand: letzter Import).
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </form>
+
+            {/* Sortierrichtung der Colli-Liste — Auswahl in localStorage gemerkt. */}
+            <div role="group" aria-label="Sortierrichtung der Colli-Liste" className="grid grid-cols-2 gap-1.5">
+              {([
+                { k: "most",  label: "Meiste LogIDs zuerst" },
+                { k: "least", label: "Wenigste zuerst" },
+              ] as const).map(({ k, label }) => {
+                const aktiv = sortDir === k;
+                return (
+                  <button
+                    key={k}
+                    aria-pressed={aktiv}
+                    onClick={() => { setSortDir(k); inputRef.current?.focus(); }}
+                    className={`rounded-xl border-2 px-3 min-h-[56px] text-xs font-bold transition-colors ${aktiv ? "bg-white dark:bg-[#242526] text-[#202F61] dark:text-[#e4e6eb]" : "bg-transparent text-[#65676b] dark:text-[#b0b3b8]"}`}
+                    style={{ borderColor: aktiv ? "#008BD2" : "#ced4da" }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* „Zuletzt gescannt" — kompakte Statuszeile, pulst bei jedem Scan auf. */}
+            <div
+              key={pulseKey}
+              className={pulseKey > 0 ? "pickup-pulse" : undefined}
+              style={{ ["--pulse" as string]: pulseColor } as React.CSSProperties}
+            >
+              <ErgebnisBanner fb={feedback} istColli={!!istColli} />
+            </div>
+
+            {/* Drei Bereiche — kompakt umschaltbar (Segmented Control) */}
+            <div role="group" aria-label="Listen umschalten" className="grid grid-cols-3 gap-1.5">
+              {([
+                { k: "offen",    label: "Noch suchen",      n: offenePositionen.length,   farbe: "#BA7517" },
+                { k: "gefunden", label: "Gefunden",         n: gefundenePositionen.length, farbe: "#04713f" },
+                { k: "fremd",    label: "Gehört nicht dazu", n: nichtDazu.length,           farbe: "#b3261e" },
+              ] as const).map(({ k, label, n, farbe }) => {
+                const aktiv = ansicht === k;
+                return (
+                  <button
+                    key={k}
+                    aria-pressed={aktiv}
+                    aria-label={`${label}: ${n}`}
+                    onClick={() => setAnsicht(k)}
+                    className={`rounded-xl border-2 px-2 py-2 min-h-[56px] flex flex-col items-center justify-center transition-colors ${aktiv ? "bg-white dark:bg-[#242526]" : "bg-transparent"}`}
+                    style={{ borderColor: aktiv ? farbe : "#ced4da" }}
+                  >
+                    <span className="text-lg font-black leading-none" style={{ color: farbe }}>{n}</span>
+                    <span className="text-[11px] font-bold text-center leading-tight mt-0.5 text-[#1a1a1a] dark:text-[#e4e6eb]">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
-      <h1 className="text-xl font-black text-[#202F61] dark:text-[#e4e6eb] truncate">
-        {isLoading ? "Lade…" : (data?.name ?? "Pickup")}
-      </h1>
-      {data?.bemerkung && (
-        <div className="inline-flex items-start gap-2 px-3 py-2 rounded-xl bg-[#008BD2]/10 text-[#202F61] dark:text-[#e4e6eb] text-base font-semibold w-full">
-          <span aria-hidden>📝</span>
-          <span className="whitespace-pre-wrap break-words">{data.bemerkung}</span>
-        </div>
-      )}
-
-      {error || (!isLoading && !data) ? (
-        <div className="p-8 text-center text-sm text-[#65676b] dark:text-[#b0b3b8] bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042]">
-          Auftrag nicht gefunden.
-        </div>
-      ) : data ? (
-        <>
-          {/* Fortschritt — kompakt: „X von N gefunden" + Balken */}
-          <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-3">
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">
-                {data.gefunden} <span className="text-[#65676b] dark:text-[#b0b3b8]">von</span> {data.gesamt}
-              </span>
-              <span className="text-sm font-bold uppercase tracking-wide text-[#65676b] dark:text-[#b0b3b8]">gefunden</span>
-            </div>
-            <div className="h-2 w-full rounded-full bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden mt-2" role="progressbar" aria-valuenow={data.gefunden} aria-valuemin={0} aria-valuemax={data.gesamt}>
-              <div className="h-full rounded-full transition-all" style={{ width: `${data.gesamt > 0 ? Math.round((data.gefunden / data.gesamt) * 100) : 0}%`, background: "#04B475" }} />
-            </div>
+      {/* ── SCROLLENDE LISTE (füllt den Rest — nur sie scrollt) ── */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-3">
+        {error || (!isLoading && !data) ? (
+          <div className="p-8 text-center text-sm text-[#65676b] dark:text-[#b0b3b8] bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042]">
+            Auftrag nicht gefunden.
           </div>
-
-          {/* Vollständig-Banner */}
-          {vollstaendig && (
-            <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-4 flex items-center justify-between gap-3 flex-wrap" style={{ borderColor: "#04B475", background: "rgba(4,180,117,0.12)" }}>
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-4xl" aria-hidden>✅</span>
-                <div className="min-w-0">
-                  <div className="text-lg font-black" style={{ color: "#04713f" }}>Alles gefunden</div>
-                  <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">Alle {data.gesamt} Geräte gescannt.</div>
-                </div>
-              </div>
-              <button
-                onClick={() => setAbschlussDialog(true)}
-                className="inline-flex items-center gap-2 px-5 rounded-xl bg-[#04B475] text-white text-base font-bold hover:bg-[#039c64] transition-colors shadow-sm min-h-[56px] flex-shrink-0"
-              >
-                ✓ Auftrag abschließen
-              </button>
-            </div>
-          )}
-
-          {/* Modus-Indikator — Auftragstyp, Farbe + Icon + Text (nie nur Farbe) */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-white font-bold text-sm" style={{ background: aktivFarbe }} role="status">
-            <span aria-hidden>{istColli ? "🧭" : "🏷️"}</span>
-            <span>{istColli ? "Colli-Auftrag" : "LogID-Auftrag"}</span>
-          </div>
-
-          {/* Sticky-Block: Scan-Feld + „Zuletzt gescannt"-Banner bleiben beim
-              Scrollen sichtbar (top-16 = unter dem Pickup-Header der Layout-Shell). */}
-          <div className="sticky top-16 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2 bg-[#f0f2f5] dark:bg-[#18191a] space-y-3 shadow-sm">
-          {/* Scan-Feld — eine Eingabe, Art wird automatisch erkannt */}
-          <form onSubmit={(e) => { e.preventDefault(); handleScan(); }} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-3 space-y-2">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <label htmlFor="scan-input" className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
-                {istColli ? "Colli scannen" : "Scannen"}
-              </label>
-              <GeraeteUmschalter device={mode} onChange={(d) => { setMode(d); inputRef.current?.focus(); }} />
-            </div>
-            <div className="flex gap-2">
-              <input
-                id="scan-input"
-                ref={inputRef}
-                value={eingabe}
-                onChange={(e) => setEingabe(e.target.value)}
-                onKeyDown={onInputKeyDown}
-                autoFocus
-                autoComplete="off"
-                inputMode={tastatur ? "numeric" : "none"}
-                enterKeyHint="done"
-                spellCheck={false}
-                placeholder={istColli ? "Colli scannen…" : "Colli oder LogID scannen…"}
-                className="flex-1 min-w-0 px-4 rounded-xl border-2 bg-[#f0f2f5] dark:bg-[#18191a] text-2xl font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] outline-none transition-colors min-h-[56px]"
-                style={{ borderColor: aktivFarbe }}
-              />
-              {tastatur && (
-                <button
-                  type="submit"
-                  disabled={!eingabe.trim() || scan.isPending || colliBusy}
-                  className="px-6 rounded-xl text-white text-base font-bold disabled:opacity-40 transition-colors min-h-[56px] min-w-[72px]"
-                  style={{ background: aktivFarbe }}
-                >
-                  OK
-                </button>
-              )}
-            </div>
-            {hauptcolliMap.size > 0 && (
-              <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                🚛 Reihenfolge am Wagen: <strong>Hauptcolli</strong> scannen → du siehst, welche gesuchten Collis im Wagen liegen (hakt nichts ab) →
-                {istColli ? " diese Collis scannen." : " Colli öffnen, dann die LogIDs (9 Stellen) scannen."}
-              </p>
-            )}
-            {!istColli && (
-              <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                ℹ️ Colli scannen (6–7 Stellen): Du hörst und siehst, ob ein gesuchtes Gerät drin ist.
-                Wenn ja, die LogIDs (9 Stellen) darin scannen. Die Colli-Prüfung nutzt die Lagerfuchs-Daten (Stand: letzter Import).
-              </p>
-            )}
-          </form>
-
-          {/* „Zuletzt gescannt" — groß, gut lesbar, pulst bei jedem neuen Scan auf.
-              key={pulseKey} re-mountet den Wrapper → Animation läuft erneut. */}
-          <div
-            key={pulseKey}
-            className={pulseKey > 0 ? "pickup-pulse" : undefined}
-            style={{ ["--pulse" as string]: pulseColor } as React.CSSProperties}
-          >
-            <ErgebnisBanner fb={feedback} istColli={!!istColli} />
-          </div>
-          </div>
-
-          {/* Drei Bereiche — kompakt umschaltbar (Segmented Control) */}
-          <div role="group" aria-label="Listen umschalten" className="grid grid-cols-3 gap-1.5">
-            {([
-              { k: "offen",    label: "Noch suchen",      n: offenePositionen.length,   farbe: "#BA7517" },
-              { k: "gefunden", label: "Gefunden",         n: gefundenePositionen.length, farbe: "#04713f" },
-              { k: "fremd",    label: "Gehört nicht dazu", n: nichtDazu.length,           farbe: "#b3261e" },
-            ] as const).map(({ k, label, n, farbe }) => {
-              const aktiv = ansicht === k;
-              return (
-                <button
-                  key={k}
-                  aria-pressed={aktiv}
-                  aria-label={`${label}: ${n}`}
-                  onClick={() => setAnsicht(k)}
-                  className={`rounded-xl border-2 px-2 py-2 min-h-[56px] flex flex-col items-center justify-center transition-colors ${aktiv ? "bg-white dark:bg-[#242526]" : "bg-transparent"}`}
-                  style={{ borderColor: aktiv ? farbe : "#ced4da" }}
-                >
-                  <span className="text-lg font-black leading-none" style={{ color: farbe }}>{n}</span>
-                  <span className="text-[11px] font-bold text-center leading-tight mt-0.5 text-[#1a1a1a] dark:text-[#e4e6eb]">{label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Bereich-Inhalt */}
-          {ansicht === "offen" && (
-            <div className="space-y-3">
-              {/* Sortierrichtung der Colli-Liste — Auswahl in localStorage gemerkt. */}
-              <div role="group" aria-label="Sortierrichtung der Colli-Liste" className="grid grid-cols-2 gap-1.5">
-                {([
-                  { k: "most",  label: "Meiste LogIDs zuerst" },
-                  { k: "least", label: "Wenigste zuerst" },
-                ] as const).map(({ k, label }) => {
-                  const aktiv = sortDir === k;
-                  return (
-                    <button
-                      key={k}
-                      aria-pressed={aktiv}
-                      onClick={() => { setSortDir(k); inputRef.current?.focus(); }}
-                      className={`rounded-xl border-2 px-3 min-h-[44px] text-xs font-bold transition-colors ${aktiv ? "bg-white dark:bg-[#242526] text-[#202F61] dark:text-[#e4e6eb]" : "bg-transparent text-[#65676b] dark:text-[#b0b3b8]"}`}
-                      style={{ borderColor: aktiv ? "#008BD2" : "#ced4da" }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
+        ) : data ? (
+          <>
+            {ansicht === "offen" && (
               <ColliListe order={colliOrder} groups={colliGruppen} istColli={!!istColli} leerText="Nichts zu picken." />
-            </div>
-          )}
-          {ansicht === "gefunden" && (
-            <PositionsListe gruppen={gruppenGefunden} istColli={!!istColli} leerText="Noch nichts gefunden." zeigeReset
-              onReset={(positionId) => zuruecksetzen.mutate({ positionId })} resetBusy={zuruecksetzen.isPending} />
-          )}
-          {ansicht === "fremd" && (
-            <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-3">
-              {nichtDazu.length === 0 ? (
-                <p className="text-center text-[#65676b] dark:text-[#b0b3b8] py-4">Nichts Falsches gescannt.</p>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-bold text-[#b3261e]">✗ Gehört nicht dazu: {nichtDazu.length}</span>
-                    <button onClick={() => setNichtDazu([])} className="text-xs text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] min-h-[44px] px-2">Liste leeren</button>
-                  </div>
-                  <ul className="space-y-1.5">
-                    {nichtDazu.slice(0, 30).map((f, i) => (
-                      <li key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#fa3e3e]/10 text-[#b3261e]">
-                        <span aria-hidden>{f.art === "colli" ? "🧭" : "🏷️"}</span>
-                        <span className="font-mono font-bold">{f.wert ? formatLogId(f.wert) : "—"}</span>
-                        <span className="text-xs ml-auto">{f.zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
-          )}
-        </>
-      ) : null}
+            )}
+            {ansicht === "gefunden" && (
+              <PositionsListe gruppen={gruppenGefunden} istColli={!!istColli} leerText="Noch nichts gefunden." zeigeReset
+                onReset={(positionId) => zuruecksetzen.mutate({ positionId })} resetBusy={zuruecksetzen.isPending} />
+            )}
+            {ansicht === "fremd" && (
+              <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-3">
+                {nichtDazu.length === 0 ? (
+                  <p className="text-center text-[#65676b] dark:text-[#b0b3b8] py-4">Nichts Falsches gescannt.</p>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-bold text-[#b3261e]">✗ Gehört nicht dazu: {nichtDazu.length}</span>
+                      <button onClick={() => setNichtDazu([])} className="text-xs text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] min-h-[44px] px-2">Liste leeren</button>
+                    </div>
+                    <ul className="space-y-1.5">
+                      {nichtDazu.slice(0, 30).map((f, i) => (
+                        <li key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#fa3e3e]/10 text-[#b3261e]">
+                          <span aria-hidden>{f.art === "colli" ? "🧭" : "🏷️"}</span>
+                          <span className="font-mono font-bold">{f.wert ? formatLogId(f.wert) : "—"}</span>
+                          <span className="text-xs ml-auto">{f.zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            )}
+          </>
+        ) : null}
+      </div>
 
       {/* Erfolgsmeldung → Redirect */}
       {abschlussErgebnis && (
@@ -964,7 +956,7 @@ function ColliKarte({ colliKey, items, istColli }: { colliKey: string; items: Sc
         type="button"
         onClick={() => setAuf((v) => !v)}
         aria-expanded={auf}
-        className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 border-b text-left ${komplett ? "bg-[#04B475]/5 border-[#04B475]/30" : "bg-[#f0f2f5] dark:bg-[#18191a] border-[#ced4da] dark:border-[#3e4042]"}`}
+        className={`w-full flex items-center justify-between gap-2 px-4 min-h-[56px] py-2.5 border-b text-left ${komplett ? "bg-[#04B475]/5 border-[#04B475]/30" : "bg-[#f0f2f5] dark:bg-[#18191a] border-[#ced4da] dark:border-[#3e4042]"}`}
       >
         <h2 className="font-black text-sm text-[#202F61] dark:text-[#e4e6eb] flex items-center gap-2 min-w-0">
           <span className="truncate">{titel} {colliKey || leer}</span>
@@ -983,9 +975,9 @@ function ColliKarte({ colliKey, items, istColli }: { colliKey: string; items: Sc
           {items.map((p) => {
             const ok = p.status === "GEFUNDEN";
             return (
-              <div key={p.id} className={`flex items-center gap-3 px-4 py-3 flex-wrap gap-y-1 ${ok ? "bg-[#04B475]/5" : ""}`}>
-                <span className="text-lg w-6 text-center" aria-hidden style={{ color: ok ? "#04713f" : undefined }}>{ok ? "✓" : "○"}</span>
-                <div className="font-mono font-black text-base min-w-[120px]" style={{ color: ok ? "#04713f" : undefined }}>
+              <div key={p.id} className={`flex items-center gap-3 px-4 min-h-[56px] py-2 flex-wrap gap-y-1 ${ok ? "bg-[#04B475]/5" : ""}`}>
+                <span className="text-xl w-6 text-center" aria-hidden style={{ color: ok ? "#04713f" : undefined }}>{ok ? "✓" : "○"}</span>
+                <div className="font-mono font-black text-lg min-w-[120px]" style={{ color: ok ? "#04713f" : undefined }}>
                   {formatLogId(p.logId)}
                 </div>
                 <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] min-w-[80px]">{p.stellplatz ?? "—"}</div>
