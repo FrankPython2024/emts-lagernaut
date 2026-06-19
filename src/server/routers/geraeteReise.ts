@@ -389,6 +389,63 @@ export const geraeteReiseRouter = createTRPCRouter({
       };
     }),
 
+  // Colli-Verlauf: ALLE Geräte, die auf einer Colli waren — die noch drauf liegen
+  // (aktuelles colli == Eingabe) UND die rausgewandert sind (vorherigesColli ==
+  // Eingabe). Je mit aktuellem Stellplatz + Status. KEIN ausgeschieden-Filter, damit
+  // rausgebuchte/Verkaufslager-Geräte sichtbar bleiben. Reine Auswertung, manueller
+  // Lookup → der Full-Scan durch REPLACE ist hier unkritisch (NICHT in colliPruefen).
+  colliVerlauf: permissionProcedure("GERAETE_REISE_VIEW")
+    .input(z.object({ colli: z.string().trim().min(1).max(191) }))
+    .query(async ({ input }) => {
+      // Schreibweise egal: Eingabe ziffern-normalisieren; leer → kein Query.
+      const normInput = input.colli.replace(/\D/g, "");
+      if (normInput.length < 1) {
+        return { colli: input.colli, anzahl: 0, geraete: [] };
+      }
+
+      type VerlaufRow = {
+        logId:           string;
+        colli:           string | null;
+        vorherigesColli: string | null;
+        stellplatz:      string | null;
+        verbleib:        string | null;
+        ausgeschieden:   number | boolean | null; // MySQL tinyint(1)
+        hersteller:      string | null;
+        bezeichnung:     string | null;
+        geraeteart:      string | null;
+      };
+
+      // Treffer = aktuelles colli ODER vorherigesColli (beide ziffern-normalisiert
+      // per REPLACE wie in colliInhalt). NULL-Felder fallen automatisch raus.
+      const rows = await prisma.$queryRaw<VerlaufRow[]>`
+        SELECT logId, colli, vorherigesColli, stellplatz, verbleib, ausgeschieden,
+               hersteller, bezeichnung, geraeteart
+        FROM \`LogIdStand\`
+        WHERE REPLACE(REPLACE(REPLACE(colli, '.', ''), ' ', ''), '-', '') = ${normInput}
+           OR REPLACE(REPLACE(REPLACE(vorherigesColli, '.', ''), ' ', ''), '-', '') = ${normInput}
+        ORDER BY stellplatz ASC, logId ASC`;
+
+      // Status pro Zeile ableiten: aktuelles colli (norm) == Eingabe → im Colli,
+      // sonst rausgewandert. ausgeschieden bleibt als eigenes Flag erhalten.
+      const geraete = rows.map((g) => {
+        const colliNorm = (g.colli ?? "").replace(/\D/g, "");
+        return {
+          logId:           g.logId,
+          colli:           g.colli,
+          vorherigesColli: g.vorherigesColli,
+          stellplatz:      g.stellplatz,
+          verbleib:        g.verbleib,
+          ausgeschieden:   !!g.ausgeschieden,
+          hersteller:      g.hersteller,
+          bezeichnung:     g.bezeichnung,
+          geraeteart:      g.geraeteart,
+          status:          colliNorm === normInput ? ("im_colli" as const) : ("rausgewandert" as const),
+        };
+      });
+
+      return { colli: input.colli, anzahl: geraete.length, geraete };
+    }),
+
   // Detailanalyse einer Geräteart: Kennzahlen + Hersteller-/Verbleib-Verteilung
   // + Alters-Buckets. Alles DB-seitig (where geraeteart = X), Promise.all.
   // Reine Auswertung, kein Bestandseffekt.

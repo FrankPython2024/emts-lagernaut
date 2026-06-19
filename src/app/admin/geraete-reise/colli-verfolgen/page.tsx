@@ -4,15 +4,37 @@ import { api } from "@/trpc/react";
 import { GeraeteReiseTabs } from "../_tabs";
 import { useGeraetModal } from "../_geraetModal";
 
-// Geräte-Reise — Colli verfolgen: Colli-Nummer eintippen → alle LogIDs dieser
-// Colli mit Stellplatz im aktuellen Stand. Reine Auswertung über die bestehende
-// colliInhalt-Procedure (kein Backend-/Schema-Eingriff). Ein Klick auf eine LogID
-// öffnet das modulweite Geräte-Detail-Popup (useGeraetModal).
+// Geräte-Reise — Colli verfolgen: Colli-Nummer eintippen → ALLE Geräte, die auf
+// dieser Colli waren: die noch drauf liegen UND die rausgewandert sind, je mit
+// aktuellem Stellplatz + Status. Reine Auswertung über colliVerlauf (kein Backend-/
+// Schema-Eingriff). Klick auf eine LogID öffnet das Geräte-Detail-Popup (useGeraetModal).
 
 function fmtDatum(d: Date | string): string {
   return new Date(d).toLocaleString("de-DE", {
     day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
+}
+
+// Status als Text + Farbe (NICHT nur Farbe) — barrierearm.
+function StatusBadge({ status, ausgeschieden }: { status: "im_colli" | "rausgewandert"; ausgeschieden: boolean }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {status === "im_colli" ? (
+        <span className="inline-flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-full bg-[#04B475]/15 text-[#04713f] dark:text-[#3fe0a6] whitespace-nowrap">
+          📦 im Colli
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-full bg-[#f7b928]/20 text-[#9c6213] dark:text-[#f7b928] whitespace-nowrap">
+          ➡️ rausgewandert
+        </span>
+      )}
+      {ausgeschieden && (
+        <span className="inline-flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-full bg-[#fa3e3e]/12 text-[#b3261e] dark:text-[#ff8a8a] whitespace-nowrap">
+          ⛔ ausgeschieden
+        </span>
+      )}
+    </div>
+  );
 }
 
 export default function ColliVerfolgenPage() {
@@ -21,7 +43,7 @@ export default function ColliVerfolgenPage() {
   const [submitted, setSubmitted] = useState("");
   const { oeffneGeraet } = useGeraetModal();
 
-  const query = api.geraeteReise.colliInhalt.useQuery(
+  const query = api.geraeteReise.colliVerlauf.useQuery(
     { colli: submitted },
     { enabled: submitted.trim().length > 0 },
   );
@@ -40,11 +62,15 @@ export default function ColliVerfolgenPage() {
   const anzahl  = data?.anzahl ?? 0;
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <div>
         <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">📦 Colli verfolgen</h1>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
-          Colli-Nummer eingeben — du siehst alle Geräte, die aktuell in dieser Colli liegen.
+          Colli-Nummer eingeben — du siehst alle Geräte, die auf dieser Colli waren:
+          die noch drauf liegen und die schon weitergewandert sind.
+        </p>
+        <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+          ℹ️ Zeigt den letzten bekannten Stand. „Vorheriges Colli" ist nur der letzte Umzug.
         </p>
       </div>
 
@@ -107,7 +133,7 @@ export default function ColliVerfolgenPage() {
             <div className="p-5 bg-white dark:bg-[#242526] rounded-xl border-2 border-[#f7b928]/40 shadow-sm flex items-start gap-3">
               <span className="text-2xl" aria-hidden>⚠️</span>
               <div>
-                <p className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Keine Geräte mit dieser Colli im aktuellen Stand.</p>
+                <p className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Keine Geräte für diese Colli gefunden.</p>
                 <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
                   Gesucht: Colli <span className="font-mono">{submitted}</span>. Bitte die Schreibweise prüfen (z. B. mit Punkten).
                   {letzterStand && <> · Stand: letzter Import, {fmtDatum(letzterStand)}.</>}
@@ -121,7 +147,7 @@ export default function ColliVerfolgenPage() {
             <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042] flex items-center justify-between gap-2 flex-wrap">
                 <p className="font-black text-[#1a1a1a] dark:text-[#e4e6eb]">
-                  {anzahl} {anzahl === 1 ? "Gerät" : "Geräte"} in Colli <span className="font-mono">{submitted}</span>
+                  {anzahl} {anzahl === 1 ? "Gerät" : "Geräte"} – Colli <span className="font-mono">{submitted}</span>
                 </p>
                 <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Tippe eine LogID an, um die Geräte-Reise zu sehen.</p>
               </div>
@@ -131,7 +157,9 @@ export default function ColliVerfolgenPage() {
                   <thead>
                     <tr className="text-xs font-bold uppercase tracking-wide text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
                       <th scope="col" className="px-5 py-2.5">LogID</th>
+                      <th scope="col" className="px-5 py-2.5">Status</th>
                       <th scope="col" className="px-5 py-2.5">Stellplatz</th>
+                      <th scope="col" className="px-5 py-2.5">Aktuelles Colli</th>
                       <th scope="col" className="px-5 py-2.5">Bezeichnung</th>
                       <th scope="col" className="px-5 py-2.5">Verbleib</th>
                     </tr>
@@ -148,6 +176,9 @@ export default function ColliVerfolgenPage() {
                             {g.logId}
                           </button>
                         </td>
+                        <td className="px-5 py-1.5">
+                          <StatusBadge status={g.status} ausgeschieden={g.ausgeschieden} />
+                        </td>
                         <td className="px-5 py-1.5 whitespace-nowrap">
                           {g.stellplatz ? (
                             <span className="inline-flex items-center gap-1 text-sm font-black px-2.5 py-1 rounded-full bg-[#e7f0fd] text-[#0064d2] dark:bg-[#11243d] dark:text-[#45bdff]">
@@ -156,6 +187,9 @@ export default function ColliVerfolgenPage() {
                           ) : (
                             <span className="text-sm text-[#65676b] dark:text-[#b0b3b8]">—</span>
                           )}
+                        </td>
+                        <td className="px-5 py-1.5 font-mono text-sm text-[#1a1a1a] dark:text-[#e4e6eb] whitespace-nowrap">
+                          {g.colli || "—"}
                         </td>
                         <td className="px-5 py-1.5 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
                           {[g.hersteller, g.bezeichnung].filter(Boolean).join(" ") || "—"}
