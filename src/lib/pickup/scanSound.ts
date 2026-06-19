@@ -45,6 +45,54 @@ function ton(
   osc.stop(start + dauer + 0.02);
 }
 
+// Lauter Ton mit RELATIVEM Start (Sekunden ab jetzt) — für die kräftigen
+// LogID-Scan-Signale (benötigt / nicht benötigt). Schneller, harter Attack
+// (+0.012 s) und hohe Default-Lautstärke, damit der Picker es im Lager hört.
+function tonLaut(
+  ctx: AudioContext,
+  freq: number,
+  start: number,
+  dauer: number,
+  type: OscillatorType = "sine",
+  vol = 0.95,
+): void {
+  const t   = ctx.currentTime + start;
+  const osc = ctx.createOscillator();
+  const g   = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol,    t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dauer);
+  osc.connect(g).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + dauer + 0.02);
+}
+
+// benötigt / grün: helles, steigendes Doppel-„Ding" (B5 → E6), laut.
+export function playScanErfolg(): void {
+  try {
+    const c = getCtx();
+    if (!c) return;
+    tonLaut(c, 988,  0,    0.13, "sine", 0.98); // B5
+    tonLaut(c, 1319, 0.12, 0.18, "sine", 0.98); // E6
+  } catch {
+    /* Audio nicht verfügbar — bewusst ignorieren */
+  }
+}
+
+// nicht benötigt / rot: tiefer, harter, fallender Doppel-Buzz (A3 → D3), laut.
+export function playScanNichtBenoetigt(): void {
+  try {
+    const c = getCtx();
+    if (!c) return;
+    tonLaut(c, 220, 0,    0.20, "sawtooth", 0.95); // A3
+    tonLaut(c, 146, 0.17, 0.30, "sawtooth", 0.95); // D3 (tiefer → fallend)
+  } catch {
+    /* Audio nicht verfügbar — bewusst ignorieren */
+  }
+}
+
 // Abschluss-Fanfare: aufsteigender Dreiklang (C-E-G-C), klar unterscheidbar vom
 // normalen GEFUNDEN-Ping. Wird nur bei der Live-Vervollständigung gespielt.
 export function playComplete(): void {
@@ -112,21 +160,16 @@ export function playWagenLeer(): void {
 export type ScanResult = "GEFUNDEN" | "FREMD" | "SCHON";
 
 export function playScanSound(result: ScanResult): void {
+  if (result === "GEFUNDEN") { playScanErfolg(); return; }        // grün / benötigt
+  if (result === "FREMD")    { playScanNichtBenoetigt(); return; } // rot / nicht benötigt
+  // SCHON / gelb — mittlerer, kurzer Doppel-Blip (gleiche Tonhöhe → klar als
+  // „Warnung" erkennbar, weder auf- noch absteigend). Hörbar lauter als zuvor.
   try {
     const ctx = getCtx();
     if (!ctx) return;
     const t = ctx.currentTime;
-    if (result === "GEFUNDEN") {
-      ton(ctx, 880,  t,        0.10, "sine");
-      ton(ctx, 1320, t + 0.10, 0.16, "sine");
-    } else if (result === "SCHON") {
-      ton(ctx, 620, t,        0.09, "triangle");
-      ton(ctx, 620, t + 0.14, 0.09, "triangle");
-    } else {
-      // FREMD — tief + dissonant
-      ton(ctx, 160, t, 0.38, "sawtooth", 0.22);
-      ton(ctx, 150, t, 0.38, "sawtooth", 0.16);
-    }
+    ton(ctx, 620, t,        0.10, "triangle", 0.6);
+    ton(ctx, 620, t + 0.15, 0.10, "triangle", 0.6);
   } catch {
     /* Audio nicht verfügbar — bewusst ignorieren */
   }

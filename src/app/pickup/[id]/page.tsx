@@ -215,6 +215,11 @@ function ErgebnisBanner({ fb, istColli }: { fb: Feedback | null; istColli: boole
   );
 }
 
+// Gruppierungs-Schlüssel: LogID-Auftrag → Colli, Colli-Auftrag → Stellplatz.
+function gruppenKey(p: ScanPos, istColli: boolean): string {
+  return istColli ? (p.stellplatz ?? "") : (p.colli ?? "");
+}
+
 // Gruppiert Positionen (LogID-Auftrag → nach Colli, Colli-Auftrag → nach Stellplatz).
 function gruppiere(positionen: ScanPos[], nachStellplatz: boolean) {
   const keyOf = (p: ScanPos) => (nachStellplatz ? (p.stellplatz ?? "") : (p.colli ?? ""));
@@ -256,6 +261,12 @@ export default function PickupScanPage() {
   const [nichtDazu, setNichtDazu] = useState<{ art: "logid" | "colli"; wert: string; zeit: Date }[]>([]);
   const [ansicht, setAnsicht] = useState<"offen" | "gefunden" | "fremd">("offen");
   const [colliBusy, setColliBusy] = useState(false);
+  // Sortierrichtung der Colli-Liste — in localStorage gemerkt (Default: meiste zuerst).
+  const [sortDir, setSortDir]       = useState<"most" | "least">("most");
+  // Eingefrorene Reihenfolge der Colli-Karten (nur bei Laden/Toggle/Typ neu).
+  const [colliOrder, setColliOrder] = useState<string[]>([]);
+  // Pulse-Trigger des „Zuletzt gescannt"-Banners (steigt bei jedem Scan).
+  const [pulseKey, setPulseKey]     = useState(0);
 
   const { mode, setMode, onInputKeyDown } = useScannerMode();
   const tastatur = mode === "mobil";
@@ -296,6 +307,20 @@ export default function PickupScanPage() {
   // Nach jedem Ergebnis Fokus zurück ins Scan-Feld (Handheld-tauglich).
   useEffect(() => { inputRef.current?.focus(); }, [feedback]);
 
+  // Sortierrichtung beim Start aus localStorage laden, danach jede Änderung sichern.
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("pickup_sort_dir");
+      if (v === "least" || v === "most") setSortDir(v);
+    } catch { /* localStorage nicht verfügbar */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("pickup_sort_dir", sortDir); } catch { /* ignore */ }
+  }, [sortDir]);
+
+  // Banner bei jedem neuen Scan kurz aufpulsen (Key-Bump → Re-Mount der Animation).
+  useEffect(() => { if (feedback) setPulseKey((k) => k + 1); }, [feedback]);
+
   const vollstaendig = !!data && data.gesamt > 0 && data.gefunden === data.gesamt;
   const offen        = data ? data.gesamt - data.gefunden : 0;
   const istColli     = data?.typ === "COLLI";
@@ -314,8 +339,65 @@ export default function PickupScanPage() {
 
   const offenePositionen   = useMemo(() => (data?.positionen ?? []).filter((p) => p.status !== "GEFUNDEN"), [data]);
   const gefundenePositionen = useMemo(() => (data?.positionen ?? []).filter((p) => p.status === "GEFUNDEN"), [data]);
-  const gruppenOffen    = useMemo(() => gruppiere(offenePositionen, !!istColli), [offenePositionen, istColli]);
   const gruppenGefunden = useMemo(() => gruppiere(gefundenePositionen, !!istColli), [gefundenePositionen, istColli]);
+
+  // Farbe für den Aufpuls-Effekt des Banners (Statusfarbe, sonst Cyan).
+  const pulseColor = useMemo(() => {
+    const fb = feedback;
+    if (!fb) return "#00bcd4";
+    if (fb.kind === "logid")     return fb.result === "GEFUNDEN" ? "#04B475" : fb.result === "SCHON" ? "#BA7517" : "#fa3e3e";
+    if (fb.kind === "colli")     return fb.anzahlTreffer > 0 ? "#04B475" : "#fa3e3e";
+    if (fb.kind === "vorabscan") return fb.kartons.length > 0 ? "#4f46e5" : "#90939a";
+    if (fb.kind === "unbekannt") return "#BA7517";
+    return "#00bcd4";
+  }, [feedback]);
+
+  // ALLE Positionen nach Colli (LogID-Auftrag) bzw. Stellplatz (Colli-Auftrag)
+  // gruppieren — inkl. bereits gefundener (im Karton grün abgehakt). Membership
+  // darf sich beim Scannen ändern; die REIHENFOLGE bleibt davon unberührt.
+  const colliGruppen = useMemo(() => {
+    const m = new Map<string, ScanPos[]>();
+    for (const p of data?.positionen ?? []) {
+      const key = gruppenKey(p, !!istColli);
+      const arr = m.get(key);
+      if (arr) arr.push(p); else m.set(key, [p]);
+    }
+    for (const arr of m.values()) {
+      arr.sort((x, y) => {
+        const s = (x.stellplatz ?? "").localeCompare(y.stellplatz ?? "", "de", { numeric: true });
+        return s !== 0 ? s : x.logId.localeCompare(y.logId, "de", { numeric: true });
+      });
+    }
+    return m;
+  }, [data?.positionen, istColli]);
+
+  // Signatur der Colli-Schlüsselmenge — ändert sich NICHT beim bloßen Abhaken,
+  // nur wenn Collis hinzukommen/wegfallen (Lade-/Typ-Wechsel).
+  const colliKeysSig = useMemo(() => [...colliGruppen.keys()].sort().join("|"), [colliGruppen]);
+
+  // Ref auf die aktuelle Gruppierung, damit der Order-Effekt die offenen Anzahlen
+  // lesen kann, OHNE bei jedem Scan neu zu feuern.
+  const colliGruppenRef = useRef(colliGruppen);
+  colliGruppenRef.current = colliGruppen;
+
+  // STABILE Reihenfolge: nur bei Laden, Toggle-Wechsel oder Auftragstyp-Wechsel
+  // neu berechnen — NICHT live beim Scannen (Karten dürfen nicht wegspringen).
+  // Fertige Collis (0 offen) wandern hier ans Ende.
+  useEffect(() => {
+    const m   = colliGruppenRef.current;
+    const dir = sortDir === "most" ? -1 : 1;
+    const offenVon = (k: string) => (m.get(k) ?? []).filter((p) => p.status !== "GEFUNDEN").length;
+    const keys = [...m.keys()].sort((a, b) => {
+      const oa = offenVon(a), ob = offenVon(b);
+      const aDone = oa === 0, bDone = ob === 0;
+      if (aDone !== bDone) return aDone ? 1 : -1;          // fertige Collis ans Ende
+      if (oa !== ob)       return (oa - ob) * dir;          // nach Anzahl offener LogIDs
+      if (a === "" || b === "") return a === "" ? 1 : -1;   // „ohne Colli" zuletzt
+      return a.localeCompare(b, "de", { numeric: true });   // stabiler Tiebreak
+    });
+    setColliOrder(keys);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colliKeysSig, sortDir, istColli]);
 
   // Hauptcolli-Vorabscan — kompakte Wagen-Karte für LOGID- UND COLLI-Aufträge.
   // Einmal geladen; die Treffer rechnet das Frontend lokal aus dem Live-Zustand.
@@ -448,6 +530,14 @@ export default function PickupScanPage() {
 
   return (
     <div className="space-y-3">
+      <style jsx>{`
+        .pickup-pulse { border-radius: 1rem; animation: pickupPulse 0.6s ease-out; }
+        @keyframes pickupPulse {
+          0%   { box-shadow: 0 0 0 0 var(--pulse, #00bcd4); }
+          70%  { box-shadow: 0 0 0 10px transparent; }
+          100% { box-shadow: 0 0 0 0 transparent; }
+        }
+      `}</style>
       {/* Kopf — kompakt */}
       <div className="flex items-center justify-between gap-2">
         <Link href="/pickup" className="inline-flex items-center gap-1 text-[#65676b] dark:text-[#b0b3b8] hover:text-[#008BD2] text-sm font-semibold min-h-[44px]">← Aufträge</Link>
@@ -515,6 +605,9 @@ export default function PickupScanPage() {
             <span>{istColli ? "Colli-Auftrag" : "LogID-Auftrag"}</span>
           </div>
 
+          {/* Sticky-Block: Scan-Feld + „Zuletzt gescannt"-Banner bleiben beim
+              Scrollen sichtbar (top-16 = unter dem Pickup-Header der Layout-Shell). */}
+          <div className="sticky top-16 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2 bg-[#f0f2f5] dark:bg-[#18191a] space-y-3 shadow-sm">
           {/* Scan-Feld — eine Eingabe, Art wird automatisch erkannt */}
           <form onSubmit={(e) => { e.preventDefault(); handleScan(); }} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-3 space-y-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -564,8 +657,16 @@ export default function PickupScanPage() {
             )}
           </form>
 
-          {/* „Zuletzt gescannt" */}
-          <ErgebnisBanner fb={feedback} istColli={!!istColli} />
+          {/* „Zuletzt gescannt" — groß, gut lesbar, pulst bei jedem neuen Scan auf.
+              key={pulseKey} re-mountet den Wrapper → Animation läuft erneut. */}
+          <div
+            key={pulseKey}
+            className={pulseKey > 0 ? "pickup-pulse" : undefined}
+            style={{ ["--pulse" as string]: pulseColor } as React.CSSProperties}
+          >
+            <ErgebnisBanner fb={feedback} istColli={!!istColli} />
+          </div>
+          </div>
 
           {/* Drei Bereiche — kompakt umschaltbar (Segmented Control) */}
           <div role="group" aria-label="Listen umschalten" className="grid grid-cols-3 gap-1.5">
@@ -593,7 +694,29 @@ export default function PickupScanPage() {
 
           {/* Bereich-Inhalt */}
           {ansicht === "offen" && (
-            <PositionsListe gruppen={gruppenOffen} istColli={!!istColli} leerText="Nichts mehr offen – alles gefunden!" />
+            <div className="space-y-3">
+              {/* Sortierrichtung der Colli-Liste — Auswahl in localStorage gemerkt. */}
+              <div role="group" aria-label="Sortierrichtung der Colli-Liste" className="grid grid-cols-2 gap-1.5">
+                {([
+                  { k: "most",  label: "Meiste LogIDs zuerst" },
+                  { k: "least", label: "Wenigste zuerst" },
+                ] as const).map(({ k, label }) => {
+                  const aktiv = sortDir === k;
+                  return (
+                    <button
+                      key={k}
+                      aria-pressed={aktiv}
+                      onClick={() => { setSortDir(k); inputRef.current?.focus(); }}
+                      className={`rounded-xl border-2 px-3 min-h-[44px] text-xs font-bold transition-colors ${aktiv ? "bg-white dark:bg-[#242526] text-[#202F61] dark:text-[#e4e6eb]" : "bg-transparent text-[#65676b] dark:text-[#b0b3b8]"}`}
+                      style={{ borderColor: aktiv ? "#008BD2" : "#ced4da" }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <ColliListe order={colliOrder} groups={colliGruppen} istColli={!!istColli} leerText="Nichts zu picken." />
+            </div>
           )}
           {ansicht === "gefunden" && (
             <PositionsListe gruppen={gruppenGefunden} istColli={!!istColli} leerText="Noch nichts gefunden." zeigeReset
@@ -784,6 +907,97 @@ function PositionsListe({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Colli-Liste für „Noch suchen" — gruppiert nach Colli (LogID-Auftrag) bzw.
+//    Stellplatz (Colli-Auftrag), in der eingefrorenen `order`-Reihenfolge. Zeigt
+//    ALLE Geräte eines Collis (gescannte grün abgehakt). Vollständig gepickte
+//    Collis werden eingeklappt + abgedunkelt (Reihenfolge bleibt stabil). ──────
+function ColliListe({
+  order, groups, istColli, leerText,
+}: {
+  order: string[];
+  groups: Map<string, ScanPos[]>;
+  istColli: boolean;
+  leerText: string;
+}) {
+  if (groups.size === 0) {
+    return (
+      <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-6 text-center text-[#65676b] dark:text-[#b0b3b8]">
+        {leerText}
+      </div>
+    );
+  }
+  // `order` kann hinterherhängen (Erst-Render): fehlende/neue Keys ergänzen.
+  const keys = order.filter((k) => groups.has(k));
+  for (const k of groups.keys()) if (!keys.includes(k)) keys.push(k);
+  return (
+    <div className="space-y-3">
+      {keys.map((key) => {
+        const items = groups.get(key);
+        if (!items || items.length === 0) return null;
+        return <ColliKarte key={key || "__ohne__"} colliKey={key} items={items} istColli={istColli} />;
+      })}
+    </div>
+  );
+}
+
+function ColliKarte({ colliKey, items, istColli }: { colliKey: string; items: ScanPos[]; istColli: boolean }) {
+  const offen    = items.filter((p) => p.status !== "GEFUNDEN").length;
+  const komplett = offen === 0;
+  const [auf, setAuf] = useState(() => !komplett); // fertige Collis starten eingeklappt
+  // Wird ein Colli beim Scannen fertig → automatisch einklappen (springt NICHT weg).
+  const prevKomplett = useRef(komplett);
+  useEffect(() => {
+    if (komplett && !prevKomplett.current) setAuf(false);
+    prevKomplett.current = komplett;
+  }, [komplett]);
+
+  const leer  = istColli ? "— (ohne Stellplatz)" : "— (ohne Colli)";
+  const titel = istColli ? "🧭 Stellplatz" : "📦 Colli";
+
+  return (
+    <div className={`bg-white dark:bg-[#242526] rounded-2xl border shadow-sm overflow-hidden transition-opacity ${komplett ? "opacity-60 border-[#04B475]/40" : "border-[#ced4da] dark:border-[#3e4042]"}`}>
+      <button
+        type="button"
+        onClick={() => setAuf((v) => !v)}
+        aria-expanded={auf}
+        className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 border-b text-left ${komplett ? "bg-[#04B475]/5 border-[#04B475]/30" : "bg-[#f0f2f5] dark:bg-[#18191a] border-[#ced4da] dark:border-[#3e4042]"}`}
+      >
+        <h2 className="font-black text-sm text-[#202F61] dark:text-[#e4e6eb] flex items-center gap-2 min-w-0">
+          <span className="truncate">{titel} {colliKey || leer}</span>
+          {komplett ? (
+            <span className="text-[#04713f] font-bold whitespace-nowrap">· ✓ komplett</span>
+          ) : (
+            <span className="text-[#BA7517] font-bold whitespace-nowrap">— {offen} offen</span>
+          )}
+        </h2>
+        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff] whitespace-nowrap">
+          {auf ? "▾" : "▸"} {items.length}
+        </span>
+      </button>
+      {auf && (
+        <div className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+          {items.map((p) => {
+            const ok = p.status === "GEFUNDEN";
+            return (
+              <div key={p.id} className={`flex items-center gap-3 px-4 py-3 flex-wrap gap-y-1 ${ok ? "bg-[#04B475]/5" : ""}`}>
+                <span className="text-lg w-6 text-center" aria-hidden style={{ color: ok ? "#04713f" : undefined }}>{ok ? "✓" : "○"}</span>
+                <div className="font-mono font-black text-base min-w-[120px]" style={{ color: ok ? "#04713f" : undefined }}>
+                  {formatLogId(p.logId)}
+                </div>
+                <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] min-w-[80px]">{p.stellplatz ?? "—"}</div>
+                <div className="flex-1 min-w-0 text-sm truncate" title={p.bezeichnung ?? ""}>{p.bezeichnung ?? "—"}</div>
+                {!ok && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#65676b]/10 text-[#65676b] dark:text-[#b0b3b8]">Offen</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
