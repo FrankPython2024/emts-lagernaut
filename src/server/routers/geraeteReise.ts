@@ -349,23 +349,42 @@ export const geraeteReiseRouter = createTRPCRouter({
   colliInhalt: permissionProcedure("GERAETE_REISE_VIEW")
     .input(z.object({ colli: z.string().trim().min(1).max(191) }))
     .query(async ({ input }) => {
-      const where = { colli: input.colli, ausgeschieden: false };
-      const [rohGeraete, wertAgg] = await Promise.all([
-        prisma.logIdStand.findMany({
-          where,
-          orderBy: { logId: "asc" },
-          select:  {
-            logId: true, hersteller: true, bezeichnung: true, geraeteart: true,
-            stellplatz: true, verbleib: true, grading: true, aktuellerZustand: true, ek: true,
-          },
-        }),
-        prisma.logIdStand.aggregate({ _sum: { ek: true }, where }),
-      ]);
+      // Schreibweise egal: Eingabe UND gespeicherten colli auf reine Ziffern
+      // reduzieren (Punkte/Leerzeichen/Bindestriche raus) und darauf vergleichen —
+      // "3175257" findet so auch "3.175.257".
+      const normInput = input.colli.replace(/\D/g, "");
+      // Nach der Normalisierung leer/zu kurz → kein Query (sonst würde ein leerer
+      // Wert alle Geräte mit leerem colli matchen).
+      if (normInput.length < 1) {
+        return { colli: input.colli, anzahl: 0, wertGesamt: 0, geraete: [] };
+      }
+
+      // Prisma kann die Spalten-Normalisierung im where nicht abbilden → $queryRaw.
+      // Parameter gebunden (kein Injection). ausgeschieden=false-Filter und die
+      // zurückgegebenen Felder unverändert.
+      type ColliRow = {
+        logId:            string;
+        hersteller:       string | null;
+        bezeichnung:      string | null;
+        geraeteart:       string | null;
+        stellplatz:       string | null;
+        verbleib:         string | null;
+        grading:          string | null;
+        aktuellerZustand: string | null;
+        ek:               unknown; // Decimal | string | number | null
+      };
+      const rohGeraete = await prisma.$queryRaw<ColliRow[]>`
+        SELECT logId, hersteller, bezeichnung, geraeteart, stellplatz, verbleib, grading, aktuellerZustand, ek
+        FROM \`LogIdStand\`
+        WHERE REPLACE(REPLACE(REPLACE(colli, '.', ''), ' ', ''), '-', '') = ${normInput}
+          AND ausgeschieden = false
+        ORDER BY logId ASC`;
+
       const geraete = rohGeraete.map((g) => ({ ...g, ek: ekZahl(g.ek) }));
       return {
         colli:      input.colli,
         anzahl:     geraete.length,
-        wertGesamt: ekZahl(wertAgg._sum.ek),
+        wertGesamt: geraete.reduce((summe, g) => summe + g.ek, 0),
         geraete,
       };
     }),

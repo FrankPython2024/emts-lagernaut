@@ -11,6 +11,7 @@ const TABS = [
   { href: "/admin/geraete-reise/fehlteile",     label: "🧩 Fehlteile" },
   { href: "/admin/geraete-reise",               label: "Importe" },
   { href: "/admin/geraete-reise/geraet",        label: "Gerät verfolgen" },
+  { href: "/admin/geraete-reise/colli-verfolgen", label: "📦 Colli verfolgen" },
 ];
 
 export function GeraeteReiseTabs() {
