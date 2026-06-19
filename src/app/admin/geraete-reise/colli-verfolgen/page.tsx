@@ -15,6 +15,12 @@ function fmtDatum(d: Date | string): string {
   });
 }
 
+// Nur Datum (dd.mm.yyyy); leer → „–".
+function fmtDatumKurz(d: Date | string | null): string {
+  if (!d) return "–";
+  return new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 // Status als Text + Farbe (NICHT nur Farbe) — barrierearm.
 function StatusBadge({ status, ausgeschieden }: { status: "im_colli" | "rausgewandert"; ausgeschieden: boolean }) {
   return (
@@ -157,6 +163,7 @@ export default function ColliVerfolgenPage() {
                   <thead>
                     <tr className="text-xs font-bold uppercase tracking-wide text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
                       <th scope="col" className="px-5 py-2.5">LogID</th>
+                      <th scope="col" className="px-5 py-2.5">Gebucht am</th>
                       <th scope="col" className="px-5 py-2.5">Status</th>
                       <th scope="col" className="px-5 py-2.5">Stellplatz</th>
                       <th scope="col" className="px-5 py-2.5">Aktuelles Colli</th>
@@ -175,6 +182,9 @@ export default function ColliVerfolgenPage() {
                           >
                             {g.logId}
                           </button>
+                        </td>
+                        <td className="px-5 py-1.5 text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] whitespace-nowrap tabular-nums">
+                          {fmtDatumKurz(g.aufLagerGebuchtAm)}
                         </td>
                         <td className="px-5 py-1.5">
                           <StatusBadge status={g.status} ausgeschieden={g.ausgeschieden} />

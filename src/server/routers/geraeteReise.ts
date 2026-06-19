@@ -404,42 +404,45 @@ export const geraeteReiseRouter = createTRPCRouter({
       }
 
       type VerlaufRow = {
-        logId:           string;
-        colli:           string | null;
-        vorherigesColli: string | null;
-        stellplatz:      string | null;
-        verbleib:        string | null;
-        ausgeschieden:   number | boolean | null; // MySQL tinyint(1)
-        hersteller:      string | null;
-        bezeichnung:     string | null;
-        geraeteart:      string | null;
+        logId:             string;
+        colli:             string | null;
+        vorherigesColli:   string | null;
+        stellplatz:        string | null;
+        verbleib:          string | null;
+        ausgeschieden:     number | boolean | null; // MySQL tinyint(1)
+        hersteller:        string | null;
+        bezeichnung:       string | null;
+        geraeteart:        string | null;
+        aufLagerGebuchtAm: Date | string | null;    // Buchungsdatum (Sortierkriterium)
       };
 
       // Treffer = aktuelles colli ODER vorherigesColli (beide ziffern-normalisiert
       // per REPLACE wie in colliInhalt). NULL-Felder fallen automatisch raus.
+      // Sortierung: neueste Buchung zuerst (aufLagerGebuchtAm), leere Daten unten.
       const rows = await prisma.$queryRaw<VerlaufRow[]>`
         SELECT logId, colli, vorherigesColli, stellplatz, verbleib, ausgeschieden,
-               hersteller, bezeichnung, geraeteart
+               hersteller, bezeichnung, geraeteart, aufLagerGebuchtAm
         FROM \`LogIdStand\`
         WHERE REPLACE(REPLACE(REPLACE(colli, '.', ''), ' ', ''), '-', '') = ${normInput}
            OR REPLACE(REPLACE(REPLACE(vorherigesColli, '.', ''), ' ', ''), '-', '') = ${normInput}
-        ORDER BY stellplatz ASC, logId ASC`;
+        ORDER BY aufLagerGebuchtAm IS NULL ASC, aufLagerGebuchtAm DESC, logId ASC`;
 
       // Status pro Zeile ableiten: aktuelles colli (norm) == Eingabe → im Colli,
       // sonst rausgewandert. ausgeschieden bleibt als eigenes Flag erhalten.
       const geraete = rows.map((g) => {
         const colliNorm = (g.colli ?? "").replace(/\D/g, "");
         return {
-          logId:           g.logId,
-          colli:           g.colli,
-          vorherigesColli: g.vorherigesColli,
-          stellplatz:      g.stellplatz,
-          verbleib:        g.verbleib,
-          ausgeschieden:   !!g.ausgeschieden,
-          hersteller:      g.hersteller,
-          bezeichnung:     g.bezeichnung,
-          geraeteart:      g.geraeteart,
-          status:          colliNorm === normInput ? ("im_colli" as const) : ("rausgewandert" as const),
+          logId:             g.logId,
+          colli:             g.colli,
+          vorherigesColli:   g.vorherigesColli,
+          stellplatz:        g.stellplatz,
+          verbleib:          g.verbleib,
+          ausgeschieden:     !!g.ausgeschieden,
+          hersteller:        g.hersteller,
+          bezeichnung:       g.bezeichnung,
+          geraeteart:        g.geraeteart,
+          aufLagerGebuchtAm: g.aufLagerGebuchtAm,
+          status:            colliNorm === normInput ? ("im_colli" as const) : ("rausgewandert" as const),
         };
       });
 
