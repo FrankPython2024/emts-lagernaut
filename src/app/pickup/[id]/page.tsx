@@ -286,15 +286,15 @@ export default function PickupScanPage() {
       }
       void utils.pickup.pickDetails.invalidate({ id });
     },
-    onSettled: () => { setEingabe(""); inputRef.current?.focus(); },
+    onSettled: () => { setEingabe(""); inputRef.current?.focus({ preventScroll: true }); },
   });
 
   const zuruecksetzen = api.pickup.treffersZuruecksetzen.useMutation({
-    onSuccess: () => { void utils.pickup.pickDetails.invalidate({ id }); inputRef.current?.focus(); },
+    onSuccess: () => { void utils.pickup.pickDetails.invalidate({ id }); inputRef.current?.focus({ preventScroll: true }); },
   });
 
   // Nach jedem Ergebnis Fokus zurück ins Scan-Feld (Handheld-tauglich).
-  useEffect(() => { inputRef.current?.focus(); }, [feedback]);
+  useEffect(() => { inputRef.current?.focus({ preventScroll: true }); }, [feedback]);
 
   // Sortierrichtung beim Start aus localStorage laden, danach jede Änderung sichern.
   useEffect(() => {
@@ -420,7 +420,7 @@ export default function PickupScanPage() {
     } finally {
       setColliBusy(false);
       setEingabe("");
-      inputRef.current?.focus();
+      inputRef.current?.focus({ preventScroll: true });
     }
   }
 
@@ -429,14 +429,14 @@ export default function PickupScanPage() {
     setFeedback({ kind: "unbekannt", wert });
     playNegativeSound();
     setEingabe("");
-    inputRef.current?.focus();
+    inputRef.current?.focus({ preventScroll: true });
   }
   function meldeNichtDazu(wert: string, art: "logid" | "colli") {
     setFeedback({ kind: "logid", result: "FREMD", logId: wert, position: null });
     playScanSound("FREMD");
     setNichtDazu((prev) => [{ art, wert, zeit: new Date() }, ...prev].slice(0, 50));
     setEingabe("");
-    inputRef.current?.focus();
+    inputRef.current?.focus({ preventScroll: true });
   }
 
   // Karton-(Untercolli-)Schlüssel einer Position — bei COLLI-Aufträgen ist die
@@ -465,7 +465,7 @@ export default function PickupScanPage() {
     setFeedback({ kind: "vorabscan", hauptcolli, stellplatz, kartons });
     if (kartons.length > 0) playWagenTreffer(); else playWagenLeer();
     setEingabe("");
-    inputRef.current?.focus();
+    inputRef.current?.focus({ preventScroll: true });
   }
 
   // Auto-Routing: Scan-Art an der Ziffernlänge erkennen.
@@ -518,7 +518,7 @@ export default function PickupScanPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100svh-4rem)] -mx-4 sm:-mx-6 -my-4 sm:-my-6">
+    <div className="space-y-2">
       <style jsx>{`
         .pickup-pulse { border-radius: 0.75rem; animation: pickupPulse 0.6s ease-out; }
         @keyframes pickupPulse {
@@ -528,8 +528,8 @@ export default function PickupScanPage() {
         }
       `}</style>
 
-      {/* ── FIXER KOPF (scrollt nicht) — so niedrig wie möglich ── */}
-      <div className="shrink-0 px-4 sm:px-6 pt-3 pb-2 space-y-2 bg-[#f0f2f5] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042]">
+      {/* ── KOPF — scrollt mit der Seite mit (nicht mehr gepinnt) ── */}
+      <div className="space-y-2">
         {/* Zeile: Zurück · Auftragsname · Aktion */}
         <div className="flex items-center gap-2">
           <Link href="/pickup" aria-label="Zurück zur Auftragsliste" className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg text-xl font-bold text-[#65676b] dark:text-[#b0b3b8] hover:text-[#008BD2] hover:bg-white dark:hover:bg-[#3e4042] transition-colors">←</Link>
@@ -581,7 +581,7 @@ export default function PickupScanPage() {
                 <label htmlFor="scan-input" className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
                   {istColli ? "Colli scannen" : "LogID scannen"}
                 </label>
-                <GeraeteUmschalter device={mode} onChange={(d) => { setMode(d); inputRef.current?.focus(); }} />
+                <GeraeteUmschalter device={mode} onChange={(d) => { setMode(d); inputRef.current?.focus({ preventScroll: true }); }} />
               </div>
               <div className="flex gap-2">
                 <input
@@ -652,7 +652,7 @@ export default function PickupScanPage() {
                   <button
                     key={k}
                     aria-pressed={aktiv}
-                    onClick={() => { setSortDir(k); inputRef.current?.focus(); }}
+                    onClick={() => { setSortDir(k); inputRef.current?.focus({ preventScroll: true }); }}
                     className={`rounded-xl border-2 px-3 min-h-[56px] text-xs font-bold transition-colors ${aktiv ? "bg-white dark:bg-[#242526] text-[#202F61] dark:text-[#e4e6eb]" : "bg-transparent text-[#65676b] dark:text-[#b0b3b8]"}`}
                     style={{ borderColor: aktiv ? "#008BD2" : "#ced4da" }}
                   >
@@ -698,8 +698,13 @@ export default function PickupScanPage() {
         )}
       </div>
 
-      {/* ── SCROLLENDE LISTE (füllt den Rest — nur sie scrollt) ── */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-3">
+      {/* ── LISTE — normale Blockliste, scrollt mit dem Seiten-Body ──
+          Scanner-Fokus-Sicherung: ein Tipp in die Liste (auch auf eine reine
+          Zeile) entzieht dem Scan-Feld auf Touch-Geräten den Fokus → der
+          Hardware-Scanner schriebe ins Leere. Nur im Handscanner-Modus
+          (inputMode='none') refokussieren, damit im Mobil-Modus nicht bei jedem
+          Tipp die Bildschirmtastatur aufpoppt. */}
+      <div onClickCapture={() => { if (!tastatur) inputRef.current?.focus({ preventScroll: true }); }}>
         {error || (!isLoading && !data) ? (
           <div className="p-8 text-center text-sm text-[#65676b] dark:text-[#b0b3b8] bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042]">
             Auftrag nicht gefunden.
