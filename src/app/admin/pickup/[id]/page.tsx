@@ -28,6 +28,113 @@ function fmtDatum(d: Date | string): string {
   return new Date(d).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+// ── Colli-Export (gefundene LogIDs kopieren / als CSV laden) ────────────────────
+// Reine Frontend-Helfer: Daten liegen schon im Client. Nur GEFUNDENE Positionen.
+
+type ColliPos = { logId: string; status: string; stellplatz: string | null; bezeichnung: string | null };
+
+// CSV-Feld für DE-Excel: bei Semikolon/Anführungszeichen/Zeilenumbruch quoten.
+function csvFeld(v: string): string {
+  return /[";\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+// Clipboard mit Fallback für unsichere Kontexte (HTTP) ohne navigator.clipboard.
+async function inZwischenablage(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* Fallback unten */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.setAttribute("readonly", "");
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function ColliExportButtons({ colliNr, items }: { colliNr: string; items: ColliPos[] }) {
+  const { show } = useToast();
+  const [kopiert, setKopiert] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  const gefundene = items.filter((p) => p.status === "GEFUNDEN");
+  const leer = gefundene.length === 0;
+  const labelColli = colliNr || "ohne-colli";
+
+  async function handleKopieren() {
+    const text = gefundene.map((p) => formatLogId(p.logId)).join("\n");
+    const ok = await inZwischenablage(text);
+    if (ok) {
+      setKopiert(true);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setKopiert(false), 2000);
+    } else {
+      show("Kopieren fehlgeschlagen", "error");
+    }
+  }
+
+  function handleCsv() {
+    const zeilen = [
+      "LogID;Stellplatz;Bezeichnung",
+      ...gefundene.map((p) =>
+        [formatLogId(p.logId), p.stellplatz ?? "", p.bezeichnung ?? ""].map(csvFeld).join(";"),
+      ),
+    ];
+    // BOM für DE-Excel-Umlaute.
+    const blob = new Blob(["﻿" + zeilen.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `colli_${labelColli}_gefunden.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  const btnBasis =
+    "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold whitespace-nowrap border transition-colors " +
+    "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] " +
+    "hover:bg-[#008BD2]/10 hover:text-[#008BD2] dark:hover:text-[#45bdff] " +
+    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#008BD2] " +
+    "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#65676b]";
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={handleKopieren}
+        disabled={leer}
+        aria-label={`Gefundene LogIDs aus Colli ${labelColli} kopieren`}
+        className={btnBasis}
+      >
+        {kopiert ? "Kopiert ✓" : "📋 Kopieren"}
+      </button>
+      <button
+        type="button"
+        onClick={handleCsv}
+        disabled={leer}
+        aria-label={`Gefundene LogIDs aus Colli ${labelColli} als CSV herunterladen`}
+        className={btnBasis}
+      >
+        ⬇ CSV
+      </button>
+    </>
+  );
+}
+
 export default function PickupDetailPage() {
   const { has, isLoading: permsLoading } = usePermissions();
   const darfManage = has("PICKUP_MANAGE");
@@ -261,9 +368,12 @@ export default function PickupDetailPage() {
               <h2 className="font-black text-sm text-[#202F61] dark:text-[#e4e6eb]">
                 📦 Colli {g.colli || "— (ohne Colli)"}
               </h2>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff]">
-                {g.items.filter((p) => p.status === "GEFUNDEN").length}/{g.items.length} gefunden
-              </span>
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                <ColliExportButtons colliNr={g.colli} items={g.items} />
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff]">
+                  {g.items.filter((p) => p.status === "GEFUNDEN").length}/{g.items.length} gefunden
+                </span>
+              </div>
             </div>
             <div className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
               {g.items.map((p) => (
