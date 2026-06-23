@@ -293,18 +293,37 @@ export async function submit(data: {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Warenkorb ist leer." });
   }
 
-  // GruppenNr generieren
+  // GruppenNr generieren — EIN fortlaufender Zähler je (Techniker, Tag).
+  // Bewusst NICHT mehr durch korb.items.length teilen: das erzeugte für Körbe mit
+  // unterschiedlicher Item-Anzahl denselben seq → identische gruppenNr für verschiedene
+  // Geräte. Stattdessen die Anzahl der HEUTE bereits vergebenen DISTINCT gruppenNr
+  // dieses Technikers + 1. Lesen + Kollisionsprüfung laufen in einer Transaktion,
+  // damit der Zähler konsistent ermittelt wird.
   const datumStr   = new Date().toISOString().slice(0, 10);
   const heuteStart = new Date(datumStr);
   const heuteEnde  = new Date(heuteStart);
   heuteEnde.setDate(heuteEnde.getDate() + 1);
 
-  const anzahlHeute = await prisma.anfrage.count({
-    where: { techniker: korb.techniker, gruppenNr: { not: null }, datum: { gte: heuteStart, lt: heuteEnde } },
-  });
+  const gruppenNr = await prisma.$transaction(async (tx) => {
+    const heuteVergeben = await tx.anfrage.findMany({
+      where:    { techniker: korb.techniker, gruppenNr: { not: null }, datum: { gte: heuteStart, lt: heuteEnde } },
+      select:   { gruppenNr: true },
+      distinct: ["gruppenNr"],
+    });
+    // Set der heute bereits vergebenen Nummern (für den Zähler UND das Sicherheitsnetz).
+    const vergeben = new Set(heuteVergeben.map((a) => a.gruppenNr));
 
-  const seq      = String(Math.floor(anzahlHeute / korb.items.length) + 1).padStart(3, "0");
-  const gruppenNr = `${datumStr}-${korb.techniker}-${seq}`;
+    // Fortlaufende Nummer = Anzahl bisheriger Gruppen + 1.
+    let seq = vergeben.size + 1;
+    let nr  = `${datumStr}-${korb.techniker}-${String(seq).padStart(3, "0")}`;
+    // Sicherheitsnetz gegen Restraces/Lücken: solange die Nummer heute schon existiert,
+    // hochzählen, bis sie frei ist (kein @@unique auf gruppenNr → defensiv prüfen).
+    while (vergeben.has(nr)) {
+      seq += 1;
+      nr   = `${datumStr}-${korb.techniker}-${String(seq).padStart(3, "0")}`;
+    }
+    return nr;
+  });
 
   await Promise.all(
     korb.items.map((item) =>
