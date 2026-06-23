@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useMemo, Suspense } from "react";
 import { AnfrageStatus, type Anfrage } from "@prisma/client";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Trash2 } from "lucide-react";
+import { Trash2, Sparkles, Square, LoaderCircle, SquareCheckBig, TriangleAlert, type LucideIcon } from "lucide-react";
 import { api } from "@/trpc/react";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS }    from "@/modules/realtime/events";
@@ -26,6 +26,60 @@ import {
   type AuslagerBelegData,
 } from "@/components/ui/AuslagerBeleg";
 import type { SessionUser } from "@/core/types";
+
+// ── Gruppen-Status → 4 Klartext-Töpfe ─────────────────────────────────────────
+// Bildet ALLE echten AnfrageStatus-Werte (gruppenStatus) auf vier laienverständliche
+// Status ab. Reine Darstellung — der Wert kommt unverändert aus gruppe.gruppenStatus
+// (siehe service.ts: niedrigster Rang gewinnt). Keine neue Aggregation.
+//   ABGESCHLOSSEN, STORNIERT       → "Erledigt"      (terminal, tritt zurück)
+//   IN_BEARBEITUNG                 → "In Arbeit"
+//   NEU                            → "Neu"           (Teil verfügbar, noch nicht bearbeitet)
+//   BEDARF, NICHT_VERFUEGBAR       → "Zu erledigen"  (offen, Teil fehlt/zu beschaffen)
+type GruppenAnsicht = { key: string; label: string; Icon: LucideIcon; cardCls: string; pillCls: string };
+
+function gruppenAnsicht(status: AnfrageStatus): GruppenAnsicht {
+  switch (status) {
+    case AnfrageStatus.ABGESCHLOSSEN:
+    case AnfrageStatus.STORNIERT:
+      // Grün, aber gedimmt: neutrale Fläche + grüne Akzente, damit offene Anfragen herausstechen.
+      return {
+        key: "erledigt", label: "Erledigt", Icon: SquareCheckBig,
+        cardCls: "bg-[#f6f7f9] dark:bg-[#202021] border-l-8 border-l-[#04B475]/45 dark:border-l-[#04B475]/35",
+        pillCls: "bg-[#04B475]/12 text-[#038F5C] dark:bg-[#04B475]/15 dark:text-[#1AC98D]",
+      };
+    case AnfrageStatus.IN_BEARBEITUNG:
+      return {
+        key: "in_arbeit", label: "In Arbeit", Icon: LoaderCircle,
+        cardCls: "bg-violet-50 dark:bg-violet-950/30 border-l-8 border-l-violet-500 dark:border-l-violet-400",
+        pillCls: "bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-100",
+      };
+    case AnfrageStatus.NEU:
+      return {
+        key: "neu", label: "Neu", Icon: Sparkles,
+        cardCls: "bg-blue-50 dark:bg-blue-950/30 border-l-8 border-l-blue-500 dark:border-l-blue-400",
+        pillCls: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-100",
+      };
+    case AnfrageStatus.BEDARF:
+    case AnfrageStatus.NICHT_VERFUEGBAR:
+    default:
+      return {
+        key: "zu_erledigen", label: "Zu erledigen", Icon: Square,
+        cardCls: "bg-amber-50 dark:bg-amber-950/30 border-l-8 border-l-amber-500 dark:border-l-amber-400",
+        pillCls: "bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100",
+      };
+  }
+}
+
+// Große Status-Pille (Icon + Klartext) — Status nie nur über Farbe.
+function GruppenStatusPille({ status }: { status: AnfrageStatus }) {
+  const { label, Icon, pillCls } = gruppenAnsicht(status);
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black uppercase tracking-wide whitespace-nowrap ${pillCls}`}>
+      <Icon size={16} aria-hidden className="shrink-0" />
+      {label}
+    </span>
+  );
+}
 
 // ── Tagesübersicht A4 Print ───────────────────────────────────────────────────
 
@@ -243,12 +297,6 @@ function AnfragenPageInner() {
   const searchParams = useSearchParams();
   const highlightId  = searchParams?.get("highlight") ?? null;
   const gruppeParam  = searchParams?.get("gruppe") ?? null;
-
-  function statusHighlightClass(status: string): string {
-    if (status === "NEU" || status === "BEDARF") return "anfrage-neu";
-    if (status === "IN_BEARBEITUNG") return "anfrage-bearbeitung";
-    return "";
-  }
 
   const [statusFilter, setStatusFilter] = useState<AnfrageStatus | "">("");
   const [techFilter,   setTechFilter]   = useState("");
@@ -643,15 +691,18 @@ function AnfragenPageInner() {
           const chatCount = firstId ? ((ungelesenData ?? []).find((x) => x.anfrageId === firstId)?.count ?? 0) : 0;
           const bezugInfo = [gruppe.geraeteName, gruppe.logId !== "unbekannt" ? gruppe.logId : undefined].filter(Boolean).join(" · ");
 
+          // Status-Tönung (4 Klartext-Töpfe) — ganze Karte + 8px-Kante links.
+          const ansichtG = gruppenAnsicht(gruppe.gruppenStatus);
+
           // Header-Styling je nach Lock-State
           const headerCls = isLockedByMe
             ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
             : isLockedByOther
             ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 opacity-90"
-            : "bg-[#f0f2f5] dark:bg-[#18191a] border-[#ced4da] dark:border-[#3e4042]";
+            : "bg-black/[0.03] dark:bg-white/[0.04] border-black/10 dark:border-white/10"; // transluzent → Status-Tönung der Karte scheint durch
 
           return (
-            <div key={gi} id={`gruppe-${gruppenKey}`} className={`bg-white dark:bg-[#242526] rounded-xl border shadow-sm overflow-hidden ${isLockedByOther ? "border-amber-200 dark:border-amber-800" : "border-[#ced4da] dark:border-[#3e4042]"} ${statusHighlightClass(gruppe.gruppenStatus)}`}>
+            <div key={gi} id={`gruppe-${gruppenKey}`} className={`${ansichtG.cardCls} rounded-xl border shadow-sm overflow-hidden ${isLockedByOther ? "border-amber-200 dark:border-amber-800" : "border-[#ced4da] dark:border-[#3e4042]"}`}>
               {/* ── Gruppen-Header ── */}
               <div className={`flex items-start justify-between gap-3 px-5 py-4 border-b flex-wrap gap-y-2 ${headerCls}`}>
                 <div className="flex items-start gap-4 flex-wrap min-w-0">
@@ -663,7 +714,6 @@ function AnfragenPageInner() {
                       {gruppe.geraeteName && ` · ${gruppe.geraeteName}`}
                     </div>
                   </div>
-                  <StatusBadge status={gruppe.gruppenStatus} />
                   {istTestGruppe && (
                     <span
                       title="Test-Anfrage — zählt nicht in Statistik"
@@ -692,8 +742,10 @@ function AnfragenPageInner() {
                   )}
                 </div>
 
-                {/* ── Aktions-Buttons ── */}
-                <div className="flex gap-2 flex-wrap">
+                {/* ── Status-Pille (oben rechts) + Aktions-Buttons ── */}
+                <div className="flex flex-col items-end gap-2">
+                  <GruppenStatusPille status={gruppe.gruppenStatus} />
+                  <div className="flex gap-2 flex-wrap justify-end">
                   {/* Lock-Buttons */}
                   {canEdit && !alleDone && anyTakeable && !bearbeitetVon && (
                     <button
@@ -774,6 +826,7 @@ function AnfragenPageInner() {
                       <Trash2 size={16} />
                     </button>
                   )}
+                  </div>
                 </div>
               </div>
 
@@ -847,7 +900,14 @@ function AnfragenPageInner() {
                           [TEST]
                         </span>
                       )}
-                      <StatusBadge status={a.status} />
+                      {/* Sub-Anfrage ruhig halten: 'nicht verfügbar' nur als kleine Notiz statt großer Pille. */}
+                      {a.status === AnfrageStatus.NICHT_VERFUEGBAR ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-400 whitespace-nowrap">
+                          <TriangleAlert size={13} aria-hidden className="shrink-0" /> Teil fehlt
+                        </span>
+                      ) : (
+                        <StatusBadge status={a.status} />
+                      )}
                       <div className="flex gap-1">
                         {/* Beleg erneut drucken */}
                         {a.status === AnfrageStatus.ABGESCHLOSSEN && (
