@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useMemo, Suspense } from "react";
 import { AnfrageStatus, type Anfrage } from "@prisma/client";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Trash2, Sparkles, Square, LoaderCircle, SquareCheckBig, TriangleAlert, type LucideIcon } from "lucide-react";
+import { Trash2, Sparkles, Square, LoaderCircle, SquareCheckBig, PackageX, type LucideIcon } from "lucide-react";
 import { api } from "@/trpc/react";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS }    from "@/modules/realtime/events";
@@ -31,10 +31,12 @@ import type { SessionUser } from "@/core/types";
 // Bildet ALLE echten AnfrageStatus-Werte (gruppenStatus) auf vier laienverständliche
 // Status ab. Reine Darstellung — der Wert kommt unverändert aus gruppe.gruppenStatus
 // (siehe service.ts: niedrigster Rang gewinnt). Keine neue Aggregation.
-//   ABGESCHLOSSEN, STORNIERT       → "Erledigt"      (terminal, tritt zurück)
+//   ABGESCHLOSSEN, STORNIERT       → "Erledigt"      (terminal, tritt zurück, grün)
+//   NICHT_VERFUEGBAR               → "Kein Teil"     (terminal, tritt zurück, grau —
+//                                                     NICHT grün, "konnten wir nicht" ≠ "erledigt")
 //   IN_BEARBEITUNG                 → "In Arbeit"
 //   NEU                            → "Neu"           (Teil verfügbar, noch nicht bearbeitet)
-//   BEDARF, NICHT_VERFUEGBAR       → "Zu erledigen"  (offen, Teil fehlt/zu beschaffen)
+//   BEDARF                         → "Zu erledigen"  (offen, Teil noch zu beschaffen)
 type GruppenAnsicht = { key: string; label: string; Icon: LucideIcon; cardCls: string; pillCls: string };
 
 function gruppenAnsicht(status: AnfrageStatus): GruppenAnsicht {
@@ -46,6 +48,14 @@ function gruppenAnsicht(status: AnfrageStatus): GruppenAnsicht {
         key: "erledigt", label: "Erledigt", Icon: SquareCheckBig,
         cardCls: "bg-[#f6f7f9] dark:bg-[#202021] border-l-8 border-l-[#04B475]/45 dark:border-l-[#04B475]/35",
         pillCls: "bg-[#04B475]/12 text-[#038F5C] dark:bg-[#04B475]/15 dark:text-[#1AC98D]",
+      };
+    case AnfrageStatus.NICHT_VERFUEGBAR:
+      // Gedimmt wie Erledigt, aber GRAU (nicht grün): "Teil konnten wir nicht beschaffen"
+      // ist abgeschlossen-zurücktretend, aber kein Erfolg.
+      return {
+        key: "kein_teil", label: "Kein Teil", Icon: PackageX,
+        cardCls: "bg-[#f6f7f9] dark:bg-[#202021] border-l-8 border-l-slate-400/70 dark:border-l-slate-500/60",
+        pillCls: "bg-slate-200/70 text-slate-700 dark:bg-slate-700/40 dark:text-slate-200",
       };
     case AnfrageStatus.IN_BEARBEITUNG:
       return {
@@ -60,7 +70,6 @@ function gruppenAnsicht(status: AnfrageStatus): GruppenAnsicht {
         pillCls: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-100",
       };
     case AnfrageStatus.BEDARF:
-    case AnfrageStatus.NICHT_VERFUEGBAR:
     default:
       return {
         key: "zu_erledigen", label: "Zu erledigen", Icon: Square,
@@ -900,10 +909,11 @@ function AnfragenPageInner() {
                           [TEST]
                         </span>
                       )}
-                      {/* Sub-Anfrage ruhig halten: 'nicht verfügbar' nur als kleine Notiz statt großer Pille. */}
+                      {/* Sub-Anfrage ruhig halten: 'nicht verfügbar' nur als kleine, graue Notiz
+                          statt großer Pille — konsistent mit der gedimmten "Kein Teil"-Gruppe. */}
                       {a.status === AnfrageStatus.NICHT_VERFUEGBAR ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-400 whitespace-nowrap">
-                          <TriangleAlert size={13} aria-hidden className="shrink-0" /> Teil fehlt
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                          <PackageX size={13} aria-hidden className="shrink-0" /> Teil fehlt
                         </span>
                       ) : (
                         <StatusBadge status={a.status} />
