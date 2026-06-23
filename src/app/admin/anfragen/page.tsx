@@ -779,7 +779,7 @@ function AnfragenPageInner() {
           // Sperre wird NICHT mehr als ganzflächige Tönung dargestellt — die Karten-
           // Farbe kommt ausschließlich aus kartenOptik(). Sperre = nur ein kleiner Chip.
           return (
-            <div key={gi} id={`gruppe-${gruppenKey}`} className={`${optik.cardCls} rounded-xl border shadow-sm overflow-hidden ${isLockedByOther ? "border-amber-200 dark:border-amber-800" : "border-[#ced4da] dark:border-[#3e4042]"}`}>
+            <div key={gi} id={`gruppe-${gruppenKey}`} className={`${optik.cardCls} rounded-xl border shadow-sm overflow-hidden ${isLockedByOther ? "border-t-amber-200 border-r-amber-200 border-b-amber-200 dark:border-t-amber-800 dark:border-r-amber-800 dark:border-b-amber-800" : "border-[#ced4da] dark:border-[#3e4042]"}`}>
               {/* ── Gruppen-Header — eine kompakte Zeile ── */}
               <div className="flex items-start justify-between gap-3 px-5 py-3 border-b border-black/10 dark:border-white/10">
                 {/* LINKS: LogID + Status-Pille + Sperr-Chip (obere Zeile), darunter Meta */}
@@ -919,19 +919,15 @@ function AnfragenPageInner() {
                 {anfragenTyped.map((a) => {
                   const rowLockedByOther = !!a.bearbeitetVon && a.bearbeitetVon.toUpperCase() !== ersteller.toUpperCase();
                   const rowCls = rowLockedByOther ? "opacity-60" : "";
-                  // Status-Markierung: Storno rot + ausgegraut, Nicht-verfügbar orange
+                  // Sub-Zeilen-Markierung NUR als dezente Tönung — KEIN linker Rand, damit
+                  // nichts mit dem Status-Streifen der Karte (kartenOptik) verwechselt wird.
                   const statusBg =
                     a.status === AnfrageStatus.STORNIERT          ? "bg-red-50/60 dark:bg-red-950/20 opacity-75"
                     : a.status === AnfrageStatus.NICHT_VERFUEGBAR ? "bg-orange-50/60 dark:bg-orange-950/20"
+                    : a.istSonderAnfrage                          ? "bg-orange-50/40 dark:bg-orange-950/10"
                     : "";
-                  const randFarbe =
-                    a.status === AnfrageStatus.STORNIERT          ? "#ef4444"
-                    : a.status === AnfrageStatus.NICHT_VERFUEGBAR ? "#f97316"
-                    : a.istSonderAnfrage                          ? "#f97316"
-                    : null;
                   return (
-                    <div key={a.id} id={`row-${a.id}`} className={`flex items-center gap-4 px-5 py-2.5 flex-wrap gap-y-1 ${rowCls} ${statusBg}`}
-                      style={randFarbe ? { borderLeft: `3px solid ${randFarbe}`, paddingLeft: "0.9rem" } : undefined}>
+                    <div key={a.id} id={`row-${a.id}`} className={`flex items-center gap-4 px-5 py-2.5 flex-wrap gap-y-1 ${rowCls} ${statusBg}`}>
                       <div className="flex-1 min-w-0">
                         {a.istSonderAnfrage && (
                           <div className="flex items-center gap-1 mb-0.5">
