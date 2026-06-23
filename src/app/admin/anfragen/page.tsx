@@ -27,65 +27,105 @@ import {
 } from "@/components/ui/AuslagerBeleg";
 import type { SessionUser } from "@/core/types";
 
-// ── Gruppen-Status → 4 Klartext-Töpfe ─────────────────────────────────────────
-// Bildet ALLE echten AnfrageStatus-Werte (gruppenStatus) auf vier laienverständliche
+// ── Gruppen-Status → 4 Klartext-Töpfe (eine Quelle der Wahrheit) ──────────────
+// Bildet ALLE echten AnfrageStatus-Werte (gruppenStatus) auf laienverständliche
 // Status ab. Reine Darstellung — der Wert kommt unverändert aus gruppe.gruppenStatus
-// (siehe service.ts: niedrigster Rang gewinnt). Keine neue Aggregation.
-//   ABGESCHLOSSEN, STORNIERT       → "Erledigt"      (terminal, tritt zurück, grün)
-//   NICHT_VERFUEGBAR               → "Kein Teil"     (terminal, tritt zurück, grau —
-//                                                     NICHT grün, "konnten wir nicht" ≠ "erledigt")
-//   IN_BEARBEITUNG                 → "In Arbeit"
-//   NEU                            → "Neu"           (Teil verfügbar, noch nicht bearbeitet)
-//   BEDARF                         → "Zu erledigen"  (offen, Teil noch zu beschaffen)
-type GruppenAnsicht = { key: string; label: string; Icon: LucideIcon; cardCls: string; pillCls: string };
+// (siehe service.ts: niedrigster Rang gewinnt). Keine neue Aggregation/Filterung.
+//   ABGESCHLOSSEN, STORNIERT       → "Erledigt"      (terminal, tritt zurück, grau + grünes Häkchen)
+//   NICHT_VERFUEGBAR               → "Kein Teil"     (terminal, tritt zurück, grau — fließt weiter in Bestellempfehlung)
+//   IN_BEARBEITUNG                 → "In Arbeit"     (violett, dunkel)
+//   NEU                            → "Neu"           (blau, mittel)
+//   BEDARF                         → "Zu erledigen"  (amber, hell)
+//
+// Label + Icon + Wort sind über ALLE drei Darstellungen identisch; nur die Container-
+// Optik (Tönung/Streifen/Pillen-Stufe) variiert je nach gewählter Darstellung.
+type StatusStyle = "streifen" | "vollflaeche" | "hybrid";
 
-function gruppenAnsicht(status: AnfrageStatus): GruppenAnsicht {
+type StatusDef = {
+  key:       string;
+  label:     string;
+  Icon:      LucideIcon;
+  terminal:  boolean;  // Erledigt/Kein Teil → tritt zurück
+  iconCls:   string;   // Icon-Farbe (Grün-Akzent für Erledigt), sonst "" (erbt Pillen-Text)
+  stripeCls: string;   // linke Kante: aktiv kräftig (600, amber 700), terminal grau (≥3:1)
+  vollBg:    string;   // Vollflächen-Tönung: aktiv Stufe 50, terminal neutral-grau (slate-50)
+  pill100:   string;   // Pille für "streifen"-Optik   (Fläche 100, Text 800)
+  pill200:   string;   // Pille für "vollflaeche"-Optik (Fläche 200, Text 800)
+};
+
+const STATUS_DEF: Record<string, StatusDef> = {
+  neu: {
+    key: "neu", label: "Neu", Icon: Sparkles, terminal: false, iconCls: "",
+    stripeCls: "border-l-blue-600 dark:border-l-blue-400",
+    vollBg:    "bg-blue-50 dark:bg-blue-950/40",
+    pill100:   "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
+    pill200:   "bg-blue-200 text-blue-800 dark:bg-blue-900/60 dark:text-blue-100",
+  },
+  zu_erledigen: {
+    key: "zu_erledigen", label: "Zu erledigen", Icon: Square, terminal: false, iconCls: "",
+    stripeCls: "border-l-amber-700 dark:border-l-amber-500", // amber abgedunkelt → ≥3:1
+    vollBg:    "bg-amber-50 dark:bg-amber-950/40",
+    pill100:   "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200",
+    pill200:   "bg-amber-200 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100",
+  },
+  in_arbeit: {
+    key: "in_arbeit", label: "In Arbeit", Icon: LoaderCircle, terminal: false, iconCls: "",
+    stripeCls: "border-l-violet-600 dark:border-l-violet-400",
+    vollBg:    "bg-violet-50 dark:bg-violet-950/40",
+    pill100:   "bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200",
+    pill200:   "bg-violet-200 text-violet-800 dark:bg-violet-900/60 dark:text-violet-100",
+  },
+  erledigt: {
+    // Grau + grünes Häkchen-Icon (emerald-700 abgedunkelt, NICHT #04B475) → Erfolg, tritt zurück.
+    key: "erledigt", label: "Erledigt", Icon: SquareCheckBig, terminal: true,
+    iconCls:   "text-emerald-700 dark:text-emerald-400",
+    stripeCls: "border-l-slate-500 dark:border-l-slate-400",
+    vollBg:    "bg-slate-50 dark:bg-slate-900/40",
+    pill100:   "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-200",
+    pill200:   "bg-slate-200 text-slate-700 dark:bg-slate-700/50 dark:text-slate-200",
+  },
+  kein_teil: {
+    // Grau + durchgestrichenes-Paket-Icon → "konnten wir nicht", kein Erfolg, tritt zurück.
+    key: "kein_teil", label: "Kein Teil", Icon: PackageX, terminal: true, iconCls: "",
+    stripeCls: "border-l-slate-500 dark:border-l-slate-400",
+    vollBg:    "bg-slate-50 dark:bg-slate-900/40",
+    pill100:   "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-200",
+    pill200:   "bg-slate-200 text-slate-700 dark:bg-slate-700/50 dark:text-slate-200",
+  },
+};
+
+function statusDef(status: AnfrageStatus): StatusDef {
   switch (status) {
     case AnfrageStatus.ABGESCHLOSSEN:
-    case AnfrageStatus.STORNIERT:
-      // Grün, aber gedimmt: neutrale Fläche + grüne Akzente, damit offene Anfragen herausstechen.
-      return {
-        key: "erledigt", label: "Erledigt", Icon: SquareCheckBig,
-        cardCls: "bg-[#f6f7f9] dark:bg-[#202021] border-l-8 border-l-[#04B475]/45 dark:border-l-[#04B475]/35",
-        pillCls: "bg-[#04B475]/12 text-[#038F5C] dark:bg-[#04B475]/15 dark:text-[#1AC98D]",
-      };
-    case AnfrageStatus.NICHT_VERFUEGBAR:
-      // Gedimmt wie Erledigt, aber GRAU (nicht grün): "Teil konnten wir nicht beschaffen"
-      // ist abgeschlossen-zurücktretend, aber kein Erfolg.
-      return {
-        key: "kein_teil", label: "Kein Teil", Icon: PackageX,
-        cardCls: "bg-[#f6f7f9] dark:bg-[#202021] border-l-8 border-l-slate-400/70 dark:border-l-slate-500/60",
-        pillCls: "bg-slate-200/70 text-slate-700 dark:bg-slate-700/40 dark:text-slate-200",
-      };
-    case AnfrageStatus.IN_BEARBEITUNG:
-      return {
-        key: "in_arbeit", label: "In Arbeit", Icon: LoaderCircle,
-        cardCls: "bg-violet-50 dark:bg-violet-950/30 border-l-8 border-l-violet-500 dark:border-l-violet-400",
-        pillCls: "bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-100",
-      };
-    case AnfrageStatus.NEU:
-      return {
-        key: "neu", label: "Neu", Icon: Sparkles,
-        cardCls: "bg-blue-50 dark:bg-blue-950/30 border-l-8 border-l-blue-500 dark:border-l-blue-400",
-        pillCls: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-100",
-      };
+    case AnfrageStatus.STORNIERT:      return STATUS_DEF.erledigt;
+    case AnfrageStatus.NICHT_VERFUEGBAR: return STATUS_DEF.kein_teil;
+    case AnfrageStatus.IN_BEARBEITUNG: return STATUS_DEF.in_arbeit;
+    case AnfrageStatus.NEU:            return STATUS_DEF.neu;
     case AnfrageStatus.BEDARF:
-    default:
-      return {
-        key: "zu_erledigen", label: "Zu erledigen", Icon: Square,
-        cardCls: "bg-amber-50 dark:bg-amber-950/30 border-l-8 border-l-amber-500 dark:border-l-amber-400",
-        pillCls: "bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100",
-      };
+    default:                           return STATUS_DEF.zu_erledigen;
   }
 }
 
-// Große Status-Pille (Icon + Klartext) — Status nie nur über Farbe.
-function GruppenStatusPille({ status }: { status: AnfrageStatus }) {
-  const { label, Icon, pillCls } = gruppenAnsicht(status);
+// Container-Optik je nach gewählter Darstellung — wählt NUR Klassen, dupliziert keine
+// Statusdefinition. "hybrid": aktive Status wie Vollfläche (stechen hervor), terminale
+// wie Streifen auf weißer Karte (treten zurück; Zurücktreten via Grau, NICHT via opacity).
+function kartenOptik(status: AnfrageStatus, style: StatusStyle): { cardCls: string; pillCls: string } {
+  const d = statusDef(status);
+  const useVoll = style === "vollflaeche" || (style === "hybrid" && !d.terminal);
+  const widthCls = useVoll ? "border-l-4" : "border-l-[7px]";
+  const bg       = useVoll ? d.vollBg : "bg-white dark:bg-[#242526]";
+  const pillCls  = useVoll ? d.pill200 : d.pill100;
+  return { cardCls: `${bg} ${widthCls} ${d.stripeCls}`, pillCls };
+}
+
+// Große Status-Pille (Icon + Klartext) — Status nie nur über Farbe: Farbe + Icon + Wort.
+function GruppenStatusPille({ status, style }: { status: AnfrageStatus; style: StatusStyle }) {
+  const d = statusDef(status);
+  const { pillCls } = kartenOptik(status, style);
   return (
     <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black uppercase tracking-wide whitespace-nowrap ${pillCls}`}>
-      <Icon size={16} aria-hidden className="shrink-0" />
-      {label}
+      <d.Icon size={16} aria-hidden className={`shrink-0 ${d.iconCls}`} />
+      {d.label}
     </span>
   );
 }
@@ -322,6 +362,19 @@ function AnfragenPageInner() {
   function wechsleAnsicht(neu: "liste" | "board") {
     setAnsicht(neu);
     window.localStorage.setItem("anfragen-ansicht", neu);
+  }
+
+  // Status-Darstellung der Liste: "streifen" | "vollflaeche" | "hybrid" (Default).
+  // Nutzer-Auswahl, in localStorage gemerkt, sofort wirksam — beeinflusst NUR die
+  // Karten-Optik, nicht Daten/Zähler/Filter.
+  const [statusStyle, setStatusStyle] = useState<StatusStyle>("hybrid");
+  useEffect(() => {
+    const g = window.localStorage.getItem("anfragen_status_style");
+    if (g === "streifen" || g === "vollflaeche" || g === "hybrid") setStatusStyle(g);
+  }, []);
+  function wechsleStatusStyle(neu: StatusStyle) {
+    setStatusStyle(neu);
+    window.localStorage.setItem("anfragen_status_style", neu);
   }
 
   // Chat-Modal
@@ -581,6 +634,27 @@ function AnfragenPageInner() {
           </button>
         </div>
 
+        {/* Darstellungs-Umschalter (nur Liste): Streifen · Vollfläche · Hybrid.
+            Wählt nur die Status-Optik der Karten, gemerkt in localStorage. */}
+        {ansicht === "liste" && (
+          <div role="group" aria-label="Darstellung der Status" className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] hidden sm:inline">Darstellung</span>
+            <div className="flex rounded-lg overflow-hidden border border-[#ced4da] dark:border-[#3e4042]">
+              {([["streifen", "Streifen"], ["vollflaeche", "Vollfläche"], ["hybrid", "Hybrid"]] as const).map(([val, label], i) => (
+                <button
+                  key={val}
+                  type="button"
+                  aria-pressed={statusStyle === val}
+                  onClick={() => wechsleStatusStyle(val)}
+                  className={`px-3 text-xs font-bold transition-colors min-h-[44px] ${i > 0 ? "border-l border-[#ced4da] dark:border-[#3e4042]" : ""} ${statusStyle === val ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Quick-Filter: Alle / Meine */}
         <div className="flex rounded-lg overflow-hidden border border-[#ced4da] dark:border-[#3e4042]">
           <button
@@ -700,8 +774,8 @@ function AnfragenPageInner() {
           const chatCount = firstId ? ((ungelesenData ?? []).find((x) => x.anfrageId === firstId)?.count ?? 0) : 0;
           const bezugInfo = [gruppe.geraeteName, gruppe.logId !== "unbekannt" ? gruppe.logId : undefined].filter(Boolean).join(" · ");
 
-          // Status-Tönung (4 Klartext-Töpfe) — ganze Karte + 8px-Kante links.
-          const ansichtG = gruppenAnsicht(gruppe.gruppenStatus);
+          // Status-Optik je nach gewählter Darstellung (streifen/vollflaeche/hybrid).
+          const optik = kartenOptik(gruppe.gruppenStatus, statusStyle);
 
           // Header-Styling je nach Lock-State
           const headerCls = isLockedByMe
@@ -711,7 +785,7 @@ function AnfragenPageInner() {
             : "bg-black/[0.03] dark:bg-white/[0.04] border-black/10 dark:border-white/10"; // transluzent → Status-Tönung der Karte scheint durch
 
           return (
-            <div key={gi} id={`gruppe-${gruppenKey}`} className={`${ansichtG.cardCls} rounded-xl border shadow-sm overflow-hidden ${isLockedByOther ? "border-amber-200 dark:border-amber-800" : "border-[#ced4da] dark:border-[#3e4042]"}`}>
+            <div key={gi} id={`gruppe-${gruppenKey}`} className={`${optik.cardCls} rounded-xl border shadow-sm overflow-hidden ${isLockedByOther ? "border-amber-200 dark:border-amber-800" : "border-[#ced4da] dark:border-[#3e4042]"}`}>
               {/* ── Gruppen-Header ── */}
               <div className={`flex items-start justify-between gap-3 px-5 py-4 border-b flex-wrap gap-y-2 ${headerCls}`}>
                 <div className="flex items-start gap-4 flex-wrap min-w-0">
@@ -753,7 +827,7 @@ function AnfragenPageInner() {
 
                 {/* ── Status-Pille (oben rechts) + Aktions-Buttons ── */}
                 <div className="flex flex-col items-end gap-2">
-                  <GruppenStatusPille status={gruppe.gruppenStatus} />
+                  <GruppenStatusPille status={gruppe.gruppenStatus} style={statusStyle} />
                   <div className="flex gap-2 flex-wrap justify-end">
                   {/* Lock-Buttons */}
                   {canEdit && !alleDone && anyTakeable && !bearbeitetVon && (
