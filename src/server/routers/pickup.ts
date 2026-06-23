@@ -58,6 +58,22 @@ async function emitFortschritt(auftragId: number): Promise<void> {
   }
 }
 
+// Guard: lädt den Auftrag und stellt sicher, dass er OFFEN ist. Wirft sonst.
+// Schützt Scan-/Treffer-Mutationen davor, abgeschlossene Aufträge zu verändern —
+// serverseitig erzwungen, nicht nur per Frontend angenommen.
+async function ladeOffenenAuftragOderWirf(auftragId: number): Promise<void> {
+  const auftrag = await prisma.pickupAuftrag.findUnique({
+    where: { id: auftragId }, select: { status: true },
+  });
+  if (!auftrag) throw new TRPCError({ code: "NOT_FOUND", message: "Pickup-Auftrag nicht gefunden" });
+  if (auftrag.status !== "offen") {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "Auftrag ist abgeschlossen — keine Änderung möglich",
+    });
+  }
+}
+
 export const pickupRouter = createTRPCRouter({
 
   // Alle Aufträge mit Zählern (gesamt/offen/gefunden), neueste zuerst.
@@ -284,6 +300,9 @@ export const pickupRouter = createTRPCRouter({
     .input(z.object({ auftragId: z.number().int().positive(), logIdRaw: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const user  = ctx.session.user as SessionUser;
+      // Guard: nur offene Aufträge dürfen gescannt werden (abgeschlossene → Fehler).
+      await ladeOffenenAuftragOderWirf(input.auftragId);
+
       const logId = normalizeLogId(input.logIdRaw);
       if (!logId) return { result: "FREMD" as const, logId: "", position: null };
 
@@ -399,6 +418,13 @@ export const pickupRouter = createTRPCRouter({
   treffersZuruecksetzen: pickupPick
     .input(z.object({ positionId: z.number().int().positive() }))
     .mutation(async ({ input }) => {
+      // Position laden, um den Auftrag zu ermitteln, dann Offen-Guard.
+      const ziel = await prisma.pickupPosition.findUnique({
+        where: { id: input.positionId }, select: { auftragId: true },
+      });
+      if (!ziel) throw new TRPCError({ code: "NOT_FOUND", message: "Position nicht gefunden" });
+      await ladeOffenenAuftragOderWirf(ziel.auftragId);
+
       const pos = await prisma.pickupPosition.update({
         where: { id: input.positionId },
         data:  { status: "OFFEN", gefundenVon: null, gefundenAm: null },
