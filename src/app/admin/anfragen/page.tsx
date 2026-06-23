@@ -8,7 +8,6 @@ import { api } from "@/trpc/react";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS }    from "@/modules/realtime/events";
 import { ChatModal } from "@/components/ui/ChatModal";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { UeberfaelligBadge } from "@/components/anfragen/UeberfaelligBadge";
 import { useNow } from "@/hooks/useNow";
 import { istUeberfaellig, verstricheneZeit } from "@/lib/anfragen/ueberfaellig";
@@ -777,58 +776,54 @@ function AnfragenPageInner() {
           // Status-Optik je nach gewählter Darstellung (streifen/vollflaeche/hybrid).
           const optik = kartenOptik(gruppe.gruppenStatus, statusStyle);
 
-          // Header-Styling je nach Lock-State
-          const headerCls = isLockedByMe
-            ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
-            : isLockedByOther
-            ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 opacity-90"
-            : "bg-black/[0.03] dark:bg-white/[0.04] border-black/10 dark:border-white/10"; // transluzent → Status-Tönung der Karte scheint durch
-
+          // Sperre wird NICHT mehr als ganzflächige Tönung dargestellt — die Karten-
+          // Farbe kommt ausschließlich aus kartenOptik(). Sperre = nur ein kleiner Chip.
           return (
             <div key={gi} id={`gruppe-${gruppenKey}`} className={`${optik.cardCls} rounded-xl border shadow-sm overflow-hidden ${isLockedByOther ? "border-amber-200 dark:border-amber-800" : "border-[#ced4da] dark:border-[#3e4042]"}`}>
-              {/* ── Gruppen-Header ── */}
-              <div className={`flex items-start justify-between gap-3 px-5 py-4 border-b flex-wrap gap-y-2 ${headerCls}`}>
-                <div className="flex items-start gap-4 flex-wrap min-w-0">
-                  <div className="min-w-0">
-                    <div className="font-black text-[#1a1a1a] dark:text-[#e4e6eb]">{gruppe.logId}</div>
-                    <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                      {gruppe.techniker} ·{" "}
-                      {new Date(gruppe.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                      {gruppe.geraeteName && ` · ${gruppe.geraeteName}`}
-                    </div>
-                  </div>
-                  {istTestGruppe && (
-                    <span
-                      title="Test-Anfrage — zählt nicht in Statistik"
-                      className="text-xs font-black px-2 py-0.5 rounded-full bg-yellow-300 text-yellow-900 whitespace-nowrap"
-                    >
-                      🧪 TEST
-                    </span>
-                  )}
-                  {hatVerfuegbare && auslagerInfo && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008bd2]/15 text-[#008bd2] dark:text-[#45bdff] whitespace-nowrap">
-                      📦 {auslagerInfo.anzahlVerfuegbar}/{auslagerInfo.anzahlTotal}
-                    </span>
-                  )}
-                  {gruppe.gruppenNr && <span className="text-xs font-mono text-[#65676b] dark:text-[#b0b3b8]">{gruppe.gruppenNr}</span>}
+              {/* ── Gruppen-Header — eine kompakte Zeile ── */}
+              <div className="flex items-start justify-between gap-3 px-5 py-3 border-b border-black/10 dark:border-white/10">
+                {/* LINKS: LogID + Status-Pille + Sperr-Chip (obere Zeile), darunter Meta */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="font-mono font-black text-lg leading-tight text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{gruppe.logId}</span>
+                    <GruppenStatusPille status={gruppe.gruppenStatus} style={statusStyle} />
 
-                  {/* Lock-Status-Pill */}
-                  {isLockedByMe && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 whitespace-nowrap">
-                      🔧 Du bearbeitest{bearbeitetSeit ? ` · seit ${uhrzeitStr(bearbeitetSeit)}` : ""}
-                    </span>
-                  )}
-                  {isLockedByOther && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 whitespace-nowrap">
-                      🔒 {bearbeitetVon}{bearbeitetSeit ? ` · seit ${uhrzeitStr(bearbeitetSeit)}` : ""}
-                    </span>
-                  )}
+                    {/* Sperre NUR als kleiner Chip — keine ganzflächige Tönung */}
+                    {isLockedByMe && (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 whitespace-nowrap">
+                        🔧 Du bearbeitest{bearbeitetSeit ? ` · seit ${uhrzeitStr(bearbeitetSeit)}` : ""}
+                      </span>
+                    )}
+                    {isLockedByOther && (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 whitespace-nowrap">
+                        🔒 gesperrt von {bearbeitetVon}{bearbeitetSeit ? ` · seit ${uhrzeitStr(bearbeitetSeit)}` : ""}
+                      </span>
+                    )}
+                    {istTestGruppe && (
+                      <span
+                        title="Test-Anfrage — zählt nicht in Statistik"
+                        className="text-xs font-black px-2 py-0.5 rounded-full bg-yellow-300 text-yellow-900 whitespace-nowrap"
+                      >
+                        🧪 TEST
+                      </span>
+                    )}
+                    {hatVerfuegbare && auslagerInfo && (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008bd2]/15 text-[#008bd2] dark:text-[#45bdff] whitespace-nowrap">
+                        📦 {auslagerInfo.anzahlVerfuegbar}/{auslagerInfo.anzahlTotal}
+                      </span>
+                    )}
+                  </div>
+                  {/* Meta-Zeile: Kürzel · Datum · Gerät · Anfrage-ID */}
+                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5 truncate">
+                    {gruppe.techniker} ·{" "}
+                    {new Date(gruppe.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {gruppe.geraeteName && ` · ${gruppe.geraeteName}`}
+                    {gruppe.gruppenNr && ` · ${gruppe.gruppenNr}`}
+                  </div>
                 </div>
 
-                {/* ── Status-Pille (oben rechts) + Aktions-Buttons ── */}
-                <div className="flex flex-col items-end gap-2">
-                  <GruppenStatusPille status={gruppe.gruppenStatus} style={statusStyle} />
-                  <div className="flex gap-2 flex-wrap justify-end">
+                {/* RECHTS: alle Aktions-Buttons in EINER rechtsbündigen Gruppe */}
+                <div className="flex gap-2 flex-wrap justify-end shrink-0">
                   {/* Lock-Buttons */}
                   {canEdit && !alleDone && anyTakeable && !bearbeitetVon && (
                     <button
@@ -909,7 +904,6 @@ function AnfragenPageInner() {
                       <Trash2 size={16} />
                     </button>
                   )}
-                  </div>
                 </div>
               </div>
 
@@ -936,7 +930,7 @@ function AnfragenPageInner() {
                     : a.istSonderAnfrage                          ? "#f97316"
                     : null;
                   return (
-                    <div key={a.id} id={`row-${a.id}`} className={`flex items-center gap-4 px-5 py-3 flex-wrap gap-y-1 ${rowCls} ${statusBg}`}
+                    <div key={a.id} id={`row-${a.id}`} className={`flex items-center gap-4 px-5 py-2.5 flex-wrap gap-y-1 ${rowCls} ${statusBg}`}
                       style={randFarbe ? { borderLeft: `3px solid ${randFarbe}`, paddingLeft: "0.9rem" } : undefined}>
                       <div className="flex-1 min-w-0">
                         {a.istSonderAnfrage && (
@@ -983,14 +977,12 @@ function AnfragenPageInner() {
                           [TEST]
                         </span>
                       )}
-                      {/* Sub-Anfrage ruhig halten: 'nicht verfügbar' nur als kleine, graue Notiz
-                          statt großer Pille — konsistent mit der gedimmten "Kein Teil"-Gruppe. */}
-                      {a.status === AnfrageStatus.NICHT_VERFUEGBAR ? (
+                      {/* Sub-Zeilen ruhig: KEINE großen Teil-Status-Pillen mehr. Nur bei
+                          fehlendem Teil eine kleine, graue Notiz. */}
+                      {a.status === AnfrageStatus.NICHT_VERFUEGBAR && (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                           <PackageX size={13} aria-hidden className="shrink-0" /> Teil fehlt
                         </span>
-                      ) : (
-                        <StatusBadge status={a.status} />
                       )}
                       <div className="flex gap-1">
                         {/* Beleg erneut drucken */}
