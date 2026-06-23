@@ -5,6 +5,7 @@ import { resolveStandortId }                   from "@/lib/auth/standortFilter";
 import { TRPCError }                           from "@trpc/server";
 import {
   geraetSuchen,
+  modellImRegal,
   preview,
   execute,
   lagerplatzVorschlag,
@@ -29,6 +30,15 @@ export const einlagernRouter = createTRPCRouter({
   geraetSuchen: adminProcedure
     .input(z.object({ query: z.string().min(1).max(200) }))
     .query(({ input }) => geraetSuchen(input.query)),
+
+  // Rein lesende Früh-Prüfung: Liegt das Modell schon im Regal (welches Fach/Standort)?
+  // Legt nichts an, bucht nichts, weist nichts zu — nur Anzeige in Step 1.
+  modellImRegal: adminProcedure
+    .input(z.object({
+      logId:      z.string().max(50).optional(),
+      geraetName: z.string().max(255).optional(),
+    }))
+    .query(({ input }) => modellImRegal(input)),
 
   // Statische Liste aller Standard-Teile + Grading-Optionen
   verfuegbareTeile: adminProcedure

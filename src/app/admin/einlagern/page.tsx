@@ -454,10 +454,12 @@ function StepGeraet({
   onBack,
   onWeiter,
   initial,
+  standortId,
 }: {
-  onBack:   () => void;
-  onWeiter: (g: GeraetState) => void;
-  initial:  GeraetState | null;
+  onBack:     () => void;
+  onWeiter:   (g: GeraetState) => void;
+  initial:    GeraetState | null;
+  standortId: number;
 }) {
   const { show }  = useToast();
   const inputRef  = useRef<HTMLInputElement>(null);
@@ -520,6 +522,15 @@ function StepGeraet({
     { query: suchQ ?? "" },
     { enabled: !!suchQ, retry: false, staleTime: 0 },
   );
+
+  // Früh-Prüfung (rein lesend): liegt dieses Modell schon im Regal? Nur Vorschau —
+  // die eigentliche Zuweisung passiert weiterhin in Step 2.
+  const regalQuery = api.einlagern.modellImRegal.useQuery(
+    { geraetName: gefunden?.name ?? "", logId: gefunden?.logId ?? undefined },
+    { enabled: modus === "gefunden" && !!gefunden, staleTime: 0 },
+  );
+  const regal           = regalQuery.data;
+  const regalAndererOrt = !!regal?.imRegal && regal.standortId != null && regal.standortId !== standortId;
 
   useEffect(() => {
     if (!sucheQuery.data || !suchQ) return;
@@ -695,6 +706,53 @@ function StepGeraet({
                 </div>
               )}
             </div>
+
+            {/* Früh-Hinweis: Modell schon im Regal? (rein lesend, nur Vorschau) */}
+            {regalQuery.isLoading && (
+              <div style={{ textAlign: "center", color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: 16 }}>
+                Regal wird geprüft…
+              </div>
+            )}
+            {regal && (
+              regal.imRegal ? (
+                <div
+                  role="status"
+                  style={{ background: "rgba(0,139,210,0.1)", border: "1px solid rgba(0,139,210,0.45)", borderRadius: 14, padding: "1.1rem 1.25rem", marginBottom: 16 }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 800, fontSize: "1.1rem", color: "var(--afb-navy)", marginBottom: 6 }}>
+                    <span aria-hidden style={{ fontSize: "1.6rem" }}>📦</span>
+                    Modell liegt schon im Regal
+                  </div>
+                  <div style={{ fontSize: "1rem", lineHeight: 1.5 }}>
+                    <strong>{gefunden.name}</strong> liegt in Fach{" "}
+                    <strong style={{ color: "var(--afb-navy)" }}>{regal.fachCode}</strong>
+                    {regalAndererOrt && regal.standortName && (
+                      <> · <strong>Standort {regal.standortName}</strong></>
+                    )}
+                    .<br />→ Du kannst die Teile direkt <strong>dazubuchen</strong>.
+                  </div>
+                  {regalAndererOrt && (
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, background: "rgba(247,185,40,0.15)", border: "1px solid rgba(247,185,40,0.5)", borderRadius: 10, padding: "0.7rem 0.9rem", fontSize: "0.95rem", fontWeight: 700, color: "var(--text)" }}
+                    >
+                      <span aria-hidden style={{ fontSize: "1.3rem" }}>⚠️</span>
+                      Achtung: liegt an <strong>Standort {regal.standortName}</strong> — nicht im aktuellen Lager!
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div
+                  role="status"
+                  style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(101,103,107,0.1)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.1rem 1.25rem", marginBottom: 16 }}
+                >
+                  <span aria-hidden style={{ fontSize: "1.6rem" }}>🆕</span>
+                  <div style={{ fontSize: "1rem", lineHeight: 1.5 }}>
+                    <strong>Neues Modell</strong> — die Zuordnung im Regal beginnt im nächsten Schritt.
+                  </div>
+                </div>
+              )
+            )}
+
             <div style={{ fontSize: "1rem", fontWeight: 700, textAlign: "center", marginBottom: 16 }}>
               ❓ Ist das richtig?
             </div>
@@ -710,7 +768,11 @@ function StepGeraet({
                 disabled={modellLookup.isPending}
                 style={{ ...S.bigBtn("var(--afb-green)", modellLookup.isPending), flex: 2 }}
               >
-                {modellLookup.isPending ? "Prüfe…" : "✅ Ja, weiter →"}
+                {modellLookup.isPending
+                  ? "Prüfe…"
+                  : regal?.imRegal
+                    ? "✅ Teile dazubuchen →"
+                    : "✅ Zuordnung beginnen →"}
               </button>
             </div>
           </div>
@@ -1854,6 +1916,7 @@ export default function EinlagernPage() {
       {step === 1 && (
         <StepGeraet
           initial={geraet}
+          standortId={einlagerStandortId}
           onBack={() => setStep(0)}
           onWeiter={(g) => { setGeraet(g); setStep(2); }}
         />

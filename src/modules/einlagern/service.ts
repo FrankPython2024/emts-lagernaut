@@ -67,6 +67,57 @@ export async function geraetSuchen(query: string): Promise<GeraetSuchenResult> {
   return { gefunden: false };
 }
 
+// ── Modell schon im Regal? (rein lesende Früh-Prüfung für Step 1) ──────────────
+// Bündelt nur vorhandene Bausteine: Name aus LogID/Eingabe → modellId via
+// getOrCreateModell (allowCreate:false, legt NICHTS an, gleiche Hersteller-/Bereinigungs-
+// Auflösung wie execute() → kein Fehlalarm "neu") → Fach über LagerplatzBelegung.
+// Liefert zusätzlich den Standortnamen des Fachs, da das Fach an einem anderen Standort
+// als dem aktuell gewählten liegen kann.
+export type ModellImRegalResult = {
+  bekannt:       boolean;          // Modell existiert als (aktives) GeraeteModell
+  modellId:      number | null;
+  imRegal:       boolean;          // Modell ist einem Fach zugewiesen
+  fachCode?:     string;
+  standortId?:   number;
+  standortName?: string;
+};
+
+export async function modellImRegal(input: { logId?: string; geraetName?: string }): Promise<ModellImRegalResult> {
+  // 1. Modellnamen ermitteln — direkt aus geraetName, sonst via LogID-Lookup (wie geraetSuchen).
+  let name = (input.geraetName ?? "").trim();
+  if (!name && input.logId) {
+    const treffer = await geraetSuchen(input.logId);
+    if (treffer.gefunden) name = treffer.name;
+  }
+  if (!name) return { bekannt: false, modellId: null, imRegal: false };
+
+  // 2. modellId robust + KONSISTENT mit execute() auflösen — NICHTS anlegen.
+  const herstellerRoh = name.split(" ")[0] ?? "";
+  const hersteller    = normalisiereHersteller(herstellerRoh) ?? herstellerRoh;
+  let modellId: number | null = null;
+  if (hersteller) {
+    const r = await getOrCreateModell(name, hersteller, { allowCreate: false, adminBestaetigt: false });
+    if (r.modell) modellId = r.modell.id;
+  }
+  if (modellId == null) return { bekannt: false, modellId: null, imRegal: false };
+
+  // 3. Fach über Belegung (lesend) inkl. Standortname des Fachs.
+  const belegung = await prisma.lagerplatzBelegung.findUnique({
+    where:   { modellId },
+    include: { lagerplatz: { include: { standort: { select: { id: true, name: true } } } } },
+  });
+  if (!belegung) return { bekannt: true, modellId, imRegal: false };
+
+  return {
+    bekannt:      true,
+    modellId,
+    imRegal:      true,
+    fachCode:     belegung.lagerplatz.code,
+    standortId:   belegung.lagerplatz.standortId,
+    standortName: belegung.lagerplatz.standort.name,
+  };
+}
+
 // ── Preview ───────────────────────────────────────────────────────────────────
 
 export type PreviewItem = { teiltyp: string; menge: number; grading: string; verschiedenesText?: string };
