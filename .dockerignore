@@ -1,0 +1,31 @@
+# .dockerignore — hält veraltete Artefakte & Ballast aus dem Docker-Build-Kontext.
+# Konservativ: NUR sicher Ignorierbares. Alles, was der Build braucht (prisma/, public/,
+# src/, package.json, package-lock.json, next.config.*, tsconfig.json, docker-compose.yml,
+# .env, .env.example) bleibt bewusst DRIN.
+#
+# Wichtig fürs Deploy: Der Build macht "next build" frisch im Image. .next vom Host darf
+# NICHT mitkopiert werden — sonst riskiert man veraltetes CSS/Build-Output.
+
+# Abhängigkeiten & Build-Output (werden im Image neu erzeugt)
+node_modules
+.next
+tsconfig.tsbuildinfo
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*
+
+# Lokale Secrets (NUR *.local — .env / .env.example bleiben im Kontext)
+.env*.local
+
+# Tooling / Notizen, die das Image nicht braucht
+.claude
+README*.md
+*_DIAGNOSE.md
+*_AUDIT.md
+PICKUP_DIAGNOSE.md
+ANFRAGEN_AUDIT.md
