@@ -41,55 +41,67 @@ import type { SessionUser } from "@/core/types";
 type StatusStyle = "streifen" | "vollflaeche" | "hybrid";
 
 type StatusDef = {
-  key:       string;
-  label:     string;
-  Icon:      LucideIcon;
-  terminal:  boolean;  // Erledigt/Kein Teil → tritt zurück
-  iconCls:   string;   // Icon-Farbe (Grün-Akzent für Erledigt), sonst "" (erbt Pillen-Text)
-  stripeCls: string;   // linke Kante: aktiv kräftig (600, amber 700), terminal grau (≥3:1)
-  vollBg:    string;   // Vollflächen-Tönung: aktiv Stufe 50, terminal neutral-grau (slate-50)
-  pill100:   string;   // Pille für "streifen"-Optik   (Fläche 100, Text 800)
-  pill200:   string;   // Pille für "vollflaeche"-Optik (Fläche 200, Text 800)
+  key:          string;
+  label:        string;
+  Icon:         LucideIcon;
+  terminal:     boolean;  // Erledigt/Kein Teil → tritt zurück
+  iconCls:      string;   // Icon-Farbe (Grün-Akzent für Erledigt), sonst "" (erbt Pillen-Text)
+  stripeCls:    string;   // linke Kante: aktiv kräftig (600, amber 700), terminal grau (≥3:1)
+  fillBg:       string;   // Getönte Fläche (Stufe 100; terminal slate-100). Dark 900/950.
+  fillText:     string;   // LogID-Text AUF Tönung: dunkle Statusfarbe (800/900; terminal slate-700)
+  fillTextMeta: string;   // Meta-Zeile AUF Tönung: etwas leiser, gleiche Farbfamilie
+  pillSubtle:   string;   // Pille für "streifen"-Optik   (Fläche 100, Text 800) — dezent
+  pillStrong:   string;   // Pille für getönte Karte       (Fläche 200, Text 900) — kräftig
 };
 
 const STATUS_DEF: Record<string, StatusDef> = {
   neu: {
     key: "neu", label: "Neu", Icon: Sparkles, terminal: false, iconCls: "",
-    stripeCls: "border-l-blue-600 dark:border-l-blue-400",
-    vollBg:    "bg-blue-50 dark:bg-blue-950/40",
-    pill100:   "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
-    pill200:   "bg-blue-200 text-blue-800 dark:bg-blue-900/60 dark:text-blue-100",
+    stripeCls:    "border-l-blue-600 dark:border-l-blue-400",
+    fillBg:       "bg-blue-100 dark:bg-blue-950/40",
+    fillText:     "text-blue-800 dark:text-blue-200",
+    fillTextMeta: "text-blue-700/90 dark:text-blue-300/80",
+    pillSubtle:   "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200",
+    pillStrong:   "bg-blue-200 text-blue-900 dark:bg-blue-900/60 dark:text-blue-100",
   },
   zu_erledigen: {
     key: "zu_erledigen", label: "Zu erledigen", Icon: Square, terminal: false, iconCls: "",
-    stripeCls: "border-l-amber-700 dark:border-l-amber-500", // amber abgedunkelt → ≥3:1
-    vollBg:    "bg-amber-50 dark:bg-amber-950/40",
-    pill100:   "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200",
-    pill200:   "bg-amber-200 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100",
+    stripeCls:    "border-l-amber-700 dark:border-l-amber-500", // amber abgedunkelt → ≥3:1
+    fillBg:       "bg-amber-100 dark:bg-amber-950/40",
+    fillText:     "text-amber-900 dark:text-amber-200",
+    fillTextMeta: "text-amber-800/90 dark:text-amber-300/80",
+    pillSubtle:   "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200",
+    pillStrong:   "bg-amber-200 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100",
   },
   in_arbeit: {
     key: "in_arbeit", label: "In Arbeit", Icon: LoaderCircle, terminal: false, iconCls: "",
-    stripeCls: "border-l-violet-600 dark:border-l-violet-400",
-    vollBg:    "bg-violet-50 dark:bg-violet-950/40",
-    pill100:   "bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200",
-    pill200:   "bg-violet-200 text-violet-800 dark:bg-violet-900/60 dark:text-violet-100",
+    stripeCls:    "border-l-violet-600 dark:border-l-violet-400",
+    fillBg:       "bg-violet-100 dark:bg-violet-950/40",
+    fillText:     "text-violet-800 dark:text-violet-200",
+    fillTextMeta: "text-violet-700/90 dark:text-violet-300/80",
+    pillSubtle:   "bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200",
+    pillStrong:   "bg-violet-200 text-violet-900 dark:bg-violet-900/60 dark:text-violet-100",
   },
   erledigt: {
-    // Grau + grünes Häkchen-Icon (emerald-700 abgedunkelt, NICHT #04B475) → Erfolg, tritt zurück.
+    // Kühl-grau + grünes Häkchen-Icon (emerald-700 abgedunkelt, NICHT #04B475) → Erfolg, tritt zurück.
     key: "erledigt", label: "Erledigt", Icon: SquareCheckBig, terminal: true,
-    iconCls:   "text-emerald-700 dark:text-emerald-400",
-    stripeCls: "border-l-slate-500 dark:border-l-slate-400",
-    vollBg:    "bg-slate-50 dark:bg-slate-900/40",
-    pill100:   "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-200",
-    pill200:   "bg-slate-200 text-slate-700 dark:bg-slate-700/50 dark:text-slate-200",
+    iconCls:      "text-emerald-700 dark:text-emerald-400",
+    stripeCls:    "border-l-slate-500 dark:border-l-slate-400",
+    fillBg:       "bg-slate-100 dark:bg-slate-800/50",
+    fillText:     "text-slate-700 dark:text-slate-300",
+    fillTextMeta: "text-slate-500 dark:text-slate-400",
+    pillSubtle:   "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-200",
+    pillStrong:   "bg-slate-200 text-slate-800 dark:bg-slate-700/50 dark:text-slate-200",
   },
   kein_teil: {
-    // Grau + durchgestrichenes-Paket-Icon → "konnten wir nicht", kein Erfolg, tritt zurück.
+    // Kühl-grau + durchgestrichenes-Paket-Icon → "konnten wir nicht", kein Erfolg. KEIN warmer Ton.
     key: "kein_teil", label: "Kein Teil", Icon: PackageX, terminal: true, iconCls: "",
-    stripeCls: "border-l-slate-500 dark:border-l-slate-400",
-    vollBg:    "bg-slate-50 dark:bg-slate-900/40",
-    pill100:   "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-200",
-    pill200:   "bg-slate-200 text-slate-700 dark:bg-slate-700/50 dark:text-slate-200",
+    stripeCls:    "border-l-slate-500 dark:border-l-slate-400",
+    fillBg:       "bg-slate-100 dark:bg-slate-800/50",
+    fillText:     "text-slate-700 dark:text-slate-300",
+    fillTextMeta: "text-slate-500 dark:text-slate-400",
+    pillSubtle:   "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-200",
+    pillStrong:   "bg-slate-200 text-slate-800 dark:bg-slate-700/50 dark:text-slate-200",
   },
 };
 
@@ -106,15 +118,25 @@ function statusDef(status: AnfrageStatus): StatusDef {
 }
 
 // Container-Optik je nach gewählter Darstellung — wählt NUR Klassen, dupliziert keine
-// Statusdefinition. "hybrid": aktive Status wie Vollfläche (stechen hervor), terminale
-// wie Streifen auf weißer Karte (treten zurück; Zurücktreten via Grau, NICHT via opacity).
-function kartenOptik(status: AnfrageStatus, style: StatusStyle): { cardCls: string; pillCls: string } {
+// Statusdefinition.
+//   streifen:    weiße Karte, neutraler Text, kräftiger 600er-Streifen + dezente Pille.
+//   vollflaeche: ALLE Karten Stufe-100 getönt + Text in Statusfarbe (terminal = grau).
+//   hybrid:      aktive wie vollflaeche (getönt + farbiger Text, stechen hervor),
+//                terminale weiß + grauer Streifen (treten zurück).
+// `textCls`/`metaCls` sind nur auf getönten Karten gesetzt, sonst "" (neutraler Fallback).
+function kartenOptik(status: AnfrageStatus, style: StatusStyle): {
+  cardCls: string; pillCls: string; textCls: string; metaCls: string;
+} {
   const d = statusDef(status);
   const useVoll = style === "vollflaeche" || (style === "hybrid" && !d.terminal);
-  const widthCls = useVoll ? "border-l-4" : "border-l-[7px]";
-  const bg       = useVoll ? d.vollBg : "bg-white dark:bg-[#242526]";
-  const pillCls  = useVoll ? d.pill200 : d.pill100;
-  return { cardCls: `${bg} ${widthCls} ${d.stripeCls}`, pillCls };
+  const widthCls = useVoll ? "border-l-4" : "border-l-[6px]";
+  const bg       = useVoll ? d.fillBg : "bg-white dark:bg-[#242526]";
+  return {
+    cardCls: `${bg} ${widthCls} ${d.stripeCls}`,
+    pillCls: useVoll ? d.pillStrong : d.pillSubtle,
+    textCls: useVoll ? d.fillText : "",
+    metaCls: useVoll ? d.fillTextMeta : "",
+  };
 }
 
 // Große Status-Pille (Icon + Klartext) — Status nie nur über Farbe: Farbe + Icon + Wort.
@@ -785,7 +807,7 @@ function AnfragenPageInner() {
                 {/* LINKS: LogID + Status-Pille + Sperr-Chip (obere Zeile), darunter Meta */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap min-w-0">
-                    <span className="font-mono font-black text-lg leading-tight text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{gruppe.logId}</span>
+                    <span className={`font-mono font-black text-lg leading-tight truncate ${optik.textCls || "text-[#1a1a1a] dark:text-[#e4e6eb]"}`}>{gruppe.logId}</span>
                     <GruppenStatusPille status={gruppe.gruppenStatus} style={statusStyle} />
 
                     {/* Sperre NUR als kleiner Chip — keine ganzflächige Tönung */}
@@ -814,7 +836,7 @@ function AnfragenPageInner() {
                     )}
                   </div>
                   {/* Meta-Zeile: Kürzel · Datum · Gerät · Anfrage-ID */}
-                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5 truncate">
+                  <div className={`text-xs mt-0.5 truncate ${optik.metaCls || "text-[#65676b] dark:text-[#b0b3b8]"}`}>
                     {gruppe.techniker} ·{" "}
                     {new Date(gruppe.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
                     {gruppe.geraeteName && ` · ${gruppe.geraeteName}`}
@@ -923,7 +945,8 @@ function AnfragenPageInner() {
                   // nichts mit dem Status-Streifen der Karte (kartenOptik) verwechselt wird.
                   const statusBg =
                     a.status === AnfrageStatus.STORNIERT          ? "bg-red-50/60 dark:bg-red-950/20 opacity-75"
-                    : a.status === AnfrageStatus.NICHT_VERFUEGBAR ? "bg-orange-50/60 dark:bg-orange-950/20"
+                    // "Kein Teil" = kühl-grau, KEINE warme Tönung über die Karte.
+                    : a.status === AnfrageStatus.NICHT_VERFUEGBAR ? "bg-slate-100/60 dark:bg-slate-800/30"
                     : a.istSonderAnfrage                          ? "bg-orange-50/40 dark:bg-orange-950/10"
                     : "";
                   return (
