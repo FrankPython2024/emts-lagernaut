@@ -8,20 +8,22 @@ export type MobilExportZeile = {
   logId:       string;
   colli:       string | null;
   stellplatz:  string | null;
-  bezeichnung: string;
+  aan:         string | null;
   ek:          number | null;
+  lieferant:   string | null;
+  bezeichnung: string;
 };
 
-const SPALTEN = ["LogID", "Colli", "Stellplatz", "Bezeichnung", "EK"] as const;
+const SPALTEN = ["LogID", "Colli", "Stellplatz", "AAN", "EK", "Lieferant", "Bezeichnung"] as const;
 
 // EK für DE-Excel: Dezimal-Komma, 2 Nachkommastellen; leer bleibt leer.
 function ekText(ek: number | null): string {
   return ek == null ? "" : ek.toFixed(2).replace(".", ",");
 }
 
-// Eine Matrix-Zeile (Strings) — für CSV und Excel identisch.
+// Eine Matrix-Zeile (Strings) — für CSV und Excel identisch. Reihenfolge = SPALTEN.
 function zeileAlsArray(z: MobilExportZeile): string[] {
-  return [z.logId, z.colli ?? "", z.stellplatz ?? "", z.bezeichnung, ekText(z.ek)];
+  return [z.logId, z.colli ?? "", z.stellplatz ?? "", z.aan ?? "", ekText(z.ek), z.lieferant ?? "", z.bezeichnung];
 }
 
 // CSV-Feld quoten, falls ; " oder Zeilenumbruch enthalten.
@@ -33,6 +35,13 @@ function csvFeld(v: string): string {
 export function baueCsv(zeilen: MobilExportZeile[]): string {
   const matrix = [[...SPALTEN], ...zeilen.map(zeileAlsArray)];
   return "﻿" + matrix.map((z) => z.map(csvFeld).join(";")).join("\r\n");
+}
+
+// Zwischenablage: TAB-getrennt mit Header (klebt in Excel/Sheets als Spalten ein).
+// Tabs/Zeilenumbrüche in Feldern → Leerzeichen, damit die Tabellenstruktur hält.
+export function baueZwischenablage(zeilen: MobilExportZeile[]): string {
+  const matrix = [[...SPALTEN], ...zeilen.map(zeileAlsArray)];
+  return matrix.map((z) => z.map((c) => c.replace(/[\t\r\n]+/g, " ")).join("\t")).join("\n");
 }
 
 // Dateiname robust: Teile verbinden, Sonderzeichen/Leerzeichen → "_".
