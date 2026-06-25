@@ -59,7 +59,9 @@ check("battery → Akku",       teiltypErkennen("diagnostic battery 13pro 3095ma
 check("akku → Akku",          teiltypErkennen("akku (kompatibel), für iphone 11"), "Akku");
 check("lcd touchscreen → Display", teiltypErkennen("lcd touchscreen (refurb), for iphone 11"), "Display");
 check("reiner digitizer → Digitizer", teiltypErkennen("digitizer - black, for ipad 10.2"), "Digitizer");
-check("Komplett-Einheit (lcd+display+digitizer) → Display", teiltypErkennen("lcd display touchscreen digitizer assembly"), "Display");
+check("Einheit mit 'assembly' (lcd+display+digitizer) → Displaymodul", teiltypErkennen("lcd display touchscreen digitizer assembly"), "Displaymodul");
+check("reines Panel (lcd+display+digitizer, OHNE Modul-Marker) → Display", teiltypErkennen("lcd display touchscreen digitizer"), "Display");
+check("reiner Digitizer (Touch-Glas, kein Panel/Modul) → Digitizer", teiltypErkennen("digitizer assembly - black, for ipad 10.2"), "Digitizer");
 check("camera glass → Kameraglas", teiltypErkennen("camera glass for iphone x"), "Kameraglas");
 check("camerglass (Tippfehler) → Kameraglas", teiltypErkennen("camerglass for iphone x - oem quality"), "Kameraglas");
 check("rear cover → Backcover", teiltypErkennen("rear cover (pulled a) - gold, for iphone 12 pro"), "Backcover");
@@ -110,9 +112,9 @@ check("mAh-Wert (4-stellig) wird NICHT als Modell gelesen",
 check("iPad 10.2 (2019) Digitizer → Digitizer (nicht Display)",
   kurz("Digitizer - Black, For iPad 10.2 (2019-2020)"),
   { h: "Apple", m: ['iPad 10.2" (2019)'], t: "Digitizer", sicher: true, mehrfach: false });
-check("Komplett-Display mit 'Digitizer' im Text bleibt Display (Abgrenzung)",
+check("Einheit mit 'Assembly' + Digitizer → Displaymodul (nicht Digitizer/Display)",
   kurz("iPhone X LCD Display Touchscreen Digitizer Assembly"),
-  { h: "Apple", m: ["iPhone X"], t: "Display", sicher: true, mehrfach: false });
+  { h: "Apple", m: ["iPhone X"], t: "Displaymodul", sicher: true, mehrfach: false });
 check("Samsung Galaxy S21 SIM-Tray",
   kurz("Samsung Galaxy S21 Sim Slot Phantom White OEM dual sim tray"),
   { h: "Samsung", m: ["Galaxy S21"], t: "SIM-Tray", sicher: true, mehrfach: false });
@@ -185,6 +187,33 @@ check("iPad Air 10.9\" ohne Generation → generisch (nicht geraten)",
   ipadAir('iPad Air 10.9"'), ["iPad Air"]);
 check("iPad-Air-Zeile: Farbe weiß",
   farbeErkennen('Display module für iPad Air – 10.5" – 3. Generation – weiß'), "weiß");
+
+// ── Displaymodul + iPad Air 3 (echte Varianten aus export 16) ───────────────
+console.log("\n══ DISPLAYMODUL / iPAD AIR 3 ══");
+const TM = (b: string) => { const z = zuordnen(b); return { t: z.teiltyp, m: z.modell }; };
+check("Ipad Air 3 Displayassembly → Displaymodul, iPad Air 3",
+  TM("Ipad Air 3 Displayassembly OEM USED (change glass)"),
+  { t: "Displaymodul", m: "iPad Air 3" });
+check("Displaymodule assembly for iPad Air  3 (Doppel-Space) → Displaymodul, Air 3",
+  TM("Displaymodule assembly for iPad Air  3 - black"),
+  { t: "Displaymodul", m: "iPad Air 3" });
+check("  └ Farbe schwarz", farbeErkennen("Displaymodule assembly for iPad Air  3 - black"), "schwarz");
+check("Display module – 10.5” – 3. Generation → Displaymodul, Air 3",
+  TM('Display module für iPad Air – 10.5” – 3. Generation – weiß'),
+  { t: "Displaymodul", m: "iPad Air 3" });
+check("  └ Farbe weiß", farbeErkennen('Display module für iPad Air – 10.5” – 3. Generation – weiß'), "weiß");
+check("Displayeinheit (Modul) – 10,5\" (Komma) – 3.Generation (kein Space) → Displaymodul, Air 3",
+  TM('Displayeinheit (Modul) für iPad Air 10,5" - 3.Generation (2019) - schwarz'),
+  { t: "Displaymodul", m: "iPad Air 3" });
+check("  └ Farbe schwarz", farbeErkennen('Displayeinheit (Modul) für iPad Air 10,5" - 3.Generation (2019) - schwarz'), "schwarz");
+check("Screen Assembly … iPhone 16 … Black → Displaymodul, iPhone 16",
+  TM("Screen Assembly With Proximity Light Sensor, iPhone 16, OEM, Black"),
+  { t: "Displaymodul", m: "iPhone 16" });
+check("  └ Farbe schwarz", farbeErkennen("Screen Assembly With Proximity Light Sensor, iPhone 16, OEM, Black"), "schwarz");
+check("reines iPhone-Display bleibt Display (1)",
+  TM("Display für iPhone 12 Pro Max OEM"), { t: "Display", m: "iPhone 12 Pro Max" });
+check("reines iPhone-Display bleibt Display (2)",
+  TM("OLED (soft) Touchscreen (Refurb), For iPhone 13"), { t: "Display", m: "iPhone 13" });
 
 console.log(`\n══════════════════════════════════════════`);
 console.log(`  📊 ${passed} passed  |  ${failed} failed`);

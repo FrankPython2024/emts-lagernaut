@@ -26,6 +26,7 @@ export type MobilHersteller = "Apple" | "Samsung" | "Google" | "Xiaomi";
 export const MOBIL_TEILTYPEN = [
   "Akku",
   "Display",
+  "Displaymodul",
   "Digitizer",
   "Kameraglas",
   "Backcover",
@@ -52,9 +53,14 @@ export type MobilAliasTreffer = {
 };
 
 // ── 1. Normalisierung ────────────────────────────────────────────────────────
-// Zeilenumbrüche/Tabs/Mehrfach-Spaces raus, trim, lower für Matching.
+// Typografische Anführungszeichen/Bindestriche → ASCII, Zeilenumbrüche/Tabs/
+// Mehrfach-Spaces raus, trim, lower für Matching. (Quotes/Dashes vereinheitlichen,
+// damit z. B. 10.5”  und  10,5"  oder – —  beim Matching gleich behandelt werden.)
 export function bezeichnungNormalisieren(roh: string): string {
   return (roh ?? "")
+    .replace(/[‘’‚‛]/g, "'")   // ‘ ’ ‚ ‛ → '
+    .replace(/[“”„‟]/g, '"')   // “ ” „ ‟ → "
+    .replace(/[–—−]/g, "-")          // – — − → -
     .replace(/[\r\n\t]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -145,18 +151,19 @@ function variantenSuffix(v: string | undefined): string {
 // 10.9" ALLEIN ist mehrdeutig (Air 4 ODER 5) → daraus wird NICHTS abgeleitet
 // (nur über die explizite Generation); 9.7" (Air 1/2) ebenfalls nicht. Ohne Signal "".
 function ipadAirGeneration(norm: string): string {
+  // "N. Generation" / "N.Generation" (ohne Space) / "Nth gen" — N=2–5.
   const g = norm.match(/\b([2-5])\s*\.?\s*(?:te|st|nd|rd|th)?\s*gen(?:eration)?\b/);
   if (g) return g[1];
-  if (/\b10\.5\b/.test(norm)) return "3";
-  if (/\bm1\b/.test(norm))    return "5";
-  return "";
+  if (/\b10[.,]5\b/.test(norm)) return "3"; // Größe 10.5"/10,5" eindeutig Air 3
+  if (/\bm1\b/.test(norm))      return "5";
+  return ""; // 10.9" (Air 4/5) ist ohne explizite Generation mehrdeutig → generisch
 }
 
 function ipadModelle(norm: string): string[] {
   const out: string[] = [];
   // Bei "air"/"mini" nur eine EINZELNE Generationsziffer mitnehmen (nicht die erste
   // Ziffer einer Größe wie 10.9" → sonst fälschlich "Air 1").
-  const re = /ipad\s+(pro\s*\d{1,2}(?:\.\d)?|air(?:\s*\d(?!\d|\.\d))?|mini(?:\s*\d(?!\d|\.\d))?|\d{1,2}\.\d)\s*(?:\(\s*(20\d{2}))?/g;
+  const re = /ipad\s+(pro\s*\d{1,2}(?:[.,]\d)?|air(?:\s*\d(?!\d|[.,]\d))?|mini(?:\s*\d(?!\d|[.,]\d))?|\d{1,2}[.,]\d)\s*(?:\(\s*(20\d{2}))?/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(norm)) !== null) {
     const teil = m[1].replace(/\s+/g, " ").trim();
@@ -174,7 +181,7 @@ function ipadModelle(norm: string): string[] {
       const gen = teil.replace(/^mini\s*/, "").trim();
       label = gen ? `iPad mini ${gen}` : "iPad mini";
     } else {
-      label = `iPad ${teil}"`;                                     // z. B. "10.2"
+      label = `iPad ${teil.replace(",", ".")}"`;                  // z. B. "10.2" / "10,2"
     }
     out.push(`${label}${jahr}`);
   }
@@ -245,13 +252,21 @@ const KOMPLETT_DISPLAY = /lcd|oled|display assembly|screen assembly|\bdisplay\b/
 function istReinDigitizer(norm: string): boolean {
   return /digitizer|touch\s?glass|touchscreen glass/.test(norm) && !KOMPLETT_DISPLAY.test(norm);
 }
+// Display-/Screen-Familie (Panel/Touch). Modul-Marker = komplette Einheit.
+const DISPLAY_FAMILIE = /oled|lcd|touchscreen|display|bildschirm|screen|digitizer/;
+// Modul-Marker: "module"/"modul" (auch geklebt: "displaymodul[e]"), "assembly"
+// (auch "displayassembly"), "einheit" (nur als eigenes Wort → NICHT "bildschirmeinheit").
+const MODUL_MARKER = /modul|assembly|\beinheit\b/;
 
+// Reihenfolge/Abgrenzung (alle gegenseitig ausschließend → genau ein Treffer):
+//   1) Digitizer  = reines Touch-Glas (kein Panel). Geht VOR Modul/Display.
+//   2) Displaymodul = Display-/Screen-Familie + Modul-Marker (komplette Einheit).
+//   3) Display    = Display-/Screen-Familie OHNE Modul-Marker (reines Panel/LCD/OLED).
 const TEILTYP_REGELN: { teiltyp: MobilTeiltyp; test: (norm: string) => boolean }[] = [
   { teiltyp: "Akku",         test: (n) => /\bakku\b|batter(?:y|ies|ie)|diagnostizierbar/.test(n) },
-  // Digitizer VOR Display einsortiert; greift nur bei reinem Touch-Glas.
   { teiltyp: "Digitizer",    test: (n) => istReinDigitizer(n) },
-  // Display: alles mit Panel/Screen — aber NICHT, wenn es reines Digitizer-Glas ist.
-  { teiltyp: "Display",      test: (n) => /oled|lcd|touchscreen|digitizer|display|bildschirmeinheit|screen assembly|\bscreen\b/.test(n) && !istReinDigitizer(n) },
+  { teiltyp: "Displaymodul", test: (n) => DISPLAY_FAMILIE.test(n) && MODUL_MARKER.test(n) && !istReinDigitizer(n) },
+  { teiltyp: "Display",      test: (n) => DISPLAY_FAMILIE.test(n) && !MODUL_MARKER.test(n) && !istReinDigitizer(n) },
   { teiltyp: "Kameraglas",   test: (n) => /camera glass(?:es)?|camera lens(?:es)?|camerglass|kamera\s?glas/.test(n) },
   { teiltyp: "Backcover",    test: (n) => /back\s?glass|rear cover|back\s?cover/.test(n) },
   { teiltyp: "Middle Frame", test: (n) => /middle\s?frame|mittelrahmen/.test(n) },
