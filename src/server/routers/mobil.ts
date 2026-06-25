@@ -213,7 +213,8 @@ export const mobilRouter = createTRPCRouter({
           modelle: { some: { modellId: input.modellId } },
         },
         select: {
-          logId: true, colli: true, stellplatz: true, originalBezeichnung: true, ek: true,
+          logId: true, colli: true, stellplatz: true, originalBezeichnung: true,
+          ek: true, aan: true, lieferant: true,
           modelle: { select: { modell: { select: { id: true, modell: true } } } },
         },
       });
@@ -224,6 +225,8 @@ export const mobilRouter = createTRPCRouter({
         stellplatz:  t.stellplatz,
         bezeichnung: t.originalBezeichnung,
         ek:          ekZahl(t.ek),
+        aan:         t.aan,
+        lieferant:   t.lieferant,
         auch:        t.modelle
           .map((mm) => mm.modell)
           .filter((m) => m.id !== input.modellId)

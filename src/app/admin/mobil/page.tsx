@@ -7,7 +7,7 @@ import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
 import {
-  baueCsv, ladeCsv, ladeXlsx, kopiereText, sichererDateiname,
+  baueCsv, baueZwischenablage, ladeCsv, ladeXlsx, kopiereText, sichererDateiname,
   type MobilExportZeile,
 } from "@/lib/mobil/export";
 
@@ -319,7 +319,8 @@ function TeiltypCard({
   async function hole(): Promise<MobilExportZeile[]> {
     const rows = await utils.mobil.logIdsProTeiltyp.fetch({ modellId, teiltyp });
     return rows.map((r) => ({
-      logId: r.logId, colli: r.colli, stellplatz: r.stellplatz, bezeichnung: r.bezeichnung, ek: r.ek,
+      logId: r.logId, colli: r.colli, stellplatz: r.stellplatz,
+      aan: r.aan, ek: r.ek, lieferant: r.lieferant, bezeichnung: r.bezeichnung,
     }));
   }
   const dateiname = (ext: string) => sichererDateiname(["mobil", hersteller, modellName, teiltyp], ext);
@@ -333,8 +334,8 @@ function TeiltypCard({
   }
   const onCopy = () => mitLadezustand(async () => {
     const rows = await hole();
-    const ok = await kopiereText(rows.map((r) => r.logId).join("\n"));
-    show(ok ? `Kopiert ✓ (${rows.length} LogIDs)` : "Kopieren fehlgeschlagen.", ok ? "success" : "error");
+    const ok = await kopiereText(baueZwischenablage(rows));
+    show(ok ? `Kopiert ✓ (${rows.length} Zeilen, Spalten)` : "Kopieren fehlgeschlagen.", ok ? "success" : "error");
   });
   const onCsv = () => mitLadezustand(async () => { ladeCsv(dateiname("csv"), baueCsv(await hole())); });
   const onXlsx = () => mitLadezustand(async () => { await ladeXlsx(dateiname("xlsx"), await hole()); });
@@ -356,7 +357,7 @@ function TeiltypCard({
           <span className="text-lg font-black tabular-nums text-[#202F61] dark:text-[#e4e6eb]">{stueck} Stück</span>
         </button>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button type="button" aria-label={`LogIDs von ${teiltyp} kopieren`} title="LogIDs kopieren" onClick={onCopy} disabled={exportLaeuft} className={btn}>📋</button>
+          <button type="button" aria-label={`${teiltyp}-Tabelle in die Zwischenablage kopieren`} title="Tabelle kopieren (LogID, Colli, AAN, EK, Lieferant …)" onClick={onCopy} disabled={exportLaeuft} className={btn}>📋</button>
           <button type="button" aria-label={`${teiltyp} als CSV herunterladen`} title="CSV" onClick={onCsv} disabled={exportLaeuft} className={btn}>⬇ CSV</button>
           <button type="button" aria-label={`${teiltyp} als Excel herunterladen`} title="Excel (.xlsx)" onClick={onXlsx} disabled={exportLaeuft} className={btn}>⬇ XLSX</button>
         </div>
@@ -415,12 +416,24 @@ function TeiltypCard({
                   </div>
                   <ul className="mt-1 space-y-0.5">
                     {rows.map((r) => (
-                      <li key={r.logId} className="font-mono text-sm text-[#1a1a1a] dark:text-[#e4e6eb] flex flex-wrap items-baseline gap-x-2">
-                        <span>{r.logId}</span>
-                        {r.stellplatz && <span className="text-[#90939a] dark:text-[#6b6e73]">@ {r.stellplatz}</span>}
-                        {r.auch.length > 0 && (
-                          <span className="font-sans text-xs text-[#b25e00] dark:text-[#ffb74d]">auch: {r.auch.join(", ")}</span>
-                        )}
+                      <li key={r.logId} className="text-sm">
+                        <div className="font-mono text-[#1a1a1a] dark:text-[#e4e6eb] flex flex-wrap items-baseline gap-x-2">
+                          <span>{r.logId}</span>
+                          {r.stellplatz && <span className="text-[#90939a] dark:text-[#6b6e73]">@ {r.stellplatz}</span>}
+                          {r.auch.length > 0 && (
+                            <span className="font-sans text-xs text-[#b25e00] dark:text-[#ffb74d]">auch: {r.auch.join(", ")}</span>
+                          )}
+                        </div>
+                        {(() => {
+                          const meta = [
+                            r.aan ? `AAN ${r.aan}` : null,
+                            r.ek != null ? `${r.ek.toFixed(2).replace(".", ",")} €` : null,
+                            r.lieferant || null,
+                          ].filter(Boolean) as string[];
+                          return meta.length > 0
+                            ? <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] tabular-nums">{meta.join(" · ")}</div>
+                            : null;
+                        })()}
                       </li>
                     ))}
                   </ul>

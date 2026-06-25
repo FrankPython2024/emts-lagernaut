@@ -856,6 +856,8 @@ model MobilTeil {
   colli               String?
   stellplatz          String?
   ek                  Decimal?             @db.Decimal(10, 2)
+  aan                 String?                               // Artikelnummer (CSV "AAN")
+  lieferant           String?                               // CSV "Lieferant"
   status              String?
   modellId            Int?                                  // primäres Modell (null = REVIEW/unbekannt)
   modell              MobilModell?         @relation(fields: [modellId], references: [id])
