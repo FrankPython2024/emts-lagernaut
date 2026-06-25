@@ -10,6 +10,13 @@ import { MOBIL_TEILTYPEN } from "@/lib/mobil/parser";
 const view   = permissionProcedure("MOBIL_VIEW");
 const manage = permissionProcedure("MOBIL_MANAGE");
 
+// Einkaufswert (Prisma.Decimal | null) → plain number | null (superjson serialisiert
+// Decimal nicht sinnvoll). Der Client formatiert selbst.
+function ekZahl(v: unknown): number | null {
+  if (v == null) return null;
+  return typeof v === "number" ? v : Number(v);
+}
+
 export const mobilRouter = createTRPCRouter({
 
   // CSV-Import (ReForm/AfB-Export als Text). Schreibt je LogID eine MobilTeil-Zeile,
@@ -115,5 +122,45 @@ export const mobilRouter = createTRPCRouter({
 
       const gesamt = teiltypen.reduce((s, g) => s + g.stueck, 0);
       return { gesamt, teiltypen };
+    }),
+
+  // LogIDs einer Modell+Teiltyp-Gruppe: je Teil logId + colli + stellplatz +
+  // Bezeichnung + EK, plus die WEITEREN kompatiblen Modelle (Mehrfach-Modell-Hinweis,
+  // ohne das aktuelle Modell). Sortiert nach colli (leere zuletzt), dann logId.
+  logIdsProTeiltyp: view
+    .input(z.object({
+      modellId: z.number().int().positive(),
+      teiltyp:  z.string().trim().min(1),
+    }))
+    .query(async ({ input }) => {
+      const teile = await prisma.mobilTeil.findMany({
+        where: {
+          teiltyp: { name: input.teiltyp },
+          modelle: { some: { modellId: input.modellId } },
+        },
+        select: {
+          logId: true, colli: true, stellplatz: true, originalBezeichnung: true, ek: true,
+          modelle: { select: { modell: { select: { id: true, modell: true } } } },
+        },
+      });
+
+      const rows = teile.map((t) => ({
+        logId:       t.logId,
+        colli:       t.colli,
+        stellplatz:  t.stellplatz,
+        bezeichnung: t.originalBezeichnung,
+        ek:          ekZahl(t.ek),
+        auch:        t.modelle
+          .map((mm) => mm.modell)
+          .filter((m) => m.id !== input.modellId)
+          .map((m) => m.modell)
+          .sort((a, b) => a.localeCompare(b, "de", { numeric: true })),
+      }));
+
+      rows.sort((a, b) =>
+        (a.colli ?? "￿").localeCompare(b.colli ?? "￿", "de", { numeric: true }) ||
+        a.logId.localeCompare(b.logId, "de", { numeric: true }),
+      );
+      return rows;
     }),
 });
