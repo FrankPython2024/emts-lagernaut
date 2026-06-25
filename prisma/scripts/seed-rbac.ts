@@ -28,6 +28,7 @@ const PERMISSIONS = [
 
   // Betrieb / Werkzeuge
   { key: "COLLI_ETIKETTEN_VIEW", kategorie: "Betrieb",    bezeichnung: "Colli-Etiketten erstellen & drucken" },
+  { key: "COLLI_ETIKETTEN_MANAGE", kategorie: "Betrieb",  bezeichnung: "Etiketten-Vorlagen anlegen/ändern/löschen (geteilt)" },
   { key: "PICKUP_PICK",          kategorie: "Betrieb",    bezeichnung: "Pickup-Aufträge bearbeiten" },
   { key: "PICKUP_MANAGE",        kategorie: "Betrieb",    bezeichnung: "Pickup-Aufträge anlegen & verwalten" },
 
@@ -73,9 +74,9 @@ const ROLLEN = [
     name:         "ADMIN",
     bezeichnung:  "Administrator",
     beschreibung: "Voller Zugriff auf alle Systemfunktionen",
-    // SYSTEM_ADMIN deckt alles per Wildcard ab; MATERIAL_*/MOBIL_* zusätzlich
-    // explizit, damit die Rechte auch bei abgeleiteten Rollen ohne Wildcard greifen.
-    permissions:  ["SYSTEM_ADMIN", "MATERIAL_VIEW", "MATERIAL_MANAGE", "MOBIL_VIEW", "MOBIL_MANAGE"],
+    // SYSTEM_ADMIN deckt alles per Wildcard ab; MATERIAL_*/MOBIL_*/COLLI_ETIKETTEN_MANAGE
+    // zusätzlich explizit, damit die Rechte auch bei abgeleiteten Rollen ohne Wildcard greifen.
+    permissions:  ["SYSTEM_ADMIN", "MATERIAL_VIEW", "MATERIAL_MANAGE", "MOBIL_VIEW", "MOBIL_MANAGE", "COLLI_ETIKETTEN_MANAGE"],
   },
   {
     name:         "TECHNIKER",

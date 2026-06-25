@@ -22,6 +22,11 @@ const SCHRANK_SANITIZE: sanitizeHtml.IOptions = {
   disallowedTagsMode: "discard",
 };
 
+// Lesen + Drucken/Sanitize: COLLI_ETIKETTEN_VIEW.
+// Vorlagen anlegen/ändern/löschen (geteilte Daten): COLLI_ETIKETTEN_MANAGE.
+const view   = permissionProcedure("COLLI_ETIKETTEN_VIEW");
+const manage = permissionProcedure("COLLI_ETIKETTEN_MANAGE");
+
 export const colliEtikettenRouter = createTRPCRouter({
   // Druck-Nutzung protokollieren. Bewusst protectedProcedure (NICHT adminProcedure),
   // damit auch BETRACHTER protokolliert werden. Ein Event pro Druckvorgang
@@ -44,7 +49,7 @@ export const colliEtikettenRouter = createTRPCRouter({
   // seitig ins Druck-Template geschrieben wird (Schutz gegen eingeschleustes
   // Markup/Script). Gibt das bereinigte HTML zurück. Gleiche Zugriffsgrenze wie
   // das Tool selbst (COLLI_ETIKETTEN_VIEW).
-  sanitizeSchrank: permissionProcedure("COLLI_ETIKETTEN_VIEW")
+  sanitizeSchrank: view
     .input(z.object({ html: z.string().max(50_000) }))
     .mutation(async ({ input }) => {
       return { html: sanitizeHtml(input.html, SCHRANK_SANITIZE) };
@@ -54,7 +59,7 @@ export const colliEtikettenRouter = createTRPCRouter({
   // Alle nach typ gefiltert, gleiche Zugriffsgrenze wie das Tool.
 
   // Liste der Vorlagen eines Typs (id, name, updatedAt), nach Name sortiert.
-  vorlagenListe: permissionProcedure("COLLI_ETIKETTEN_VIEW")
+  vorlagenListe: view
     .input(z.object({ typ: z.enum(["schrank", "text"]) }))
     .query(async ({ input, ctx }) => {
       return ctx.prisma.labelVorlage.findMany({
@@ -65,7 +70,8 @@ export const colliEtikettenRouter = createTRPCRouter({
     }),
 
   // Vorlage speichern — upsert per (typ, name): existierender Name wird überschrieben.
-  vorlageSpeichern: permissionProcedure("COLLI_ETIKETTEN_VIEW")
+  // Schreibt geteilte Daten → COLLI_ETIKETTEN_MANAGE (BETRACHTER hat nur VIEW → geblockt).
+  vorlageSpeichern: manage
     .input(z.object({
       typ:          z.enum(["schrank", "text"]),
       name:         z.string().trim().min(1).max(120),
@@ -90,14 +96,14 @@ export const colliEtikettenRouter = createTRPCRouter({
     }),
 
   // Eine Vorlage vollständig laden.
-  vorlageLaden: permissionProcedure("COLLI_ETIKETTEN_VIEW")
+  vorlageLaden: view
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {
       return ctx.prisma.labelVorlage.findUnique({ where: { id: input.id } });
     }),
 
-  // Vorlage löschen.
-  vorlageLoeschen: permissionProcedure("COLLI_ETIKETTEN_VIEW")
+  // Vorlage löschen — geteilte Daten → COLLI_ETIKETTEN_MANAGE.
+  vorlageLoeschen: manage
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       await ctx.prisma.labelVorlage.delete({ where: { id: input.id } });
