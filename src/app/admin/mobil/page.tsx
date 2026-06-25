@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import FocusTrap from "focus-trap-react";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
@@ -17,20 +18,15 @@ export default function MobilPage() {
   const darfSehen     = has("MOBIL_VIEW");
   const darfVerwalten = has("MOBIL_MANAGE");
 
-  // Browsing-Auswahl (Hersteller → Modell → Teile).
+  // Browsing-Auswahl: Hersteller (Schritt 1) → Modell (Schritt 2) → Teile (Modal).
   const [selHersteller, setSelHersteller] = useState<string | null>(null);
-  const [selModellId, setSelModellId]     = useState<number | null>(null);
+  const [offenesModell, setOffenesModell] = useState<{ id: number; name: string } | null>(null);
 
   const herstellerQ = api.mobil.hersteller.useQuery(undefined, { enabled: darfSehen });
   const modelleQ = api.mobil.modelle.useQuery(
     { hersteller: selHersteller ?? "" },
     { enabled: darfSehen && !!selHersteller },
   );
-  const teileQ = api.mobil.teileProModell.useQuery(
-    { modellId: selModellId ?? 0 },
-    { enabled: darfSehen && selModellId != null },
-  );
-  const selModellName = modelleQ.data?.find((m) => m.id === selModellId)?.modell ?? "";
 
   if (permsLoading) {
     return <div className="p-8 text-center text-base text-[#65676b] dark:text-[#b0b3b8]">Lade Berechtigungen…</div>;
@@ -81,7 +77,7 @@ export default function MobilPage() {
                   key={h.hersteller}
                   type="button"
                   aria-pressed={aktiv}
-                  onClick={() => { setSelHersteller(h.hersteller); setSelModellId(null); }}
+                  onClick={() => { setSelHersteller(h.hersteller); setOffenesModell(null); }}
                   className="text-left rounded-2xl border-2 p-4 min-h-[88px] transition-colors"
                   style={{ borderColor: aktiv ? AKZENT : "#ced4da66", background: aktiv ? `${AKZENT}14` : "transparent" }}
                 >
@@ -107,13 +103,14 @@ export default function MobilPage() {
           ) : (
             <div className="grid sm:grid-cols-2 gap-2">
               {modelleQ.data.map((m) => {
-                const aktiv = selModellId === m.id;
+                const aktiv = offenesModell?.id === m.id;
                 return (
                   <button
                     key={m.id}
                     type="button"
                     aria-pressed={aktiv}
-                    onClick={() => setSelModellId(m.id)}
+                    aria-haspopup="dialog"
+                    onClick={() => setOffenesModell({ id: m.id, name: m.modell })}
                     className="flex items-center justify-between gap-3 rounded-xl border-2 px-4 min-h-[56px] transition-colors"
                     style={{ borderColor: aktiv ? AKZENT : "#ced4da66", background: aktiv ? `${AKZENT}14` : "transparent" }}
                   >
@@ -129,34 +126,99 @@ export default function MobilPage() {
         </div>
       )}
 
-      {/* Schritt 3: Teile je Teiltyp (aufklappbar + Export) */}
-      {selModellId != null && (
-        <div className="space-y-2">
-          <Schrittkopf
-            nr={3}
-            text={`Teile — ${selModellName}${teileQ.data ? ` · ${teileQ.data.gesamt} Stück gesamt` : ""}`}
-          />
-          {teileQ.isLoading ? (
-            <Laden />
-          ) : !teileQ.data?.teiltypen.length ? (
-            <Leer text="Keine Teile für dieses Modell." />
-          ) : (
-            <div className="space-y-3">
-              {teileQ.data.teiltypen.map((g) => (
+      {/* Schritt 3: Teile-Übersicht des gewählten Modells — als zentriertes Modal. */}
+      {offenesModell && selHersteller && (
+        <MobilModellModal
+          hersteller={selHersteller}
+          modellId={offenesModell.id}
+          modellName={offenesModell.name}
+          onClose={() => setOffenesModell(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Modell-Modal: Teile-Übersicht eines Modells (Kopf fest, Body scrollt) ──────
+// Gleiches Look/Verhalten wie das Lagerfuchs-/ui-Modal (zentriert, max-h-[90vh],
+// Overlay, role="dialog" + aria-modal, Schließen via X / Escape / Overlay-Klick,
+// FocusTrap). Auf schmalem Viewport Vollbild.
+function MobilModellModal({
+  hersteller, modellId, modellName, onClose,
+}: {
+  hersteller: string;
+  modellId: number;
+  modellName: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const teileQ = api.mobil.teileProModell.useQuery({ modellId });
+
+  return (
+    <FocusTrap
+      focusTrapOptions={{
+        escapeDeactivates:       false, // Escape behandelt der keydown-Handler oben
+        clickOutsideDeactivates: false,
+        returnFocusOnDeactivate: true,  // Fokus zurück auf den Modell-Button
+      }}
+    >
+      <div
+        className="fixed inset-0 z-[9999] flex items-stretch sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4"
+        onClick={onClose}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mobil-modell-title"
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full sm:max-w-3xl bg-white dark:bg-[#242526] sm:rounded-2xl shadow-2xl border border-[#ced4da] dark:border-[#3e4042] flex flex-col h-full sm:h-auto max-h-[100vh] sm:max-h-[90vh]"
+        >
+          {/* Kopf — fest */}
+          <div className="flex items-start justify-between gap-3 px-5 sm:px-6 py-4 border-b border-[#ced4da] dark:border-[#3e4042] flex-shrink-0">
+            <div className="min-w-0">
+              <h3 id="mobil-modell-title" className="text-xl sm:text-2xl font-black text-[#202F61] dark:text-[#e4e6eb] truncate">
+                {modellName}
+                {teileQ.data ? <span className="text-[#65676b] dark:text-[#b0b3b8] font-bold"> · {teileQ.data.gesamt} Stück gesamt</span> : null}
+              </h3>
+              <p className="mt-0.5 text-sm text-[#65676b] dark:text-[#b0b3b8]">Hersteller: {hersteller}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Schließen"
+              className="text-[#65676b] hover:text-[#fa3e3e] text-2xl leading-none w-11 h-11 flex items-center justify-center rounded-lg hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors flex-shrink-0"
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Body — scrollt */}
+          <div className="px-4 sm:px-6 py-5 overflow-y-auto flex-1 space-y-3">
+            {teileQ.isLoading ? (
+              <Laden text="Teile werden geladen…" />
+            ) : !teileQ.data?.teiltypen.length ? (
+              <Leer text="Keine Teile für dieses Modell." />
+            ) : (
+              teileQ.data.teiltypen.map((g) => (
                 <TeiltypCard
                   key={g.teiltyp}
-                  modellId={selModellId}
-                  hersteller={selHersteller ?? ""}
-                  modellName={selModellName}
+                  modellId={modellId}
+                  hersteller={hersteller}
+                  modellName={modellName}
                   teiltyp={g.teiltyp}
                   stueck={g.stueck}
                 />
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </div>
-      )}
-    </div>
+      </div>
+    </FocusTrap>
   );
 }
 
@@ -290,8 +352,8 @@ function Schrittkopf({ nr, text }: { nr: number; text: string }) {
   );
 }
 
-function Laden() {
-  return <div role="status" className="text-base text-[#65676b] dark:text-[#b0b3b8] py-3">⏳ Lade…</div>;
+function Laden({ text = "Lade…" }: { text?: string }) {
+  return <div role="status" className="text-base text-[#65676b] dark:text-[#b0b3b8] py-3">⏳ {text}</div>;
 }
 
 function Leer({ text }: { text: string }) {
