@@ -9,6 +9,8 @@ import {
   removeItem,
   submit,
   submitAlle,
+  getItemOwner,
+  getKorbOwner,
 } from "@/modules/warenkorb/service";
 import type { SessionUser } from "@/core/types";
 
@@ -108,20 +110,33 @@ export const warenkorbRouter = createTRPCRouter({
     }),
 
   // Item entfernen (leerer Korb wird automatisch gelöscht)
+  // Ownership: nur Owner des Korbs (oder ADMIN) darf löschen.
   removeItem: protectedProcedure
     .input(z.object({ itemId: z.number().int().positive() }))
-    .mutation(({ input }) =>
-      removeItem(input.itemId),
-    ),
+    .mutation(async ({ input, ctx }) => {
+      const owner = await getItemOwner(input.itemId);
+      if (owner === null) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Warenkorb-Item nicht gefunden." });
+      }
+      assertOwner(ctx.session.user, owner);
+      return removeItem(input.itemId);
+    }),
 
   // Einzelnen Warenkorb absenden
+  // Ownership: nur Owner des Korbs (oder ADMIN) darf absenden — zusätzlich zum
+  // Rollen-Gate (assertDarfAbsenden) für das Erzeugen echter Anfragen.
   submit: protectedProcedure
     .input(z.object({
       korbId:     z.number().int().positive(),
       zusatzinfo: z.string().max(500).optional(),
       testModus:  z.boolean().default(false),
     }))
-    .mutation(({ input, ctx }) => {
+    .mutation(async ({ input, ctx }) => {
+      const owner = await getKorbOwner(input.korbId);
+      if (owner === null) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Warenkorb nicht gefunden." });
+      }
+      assertOwner(ctx.session.user, owner);
       assertDarfAbsenden(ctx.session.user, input.testModus);
       return submit(input);
     }),

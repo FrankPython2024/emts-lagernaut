@@ -251,6 +251,30 @@ export async function addSonderItem(data: {
 }
 
 /**
+ * Owner (techniker-Kürzel) eines Items über seinen Korb — für Ownership-Checks
+ * im Router. null, wenn das Item nicht existiert.
+ */
+export async function getItemOwner(itemId: number): Promise<string | null> {
+  const item = await prisma.warenkorbItem.findUnique({
+    where:  { id: itemId },
+    select: { korb: { select: { techniker: true } } },
+  });
+  return item?.korb?.techniker ?? null;
+}
+
+/**
+ * Owner (techniker-Kürzel) eines Korbs — für Ownership-Checks im Router.
+ * null, wenn der Korb nicht existiert.
+ */
+export async function getKorbOwner(korbId: number): Promise<string | null> {
+  const korb = await prisma.warenkorb.findUnique({
+    where:  { id: korbId },
+    select: { techniker: true },
+  });
+  return korb?.techniker ?? null;
+}
+
+/**
  * Item entfernen.
  */
 export async function removeItem(itemId: number): Promise<void> {
