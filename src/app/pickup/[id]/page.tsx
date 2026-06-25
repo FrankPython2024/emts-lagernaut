@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -249,7 +249,11 @@ export default function PickupScanPage() {
   const [ansicht, setAnsicht] = useState<"offen" | "gefunden" | "fremd">("offen");
   const [colliBusy, setColliBusy] = useState(false);
   // Sortierrichtung der Colli-Liste — in localStorage gemerkt (Default: meiste zuerst).
+  // sortDir = listenrelevant (treibt die schwere Neudarstellung, läuft in der Transition);
+  // uiSortDir = sofortiger Button-Zustand, damit sich der Klick augenblicklich anfühlt.
   const [sortDir, setSortDir]       = useState<"most" | "least">("most");
+  const [uiSortDir, setUiSortDir]   = useState<"most" | "least">("most");
+  const [isSortPending, startSortTransition] = useTransition();
   // Eingefrorene Reihenfolge der Colli-Karten (nur bei Laden/Toggle/Typ neu).
   const [colliOrder, setColliOrder] = useState<string[]>([]);
   // Pulse-Trigger des „Zuletzt gescannt"-Banners (steigt bei jedem Scan).
@@ -300,7 +304,7 @@ export default function PickupScanPage() {
   useEffect(() => {
     try {
       const v = localStorage.getItem("pickup_sort_dir");
-      if (v === "least" || v === "most") setSortDir(v);
+      if (v === "least" || v === "most") { setSortDir(v); setUiSortDir(v); }
     } catch { /* localStorage nicht verfügbar */ }
   }, []);
   useEffect(() => {
@@ -647,12 +651,16 @@ export default function PickupScanPage() {
                 { k: "most",  label: "Meiste LogIDs zuerst" },
                 { k: "least", label: "Wenigste zuerst" },
               ] as const).map(({ k, label }) => {
-                const aktiv = sortDir === k;
+                const aktiv = uiSortDir === k;
                 return (
                   <button
                     key={k}
                     aria-pressed={aktiv}
-                    onClick={() => { setSortDir(k); inputRef.current?.focus({ preventScroll: true }); }}
+                    onClick={() => {
+                      setUiSortDir(k);                                  // Button sofort umschalten
+                      startSortTransition(() => setSortDir(k));        // schwere Liste nicht-blockierend neu sortieren
+                      inputRef.current?.focus({ preventScroll: true });
+                    }}
                     className={`rounded-xl border-2 px-3 min-h-[56px] text-xs font-bold transition-colors ${aktiv ? "bg-white dark:bg-[#242526] text-[#202F61] dark:text-[#e4e6eb]" : "bg-transparent text-[#65676b] dark:text-[#b0b3b8]"}`}
                     style={{ borderColor: aktiv ? "#008BD2" : "#ced4da" }}
                   >
@@ -712,7 +720,21 @@ export default function PickupScanPage() {
         ) : data ? (
           <>
             {ansicht === "offen" && (
-              <ColliListe order={colliOrder} groups={colliGruppen} istColli={!!istColli} leerText="Nichts zu picken." />
+              <>
+                {/* Sichtbarer Status während die Liste neu sortiert wird (Transition). */}
+                {isSortPending && (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="mb-3 flex items-center gap-2 rounded-xl border-2 px-4 min-h-[56px] text-lg font-bold"
+                    style={{ borderColor: "#008BD2", background: "rgba(0,139,210,0.10)", color: "#008BD2" }}
+                  >
+                    <span aria-hidden>⏳</span>
+                    <span>Sortiere Liste…</span>
+                  </div>
+                )}
+                <ColliListe order={colliOrder} groups={colliGruppen} istColli={!!istColli} leerText="Nichts zu picken." />
+              </>
             )}
             {ansicht === "gefunden" && (
               <PositionsListe gruppen={gruppenGefunden} istColli={!!istColli} leerText="Noch nichts gefunden." zeigeReset
