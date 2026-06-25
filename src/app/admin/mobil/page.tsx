@@ -22,7 +22,10 @@ export default function MobilPage() {
   const [selHersteller, setSelHersteller] = useState<string | null>(null);
   const [offenesModell, setOffenesModell] = useState<{ id: number; name: string } | null>(null);
 
+  const [unterOffen, setUnterOffen] = useState(false);
+
   const herstellerQ = api.mobil.hersteller.useQuery(undefined, { enabled: darfSehen });
+  const unterQ = api.mobil.mobilUnterMindestbestand.useQuery(undefined, { enabled: darfSehen });
   const modelleQ = api.mobil.modelle.useQuery(
     { hersteller: selHersteller ?? "" },
     { enabled: darfSehen && !!selHersteller },
@@ -58,6 +61,39 @@ export default function MobilPage() {
           </Link>
         )}
       </header>
+
+      {/* Übersicht: Gruppen unter Mindestbestand (dezent) */}
+      {unterQ.data && (unterQ.data.anzahl > 0 ? (
+        <div className="rounded-xl border border-[#b25e00]/40 bg-[#b25e00]/10 dark:bg-[#ffb74d]/10 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setUnterOffen((o) => !o)}
+            aria-expanded={unterOffen}
+            className="w-full flex items-center justify-between gap-3 px-4 min-h-[52px] text-left"
+          >
+            <span className="text-base font-bold text-[#b25e00] dark:text-[#ffb74d]">
+              ⚠️ {unterQ.data.anzahl} {unterQ.data.anzahl === 1 ? "Ersatzteil-Gruppe" : "Ersatzteil-Gruppen"} unter Mindestbestand
+            </span>
+            <span aria-hidden className="text-[#b25e00] dark:text-[#ffb74d]">{unterOffen ? "▲" : "▼"}</span>
+          </button>
+          {unterOffen && (
+            <ul className="px-4 pb-3 pt-1 space-y-1 border-t border-[#b25e00]/20">
+              {unterQ.data.gruppen.map((g) => (
+                <li key={`${g.hersteller}-${g.modell}-${g.teiltyp}`} className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+                  <span className="text-[#1a1a1a] dark:text-[#e4e6eb]">
+                    <strong>{g.modell}</strong> <span className="text-[#65676b] dark:text-[#b0b3b8]">· {g.teiltyp}</span>
+                  </span>
+                  <span className="tabular-nums text-[#b25e00] dark:text-[#ffb74d] font-semibold">
+                    {g.ist} / {g.soll} — {g.fehlt} fehlen
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+        <div className="text-sm text-[#2e7d32] dark:text-[#7bc67e]">✓ Alle gepflegten Mindestbestände erfüllt.</div>
+      ))}
 
       {/* Schritt 1: Hersteller */}
       <div className="space-y-2">
@@ -132,6 +168,7 @@ export default function MobilPage() {
           hersteller={selHersteller}
           modellId={offenesModell.id}
           modellName={offenesModell.name}
+          darfVerwalten={darfVerwalten}
           onClose={() => setOffenesModell(null)}
         />
       )}
@@ -144,11 +181,12 @@ export default function MobilPage() {
 // Overlay, role="dialog" + aria-modal, Schließen via X / Escape / Overlay-Klick,
 // FocusTrap). Auf schmalem Viewport Vollbild.
 function MobilModellModal({
-  hersteller, modellId, modellName, onClose,
+  hersteller, modellId, modellName, darfVerwalten, onClose,
 }: {
   hersteller: string;
   modellId: number;
   modellName: string;
+  darfVerwalten: boolean;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -212,6 +250,8 @@ function MobilModellModal({
                   modellName={modellName}
                   teiltyp={g.teiltyp}
                   stueck={g.stueck}
+                  soll={g.soll}
+                  darfVerwalten={darfVerwalten}
                 />
               ))
             )}
@@ -224,18 +264,38 @@ function MobilModellModal({
 
 // ── Teiltyp-Karte: Kopf mit Stückzahl + Export, aufklappbare LogID-Liste ────────
 function TeiltypCard({
-  modellId, hersteller, modellName, teiltyp, stueck,
+  modellId, hersteller, modellName, teiltyp, stueck, soll, darfVerwalten,
 }: {
   modellId: number;
   hersteller: string;
   modellName: string;
   teiltyp: string;
   stueck: number;
+  soll: number | null;
+  darfVerwalten: boolean;
 }) {
   const { show } = useToast();
   const utils = api.useUtils();
   const [offen, setOffen] = useState(false);
   const [exportLaeuft, setExportLaeuft] = useState(false);
+
+  // Mindestbestand (Soll) setzen — nur MOBIL_MANAGE.
+  const [sollInput, setSollInput] = useState<string>(soll != null ? String(soll) : "");
+  useEffect(() => { setSollInput(soll != null ? String(soll) : ""); }, [soll]);
+  const setMin = api.mobil.setMindestbestand.useMutation({
+    onSuccess: () => {
+      show("✅ Mindestbestand gespeichert", "success");
+      void utils.mobil.teileProModell.invalidate({ modellId });
+      void utils.mobil.mobilUnterMindestbestand.invalidate();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+  function speichern() {
+    const n = parseInt(sollInput, 10);
+    if (Number.isNaN(n) || n < 0) { show("Bitte eine Zahl ≥ 0 eingeben.", "error"); return; }
+    setMin.mutate({ modellId, teiltyp, sollMenge: n });
+  }
+  const sollId = `soll-${modellId}-${teiltyp.replace(/\s+/g, "-")}`;
 
   const logIdsQ = api.mobil.logIdsProTeiltyp.useQuery(
     { modellId, teiltyp },
@@ -300,6 +360,44 @@ function TeiltypCard({
           <button type="button" aria-label={`${teiltyp} als CSV herunterladen`} title="CSV" onClick={onCsv} disabled={exportLaeuft} className={btn}>⬇ CSV</button>
           <button type="button" aria-label={`${teiltyp} als Excel herunterladen`} title="Excel (.xlsx)" onClick={onXlsx} disabled={exportLaeuft} className={btn}>⬇ XLSX</button>
         </div>
+      </div>
+
+      {/* Ist / Soll (Mindestbestand) + Eingabe (nur MOBIL_MANAGE) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3 -mt-1">
+        <div className="text-sm">
+          {soll == null ? (
+            <span className="text-[#90939a] dark:text-[#6b6e73]">Mindestbestand: —</span>
+          ) : stueck >= soll ? (
+            <span className="font-semibold text-[#2e7d32] dark:text-[#7bc67e]">✓ <span className="tabular-nums">{stueck} / {soll}</span> erfüllt</span>
+          ) : (
+            <span className="font-semibold text-[#b25e00] dark:text-[#ffb74d]">⚠️ <span className="tabular-nums">{stueck} / {soll}</span> — {soll - stueck} fehlen</span>
+          )}
+        </div>
+        {darfVerwalten && (
+          <div className="flex items-center gap-1.5">
+            <label htmlFor={sollId} className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Mindestbestand</label>
+            <input
+              id={sollId}
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={sollInput}
+              onChange={(e) => setSollInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") speichern(); }}
+              aria-label={`Mindestbestand für ${teiltyp}`}
+              className="w-20 px-2 min-h-[44px] rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-base tabular-nums outline-none focus:border-[#008BD2]"
+            />
+            <button
+              type="button"
+              onClick={speichern}
+              disabled={setMin.isPending}
+              className="inline-flex items-center justify-center min-h-[44px] px-3 rounded-lg text-sm font-bold text-white disabled:opacity-40"
+              style={{ background: AKZENT }}
+            >
+              {setMin.isPending ? "…" : "Speichern"}
+            </button>
+          </div>
+        )}
       </div>
 
       {offen && (

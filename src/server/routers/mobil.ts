@@ -97,6 +97,24 @@ export const mobilRouter = createTRPCRouter({
         WHERE tm.modellId = ${input.modellId}
         GROUP BY tt.name, t.colli`;
 
+      // Soll-Mengen (Mindestbestand) + Teiltyp-Namen→Id-Auflösung laden, damit jede
+      // Gruppe ihr Soll bekommt (Teiltyp-Referenz konsistent zu setMindestbestand).
+      const [mindest, teiltypAlle] = await Promise.all([
+        prisma.mobilMindestbestand.findMany({
+          where:  { modellId: input.modellId },
+          select: { teiltypId: true, sollMenge: true },
+        }),
+        prisma.mobilTeiltyp.findMany({ select: { id: true, name: true } }),
+      ]);
+      const teiltypIdByName = new Map(teiltypAlle.map((t) => [t.name, t.id]));
+      const sollByTeiltypId = new Map(mindest.map((m) => [m.teiltypId, m.sollMenge]));
+      // null = kein Mindestbestand (ungesetzt ODER soll=0 = Hinweis aus).
+      const sollFuer = (name: string): number | null => {
+        const id = teiltypIdByName.get(name);
+        const s  = id != null ? sollByTeiltypId.get(id) : undefined;
+        return s != null && s > 0 ? s : null;
+      };
+
       // Nach Teiltyp gruppieren (Collis je Teiltyp, Anzahl summieren).
       const map = new Map<string, { teiltyp: string; stueck: number; collis: { colli: string; anzahl: number }[] }>();
       for (const r of rows) {
@@ -116,13 +134,69 @@ export const mobilRouter = createTRPCRouter({
       const teiltypen = [...map.values()]
         .sort((a, b) => ord(a.teiltyp) - ord(b.teiltyp) || a.teiltyp.localeCompare(b.teiltyp, "de"))
         .map((g) => ({
-          ...g,
-          collis: g.collis.sort((a, b) => b.anzahl - a.anzahl || a.colli.localeCompare(b.colli, "de", { numeric: true })),
+          teiltyp: g.teiltyp,
+          stueck:  g.stueck,
+          soll:    sollFuer(g.teiltyp), // Ist = stueck, Soll = sollFuer (null = nicht gesetzt)
+          collis:  g.collis.sort((a, b) => b.anzahl - a.anzahl || a.colli.localeCompare(b.colli, "de", { numeric: true })),
         }));
 
       const gesamt = teiltypen.reduce((s, g) => s + g.stueck, 0);
       return { gesamt, teiltypen };
     }),
+
+  // Mindestbestand je Modell+Teiltyp setzen (Upsert über @@unique modellId+teiltypId).
+  // sollMenge 0 = kein Mindestbestand (Hinweis aus). Teiltyp per Name (konsistent zu
+  // teileProModell); existiert er noch nicht, wird er angelegt (get-or-create).
+  setMindestbestand: manage
+    .input(z.object({
+      modellId:  z.number().int().positive(),
+      teiltyp:   z.string().trim().min(1),
+      sollMenge: z.number().int().min(0).max(1_000_000),
+    }))
+    .mutation(async ({ input }) => {
+      const tt = await prisma.mobilTeiltyp.upsert({
+        where:  { name: input.teiltyp },
+        update: {},
+        create: { name: input.teiltyp },
+      });
+      await prisma.mobilMindestbestand.upsert({
+        where:  { modellId_teiltypId: { modellId: input.modellId, teiltypId: tt.id } },
+        update: { sollMenge: input.sollMenge },
+        create: { modellId: input.modellId, teiltypId: tt.id, sollMenge: input.sollMenge },
+      });
+      return { ok: true, sollMenge: input.sollMenge };
+    }),
+
+  // Alle Modell+Teiltyp-Gruppen unter Mindestbestand (Ist < Soll, nur Soll>0).
+  // DB-seitig: je Soll-Eintrag wird die Ist-Menge (DISTINCT Teil über die
+  // Kompatibilitäts-Verknüpfung) per Subquery gezählt — kein Voll-Load.
+  mobilUnterMindestbestand: view.query(async () => {
+    // Derived table (Ist je Soll-Eintrag), dann im äußeren WHERE filtern — kein
+    // HAVING ohne GROUP BY (robust unter ONLY_FULL_GROUP_BY).
+    const rows = await prisma.$queryRaw<Array<{
+      hersteller: string; modell: string; teiltyp: string; ist: bigint; soll: number;
+    }>>`
+      SELECT x.hersteller, x.modell, x.teiltyp, x.ist, x.soll
+      FROM (
+        SELECT m.hersteller AS hersteller, m.modell AS modell, tt.name AS teiltyp,
+               ( SELECT COUNT(*) FROM \`MobilTeilModell\` tm
+                 JOIN \`MobilTeil\` t ON t.id = tm.teilId
+                 WHERE tm.modellId = mb.modellId AND t.teiltypId = mb.teiltypId ) AS ist,
+               mb.sollMenge AS soll
+        FROM \`MobilMindestbestand\` mb
+        JOIN \`MobilModell\`   m  ON m.id  = mb.modellId
+        JOIN \`MobilTeiltyp\`  tt ON tt.id = mb.teiltypId
+        WHERE mb.sollMenge > 0
+      ) x
+      WHERE x.ist < x.soll
+      ORDER BY (x.soll - x.ist) DESC`;
+
+    const gruppen = rows.map((r) => {
+      const ist = Number(r.ist);
+      return { hersteller: r.hersteller, modell: r.modell, teiltyp: r.teiltyp, ist, soll: r.soll, fehlt: r.soll - ist };
+    });
+    return { anzahl: gruppen.length, gruppen };
+  }),
 
   // LogIDs einer Modell+Teiltyp-Gruppe: je Teil logId + colli + stellplatz +
   // Bezeichnung + EK, plus die WEITEREN kompatiblen Modelle (Mehrfach-Modell-Hinweis,
