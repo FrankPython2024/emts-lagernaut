@@ -138,9 +138,25 @@ function variantenSuffix(v: string | undefined): string {
   return "";
 }
 
+// iPad-Air-Generation aus expliziten Signalen ableiten (konservativ):
+//   • explizite "N. Generation" / "Nth gen" (N=2–5)
+//   • Bildschirmgröße 10.5" → Air 3 (eindeutig)
+//   • M1 → Air 5
+// 10.9" ALLEIN ist mehrdeutig (Air 4 ODER 5) → daraus wird NICHTS abgeleitet
+// (nur über die explizite Generation); 9.7" (Air 1/2) ebenfalls nicht. Ohne Signal "".
+function ipadAirGeneration(norm: string): string {
+  const g = norm.match(/\b([2-5])\s*\.?\s*(?:te|st|nd|rd|th)?\s*gen(?:eration)?\b/);
+  if (g) return g[1];
+  if (/\b10\.5\b/.test(norm)) return "3";
+  if (/\bm1\b/.test(norm))    return "5";
+  return "";
+}
+
 function ipadModelle(norm: string): string[] {
   const out: string[] = [];
-  const re = /ipad\s+(pro\s*\d{1,2}(?:\.\d)?|air(?:\s*\d)?|mini(?:\s*\d)?|\d{1,2}\.\d)\s*(?:\(\s*(20\d{2}))?/g;
+  // Bei "air"/"mini" nur eine EINZELNE Generationsziffer mitnehmen (nicht die erste
+  // Ziffer einer Größe wie 10.9" → sonst fälschlich "Air 1").
+  const re = /ipad\s+(pro\s*\d{1,2}(?:\.\d)?|air(?:\s*\d(?!\d|\.\d))?|mini(?:\s*\d(?!\d|\.\d))?|\d{1,2}\.\d)\s*(?:\(\s*(20\d{2}))?/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(norm)) !== null) {
     const teil = m[1].replace(/\s+/g, " ").trim();
@@ -150,8 +166,10 @@ function ipadModelle(norm: string): string[] {
       const groesse = teil.replace(/^pro\s*/, "").trim();          // z. B. "11"
       label = groesse ? `iPad Pro ${groesse}"` : "iPad Pro";
     } else if (teil.startsWith("air")) {
-      const gen = teil.replace(/^air\s*/, "").trim();
-      label = gen ? `iPad Air ${gen}` : "iPad Air";
+      // Explizite Ziffer aus "air 2"/"air2"; sonst aus Generation/Größe/M1 ableiten.
+      let gen = teil.replace(/^air\s*/, "").trim();
+      if (!gen) gen = ipadAirGeneration(norm);
+      label = gen ? `iPad Air ${gen}` : "iPad Air"; // ohne Signal generisch (nicht raten)
     } else if (teil.startsWith("mini")) {
       const gen = teil.replace(/^mini\s*/, "").trim();
       label = gen ? `iPad mini ${gen}` : "iPad mini";
@@ -247,6 +265,34 @@ export function teiltypenErkennen(norm: string): MobilTeiltyp[] {
 export function teiltypErkennen(norm: string): MobilTeiltyp | null {
   const treffer = teiltypenErkennen(norm);
   return treffer.length === 1 ? treffer[0] : null; // 0 = unbekannt, >1 = mehrdeutig
+}
+
+// ── 4b. Farbe ─────────────────────────────────────────────────────────────────
+// DE/EN-Farben, NUR an Wortgrenzen (kein Teilwort-Treffer). Rückgabe normalisiert
+// auf den DE-Begriff. Erster Treffer in dieser Reihenfolge gewinnt (relevant nur
+// bei Mehrfach-Farben wie "Blue/Green" → erster = blau). Kein Treffer → null.
+// Reihenfolge: zusammengesetzte/spezielle zuerst (space gray, midnight, starlight).
+const FARBEN: { name: string; muster: RegExp }[] = [
+  { name: "grau",       muster: /\bspace\s?gr[ae]y\b|\bgrau\b|\bgr[ae]y\b/ },
+  { name: "starlight",  muster: /\bstarlight\b|\bpolarstern\b/ },
+  { name: "mitternacht", muster: /\bmidnight\b|\bmitternacht\b/ },
+  { name: "schwarz",    muster: /\bschwarz\b|\bblack\b/ },
+  // Kein trailing \b nach "ß" (ß ist kein ASCII-Wortzeichen → \b würde dort scheitern).
+  { name: "weiß",       muster: /\bweiß|\bweiss\b|\bwhite\b/ },
+  { name: "silber",     muster: /\bsilber\b|\bsilver\b/ },
+  { name: "gold",       muster: /\bgold\b/ },
+  { name: "blau",       muster: /\bblau\b|\bblue\b/ },
+  { name: "grün",       muster: /\bgr[üu]n\b|\bgruen\b|\bgreen\b/ },
+  { name: "rot",        muster: /\brot\b|\bred\b/ },
+  { name: "rosa",       muster: /\brosa\b|\bpink\b|\brose\b/ },
+  { name: "lila",       muster: /\blila\b|\bviolett\b|\bpurple\b/ },
+  { name: "gelb",       muster: /\bgelb\b|\byellow\b/ },
+];
+
+export function farbeErkennen(rohBezeichnung: string): string | null {
+  const norm = bezeichnungNormalisieren(rohBezeichnung);
+  for (const f of FARBEN) if (f.muster.test(norm)) return f.name;
+  return null;
 }
 
 // ── 5. Gesamt-Zuordnung ──────────────────────────────────────────────────────

@@ -8,13 +8,14 @@ export type MobilExportZeile = {
   logId:       string;
   colli:       string | null;
   stellplatz:  string | null;
+  farbe:       string | null;
   aan:         string | null;
   ek:          number | null;
   lieferant:   string | null;
   bezeichnung: string;
 };
 
-const SPALTEN = ["LogID", "Colli", "Stellplatz", "AAN", "EK", "Lieferant", "Bezeichnung"] as const;
+const SPALTEN = ["LogID", "Colli", "Stellplatz", "Farbe", "AAN", "EK", "Lieferant", "Bezeichnung"] as const;
 
 // EK für DE-Excel: Dezimal-Komma, 2 Nachkommastellen; leer bleibt leer.
 function ekText(ek: number | null): string {
@@ -23,7 +24,7 @@ function ekText(ek: number | null): string {
 
 // Eine Matrix-Zeile (Strings) — für CSV und Excel identisch. Reihenfolge = SPALTEN.
 function zeileAlsArray(z: MobilExportZeile): string[] {
-  return [z.logId, z.colli ?? "", z.stellplatz ?? "", z.aan ?? "", ekText(z.ek), z.lieferant ?? "", z.bezeichnung];
+  return [z.logId, z.colli ?? "", z.stellplatz ?? "", z.farbe ?? "", z.aan ?? "", ekText(z.ek), z.lieferant ?? "", z.bezeichnung];
 }
 
 // CSV-Feld quoten, falls ; " oder Zeilenumbruch enthalten.

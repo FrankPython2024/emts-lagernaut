@@ -8,7 +8,9 @@
 import {
   bezeichnungNormalisieren,
   herstellerErkennen,
+  modellErkennen,
   teiltypErkennen,
+  farbeErkennen,
   zuordnen,
   type MobilAliasTreffer,
 } from "../src/lib/mobil/parser";
@@ -151,6 +153,38 @@ console.log("\n══ ALIAS-LOOKUP ══");
     { h: z.hersteller, m: z.modell, t: z.teiltyp, sicher: z.sicher, quelle: z.quelle },
     { h: "Apple", m: "iPhone 13", t: "Display", sicher: true, quelle: "alias" });
 }
+
+// ── Farb-Erkennung ──────────────────────────────────────────────────────────
+console.log("\n══ FARBE ══");
+check("black → schwarz",        farbeErkennen("Back Glass (Pulled A) - Black, For iPhone 14"), "schwarz");
+check("Green → grün",           farbeErkennen("Back Glass (Pulled A) - Green, For iPhone 15"), "grün");
+check("Phantom White → weiß",   farbeErkennen("Samsung Galaxy S21 Sim Slot Phantom White OEM"), "weiß");
+check("space gray → grau",      farbeErkennen("Rear Cover - Space Gray, For iPhone 11"), "grau");
+check("Phantom Gray → grau",    farbeErkennen("SIM Tray - Phantom Gray, Samsung Galaxy S21"), "grau");
+check("Alpine Green → grün",    farbeErkennen("Rear Cover (Pulled A) - Alpine Green, For iPhone 13 Pro"), "grün");
+check("Gold → gold",            farbeErkennen("Rear Cover (Pulled A) - Gold, For iPhone 14 Pro"), "gold");
+check("starlight → starlight",  farbeErkennen("Back Glass - Starlight, For iPhone 13"), "starlight");
+check("midnight → mitternacht", farbeErkennen("Back Glass - Midnight, For iPhone 13"), "mitternacht");
+check("weiß (DE) → weiß",       farbeErkennen("Display module – weiß"), "weiß");
+check("keine Farbe → null",     farbeErkennen("Diagnose-Akku für iPhone 13"), null);
+check("Tarnish (unbekannt) → null", farbeErkennen("Rear Cover - Tarnish, Xiaomi Redmi Note 11"), null);
+check("Wortgrenze: 'red' nicht in 'Refurb'", farbeErkennen("OLED (soft) Touchscreen (Refurb), For iPhone 13"), null);
+
+// ── iPad-Air-Generation (konstruiert, nicht in CSV) ─────────────────────────
+console.log("\n══ iPAD AIR ══");
+function ipadAir(b: string) { return modellErkennen(bezeichnungNormalisieren(b), "Apple"); }
+check("iPad Air 10.5\" 3. Generation → Air 3",
+  ipadAir('Display module für iPad Air – 10.5" – 3. Generation – weiß'), ["iPad Air 3"]);
+check("iPad Air 2 → Air 2",        ipadAir("iPad Air 2"), ["iPad Air 2"]);
+check("generisches iPad Air bleibt iPad Air",
+  ipadAir("LCD Touchscreen, For iPad Air"), ["iPad Air"]);
+check("iPad Air 4th generation → Air 4",
+  ipadAir("Display für iPad Air 4th generation"), ["iPad Air 4"]);
+check("iPad Air M1 → Air 5",       ipadAir("iPad Air M1 Display"), ["iPad Air 5"]);
+check("iPad Air 10.9\" ohne Generation → generisch (nicht geraten)",
+  ipadAir('iPad Air 10.9"'), ["iPad Air"]);
+check("iPad-Air-Zeile: Farbe weiß",
+  farbeErkennen('Display module für iPad Air – 10.5" – 3. Generation – weiß'), "weiß");
 
 console.log(`\n══════════════════════════════════════════`);
 console.log(`  📊 ${passed} passed  |  ${failed} failed`);

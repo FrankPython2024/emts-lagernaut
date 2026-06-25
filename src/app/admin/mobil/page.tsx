@@ -319,7 +319,7 @@ function TeiltypCard({
   async function hole(): Promise<MobilExportZeile[]> {
     const rows = await utils.mobil.logIdsProTeiltyp.fetch({ modellId, teiltyp });
     return rows.map((r) => ({
-      logId: r.logId, colli: r.colli, stellplatz: r.stellplatz,
+      logId: r.logId, colli: r.colli, stellplatz: r.stellplatz, farbe: r.farbe,
       aan: r.aan, ek: r.ek, lieferant: r.lieferant, bezeichnung: r.bezeichnung,
     }));
   }
@@ -416,7 +416,7 @@ function TeiltypCard({
                   </div>
                   <ul className="mt-1.5 space-y-1.5">
                     {rows.map((r) => {
-                      const hatChips = !!r.stellplatz || !!r.aan || r.ek != null || !!r.lieferant;
+                      const hatChips = !!r.stellplatz || !!r.farbe || !!r.aan || r.ek != null || !!r.lieferant;
                       return (
                         <li
                           key={r.logId}
@@ -433,6 +433,7 @@ function TeiltypCard({
                           {hatChips && (
                             <div className="mt-1 flex flex-wrap gap-1">
                               {r.stellplatz && <Chip icon="📍" wert={r.stellplatz} />}
+                              {r.farbe && <Chip icon="🎨" wert={r.farbe} />}
                               {r.aan && <Chip label="AAN" wert={r.aan} />}
                               {r.ek != null && <Chip label="EK" wert={`${r.ek.toFixed(2).replace(".", ",")} €`} mono />}
                               {r.lieferant && <Chip icon="🏭" wert={r.lieferant} />}

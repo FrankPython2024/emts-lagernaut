@@ -858,6 +858,7 @@ model MobilTeil {
   ek                  Decimal?             @db.Decimal(10, 2)
   aan                 String?                               // Artikelnummer (CSV "AAN")
   lieferant           String?                               // CSV "Lieferant"
+  farbe               String?                               // aus Bezeichnung erkannt (DE-normalisiert)
   status              String?
   modellId            Int?                                  // primäres Modell (null = REVIEW/unbekannt)
   modell              MobilModell?         @relation(fields: [modellId], references: [id])
