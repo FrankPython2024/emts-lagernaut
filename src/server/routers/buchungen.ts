@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { BuchungsTyp } from "@prisma/client";
-import { createTRPCRouter, protectedProcedure, adminProcedure, permissionProcedure } from "@/server/trpc";
+import { createTRPCRouter, adminProcedure, permissionProcedure } from "@/server/trpc";
+import type { SessionUser } from "@/core/types";
 
 // Read-Procedure für Buchungs-Historie (BETRACHTER bekommt BUCHUNG_VIEW).
 const buchungReadProcedure = permissionProcedure("BUCHUNG_VIEW");
@@ -16,20 +17,33 @@ import { naechsteBelegNr } from "@/core/infra/belegnr";
 
 export const buchungenRouter = createTRPCRouter({
 
-  // Neue Buchung — EINGANG / AUSGANG / DIREKT
+  // Neue Buchung — EINGANG / AUSGANG / DIREKT — schreibt Bestand → ADMIN only
+  // (gleiche Schreib-Grenze wie update/delete/syncAlleBestaende). Blockt damit
+  // serverseitig BETRACHTER / ADMIN_READONLY / PICKUP / TECHNIKER.
   // EINGANG → EL-YYYY-NNNN + artikel (lagerplatz, kategorie) für Einlagerbeleg
   // AUSGANG → AL-YYYY-NNNN + artikel für Auslagerbeleg
   // DIREKT  → belegNr = null (kein Beleg)
-  create: protectedProcedure
+  create: adminProcedure
     .input(z.object({
       artikelId:   z.number().int().positive(),
       menge:       z.number().int().positive(),
       typ:         z.nativeEnum(BuchungsTyp),
-      mitarbeiter: z.string().min(1).max(50),
+      // mitarbeiter wird serverseitig aus der Session abgeleitet (nicht fälschbar);
+      // ein evtl. mitgesendetes Feld wird IGNORIERT. Optional nur zur Abwärtskompat.
+      mitarbeiter: z.string().max(50).optional(),
       notiz:       z.string().max(500).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const buchung  = await bucheLager(input);
+      // Handelnder = eingeloggter Account (Kürzel, sonst Name) — nachvollziehbar.
+      const sessionUser = ctx.session.user as SessionUser;
+      const mitarbeiter = (sessionUser.kuerzel || sessionUser.name || "?").slice(0, 50);
+      const buchung  = await bucheLager({
+        artikelId:   input.artikelId,
+        menge:       input.menge,
+        typ:         input.typ,
+        mitarbeiter,
+        notiz:       input.notiz,
+      });
       const artikel  = await ctx.prisma.artikel.findUnique({
         where:  { id: input.artikelId },
         select: { bestand: true, bezeichnung: true, lagerplatz: true, kategorie: true },
