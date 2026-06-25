@@ -414,28 +414,33 @@ function TeiltypCard({
                   <div className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
                     Colli {colli} <span className="text-[#65676b] dark:text-[#b0b3b8] font-semibold">· {rows.length} Stück</span>
                   </div>
-                  <ul className="mt-1 space-y-0.5">
-                    {rows.map((r) => (
-                      <li key={r.logId} className="text-sm">
-                        <div className="font-mono text-[#1a1a1a] dark:text-[#e4e6eb] flex flex-wrap items-baseline gap-x-2">
-                          <span>{r.logId}</span>
-                          {r.stellplatz && <span className="text-[#90939a] dark:text-[#6b6e73]">@ {r.stellplatz}</span>}
-                          {r.auch.length > 0 && (
-                            <span className="font-sans text-xs text-[#b25e00] dark:text-[#ffb74d]">auch: {r.auch.join(", ")}</span>
+                  <ul className="mt-1.5 space-y-1.5">
+                    {rows.map((r) => {
+                      const hatChips = !!r.stellplatz || !!r.aan || r.ek != null || !!r.lieferant;
+                      return (
+                        <li
+                          key={r.logId}
+                          className="rounded-lg border border-[#e4e6eb] dark:border-[#3a3b3c] bg-white dark:bg-[#242526] px-2.5 py-1.5"
+                        >
+                          {/* Kopf: LogID prominent, rechts dezent der Kompatibilitäts-Hinweis */}
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                            <span className="font-mono text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">{r.logId}</span>
+                            {r.auch.length > 0 && (
+                              <span className="text-xs text-[#b25e00] dark:text-[#ffb74d]">auch: {r.auch.join(", ")}</span>
+                            )}
+                          </div>
+                          {/* Detailfelder als abgegrenzte Chips (leere weglassen) */}
+                          {hatChips && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {r.stellplatz && <Chip icon="📍" wert={r.stellplatz} />}
+                              {r.aan && <Chip label="AAN" wert={r.aan} />}
+                              {r.ek != null && <Chip label="EK" wert={`${r.ek.toFixed(2).replace(".", ",")} €`} mono />}
+                              {r.lieferant && <Chip icon="🏭" wert={r.lieferant} />}
+                            </div>
                           )}
-                        </div>
-                        {(() => {
-                          const meta = [
-                            r.aan ? `AAN ${r.aan}` : null,
-                            r.ek != null ? `${r.ek.toFixed(2).replace(".", ",")} €` : null,
-                            r.lieferant || null,
-                          ].filter(Boolean) as string[];
-                          return meta.length > 0
-                            ? <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] tabular-nums">{meta.join(" · ")}</div>
-                            : null;
-                        })()}
-                      </li>
-                    ))}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ))}
@@ -448,6 +453,21 @@ function TeiltypCard({
 }
 
 // ── Kleine Helfer ──────────────────────────────────────────────────────────────
+// Detail-Chip: kleines abgegrenztes Kästchen (Label grau/klein + Wert). Lange Werte
+// (z. B. Lieferant) werden gekürzt; voller Text per title.
+function Chip({ icon, label, wert, mono }: { icon?: string; label?: string; wert: string; mono?: boolean }) {
+  return (
+    <span
+      className="inline-flex items-baseline gap-1 max-w-full rounded-md border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#3a3b3c] px-2 py-0.5 text-xs"
+      title={label ? `${label}: ${wert}` : wert}
+    >
+      {icon && <span aria-hidden className="flex-shrink-0">{icon}</span>}
+      {label && <span className="flex-shrink-0 text-[#90939a] dark:text-[#8a8d91]">{label}</span>}
+      <span className={`truncate font-medium text-[#1a1a1a] dark:text-[#e4e6eb] ${mono ? "tabular-nums" : ""}`}>{wert}</span>
+    </span>
+  );
+}
+
 function Schrittkopf({ nr, text }: { nr: number; text: string }) {
   return (
     <h2 className="flex items-center gap-2 text-lg font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
