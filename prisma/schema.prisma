@@ -31,6 +31,7 @@ model User {
   pickupAbgeschlossen PickupAuftrag[] @relation("PickupAbschliesser")
   pickupGefunden  PickupPosition[]
   extraPermissions UserPermission[]
+  permissionDenies UserPermissionDeny[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -114,6 +115,23 @@ model UserPermission {
   @@unique([userId, permissionId])
   @@index([userId])
   @@index([permissionId])
+}
+
+// Entzogene Rechte pro Account (Deny-Ebene). Entzug gewinnt über Rollen-/Zusatz-
+// rechte (siehe getMeinePermissions). Bewusst als String-Key (kein FK), damit der
+// Entzug unabhängig von der Permission-Tabelle bestehen bleibt.
+// AUSNAHME: SYSTEM_ADMIN ist NICHT entziehbar (Lockout-Sicherung) — wird in
+// getMeinePermissions ignoriert.
+model UserPermissionDeny {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  permission String   // Recht-Key, z. B. "ARTIKEL_EDIT"
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permission])
+  @@index([userId])
 }
 
 // ── Multi-Standort ────────────────────────────────────────────────────────────

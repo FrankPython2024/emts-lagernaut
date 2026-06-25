@@ -80,7 +80,7 @@ export async function loescheRolle(id: number) {
  * Rechte räumt der Cascade weg, daher entstehen hier keine ungültigen Codes.
  */
 export async function getMeinePermissions(rolleName: string, userId?: number): Promise<string[]> {
-  const [rolle, extra] = await Promise.all([
+  const [rolle, extra, deny] = await Promise.all([
     prisma.rolle.findUnique({
       where:   { name: rolleName },
       include: { permissions: { include: { permission: true } } },
@@ -88,11 +88,25 @@ export async function getMeinePermissions(rolleName: string, userId?: number): P
     userId
       ? prisma.userPermission.findMany({ where: { userId }, include: { permission: true } })
       : Promise.resolve([] as { permission: { key: string } }[]),
+    userId
+      ? prisma.userPermissionDeny.findMany({ where: { userId }, select: { permission: true } })
+      : Promise.resolve([] as { permission: string }[]),
   ]);
 
-  const rollenKeys = (rolle && rolle.aktiv) ? rolle.permissions.map(rp => rp.permission.key) : [];
-  const extraKeys  = extra.map(up => up.permission.key);
-  return [...new Set([...rollenKeys, ...extraKeys])];
+  // 1) Additive Vereinigung: Rollen-Rechte ∪ Zusatz-Rechte.
+  const rollenKeys  = (rolle && rolle.aktiv) ? rolle.permissions.map(rp => rp.permission.key) : [];
+  const extraKeys   = extra.map(up => up.permission.key);
+  const vereinigung = new Set([...rollenKeys, ...extraKeys]);
+
+  // 2) Entzug gewinnt: Deny-Keys abziehen. AUSNAHME: SYSTEM_ADMIN ist NIE entziehbar
+  //    (Lockout-Sicherung) — ein versehentlich gesetztes Deny darauf wird ignoriert,
+  //    damit ein Admin über die Wildcard immer handlungsfähig bleibt.
+  for (const d of deny) {
+    if (d.permission === "SYSTEM_ADMIN") continue;
+    vereinigung.delete(d.permission);
+  }
+
+  return [...vereinigung];
 }
 
 export function hasPermission(permissions: string[], key: string): boolean {
