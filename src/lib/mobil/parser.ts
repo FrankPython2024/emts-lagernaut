@@ -26,6 +26,7 @@ export type MobilHersteller = "Apple" | "Samsung" | "Google" | "Xiaomi";
 export const MOBIL_TEILTYPEN = [
   "Akku",
   "Display",
+  "Digitizer",
   "Kameraglas",
   "Backcover",
   "Middle Frame",
@@ -213,17 +214,34 @@ function xiaomiModelle(norm: string): string[] {
 // ── 4. Teiltyp ───────────────────────────────────────────────────────────────
 // Regelwerk. Mehrdeutigkeit (zwei verschiedene Teiltypen in derselben Zeile)
 // → bewusst null (REVIEW, nichts raten).
-const TEILTYP_REGELN: { teiltyp: MobilTeiltyp; muster: RegExp }[] = [
-  { teiltyp: "Akku",         muster: /\bakku\b|batter(?:y|ies|ie)|diagnostizierbar/ },
-  { teiltyp: "Display",      muster: /oled|lcd|touchscreen|digitizer|display|bildschirmeinheit|screen assembly|\bscreen\b/ },
-  { teiltyp: "Kameraglas",   muster: /camera glass(?:es)?|camera lens(?:es)?|camerglass|kamera\s?glas/ },
-  { teiltyp: "Backcover",    muster: /back\s?glass|rear cover|back\s?cover/ },
-  { teiltyp: "Middle Frame", muster: /middle\s?frame|mittelrahmen/ },
-  { teiltyp: "SIM-Tray",     muster: /sim[-\s]?tray|sim[-\s]?slot|sim[-\s]?karten?/ },
+//
+// Digitizer vs. Display: Ein reines Touch-Glas ("Digitizer", "Touch Glass") ist
+// ein eigener Teiltyp. Eine KOMPLETTE Display-Einheit (mit Panel — lcd/oled/
+// display/…assembly) bleibt "Display", auch wenn das Wort "digitizer" darin
+// vorkommt (z. B. "LCD Display Touchscreen Digitizer Assembly"). Beide Regeln
+// schließen sich über `istReinDigitizer` gegenseitig aus → nie beide gleichzeitig.
+
+// Marker einer kompletten Display-Einheit (Panel vorhanden).
+const KOMPLETT_DISPLAY = /lcd|oled|display assembly|screen assembly|\bdisplay\b/;
+// Reines Touch-Glas: Digitizer/Touch-Glass-Wort UND kein Komplett-Display-Marker.
+function istReinDigitizer(norm: string): boolean {
+  return /digitizer|touch\s?glass|touchscreen glass/.test(norm) && !KOMPLETT_DISPLAY.test(norm);
+}
+
+const TEILTYP_REGELN: { teiltyp: MobilTeiltyp; test: (norm: string) => boolean }[] = [
+  { teiltyp: "Akku",         test: (n) => /\bakku\b|batter(?:y|ies|ie)|diagnostizierbar/.test(n) },
+  // Digitizer VOR Display einsortiert; greift nur bei reinem Touch-Glas.
+  { teiltyp: "Digitizer",    test: (n) => istReinDigitizer(n) },
+  // Display: alles mit Panel/Screen — aber NICHT, wenn es reines Digitizer-Glas ist.
+  { teiltyp: "Display",      test: (n) => /oled|lcd|touchscreen|digitizer|display|bildschirmeinheit|screen assembly|\bscreen\b/.test(n) && !istReinDigitizer(n) },
+  { teiltyp: "Kameraglas",   test: (n) => /camera glass(?:es)?|camera lens(?:es)?|camerglass|kamera\s?glas/.test(n) },
+  { teiltyp: "Backcover",    test: (n) => /back\s?glass|rear cover|back\s?cover/.test(n) },
+  { teiltyp: "Middle Frame", test: (n) => /middle\s?frame|mittelrahmen/.test(n) },
+  { teiltyp: "SIM-Tray",     test: (n) => /sim[-\s]?tray|sim[-\s]?slot|sim[-\s]?karten?/.test(n) },
 ];
 
 export function teiltypenErkennen(norm: string): MobilTeiltyp[] {
-  return TEILTYP_REGELN.filter((r) => r.muster.test(norm)).map((r) => r.teiltyp);
+  return TEILTYP_REGELN.filter((r) => r.test(norm)).map((r) => r.teiltyp);
 }
 
 export function teiltypErkennen(norm: string): MobilTeiltyp | null {

@@ -56,7 +56,8 @@ console.log("\n══ TEILTYP ══");
 check("battery → Akku",       teiltypErkennen("diagnostic battery 13pro 3095mah"), "Akku");
 check("akku → Akku",          teiltypErkennen("akku (kompatibel), für iphone 11"), "Akku");
 check("lcd touchscreen → Display", teiltypErkennen("lcd touchscreen (refurb), for iphone 11"), "Display");
-check("digitizer → Display",  teiltypErkennen("digitizer - black, for ipad 10.2"), "Display");
+check("reiner digitizer → Digitizer", teiltypErkennen("digitizer - black, for ipad 10.2"), "Digitizer");
+check("Komplett-Einheit (lcd+display+digitizer) → Display", teiltypErkennen("lcd display touchscreen digitizer assembly"), "Display");
 check("camera glass → Kameraglas", teiltypErkennen("camera glass for iphone x"), "Kameraglas");
 check("camerglass (Tippfehler) → Kameraglas", teiltypErkennen("camerglass for iphone x - oem quality"), "Kameraglas");
 check("rear cover → Backcover", teiltypErkennen("rear cover (pulled a) - gold, for iphone 12 pro"), "Backcover");
@@ -104,9 +105,12 @@ check("Referenznummer rwip101753 wird NICHT als Modell gelesen",
 check("mAh-Wert (4-stellig) wird NICHT als Modell gelesen",
   kurz("Diagnostizierbarer 4730-mAh-Akku mit hoher Kapazität für das\niPhone 15 Pro Max"),
   { h: "Apple", m: ["iPhone 15 Pro Max"], t: "Akku", sicher: true, mehrfach: false });
-check("iPad 10.2 (2019)",
+check("iPad 10.2 (2019) Digitizer → Digitizer (nicht Display)",
   kurz("Digitizer - Black, For iPad 10.2 (2019-2020)"),
-  { h: "Apple", m: ['iPad 10.2" (2019)'], t: "Display", sicher: true, mehrfach: false });
+  { h: "Apple", m: ['iPad 10.2" (2019)'], t: "Digitizer", sicher: true, mehrfach: false });
+check("Komplett-Display mit 'Digitizer' im Text bleibt Display (Abgrenzung)",
+  kurz("iPhone X LCD Display Touchscreen Digitizer Assembly"),
+  { h: "Apple", m: ["iPhone X"], t: "Display", sicher: true, mehrfach: false });
 check("Samsung Galaxy S21 SIM-Tray",
   kurz("Samsung Galaxy S21 Sim Slot Phantom White OEM dual sim tray"),
   { h: "Samsung", m: ["Galaxy S21"], t: "SIM-Tray", sicher: true, mehrfach: false });
