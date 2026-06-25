@@ -785,3 +785,111 @@ model VerbrauchsZaehlung {
   @@index([artikelId])
   @@index([datum])
 }
+
+// ── Mobil-Ersatzteile (Smartphone/Tablet-Teile mit LogID) ────────────────────
+// EIGENES Modul, getrennt vom Laptop-Artikel-/Modell-System. Alle Infos werden
+// aus der Freitext-Spalte "Bezeichnung" abgeleitet (siehe src/lib/mobil/parser).
+// Schema NUR definiert — NOCH NICHT gepusht (kein db push).
+// Status-Logik: ERKANNT = sicher zugeordnet, REVIEW = nicht eindeutig (Parser
+// rät nicht), MANUELL = vom Mensch zugeordnet (wird i. d. R. als Alias gelernt).
+
+enum MobilZuordnungStatus {
+  ERKANNT
+  REVIEW
+  MANUELL
+}
+
+model MobilModell {
+  id            Int      @id @default(autoincrement())
+  hersteller    String                          // z. B. "Apple"
+  modell        String                          // z. B. "iPhone 14"
+  aktiv         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  teile          MobilTeil[]                     // Teile mit diesem Modell als PRIMÄR-Modell
+  teilLinks      MobilTeilModell[]               // alle kompatiblen Teile (inkl. Mehrfach-Modell)
+  aliase         MobilAlias[]
+  mindestbestand MobilMindestbestand[]
+
+  @@unique([hersteller, modell])
+}
+
+model MobilTeiltyp {
+  id            Int      @id @default(autoincrement())
+  name          String   @unique               // z. B. "Akku","Display","Kameraglas","Backcover","Middle Frame","SIM-Tray"
+  createdAt     DateTime @default(now())
+
+  teile          MobilTeil[]
+  aliase         MobilAlias[]
+  mindestbestand MobilMindestbestand[]
+}
+
+// Eine Zeile = EINE physische LogID = EIN Stück. NIE dupliziert (logId @unique) —
+// damit ist die Mengen-Zählung immer korrekt: physischer Bestand = COUNT(MobilTeil).
+// Ein Teil kann zu MEHREREN Modellen kompatibel sein ("12 / 12 Pro") → die volle
+// Kompatibilitätsliste steht in MobilTeilModell, NICHT durch Vervielfachung der
+// MobilTeil-Zeile. modellId = primäres/repräsentatives Modell (Schnellzugriff/UI;
+// null bei REVIEW). teiltypId ist immer einwertig (ein Teil hat genau einen Typ).
+model MobilTeil {
+  id                  Int                  @id @default(autoincrement())
+  logId               String               @unique
+  originalBezeichnung String               @db.Text
+  colli               String?
+  stellplatz          String?
+  ek                  Decimal?             @db.Decimal(10, 2)
+  status              String?
+  modellId            Int?                                  // primäres Modell (null = REVIEW/unbekannt)
+  modell              MobilModell?         @relation(fields: [modellId], references: [id])
+  modelle             MobilTeilModell[]                     // ALLE kompatiblen Modelle (inkl. Primär)
+  teiltypId           Int?
+  teiltyp             MobilTeiltyp?        @relation(fields: [teiltypId], references: [id])
+  zuordnungStatus     MobilZuordnungStatus @default(REVIEW)
+  importiertAm        DateTime             @default(now())
+
+  @@index([modellId])
+  @@index([teiltypId])
+  @@index([zuordnungStatus])
+}
+
+// Kompatibilität Teil ↔ Modell (n:m). Ein Eintrag je erkanntem kompatiblen Modell.
+// Zählt NICHT als physischer Bestand (das tut MobilTeil) — nur für „welche Teile
+// passen zu Modell X". Bei Re-Import werden die Links eines Teils neu aufgebaut
+// (außer das Teil ist MANUELL zugeordnet).
+model MobilTeilModell {
+  id       Int         @id @default(autoincrement())
+  teilId   Int
+  teil     MobilTeil   @relation(fields: [teilId], references: [id], onDelete: Cascade)
+  modellId Int
+  modell   MobilModell @relation(fields: [modellId], references: [id])
+
+  @@unique([teilId, modellId])
+  @@index([modellId])
+}
+
+// Gelernte Zuordnung: derselbe normalisierte Wortlaut wird nie zweimal manuell
+// zugeordnet. Wird vom Parser (zuordnen()) vor dem Regelwerk geprüft.
+model MobilAlias {
+  id              Int          @id @default(autoincrement())
+  bezeichnungNorm String       @unique          // normalisierter Wortlaut (lower, getrimmt)
+  modellId        Int
+  modell          MobilModell  @relation(fields: [modellId], references: [id])
+  teiltypId       Int
+  teiltyp         MobilTeiltyp @relation(fields: [teiltypId], references: [id])
+  createdAt       DateTime     @default(now())
+
+  @@index([modellId])
+  @@index([teiltypId])
+}
+
+// Soll-Mengen je Modell+Teiltyp (für späteren Schritt 4 — Schema gleich vollständig).
+model MobilMindestbestand {
+  id        Int          @id @default(autoincrement())
+  modellId  Int
+  modell    MobilModell  @relation(fields: [modellId], references: [id])
+  teiltypId Int
+  teiltyp   MobilTeiltyp @relation(fields: [teiltypId], references: [id])
+  sollMenge Int
+
+  @@unique([modellId, teiltypId])
+}

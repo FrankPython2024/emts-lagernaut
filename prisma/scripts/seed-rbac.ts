@@ -35,6 +35,10 @@ const PERMISSIONS = [
   { key: "MATERIAL_VIEW",       kategorie: "Verbrauchsmaterial", bezeichnung: "Verbrauchsmaterial sehen" },
   { key: "MATERIAL_MANAGE",     kategorie: "Verbrauchsmaterial", bezeichnung: "Verbrauchsmaterial verwalten & importieren" },
 
+  // Mobil-Ersatzteile (Smartphone/Tablet-Teile mit LogID)
+  { key: "MOBIL_VIEW",          kategorie: "Mobil-Ersatzteile",  bezeichnung: "Mobil-Ersatzteile sehen" },
+  { key: "MOBIL_MANAGE",        kategorie: "Mobil-Ersatzteile",  bezeichnung: "Mobil-Ersatzteile verwalten & importieren" },
+
   // Artikel & Lager
   { key: "ARTIKEL_VIEW",        kategorie: "Lager",       bezeichnung: "Artikel-Liste sehen" },
   { key: "ARTIKEL_EDIT",        kategorie: "Lager",       bezeichnung: "Artikel bearbeiten" },
@@ -69,9 +73,9 @@ const ROLLEN = [
     name:         "ADMIN",
     bezeichnung:  "Administrator",
     beschreibung: "Voller Zugriff auf alle Systemfunktionen",
-    // SYSTEM_ADMIN deckt alles per Wildcard ab; MATERIAL_* zusätzlich explizit,
-    // damit das Recht auch bei abgeleiteten Rollen ohne Wildcard sauber greift.
-    permissions:  ["SYSTEM_ADMIN", "MATERIAL_VIEW", "MATERIAL_MANAGE"],
+    // SYSTEM_ADMIN deckt alles per Wildcard ab; MATERIAL_*/MOBIL_* zusätzlich
+    // explizit, damit die Rechte auch bei abgeleiteten Rollen ohne Wildcard greifen.
+    permissions:  ["SYSTEM_ADMIN", "MATERIAL_VIEW", "MATERIAL_MANAGE", "MOBIL_VIEW", "MOBIL_MANAGE"],
   },
   {
     name:         "TECHNIKER",

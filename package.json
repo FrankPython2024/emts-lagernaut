@@ -24,6 +24,9 @@
     "reset:lagernaut": "tsx scripts/resetLagernaut.ts",
     "reprocess:geraete": "tsx scripts/reprocessGeraete.ts",
     "test:bezeichnung": "tsx tests/bezeichnungBereinigen.test.ts",
+    "test:mobil": "tsx tests/mobilParser.test.ts",
+    "mobil:dryrun": "tsx scripts/mobil-parser-dryrun.ts",
+    "mobil:import": "tsx scripts/mobil-import.ts",
     "seed:lagerplaetze": "tsx prisma/seed-lagerplaetze.ts",
     "seed:standort": "tsx prisma/seeds/standort-sommerda.ts",
     "reindex": "tsx src/scripts/reindex-meilisearch.ts"
