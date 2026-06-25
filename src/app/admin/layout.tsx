@@ -151,8 +151,12 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
         </div>
       </div>
 
+      {/* Scroll-Bereich: < lg scrollt Navigation + „Funktion"-Block GEMEINSAM,
+          damit nichts abgeschnitten wird. Ab lg löst lg:contents diesen Wrapper
+          auf → Desktop-Sidebar bleibt unverändert (nav flex-1, Footer gepinnt). */}
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col lg:contents">
       {/* ── Navigation ───────────────────────────────────────────────────── */}
-      <nav className="flex-1 px-3 py-3 overflow-y-auto sidebar-scroll">
+      <nav className="px-3 py-3 lg:flex-1 lg:overflow-y-auto sidebar-scroll">
         {permsLoading ? (
           // Skelett, damit kein Flash von „kein Menü" entsteht
           <div className="px-3 py-2 space-y-2 animate-pulse">
@@ -221,7 +225,7 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       {/* Kompakt: wenig Außen-/Zwischen-Abstand, Bedienelemente bleiben aber bei
           min-h-[44px] gut antippbar (nur Weißraum reduziert, nicht die Controls). */}
-      <div ref={funktionRef} className="px-3 py-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
+      <div ref={funktionRef} className="mt-auto lg:mt-0 px-3 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] lg:pb-2 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
 
         {/* Sammel-Button: klappt den Einstellungs-Block auf/zu (Standard: zu) */}
         <button
@@ -307,6 +311,7 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
         )}
           </div>
         )}
+      </div>
       </div>
     </aside>
   );
@@ -426,7 +431,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               aria-modal="true"
               aria-label="Navigationsmenü"
               tabIndex={-1}
-              className="w-[min(18rem,85vw)] flex-shrink-0 flex flex-col shadow-2xl outline-none"
+              className="w-[min(18rem,85vw)] h-[100svh] flex-shrink-0 flex flex-col shadow-2xl outline-none"
             >
               <Sidebar
                 collapsed={false}

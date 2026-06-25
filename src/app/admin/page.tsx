@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter }           from "next/navigation";
+import Link                    from "next/link";
 import { PageHeader }         from "@/components/ui/PageHeader";
 import { DashboardGrid }      from "@/components/dashboard/DashboardGrid";
 import { useDashboardConfig } from "@/lib/dashboard/useDashboardConfig";
@@ -82,6 +83,71 @@ function DashboardLoadingSkeleton() {
   );
 }
 
+// ── Wöchentliche Erinnerung: Verbrauchsmaterial zählen (Montags-Termin) ────────
+// Nutzt die bestehende Query `dieseWoche` (gezählte vs. aktive Artikel ab Montag).
+// Nur für Nutzer mit MATERIAL_VIEW. Ab Montag „offen", grün sobald alles gezählt.
+function VerbrauchsmaterialToDo() {
+  const { has, isLoading: permsLoading } = usePermissions();
+  const darf = has("MATERIAL_VIEW");
+  const { data } = api.verbrauchsmaterial.dieseWoche.useQuery(undefined, {
+    enabled: !permsLoading && darf,
+    staleTime: 60_000,
+  });
+
+  if (!darf || !data) return null;
+  const { anzahl, aktiveGesamt } = data;
+  if (aktiveGesamt === 0) return null; // kein Material gepflegt → nichts zu tun
+
+  const erledigt = anzahl >= aktiveGesamt;
+  const prozent  = aktiveGesamt > 0 ? Math.round((anzahl / aktiveGesamt) * 100) : 0;
+
+  if (erledigt) {
+    return (
+      <div
+        role="status"
+        className="flex items-center gap-3 rounded-xl border-2 px-4 py-3"
+        style={{ borderColor: "#04B475", background: "rgba(4,180,117,0.10)" }}
+      >
+        <span className="text-2xl" aria-hidden>✅</span>
+        <div className="min-w-0">
+          <div className="font-black text-[#04713f]">Verbrauchsmaterial: diese Woche erledigt</div>
+          <div className="text-sm text-gray-700 dark:text-gray-200">Alle {aktiveGesamt} Artikel gezählt.</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border-2 px-4 py-3"
+      style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.10)" }}
+    >
+      <span className="text-2xl flex-shrink-0" aria-hidden>📋</span>
+      <div className="min-w-0 flex-1">
+        <div className="font-black" style={{ color: "#BA7517" }}>Verbrauchsmaterial erfassen (Montags-Zählung)</div>
+        <div className="text-sm text-gray-700 dark:text-gray-200">
+          Diese Woche <strong>{anzahl}</strong> von <strong>{aktiveGesamt}</strong> Artikeln gezählt.
+        </div>
+        <div
+          className="h-2 w-full max-w-md rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden mt-1.5"
+          role="progressbar" aria-valuenow={anzahl} aria-valuemin={0} aria-valuemax={aktiveGesamt}
+        >
+          <div className="h-full rounded-full" style={{ width: `${prozent}%`, background: "#BA7517" }} />
+        </div>
+      </div>
+      <Link
+        href="/admin/verbrauchsmaterial/zaehlen"
+        className="inline-flex items-center justify-center gap-2 px-5 rounded-lg text-white font-bold transition-colors min-h-[44px] flex-shrink-0"
+        style={{ background: "#04B475" }}
+      >
+        📲 Jetzt zählen
+      </Link>
+    </div>
+  );
+}
+
 // ── Dashboard-Content ─────────────────────────────────────────────────────────
 
 function DashboardContent() {
@@ -140,6 +206,8 @@ function DashboardContent() {
           </div>
         }
       />
+
+      <VerbrauchsmaterialToDo />
 
       {editMode && (
         <div className="flex items-center gap-2 p-3 bg-cyan-50 dark:bg-cyan-900/10 border border-cyan-200 dark:border-cyan-800 rounded-xl text-sm text-cyan-700 dark:text-cyan-300">
