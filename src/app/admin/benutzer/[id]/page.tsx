@@ -75,6 +75,28 @@ export default function BenutzerDetailPage() {
     return [...map.entries()];
   }, [permsQ.data]);
 
+  // ── Entzogene Rechte (Deny — gewinnt über Rolle + Zusatzrecht) ─────────────
+  const denyQ = api.benutzer.getEntzogeneRechte.useQuery({ userId });
+  const setDeny = api.benutzer.setEntzogeneRechte.useMutation({
+    onSuccess: () => { show("✅ Entzogene Rechte gespeichert", "success"); denyQ.refetch(); extraQ.refetch(); },
+    onError:   (e) => show(e.message, "error"),
+  });
+  const [denySel, setDenySel] = useState<Set<string>>(new Set());
+  useEffect(() => { if (denyQ.data) setDenySel(new Set(denyQ.data.deny)); }, [denyQ.data]);
+
+  // Kandidaten = Rechte des Users über die Rolle ∪ bereits entzogene; SYSTEM_ADMIN NIE.
+  const denyKandidatSet = useMemo(() => {
+    const s = new Set<string>([...(denyQ.data?.rolleRechte ?? []), ...(denyQ.data?.deny ?? [])]);
+    s.delete("SYSTEM_ADMIN");
+    return s;
+  }, [denyQ.data]);
+  const denyGruppen = useMemo(() =>
+    rechteGruppen
+      .map(([kat, perms]) => [kat, perms.filter(p => denyKandidatSet.has(p.key))] as const)
+      .filter(([, perms]) => perms.length > 0),
+    [rechteGruppen, denyKandidatSet],
+  );
+
   if (isLoading) return <PageLoader />;
   if (!user) return <div className="text-[#fa3e3e]">Benutzer nicht gefunden.</div>;
 
@@ -263,6 +285,81 @@ export default function BenutzerDetailPage() {
 
             <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] italic">
               Wirkt sofort (serverseitig live). Die Menü-/Sidebar-Anzeige beim Benutzer folgt nach kurzer Zeit (spätestens nach einem Reload) — <strong>kein Neu-Anmelden nötig</strong>.
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* Entzogene Rechte (Deny — überschreibt Rolle + Zusatzrechte) */}
+      <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-6 shadow-sm space-y-4">
+        <div className="border-b border-[#ced4da] dark:border-[#3e4042] pb-3">
+          <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Entzogene Rechte</h2>
+          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+            Rechte, die der Account über seine Rolle <strong>{denyQ.data?.rolle ?? user.rolle}</strong> hat, hier gezielt entziehen.
+            <strong> Entzug gewinnt immer</strong> — überschreibt Rolle und Zusatzrechte. Greift sofort für rechte-geprüfte Bereiche.
+          </p>
+        </div>
+
+        {permsQ.isLoading || denyQ.isLoading ? (
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Lade…</p>
+        ) : denyGruppen.length === 0 ? (
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+            Diese Rolle hat keine entziehbaren Einzelrechte (z. B. reine Admin-Rolle über die Wildcard).
+          </p>
+        ) : (
+          <>
+            {denyGruppen.map(([kategorie, perms]) => (
+              <fieldset key={kategorie}>
+                <legend className="text-xs uppercase font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1">{kategorie}</legend>
+                <div className="space-y-0.5">
+                  {perms.map((p) => {
+                    const entzogen = denySel.has(p.key);
+                    return (
+                      <button
+                        key={p.key}
+                        type="button"
+                        aria-pressed={entzogen}
+                        onClick={() => setDenySel((prev) => {
+                          const n = new Set(prev);
+                          if (n.has(p.key)) n.delete(p.key); else n.add(p.key);
+                          return n;
+                        })}
+                        className={`w-full flex items-center gap-2 py-1.5 px-2 min-h-[44px] rounded-lg text-left transition-colors ${
+                          entzogen
+                            ? "bg-[#fa3e3e]/10 hover:bg-[#fa3e3e]/15"
+                            : "hover:bg-[#f0f2f5] dark:hover:bg-[#3a3b3c]"
+                        }`}
+                      >
+                        <span className="w-5 text-center flex-shrink-0" aria-hidden>{entzogen ? "⛔" : "○"}</span>
+                        <span className={`text-sm flex-1 ${entzogen ? "line-through text-[#fa3e3e]" : "text-[#1a1a1a] dark:text-[#e4e6eb]"}`}>
+                          {p.bezeichnung} <span className="font-mono text-[11px] opacity-70">{p.key}</span>
+                        </span>
+                        {entzogen && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#fa3e3e]/15 text-[#fa3e3e] whitespace-nowrap">entzogen</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            ))}
+
+            {denySel.size > 0 && (
+              <p className="text-xs text-[#fa3e3e] font-semibold">
+                ⛔ {denySel.size} Recht(e) werden dem Account trotz Rolle entzogen.
+              </p>
+            )}
+
+            <button
+              onClick={() => setDeny.mutate({ userId, keys: [...denySel] })}
+              disabled={setDeny.isPending}
+              className="px-6 py-2.5 bg-[#fa3e3e] text-white font-bold rounded-xl hover:bg-red-600 disabled:opacity-50 min-h-[44px]"
+            >
+              {setDeny.isPending ? "..." : "Entzogene Rechte speichern"}
+            </button>
+
+            <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] italic">
+              SYSTEM_ADMIN ist nicht entziehbar (Schutz gegen Aussperrung). Wirkt sofort (serverseitig live); die Menü-Anzeige beim Benutzer folgt kurz danach — kein Neu-Anmelden nötig.
             </p>
           </>
         )}
