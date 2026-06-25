@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import { runMobilImport } from "@/modules/mobil/import";
+import { MOBIL_TEILTYPEN } from "@/lib/mobil/parser";
 
 // Mobil-Ersatzteile (Smartphone/Tablet-Teile mit LogID).
 // Lesen: MOBIL_VIEW, Import/Verwalten: MOBIL_MANAGE (ADMIN via SYSTEM_ADMIN-Wildcard).
@@ -36,4 +37,83 @@ export const mobilRouter = createTRPCRouter({
     ]);
     return { gesamt, erkannt, review, manuell, modelle, teiltypen };
   }),
+
+  // ── Browsing (read-only) ─────────────────────────────────────────────────────
+
+  // Hersteller, die Teile haben: je Hersteller Anzahl Modelle + Anzahl PHYSISCHER
+  // Teile (DISTINCT MobilTeil über die Kompatibilitäts-Verknüpfung — ein Teil, das
+  // zu mehreren Modellen passt, zählt pro Hersteller nur einmal).
+  hersteller: view.query(async () => {
+    const rows = await prisma.$queryRaw<Array<{ hersteller: string; modelle: bigint; teile: bigint }>>`
+      SELECT m.hersteller AS hersteller,
+             COUNT(DISTINCT m.id)        AS modelle,
+             COUNT(DISTINCT tm.teilId)   AS teile
+      FROM \`MobilModell\` m
+      JOIN \`MobilTeilModell\` tm ON tm.modellId = m.id
+      GROUP BY m.hersteller
+      ORDER BY teile DESC, m.hersteller ASC`;
+    return rows.map((r) => ({
+      hersteller: r.hersteller,
+      modelle:    Number(r.modelle),
+      teile:      Number(r.teile),
+    }));
+  }),
+
+  // Modelle eines Herstellers (nur mit Teilen), je mit Gesamt-Stückzahl
+  // (DISTINCT MobilTeil über die Verknüpfung — physische Teile, nicht doppelt).
+  // Sortiert „nach Modellnummer" (numerisch-natürlich).
+  modelle: view
+    .input(z.object({ hersteller: z.string().trim().min(1) }))
+    .query(async ({ input }) => {
+      const rows = await prisma.$queryRaw<Array<{ id: number; modell: string; stueck: bigint }>>`
+        SELECT m.id AS id, m.modell AS modell, COUNT(DISTINCT tm.teilId) AS stueck
+        FROM \`MobilModell\` m
+        JOIN \`MobilTeilModell\` tm ON tm.modellId = m.id
+        WHERE m.hersteller = ${input.hersteller}
+        GROUP BY m.id, m.modell`;
+      return rows
+        .map((r) => ({ id: r.id, modell: r.modell, stueck: Number(r.stueck) }))
+        .sort((a, b) => a.modell.localeCompare(b.modell, "de", { numeric: true }));
+    }),
+
+  // Teile eines Modells, gruppiert nach Teiltyp: Gesamt-Stückzahl + Aufschlüsselung
+  // je Colli. Stückzahl = COUNT der MobilTeil (1 LogID = 1 Stück); ein Teil ist
+  // einem Modell über die Verknüpfung genau einmal zugeordnet → kein Doppelzählen.
+  teileProModell: view
+    .input(z.object({ modellId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const rows = await prisma.$queryRaw<Array<{ teiltyp: string | null; colli: string | null; anzahl: bigint }>>`
+        SELECT tt.name AS teiltyp, t.colli AS colli, COUNT(*) AS anzahl
+        FROM \`MobilTeilModell\` tm
+        JOIN \`MobilTeil\` t      ON t.id = tm.teilId
+        LEFT JOIN \`MobilTeiltyp\` tt ON tt.id = t.teiltypId
+        WHERE tm.modellId = ${input.modellId}
+        GROUP BY tt.name, t.colli`;
+
+      // Nach Teiltyp gruppieren (Collis je Teiltyp, Anzahl summieren).
+      const map = new Map<string, { teiltyp: string; stueck: number; collis: { colli: string; anzahl: number }[] }>();
+      for (const r of rows) {
+        const teiltyp = r.teiltyp ?? "ohne Teiltyp";
+        const anzahl  = Number(r.anzahl);
+        const g = map.get(teiltyp) ?? { teiltyp, stueck: 0, collis: [] };
+        g.stueck += anzahl;
+        g.collis.push({ colli: r.colli ?? "ohne Colli", anzahl });
+        map.set(teiltyp, g);
+      }
+
+      // Konsistente Teiltyp-Reihenfolge (Akku, Display, …), Unbekanntes ans Ende.
+      const ord = (name: string) => {
+        const i = (MOBIL_TEILTYPEN as readonly string[]).indexOf(name);
+        return i === -1 ? MOBIL_TEILTYPEN.length : i;
+      };
+      const teiltypen = [...map.values()]
+        .sort((a, b) => ord(a.teiltyp) - ord(b.teiltyp) || a.teiltyp.localeCompare(b.teiltyp, "de"))
+        .map((g) => ({
+          ...g,
+          collis: g.collis.sort((a, b) => b.anzahl - a.anzahl || a.colli.localeCompare(b.colli, "de", { numeric: true })),
+        }));
+
+      const gesamt = teiltypen.reduce((s, g) => s + g.stueck, 0);
+      return { gesamt, teiltypen };
+    }),
 });

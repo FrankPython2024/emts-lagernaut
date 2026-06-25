@@ -14,6 +14,7 @@ export default function MobilPage() {
   const darfVerwalten = has("MOBIL_MANAGE");
 
   const { show } = useToast();
+  const utils = api.useUtils();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [fileName, setFileName] = useState<string | null>(null);
@@ -21,6 +22,10 @@ export default function MobilPage() {
   const [trocken, setTrocken]   = useState(true); // Sicherheit: erst Vorschau
   const [bericht, setBericht]   = useState<MobilImportBericht | null>(null);
   const [berichtWarTrocken, setBerichtWarTrocken] = useState(false);
+
+  // Browsing-Auswahl (Hersteller → Modell → Teile).
+  const [selHersteller, setSelHersteller] = useState<string | null>(null);
+  const [selModellId, setSelModellId]     = useState<number | null>(null);
 
   const importieren = api.mobil.importieren.useMutation({
     onSuccess: (b, vars) => {
@@ -32,9 +37,27 @@ export default function MobilPage() {
           : `✅ Import fertig — ${b.neu} neu, ${b.aktualisiert} aktualisiert`,
         vars.dryRun ? "info" : "success",
       );
+      // Echt-Import → Browsing-Daten frisch ziehen.
+      if (!vars.dryRun) {
+        void utils.mobil.hersteller.invalidate();
+        void utils.mobil.modelle.invalidate();
+        void utils.mobil.teileProModell.invalidate();
+      }
     },
     onError: (e) => show(e.message, "error"),
   });
+
+  // ── Browsing-Queries (read-only, nur mit MOBIL_VIEW) ──────────────────────────
+  const herstellerQ = api.mobil.hersteller.useQuery(undefined, { enabled: darfSehen });
+  const modelleQ = api.mobil.modelle.useQuery(
+    { hersteller: selHersteller ?? "" },
+    { enabled: darfSehen && !!selHersteller },
+  );
+  const teileQ = api.mobil.teileProModell.useQuery(
+    { modellId: selModellId ?? 0 },
+    { enabled: darfSehen && selModellId != null },
+  );
+  const selModellName = modelleQ.data?.find((m) => m.id === selModellId)?.modell ?? "";
 
   if (permsLoading) {
     return <div className="p-8 text-center text-base text-[#65676b] dark:text-[#b0b3b8]">Lade Berechtigungen…</div>;
@@ -199,6 +222,151 @@ export default function MobilPage() {
           )}
         </section>
       )}
+
+      {/* ── Bestand durchsuchen ────────────────────────────────────────────────── */}
+      <section aria-labelledby="browse-titel" className="space-y-6">
+        <h2 id="browse-titel" className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">🔎 Bestand durchsuchen</h2>
+
+        {/* Schritt 1: Hersteller */}
+        <div className="space-y-2">
+          <Schrittkopf nr={1} text="Hersteller wählen" />
+          {herstellerQ.isLoading ? (
+            <Laden />
+          ) : !herstellerQ.data?.length ? (
+            <Leer text="Noch keine Teile importiert. Lade oben eine CSV hoch." />
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {herstellerQ.data.map((h) => {
+                const aktiv = selHersteller === h.hersteller;
+                return (
+                  <button
+                    key={h.hersteller}
+                    type="button"
+                    aria-pressed={aktiv}
+                    onClick={() => { setSelHersteller(h.hersteller); setSelModellId(null); }}
+                    className="text-left rounded-2xl border-2 p-4 min-h-[88px] transition-colors"
+                    style={{
+                      borderColor: aktiv ? AKZENT : "#ced4da66",
+                      background:  aktiv ? `${AKZENT}14` : "transparent",
+                    }}
+                  >
+                    <div className="text-xl font-black text-[#202F61] dark:text-[#e4e6eb]">{h.hersteller}</div>
+                    <div className="mt-1 text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                      {h.modelle} {h.modelle === 1 ? "Modell" : "Modelle"} · <strong>{h.teile}</strong> Teile
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Schritt 2: Modelle */}
+        {selHersteller && (
+          <div className="space-y-2">
+            <Schrittkopf nr={2} text={`Modell wählen — ${selHersteller}`} />
+            {modelleQ.isLoading ? (
+              <Laden />
+            ) : !modelleQ.data?.length ? (
+              <Leer text="Keine Modelle mit Teilen." />
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-2">
+                {modelleQ.data.map((m) => {
+                  const aktiv = selModellId === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      aria-pressed={aktiv}
+                      onClick={() => setSelModellId(m.id)}
+                      className="flex items-center justify-between gap-3 rounded-xl border-2 px-4 min-h-[56px] transition-colors"
+                      style={{
+                        borderColor: aktiv ? AKZENT : "#ced4da66",
+                        background:  aktiv ? `${AKZENT}14` : "transparent",
+                      }}
+                    >
+                      <span className="text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{m.modell}</span>
+                      <span
+                        className="flex-shrink-0 rounded-lg px-3 py-1 text-sm font-bold tabular-nums"
+                        style={{ background: `${AKZENT}1a`, color: AKZENT }}
+                      >
+                        {m.stueck} Stück
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Schritt 3: Teile je Teiltyp */}
+        {selModellId != null && (
+          <div className="space-y-2">
+            <Schrittkopf
+              nr={3}
+              text={`Teile — ${selModellName}${teileQ.data ? ` · ${teileQ.data.gesamt} Stück gesamt` : ""}`}
+            />
+            {teileQ.isLoading ? (
+              <Laden />
+            ) : !teileQ.data?.teiltypen.length ? (
+              <Leer text="Keine Teile für dieses Modell." />
+            ) : (
+              <div className="space-y-3">
+                {teileQ.data.teiltypen.map((g) => (
+                  <div
+                    key={g.teiltyp}
+                    className="rounded-2xl border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] p-4 shadow-sm"
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-lg font-bold text-[#202F61] dark:text-[#e4e6eb]">{g.teiltyp}</span>
+                      <span className="text-lg font-black tabular-nums text-[#202F61] dark:text-[#e4e6eb]">
+                        {g.stueck} Stück
+                      </span>
+                    </div>
+                    <ul className="mt-2 grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                      {g.collis.map((c) => (
+                        <li key={c.colli} className="flex justify-between gap-2 tabular-nums">
+                          <span className="truncate">Colli {c.colli}</span>
+                          <span className="flex-shrink-0 font-semibold">{c.anzahl}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// Schritt-Überschrift mit nummeriertem Marker.
+function Schrittkopf({ nr, text }: { nr: number; text: string }) {
+  return (
+    <h3 className="flex items-center gap-2 text-lg font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+      <span
+        className="inline-flex items-center justify-center w-7 h-7 rounded-full text-white text-sm font-black flex-shrink-0"
+        style={{ background: AKZENT }}
+        aria-hidden
+      >
+        {nr}
+      </span>
+      {text}
+    </h3>
+  );
+}
+
+function Laden() {
+  return <div role="status" className="text-base text-[#65676b] dark:text-[#b0b3b8] py-3">⏳ Lade…</div>;
+}
+
+function Leer({ text }: { text: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-[#ced4da] dark:border-[#3e4042] p-5 text-base text-[#65676b] dark:text-[#b0b3b8]">
+      {text}
     </div>
   );
 }
