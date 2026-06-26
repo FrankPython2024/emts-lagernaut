@@ -48,6 +48,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/admin/lagerplaetze", label: "Lagerplätze",  icon: "🗄️", permission: "LAGERPLATZ_VIEW" },
       { href: "/admin/verbrauchsmaterial", label: "Verbrauchsmaterial", icon: "📦", permission: "MATERIAL_VIEW" },
       { href: "/admin/mobil",        label: "Mobil-Ersatzteile", icon: "📱", permission: "MOBIL_VIEW" },
+      { href: "/admin/mobil/statistik", label: "Mobil-Statistik", icon: "📊", permission: "MOBIL_VIEW" },
       { href: "/admin/mobil/import", label: "Mobil-Import",      icon: "📥", permission: "MOBIL_MANAGE" },
     ],
   },
