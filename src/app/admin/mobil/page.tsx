@@ -7,7 +7,7 @@ import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
 import {
-  baueCsv, baueZwischenablage, ladeCsv, ladeXlsx, kopiereText, sichererDateiname,
+  baueCsv, baueZwischenablage, ladeCsv, ladeXlsx, xlsxVorladen, kopiereText, sichererDateiname,
   type MobilExportZeile,
 } from "@/lib/mobil/export";
 
@@ -203,6 +203,10 @@ function MobilModellModal({
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  // Excel-Bibliothek vorladen, sobald das Modal offen ist — dann ist der XLSX-Export
+  // beim Klick rein synchron (keine verlorene User-Geste durch await import(...)).
+  useEffect(() => { void xlsxVorladen(); }, []);
+
   const teileQ = api.mobil.teileProModell.useQuery({ modellId });
 
   return (
@@ -290,7 +294,6 @@ function TeiltypCard({
   const { show } = useToast();
   const utils = api.useUtils();
   const [offen, setOffen] = useState(false);
-  const [exportLaeuft, setExportLaeuft] = useState(false);
 
   // Mindestbestand (Soll) setzen — nur MOBIL_MANAGE.
   const [sollInput, setSollInput] = useState<string>(soll != null ? String(soll) : "");
@@ -310,10 +313,10 @@ function TeiltypCard({
   }
   const sollId = `soll-${modellId}-${teiltyp.replace(/\s+/g, "-")}`;
 
-  const logIdsQ = api.mobil.logIdsProTeiltyp.useQuery(
-    { modellId, teiltyp },
-    { enabled: offen },
-  );
+  // Immer laden (nicht erst beim Aufklappen), damit der Export die Zeilen SYNCHRON
+  // aus dem Cache nehmen kann — ein async-Nachladen im Klick-Handler würde die
+  // User-Geste verlieren und den Download still blockieren.
+  const logIdsQ = api.mobil.logIdsProTeiltyp.useQuery({ modellId, teiltyp });
 
   // LogIDs nach Colli gruppieren (Liste ist bereits nach colli, logId sortiert).
   const gruppen = useMemo(() => {
@@ -328,30 +331,47 @@ function TeiltypCard({
     return [...map.entries()];
   }, [logIdsQ.data]);
 
-  // Export: LogIDs der Gruppe imperativ holen (nutzt Cache, falls schon geladen).
-  async function hole(): Promise<MobilExportZeile[]> {
-    const rows = await utils.mobil.logIdsProTeiltyp.fetch({ modellId, teiltyp });
-    return rows.map((r) => ({
+  // Export: die BEREITS geladenen Zeilen synchron aus dem Cache (logIdsQ.data) mappen
+  // — kein async-Nachladen im Klick-Handler (das würde die User-Geste verlieren).
+  function holeRows(): MobilExportZeile[] {
+    return (logIdsQ.data ?? []).map((r) => ({
       logId: r.logId, colli: r.colli, stellplatz: r.stellplatz, farbe: r.farbe,
       aan: r.aan, ek: r.ek, lieferant: r.lieferant, bezeichnung: r.bezeichnung,
     }));
   }
   const dateiname = (ext: string) => sichererDateiname(["mobil", hersteller, modellName, teiltyp], ext);
+  const exportBereit = !!logIdsQ.data; // Zeilen im Cache → Download synchron möglich
 
-  async function mitLadezustand(fn: () => Promise<void>) {
-    if (exportLaeuft) return;
-    setExportLaeuft(true);
-    try { await fn(); }
-    catch { show("Export fehlgeschlagen.", "error"); }
-    finally { setExportLaeuft(false); }
+  // Fehler NICHT mehr verschlucken: sichtbarer Toast + console.error.
+  function meldeFehler(e: unknown) {
+    console.error("Mobil-Export fehlgeschlagen:", e);
+    show("Export fehlgeschlagen: " + (e instanceof Error ? e.message : String(e)), "error");
   }
-  const onCopy = () => mitLadezustand(async () => {
-    const rows = await hole();
-    const ok = await kopiereText(baueZwischenablage(rows));
-    show(ok ? `Kopiert ✓ (${rows.length} Zeilen, Spalten)` : "Kopieren fehlgeschlagen.", ok ? "success" : "error");
-  });
-  const onCsv = () => mitLadezustand(async () => { ladeCsv(dateiname("csv"), baueCsv(await hole())); });
-  const onXlsx = () => mitLadezustand(async () => { await ladeXlsx(dateiname("xlsx"), await hole()); });
+
+  // CSV/XLSX SYNCHRON in der Klick-Geste auslösen (kein await vor dem Download).
+  function onCsv() {
+    try {
+      const rows = holeRows();
+      if (!rows.length) { show("Keine Zeilen zum Exportieren.", "warning"); return; }
+      ladeCsv(dateiname("csv"), baueCsv(rows));
+    } catch (e) { meldeFehler(e); }
+  }
+  function onXlsx() {
+    try {
+      const rows = holeRows();
+      if (!rows.length) { show("Keine Zeilen zum Exportieren.", "warning"); return; }
+      ladeXlsx(dateiname("xlsx"), rows); // synchron — xlsx ist beim Modal-Öffnen vorgeladen
+    } catch (e) { meldeFehler(e); }
+  }
+  // Zwischenablage: nur die LogIDs. Clipboard-API toleriert das await nach der Geste.
+  async function onCopy() {
+    try {
+      const rows = holeRows();
+      if (!rows.length) { show("Keine LogIDs zum Kopieren.", "warning"); return; }
+      const ok = await kopiereText(baueZwischenablage(rows));
+      show(ok ? `${rows.length} LogIDs kopiert` : "Kopieren fehlgeschlagen.", ok ? "success" : "error");
+    } catch (e) { meldeFehler(e); }
+  }
 
   const btn = "inline-flex items-center justify-center gap-1 rounded-lg px-3 min-h-[44px] text-sm font-bold border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3a3b3c] disabled:opacity-40 transition-colors";
 
@@ -370,9 +390,9 @@ function TeiltypCard({
           <span className="text-lg font-black tabular-nums text-[#202F61] dark:text-[#e4e6eb]">{stueck} Stück</span>
         </button>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button type="button" aria-label={`${teiltyp}-Tabelle in die Zwischenablage kopieren`} title="Tabelle kopieren (LogID, Colli, AAN, EK, Lieferant …)" onClick={onCopy} disabled={exportLaeuft} className={btn}>📋</button>
-          <button type="button" aria-label={`${teiltyp} als CSV herunterladen`} title="CSV" onClick={onCsv} disabled={exportLaeuft} className={btn}>⬇ CSV</button>
-          <button type="button" aria-label={`${teiltyp} als Excel herunterladen`} title="Excel (.xlsx)" onClick={onXlsx} disabled={exportLaeuft} className={btn}>⬇ XLSX</button>
+          <button type="button" aria-label={`${teiltyp}: LogIDs in die Zwischenablage kopieren`} title={exportBereit ? "LogIDs kopieren (eine pro Zeile)" : "Lädt…"} onClick={onCopy} disabled={!exportBereit} className={btn}>📋</button>
+          <button type="button" aria-label={`${teiltyp} als CSV herunterladen`} title={exportBereit ? "CSV (alle Spalten)" : "Lädt…"} onClick={onCsv} disabled={!exportBereit} className={btn}>⬇ CSV</button>
+          <button type="button" aria-label={`${teiltyp} als Excel herunterladen`} title={exportBereit ? "Excel .xlsx (alle Spalten)" : "Lädt…"} onClick={onXlsx} disabled={!exportBereit} className={btn}>⬇ XLSX</button>
         </div>
       </div>
 

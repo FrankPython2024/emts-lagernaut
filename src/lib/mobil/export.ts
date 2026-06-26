@@ -38,11 +38,10 @@ export function baueCsv(zeilen: MobilExportZeile[]): string {
   return "﻿" + matrix.map((z) => z.map(csvFeld).join(";")).join("\r\n");
 }
 
-// Zwischenablage: TAB-getrennt mit Header (klebt in Excel/Sheets als Spalten ein).
-// Tabs/Zeilenumbrüche in Feldern → Leerzeichen, damit die Tabellenstruktur hält.
+// Zwischenablage: NUR die LogIDs, eine pro Zeile — kein Header, keine weiteren
+// Spalten. (CSV/XLSX behalten alle Spalten; nur die Zwischenablage ist reduziert.)
 export function baueZwischenablage(zeilen: MobilExportZeile[]): string {
-  const matrix = [[...SPALTEN], ...zeilen.map(zeileAlsArray)];
-  return matrix.map((z) => z.map((c) => c.replace(/[\t\r\n]+/g, " ")).join("\t")).join("\n");
+  return zeilen.map((z) => z.logId).join("\n");
 }
 
 // Dateiname robust: Teile verbinden, Sonderzeichen/Leerzeichen → "_".
@@ -72,14 +71,32 @@ export function ladeCsv(dateiname: string, csv: string): void {
   ladeBlob(dateiname, new Blob([csv], { type: "text/csv;charset=utf-8;" }));
 }
 
-// Echte .xlsx via SheetJS (dynamisch geladen).
-export async function ladeXlsx(dateiname: string, zeilen: MobilExportZeile[]): Promise<void> {
-  const XLSX = await import("xlsx");
+// SheetJS wird lazy geladen (nicht im Initial-Bundle), aber VOR der Klick-Geste
+// vorgeladen (xlsxVorladen beim Modal-Öffnen). So ist ladeXlsx beim Klick rein
+// SYNCHRON — kein `await import(...)`, das die User-Geste kosten und den Download
+// still blockieren würde.
+let xlsxModul: typeof import("xlsx") | null = null;
+
+// Idempotent: lädt SheetJS einmalig in den Cache. Beim Öffnen des Export-Modals
+// aufrufen, damit die Lib beim XLSX-Klick bereits da ist.
+export async function xlsxVorladen(): Promise<void> {
+  if (!xlsxModul) xlsxModul = await import("xlsx");
+}
+
+// Echte .xlsx via SheetJS — SYNCHRON. Setzt voraus, dass xlsxVorladen() bereits lief.
+// Download über denselben Blob-Weg wie CSV (XLSX.writeFile kann Gesten-/Bundle-
+// Probleme haben), damit der Klick zuverlässig herunterlädt.
+export function ladeXlsx(dateiname: string, zeilen: MobilExportZeile[]): void {
+  if (!xlsxModul) {
+    throw new Error("Excel-Bibliothek noch nicht geladen — bitte kurz warten und erneut klicken.");
+  }
+  const XLSX = xlsxModul;
   const matrix = [[...SPALTEN], ...zeilen.map(zeileAlsArray)];
   const ws = XLSX.utils.aoa_to_sheet(matrix);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Teile");
-  XLSX.writeFile(wb, dateiname);
+  const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+  ladeBlob(dateiname, new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
 }
 
 // Text in die Zwischenablage. Bevorzugt Clipboard-API (HTTPS), Fallback über ein
