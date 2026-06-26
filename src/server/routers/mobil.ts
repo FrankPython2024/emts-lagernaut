@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import { runMobilImport } from "@/modules/mobil/import";
@@ -38,11 +39,11 @@ function teiltypRang(name: string): number {
 // Ist-Menge = aktive Teile (ausgeschieden=false) DISTINCT über die Verknüpfung.
 async function ladeUnterMindestbestand() {
   const rows = await prisma.$queryRaw<Array<{
-    hersteller: string; modell: string; teiltyp: string; ist: bigint; soll: number;
+    modellId: number; hersteller: string; modell: string; teiltyp: string; ist: bigint; soll: number;
   }>>`
-    SELECT x.hersteller, x.modell, x.teiltyp, x.ist, x.soll
+    SELECT x.modellId, x.hersteller, x.modell, x.teiltyp, x.ist, x.soll
     FROM (
-      SELECT m.hersteller AS hersteller, m.modell AS modell, tt.name AS teiltyp,
+      SELECT mb.modellId AS modellId, m.hersteller AS hersteller, m.modell AS modell, tt.name AS teiltyp,
              ( SELECT COUNT(*) FROM \`MobilTeilModell\` tm
                JOIN \`MobilTeil\` t ON t.id = tm.teilId
                WHERE tm.modellId = mb.modellId AND t.teiltypId = mb.teiltypId
@@ -58,7 +59,7 @@ async function ladeUnterMindestbestand() {
 
   const gruppen = rows.map((r) => {
     const ist = Number(r.ist);
-    return { hersteller: r.hersteller, modell: r.modell, teiltyp: r.teiltyp, ist, soll: r.soll, fehlt: r.soll - ist };
+    return { modellId: r.modellId, hersteller: r.hersteller, modell: r.modell, teiltyp: r.teiltyp, ist, soll: r.soll, fehlt: r.soll - ist };
   });
   return { anzahl: gruppen.length, gruppen };
 }
@@ -424,4 +425,61 @@ export const mobilRouter = createTRPCRouter({
     const punkte = rows.map((r) => ({ zeitpunkt: r.zeitpunkt, erfasst: num(r.anzahl) }));
     return { genugDaten: punkte.length >= 2, zeitpunkte: punkte.length, punkte };
   }),
+
+  // Drill-down: die Einzelteile hinter einem Statistik-Diagramm. EIN Filter-Objekt
+  // für alle Fälle — Modell (kompatible Teile), Teiltyp, oder beides; ausgeschieden
+  // schaltet zwischen aktivem Bestand (false, Default) und Abgängen (true) um.
+  // Server-seitig gefiltert + paginiert (skip/take) — KEIN Voll-Load in den Client.
+  // Zeilenform identisch zu logIdsProTeiltyp → gleiche Chip-Darstellung wiederverwendbar.
+  statTeileDetail: view
+    .input(z.object({
+      modellId:      z.number().int().positive().optional(),
+      teiltyp:       z.string().trim().min(1).optional(),
+      ausgeschieden: z.boolean().optional(), // default false = aktiver Bestand
+      seite:         z.number().int().min(1).default(1),
+      proSeite:      z.number().int().min(1).max(200).default(50),
+    }))
+    .query(async ({ input }) => {
+      const where: Prisma.MobilTeilWhereInput = {
+        ausgeschieden: input.ausgeschieden ?? false,
+        ...(input.teiltyp  ? { teiltyp: { name: input.teiltyp } } : {}),
+        ...(input.modellId ? { modelle: { some: { modellId: input.modellId } } } : {}),
+      };
+
+      // Zähler + Seite parallel. Sortierung wie bisher: Colli (leere zuletzt), dann
+      // LogID — DB-seitig (nulls: "last" ab Prisma 5), damit Pagination konsistent ist.
+      const [gesamt, teile] = await Promise.all([
+        prisma.mobilTeil.count({ where }),
+        prisma.mobilTeil.findMany({
+          where,
+          select: {
+            logId: true, colli: true, stellplatz: true, originalBezeichnung: true,
+            ek: true, aan: true, lieferant: true, farbe: true,
+            modelle: { select: { modell: { select: { id: true, modell: true } } } },
+          },
+          orderBy: [{ colli: { sort: "asc", nulls: "last" } }, { logId: "asc" }],
+          skip: (input.seite - 1) * input.proSeite,
+          take: input.proSeite,
+        }),
+      ]);
+
+      const zeilen = teile.map((t) => ({
+        logId:       t.logId,
+        colli:       t.colli,
+        stellplatz:  t.stellplatz,
+        bezeichnung: t.originalBezeichnung,
+        ek:          ekZahl(t.ek),
+        aan:         t.aan,
+        lieferant:   t.lieferant,
+        farbe:       t.farbe,
+        // Weitere kompatible Modelle; bei Modell-Drilldown das aktuelle ausblenden.
+        auch:        t.modelle
+          .map((mm) => mm.modell)
+          .filter((m) => m.id !== input.modellId)
+          .map((m) => m.modell)
+          .sort((a, b) => a.localeCompare(b, "de", { numeric: true })),
+      }));
+
+      return { zeilen, gesamt, seite: input.seite, proSeite: input.proSeite };
+    }),
 });
