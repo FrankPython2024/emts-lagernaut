@@ -78,12 +78,13 @@ export const mobilRouter = createTRPCRouter({
   // MANUELL zugeordnete Teile bleiben in der Zuordnung unangetastet.
   importieren: manage
     .input(z.object({
-      csvText:   z.string().min(1, "Leere CSV"),
-      dateiname: z.string().max(255).optional(),
-      dryRun:    z.boolean().optional(), // true → nur Bericht, schreibt NICHTS
+      csvText:      z.string().min(1, "Leere CSV"),
+      dateiname:    z.string().max(255).optional(),
+      dryRun:       z.boolean().optional(), // true → nur Bericht, schreibt NICHTS
+      vollAbgleich: z.boolean().optional(), // true → Abgänge herstellerübergreifend (Voll-Export)
     }))
     .mutation(async ({ input }) => {
-      return runMobilImport(input.csvText, { dryRun: input.dryRun });
+      return runMobilImport(input.csvText, { dryRun: input.dryRun, vollAbgleich: input.vollAbgleich });
     }),
 
   // Kurz-Übersicht (Kennzahlen) — kein Anzeige-Interface, nur Zähler.

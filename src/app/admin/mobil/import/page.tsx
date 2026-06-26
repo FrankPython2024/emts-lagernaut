@@ -19,6 +19,7 @@ export default function MobilImportPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvText, setCsvText]   = useState<string | null>(null);
   const [trocken, setTrocken]   = useState(true); // Sicherheit: erst Vorschau
+  const [vollAbgleich, setVollAbgleich] = useState(false); // Default: nur Hersteller des Imports
   const [bericht, setBericht]   = useState<MobilImportBericht | null>(null);
   const [berichtWarTrocken, setBerichtWarTrocken] = useState(false);
 
@@ -65,7 +66,7 @@ export default function MobilImportPage() {
   function starten() {
     if (!csvText || importieren.isPending) return;
     setBericht(null);
-    importieren.mutate({ csvText, dateiname: fileName ?? undefined, dryRun: trocken });
+    importieren.mutate({ csvText, dateiname: fileName ?? undefined, dryRun: trocken, vollAbgleich });
   }
 
   const laeuft = importieren.isPending;
@@ -131,6 +132,26 @@ export default function MobilImportPage() {
           </span>
         </label>
 
+        {/* Voll-Abgleich (Abgangs-Erkennung über alle Hersteller) */}
+        <label className="flex items-start gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={vollAbgleich}
+            onChange={(e) => setVollAbgleich(e.target.checked)}
+            disabled={laeuft}
+            className="mt-1 w-6 h-6 accent-[#b25e00]"
+          />
+          <span className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">
+            <strong>Kompletter Export</strong> — Abgänge über <strong>alle</strong> Hersteller erkennen.
+            <span className="block text-sm text-[#65676b] dark:text-[#b0b3b8]">
+              Standardmäßig (Häkchen leer) werden Abgänge <strong>nur für die im Import enthaltenen
+              Hersteller</strong> erkannt — ein Apple-Export lässt Samsung/Google/Xiaomi unberührt.
+              Nur ankreuzen, wenn die Datei wirklich <strong>alle</strong> Hersteller vollständig
+              enthält; sonst werden fehlende Hersteller fälschlich als ausgeschieden markiert.
+            </span>
+          </span>
+        </label>
+
         {/* Start-Button */}
         <div className="flex flex-wrap items-center justify-end gap-3">
           {laeuft && (
@@ -160,6 +181,21 @@ export default function MobilImportPage() {
             {berichtWarTrocken ? "🔎 Trockenlauf-Bericht (nichts gespeichert)" : "✅ Import-Bericht"}
           </h2>
 
+          {/* Abgangs-Modus + Scope (Hersteller) */}
+          <div className="rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f7f8fa] dark:bg-[#18191a] px-4 py-3 text-sm">
+            <span className="font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">
+              Abgangs-Erkennung: {bericht.modus === "voll"
+                ? "Voll-Abgleich (alle Hersteller)"
+                : "gescopt (nur Hersteller des Imports)"}
+            </span>
+            <span className="block mt-0.5 text-[#65676b] dark:text-[#b0b3b8]">
+              {bericht.herstellerImport.length > 0
+                ? <>Hersteller im Import: <strong>{bericht.herstellerImport.join(", ")}</strong>
+                    {bericht.modus === "gescopt" && " — nur deren fehlende Teile werden ausgeschieden."}</>
+                : "Kein Hersteller eindeutig erkannt — es werden keine Teile ausgeschieden."}
+            </span>
+          </div>
+
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <Kennzahl label="Zeilen gesamt"   wert={bericht.importiertGesamt} />
             <Kennzahl label="Erkannt"         wert={bericht.erkannt}  ton="gut"
@@ -169,7 +205,19 @@ export default function MobilImportPage() {
             <Kennzahl label={berichtWarTrocken ? "Würden aktualisiert" : "Aktualisiert"} wert={bericht.aktualisiert}
               zusatz={bericht.manuellGeschuetzt > 0 ? `${bericht.manuellGeschuetzt}× manuell geschützt` : undefined} />
             <Kennzahl label="Neue Modelle / Teiltypen" wert={`${bericht.neueModelle} / ${bericht.neueTeiltypen}`} />
+            <Kennzahl
+              label={berichtWarTrocken ? "Würden ausgeschieden" : "Ausgeschieden (Abgang)"}
+              wert={bericht.anzahlAusgeschieden}
+              ton={bericht.anzahlAusgeschieden > 0 ? "warn" : undefined}
+              zusatz={bericht.anzahlWiederEingang > 0 ? `${bericht.anzahlWiederEingang}× Wieder-Eingang` : undefined}
+            />
           </div>
+
+          {bericht.warnung && (
+            <p className="text-sm font-semibold text-[#b25e00] dark:text-[#ffb74d]">
+              ⚠️ {bericht.warnung}
+            </p>
+          )}
 
           {bericht.uebersprungen > 0 && (
             <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
