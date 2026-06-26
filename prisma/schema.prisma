@@ -867,10 +867,18 @@ model MobilTeil {
   teiltyp             MobilTeiltyp?        @relation(fields: [teiltypId], references: [id])
   zuordnungStatus     MobilZuordnungStatus @default(REVIEW)
   importiertAm        DateTime             @default(now())
+  // Abgangs-Erkennung (Lagerfuchs-Muster): ein Teil, das im aktuellen Voll-Export
+  // fehlt, gilt als ausgeschieden (ausgeliefert) und zählt NICHT mehr zum Bestand,
+  // bleibt aber für Statistik/Verlauf erhalten. zuletztGesehenImport = Zeitstempel
+  // des letzten Imports, in dem die LogID vorkam (Marker für die Abgangs-Erkennung).
+  ausgeschieden        Boolean             @default(false)
+  ausgeschiedenAm      DateTime?
+  zuletztGesehenImport DateTime?
 
   @@index([modellId])
   @@index([teiltypId])
   @@index([zuordnungStatus])
+  @@index([ausgeschieden])
 }
 
 // Kompatibilität Teil ↔ Modell (n:m). Ein Eintrag je erkanntem kompatiblen Modell.

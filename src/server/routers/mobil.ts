@@ -33,12 +33,15 @@ export const mobilRouter = createTRPCRouter({
     }),
 
   // Kurz-Übersicht (Kennzahlen) — kein Anzeige-Interface, nur Zähler.
+  // Bestandszahlen (gesamt/erkannt/review/manuell) zählen NUR aktive Teile
+  // (ausgeschieden=false); ausgelieferte Teile sind aus dem Bestand raus.
+  // modelle/teiltypen sind Katalog-Zähler (Definitionen), kein Bestand.
   stats: view.query(async () => {
     const [gesamt, erkannt, review, manuell, modelle, teiltypen] = await Promise.all([
-      prisma.mobilTeil.count(),
-      prisma.mobilTeil.count({ where: { zuordnungStatus: "ERKANNT" } }),
-      prisma.mobilTeil.count({ where: { zuordnungStatus: "REVIEW" } }),
-      prisma.mobilTeil.count({ where: { zuordnungStatus: "MANUELL" } }),
+      prisma.mobilTeil.count({ where: { ausgeschieden: false } }),
+      prisma.mobilTeil.count({ where: { ausgeschieden: false, zuordnungStatus: "ERKANNT" } }),
+      prisma.mobilTeil.count({ where: { ausgeschieden: false, zuordnungStatus: "REVIEW" } }),
+      prisma.mobilTeil.count({ where: { ausgeschieden: false, zuordnungStatus: "MANUELL" } }),
       prisma.mobilModell.count(),
       prisma.mobilTeiltyp.count(),
     ]);
@@ -51,12 +54,15 @@ export const mobilRouter = createTRPCRouter({
   // Teile (DISTINCT MobilTeil über die Kompatibilitäts-Verknüpfung — ein Teil, das
   // zu mehreren Modellen passt, zählt pro Hersteller nur einmal).
   hersteller: view.query(async () => {
+    // Nur AKTIVE Teile (t.ausgeschieden = false) zählen — der Inner-Join auf
+    // MobilTeil schließt ausgeschiedene (ausgelieferte) Teile aus dem Bestand aus.
     const rows = await prisma.$queryRaw<Array<{ hersteller: string; modelle: bigint; teile: bigint }>>`
       SELECT m.hersteller AS hersteller,
              COUNT(DISTINCT m.id)        AS modelle,
              COUNT(DISTINCT tm.teilId)   AS teile
       FROM \`MobilModell\` m
       JOIN \`MobilTeilModell\` tm ON tm.modellId = m.id
+      JOIN \`MobilTeil\` t        ON t.id = tm.teilId AND t.ausgeschieden = false
       GROUP BY m.hersteller
       ORDER BY teile DESC, m.hersteller ASC`;
     return rows.map((r) => ({
@@ -72,10 +78,13 @@ export const mobilRouter = createTRPCRouter({
   modelle: view
     .input(z.object({ hersteller: z.string().trim().min(1) }))
     .query(async ({ input }) => {
+      // Nur AKTIVE Teile zählen (Inner-Join auf MobilTeil mit ausgeschieden=false);
+      // Modelle ohne aktiven Bestand fallen damit aus der Liste.
       const rows = await prisma.$queryRaw<Array<{ id: number; modell: string; stueck: bigint }>>`
         SELECT m.id AS id, m.modell AS modell, COUNT(DISTINCT tm.teilId) AS stueck
         FROM \`MobilModell\` m
         JOIN \`MobilTeilModell\` tm ON tm.modellId = m.id
+        JOIN \`MobilTeil\` t        ON t.id = tm.teilId AND t.ausgeschieden = false
         WHERE m.hersteller = ${input.hersteller}
         GROUP BY m.id, m.modell`;
       return rows
@@ -94,17 +103,22 @@ export const mobilRouter = createTRPCRouter({
         FROM \`MobilTeilModell\` tm
         JOIN \`MobilTeil\` t      ON t.id = tm.teilId
         LEFT JOIN \`MobilTeiltyp\` tt ON tt.id = t.teiltypId
-        WHERE tm.modellId = ${input.modellId}
+        WHERE tm.modellId = ${input.modellId} AND t.ausgeschieden = false
         GROUP BY tt.name, t.colli`;
 
       // Soll-Mengen (Mindestbestand) + Teiltyp-Namen→Id-Auflösung laden, damit jede
       // Gruppe ihr Soll bekommt (Teiltyp-Referenz konsistent zu setMindestbestand).
-      const [mindest, teiltypAlle] = await Promise.all([
+      const [mindest, teiltypAlle, ausgeschieden] = await Promise.all([
         prisma.mobilMindestbestand.findMany({
           where:  { modellId: input.modellId },
           select: { teiltypId: true, sollMenge: true },
         }),
         prisma.mobilTeiltyp.findMany({ select: { id: true, name: true } }),
+        // Reiner Hinweis (NICHT im Bestand): wie viele Teile dieses Modells sind
+        // ausgeschieden (ausgeliefert)? Zählt nicht in stueck/gesamt.
+        prisma.mobilTeil.count({
+          where: { ausgeschieden: true, modelle: { some: { modellId: input.modellId } } },
+        }),
       ]);
       const teiltypIdByName = new Map(teiltypAlle.map((t) => [t.name, t.id]));
       const sollByTeiltypId = new Map(mindest.map((m) => [m.teiltypId, m.sollMenge]));
@@ -141,7 +155,7 @@ export const mobilRouter = createTRPCRouter({
         }));
 
       const gesamt = teiltypen.reduce((s, g) => s + g.stueck, 0);
-      return { gesamt, teiltypen };
+      return { gesamt, teiltypen, ausgeschieden };
     }),
 
   // Mindestbestand je Modell+Teiltyp setzen (Upsert über @@unique modellId+teiltypId).
@@ -181,7 +195,8 @@ export const mobilRouter = createTRPCRouter({
         SELECT m.hersteller AS hersteller, m.modell AS modell, tt.name AS teiltyp,
                ( SELECT COUNT(*) FROM \`MobilTeilModell\` tm
                  JOIN \`MobilTeil\` t ON t.id = tm.teilId
-                 WHERE tm.modellId = mb.modellId AND t.teiltypId = mb.teiltypId ) AS ist,
+                 WHERE tm.modellId = mb.modellId AND t.teiltypId = mb.teiltypId
+                   AND t.ausgeschieden = false ) AS ist,
                mb.sollMenge AS soll
         FROM \`MobilMindestbestand\` mb
         JOIN \`MobilModell\`   m  ON m.id  = mb.modellId
@@ -209,6 +224,7 @@ export const mobilRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const teile = await prisma.mobilTeil.findMany({
         where: {
+          ausgeschieden: false, // nur aktiver Bestand (ausgelieferte Teile raus)
           teiltyp: { name: input.teiltyp },
           modelle: { some: { modellId: input.modellId } },
         },

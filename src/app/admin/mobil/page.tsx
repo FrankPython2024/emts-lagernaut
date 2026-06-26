@@ -223,7 +223,12 @@ function MobilModellModal({
                 {modellName}
                 {teileQ.data ? <span className="text-[#65676b] dark:text-[#b0b3b8] font-bold"> · {teileQ.data.gesamt} Stück gesamt</span> : null}
               </h3>
-              <p className="mt-0.5 text-sm text-[#65676b] dark:text-[#b0b3b8]">Hersteller: {hersteller}</p>
+              <p className="mt-0.5 text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                Hersteller: {hersteller}
+                {teileQ.data && teileQ.data.ausgeschieden > 0 && (
+                  <span className="text-[#90939a] dark:text-[#8a8d91]"> · {teileQ.data.ausgeschieden} ausgeschieden (nicht im Bestand)</span>
+                )}
+              </p>
             </div>
             <button
               type="button"
