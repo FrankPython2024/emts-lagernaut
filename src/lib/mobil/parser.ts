@@ -310,6 +310,63 @@ export function farbeErkennen(rohBezeichnung: string): string | null {
   return null;
 }
 
+// ── 4c. Keyword-freie Hersteller+Modell-Erkennung (mit Fehltreffer-Schutz) ────
+// Manche Lieferanten-Wortlaute nennen KEIN Hersteller-Keyword, nur die angeklebte
+// Modellnummer: "Diagnostic Battery 13Pro …" (iPhone), "Backcover with Glue S22 …"
+// (Samsung). Diese Funktion leitet Hersteller+Modell daraus ab — aber NUR streng
+// abgesichert, damit keine Fremd-Hersteller-Zeile fälschlich zu Apple/Samsung wird.
+
+// Fremd-Hersteller-Keywords: stehen sie im Text, wird NICHTS keyword-frei abgeleitet.
+// (Verhindert "Redmi Note 11"→iPhone 11 und "Pixel 8"→iPhone 8 — Audit K1/M2.)
+const FREMD_KEYWORD = /\b(?:iphone|ipad|ipod|samsung|galaxy|pixel|google|xiaomi|redmi|poco)\b|\bsm-/;
+
+// Plausibilität: „sieht nach Ersatzteil aus" — verhindert, dass eine beliebige Zahl
+// ein Modell erfindet. Greift zusammen mit dem Suffix-Signal unten (Audit M2).
+const TEIL_KEYWORD = /batter|akku|display|screen|lcd|oled|touchscreen|digiti[sz]er|back\s?cover|back\s?glass|rear\s?cover|\bcover\b|camera|kamera|glas|frame|rahmen|\bsim\b|modul|assembly|einheit|bildschirm|lens/;
+
+// Eindeutiges Modellsignal: Modellnummer MIT Suffix (z. B. "13Pro", "S20 Ultra").
+const IPHONE_NUM_SUFFIX = /\b(?:1[0-6]|[89])\s*(?:pro\s*max|pro|plus|mini)\b/;
+const GALAXY_S_SUFFIX   = /\bs\d{1,2}\s*(?:ultra|plus|fe|\+)/;
+
+// Galaxy-S-Serie OHNE "galaxy"-Keyword: "S22"→Galaxy S22, "S20 Ultra"→Galaxy S20 Ultra,
+// "S10+"→Galaxy S10 Plus. `(?!\d)` verhindert, dass aus "S908"-artigen Codes ein Modell
+// wird; das fehlende abschließende \b lässt das angeklebte "+" als Plus-Suffix zu.
+function galaxyOhneKeyword(norm: string): string[] {
+  const out: string[] = [];
+  const re = /\bs(\d{1,2})(?!\d)\s*(ultra|plus|fe|\+)?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(norm)) !== null) {
+    const v = (m[2] ?? "").trim();
+    const suffix = v === "ultra" ? " Ultra" : v === "plus" || v === "+" ? " Plus" : v === "fe" ? " FE" : "";
+    out.push(`Galaxy S${m[1]}${suffix}`);
+  }
+  return eindeutig(out);
+}
+
+export function keywordFreieErkennung(
+  norm: string,
+): { hersteller: MobilHersteller; modelle: string[] } | null {
+  // HARTE Vorbedingung: kein anderes Hersteller-Keyword im Text (sonst kein Raten).
+  if (FREMD_KEYWORD.test(norm)) return null;
+  const teilHinweis = TEIL_KEYWORD.test(norm);
+
+  // 1) iPhone — nur die nummerierten Modelle (8/9/10–16). KEINE X-Familie/SE keyword-frei
+  //    (ein freistehendes "x" wäre ein Fehltreffer-Magnet). Plausibel, wenn der Text nach
+  //    Teil aussieht ODER die Nummer ein Suffix trägt.
+  const iphone = iphoneNummern(norm);
+  if (iphone.length > 0 && (teilHinweis || IPHONE_NUM_SUFFIX.test(norm))) {
+    return { hersteller: "Apple", modelle: eindeutig(iphone) };
+  }
+
+  // 2) Samsung Galaxy S-Serie (die \b-Lücke in iphoneNummern verhindert, dass die an "s"
+  //    geklebten Ziffern oben als iPhone-Nummer gelesen werden → hier landet z. B. "S22").
+  const galaxy = galaxyOhneKeyword(norm);
+  if (galaxy.length > 0 && (teilHinweis || GALAXY_S_SUFFIX.test(norm))) {
+    return { hersteller: "Samsung", modelle: galaxy };
+  }
+  return null;
+}
+
 // ── 5. Gesamt-Zuordnung ──────────────────────────────────────────────────────
 export function zuordnen(
   rohBezeichnung: string,
@@ -337,10 +394,16 @@ export function zuordnen(
   if (hersteller) {
     modelle = modellErkennen(norm, hersteller);
   } else {
-    // Keyword-frei (z. B. "Diagnostic Battery 13Pro …"): aus dem iPhone-Modell
-    // den Hersteller ableiten. Das ist kein Raten — "13Pro" ist eindeutig.
-    modelle = iphoneModelle(norm);
-    if (modelle.length > 0) hersteller = "Apple";
+    // Keyword-frei (z. B. "Diagnostic Battery 13Pro …" oder "Backcover … S22 …"):
+    // Hersteller+Modell aus der angeklebten Modellnummer ableiten — streng abgesichert
+    // (kein Fremd-Hersteller-Keyword, plausibler Teil-Kontext). Kein Raten.
+    const kf = keywordFreieErkennung(norm);
+    if (kf) {
+      hersteller = kf.hersteller;
+      modelle    = kf.modelle;
+    } else {
+      modelle = [];
+    }
   }
 
   const teiltyp = teiltypErkennen(norm);

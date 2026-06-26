@@ -12,6 +12,7 @@ import {
   teiltypErkennen,
   farbeErkennen,
   zuordnen,
+  keywordFreieErkennung,
   type MobilAliasTreffer,
 } from "../src/lib/mobil/parser";
 
@@ -142,6 +143,40 @@ console.log("\n══ ZUORDNUNG — REVIEW ══");
 check("Gerät ohne Teiltyp → REVIEW",
   kurz("Samsung Galaxy S22 Ultra; SM-S908. Original"),
   { h: "Samsung", m: ["Galaxy S22 Ultra"], t: null, sicher: false, mehrfach: false });
+
+// ── Keyword-freie Erkennung (neue Wortlaute) + Fehltreffer-Schutz (Audit M2/K1) ─
+console.log("\n══ KEYWORD-FREI + FEHLTREFFER-SCHUTZ ══");
+// iPhone-Akkus ohne "iPhone"-Keyword:
+check("keyword-frei iPhone: Diagnostic Battery 13Pro → iPhone 13 Pro, Akku",
+  kurz("Diagnostic Battery 13Pro 3095mAh Standard Capacity"),
+  { h: "Apple", m: ["iPhone 13 Pro"], t: "Akku", sicher: true, mehrfach: false });
+// Samsung ohne "Galaxy"/"Samsung"-Keyword:
+check("keyword-frei Samsung: Backcover with Glue S22 → Galaxy S22, Backcover",
+  kurz("Backcover with Glue S22 - OEM NEW"),
+  { h: "Samsung", m: ["Galaxy S22"], t: "Backcover", sicher: true, mehrfach: false });
+check("keyword-frei Samsung: Display for S20 Ultra → Galaxy S20 Ultra, Display",
+  kurz("Display for S20 Ultra Color Cosmic Gray"),
+  { h: "Samsung", m: ["Galaxy S20 Ultra"], t: "Display", sicher: true, mehrfach: false });
+check("keyword-frei Samsung: S10+ → Galaxy S10 Plus",
+  keywordFreieErkennung(bezeichnungNormalisieren("Backcover S10+ OEM")),
+  { hersteller: "Samsung", modelle: ["Galaxy S10 Plus"] });
+
+// FEHLTREFFER-SCHUTZ (MUSS): Fremd-Hersteller dürfen NIE keyword-frei zu iPhone werden.
+check("MUSS: Rear Cover … Xiaomi Redmi Note 11 → Xiaomi (NICHT iPhone 11)",
+  zuordnen("Rear Cover - Tarnish, Xiaomi Redmi Note 11").hersteller, "Xiaomi");
+check("MUSS: LCD Touchscreen, Google Pixel 8 → Google (NICHT iPhone 8)",
+  zuordnen("LCD Touchscreen, Google Pixel 8").hersteller, "Google");
+// Direkt auf der Schutzfunktion: Fremd-Keyword ⇒ kein keyword-freier Treffer.
+check("Schutz: 'redmi note 11' ⇒ keywordFreieErkennung = null",
+  keywordFreieErkennung("rear cover - tarnish, xiaomi redmi note 11"), null);
+check("Schutz: 'google pixel 8' ⇒ keywordFreieErkennung = null",
+  keywordFreieErkennung("lcd touchscreen, google pixel 8"), null);
+// Plausibilität (Audit M2): nackte Zahl ohne Teil-Kontext/Suffix erfindet KEIN Modell.
+check("Plausibilität: nackte '8' ohne Teil-Keyword/Suffix ⇒ null",
+  keywordFreieErkennung("box 8 pieces lot"), null);
+check("Plausibilität: Suffix allein reicht ('14 Pro') ⇒ iPhone 14 Pro",
+  keywordFreieErkennung("14 pro replacement"),
+  { hersteller: "Apple", modelle: ["iPhone 14 Pro"] });
 
 // ── Alias-Lookup (gelernte Zuordnung) ───────────────────────────────────────
 console.log("\n══ ALIAS-LOOKUP ══");
