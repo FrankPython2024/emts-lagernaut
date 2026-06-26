@@ -178,6 +178,37 @@ check("Plausibilität: Suffix allein reicht ('14 Pro') ⇒ iPhone 14 Pro",
   keywordFreieErkennung("14 pro replacement"),
   { hersteller: "Apple", modelle: ["iPhone 14 Pro"] });
 
+// ── Samsung S-Serie mit Keyword "Samsung", aber OHNE "Galaxy" (export 17 Reviews) ─
+console.log("\n══ SAMSUNG S-SERIE (Samsung ohne Galaxy) ══");
+check("Samsung S21+ Display → Galaxy S21 Plus + Display",
+  kurz("Samsung S21+ Display"),
+  { h: "Samsung", m: ["Galaxy S21 Plus"], t: "Display", sicher: true, mehrfach: false });
+check("Samsung S21 Display → Galaxy S21 + Display (NICHT Plus!) — Trennung",
+  kurz("Samsung S21 Display"),
+  { h: "Samsung", m: ["Galaxy S21"], t: "Display", sicher: true, mehrfach: false });
+check("Display for Samsung Galaxy S22 Back Cover → Galaxy S22 + Backcover (Konflikt gelöst)",
+  kurz("Display for Samsung Galaxy S22 Back Cover Phantom black"),
+  { h: "Samsung", m: ["Galaxy S22"], t: "Backcover", sicher: true, mehrfach: false });
+check("Display für Samsung S20 with Frame → Galaxy S20 + Display (Frame ≠ Konflikt)",
+  kurz("Display for Samsung S20 with Frame color silver"),
+  { h: "Samsung", m: ["Galaxy S20"], t: "Display", sicher: true, mehrfach: false });
+check("echte Review-Zeile: Display for Samsung S21+ with Frame Phantom Black",
+  kurz("Display for Samsung S21+ with Frame Phantom Black"),
+  { h: "Samsung", m: ["Galaxy S21 Plus"], t: "Display", sicher: true, mehrfach: false });
+check("echte Review-Zeile: Display for Samsung S21 Phantom Black with Frame + Glue → S21 (kein Plus)",
+  kurz("Display for Samsung S21 Phantom Black with Frame + Glue"),
+  { h: "Samsung", m: ["Galaxy S21"], t: "Display", sicher: true, mehrfach: false });
+check("Komplettgerät bleibt REVIEW (kein Teiltyp): Samsung Galaxy S22 Ultra; SM-S908. Original",
+  kurz("Samsung Galaxy S22 Ultra; SM-S908. Original"),
+  { h: "Samsung", m: ["Galaxy S22 Ultra"], t: null, sicher: false, mehrfach: false });
+check("SM-S908 allein ⇒ KEIN 'Galaxy S9' (modellErkennen leer)",
+  modellErkennen("sm-s908", "Samsung"), []);
+check("'Display … with Frame' bleibt Display (Frame ist kein Backcover-Marker)",
+  teiltypErkennen("display for samsung s20 with frame color silver"), "Display");
+check("S21 vs S21+ sind getrennte Modelle",
+  [modellErkennen("samsung s21", "Samsung"), modellErkennen("samsung s21+", "Samsung")],
+  [["Galaxy S21"], ["Galaxy S21 Plus"]]);
+
 // ── Alias-Lookup (gelernte Zuordnung) ───────────────────────────────────────
 console.log("\n══ ALIAS-LOOKUP ══");
 {

@@ -190,9 +190,22 @@ function ipadModelle(norm: string): string[] {
 
 function samsungModelle(norm: string): string[] {
   const out: string[] = [];
-  const re = /galaxy\s+([sanmj])\s*(\d{1,3})\s*(ultra|plus|\+|fe)?/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(norm)) !== null) {
+  // Galaxy S-Serie — Modellnummer S<N> (N=8..24), das "Galaxy"-Wort davor ist OPTIONAL.
+  // Deckt damit auch "Samsung S21+" (ohne "Galaxy") ab und ergänzt das bisherige
+  // "Galaxy S22". Suffix ausgeschrieben/einheitlich; angeklebtes "+" zählt als Plus
+  // (S21 und S21+ sind VERSCHIEDENE Modelle!). (?!\d) verhindert, dass 3-stellige
+  // SM-Codes ("SM-S908") als S9/S90 fehlgelesen werden.
+  const reS = /\bs(8|9|1\d|2[0-4])(?!\d)\s*(ultra|plus|fe|\+)?/g;
+  while ((m = reS.exec(norm)) !== null) {
+    const v      = (m[2] ?? "").trim();
+    const suffix = v === "ultra" ? " Ultra" : v === "plus" || v === "+" ? " Plus" : v === "fe" ? " FE" : "";
+    out.push(`Galaxy S${m[1]}${suffix}`);
+  }
+  // Galaxy A/N/M/J-Serien — nur MIT "Galaxy"-Keyword (einzelner Buchstabe+Zahl wäre
+  // ohne Keyword zu mehrdeutig).
+  const reSerie = /galaxy\s+([anmj])\s*(\d{1,3})\s*(ultra|plus|\+|fe)?/g;
+  while ((m = reSerie.exec(norm)) !== null) {
     const serie  = `${m[1].toUpperCase()}${m[2]}`;
     const suffix = m[3] === "ultra" ? " Ultra" : m[3] === "plus" || m[3] === "+" ? " Plus" : m[3] === "fe" ? " FE" : "";
     out.push(`Galaxy ${serie}${suffix}`);
@@ -279,7 +292,16 @@ export function teiltypenErkennen(norm: string): MobilTeiltyp[] {
 
 export function teiltypErkennen(norm: string): MobilTeiltyp | null {
   const treffer = teiltypenErkennen(norm);
-  return treffer.length === 1 ? treffer[0] : null; // 0 = unbekannt, >1 = mehrdeutig
+  if (treffer.length === 1) return treffer[0];
+  // Konflikt Display ↔ Backcover („letztes Schlüsselwort gewinnt"): ein echter
+  // Backcover-/Rear-Cover-Marker überstimmt ein vorangestelltes „Display for …"
+  // (z. B. „Display for … Back Cover Phantom black" → Backcover). Nur dieser
+  // Konflikt wird aufgelöst — sonst bleibt Mehrdeutigkeit bewusst null (REVIEW).
+  if (treffer.includes("Backcover") &&
+      treffer.every((t) => t === "Backcover" || t === "Display" || t === "Displaymodul")) {
+    return "Backcover";
+  }
+  return null; // 0 = unbekannt, >1 = mehrdeutig (nicht raten)
 }
 
 // ── 4b. Farbe ─────────────────────────────────────────────────────────────────
