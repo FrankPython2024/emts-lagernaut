@@ -7,7 +7,7 @@ import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
 import {
-  baueCsv, baueZwischenablage, ladeCsv, ladeXlsx, xlsxVorladen, kopiereText, sichererDateiname,
+  baueZwischenablage, kopiereText,
   type MobilExportZeile,
 } from "@/lib/mobil/export";
 
@@ -205,7 +205,6 @@ function MobilModellModal({
 
   // Excel-Bibliothek vorladen, sobald das Modal offen ist — dann ist der XLSX-Export
   // beim Klick rein synchron (keine verlorene User-Geste durch await import(...)).
-  useEffect(() => { void xlsxVorladen(); }, []);
 
   const teileQ = api.mobil.teileProModell.useQuery({ modellId });
 
@@ -339,30 +338,20 @@ function TeiltypCard({
       aan: r.aan, ek: r.ek, lieferant: r.lieferant, bezeichnung: r.bezeichnung,
     }));
   }
-  const dateiname = (ext: string) => sichererDateiname(["mobil", hersteller, modellName, teiltyp], ext);
-  const exportBereit = !!logIdsQ.data; // Zeilen im Cache → Download synchron möglich
+  const exportBereit = !!logIdsQ.data; // Zeilen im Cache → Kopieren möglich
 
-  // Fehler NICHT mehr verschlucken: sichtbarer Toast + console.error.
+  // CSV/XLSX laufen über einen echten Server-Download-Link (Content-Disposition),
+  // NICHT über programmatischen Blob-Klick — das lädt zuverlässig in jedem Browser
+  // / auf jedem Gerät. Braucht nur modellId + teiltyp, keine vorgeladenen Client-Daten.
+  const exportUrl = (format: "csv" | "xlsx") =>
+    `/api/mobil/export?format=${format}&modellId=${modellId}&teiltyp=${encodeURIComponent(teiltyp)}`;
+
+  // Fehler NICHT verschlucken: sichtbarer Toast + console.error (Clipboard-Pfad).
   function meldeFehler(e: unknown) {
     console.error("Mobil-Export fehlgeschlagen:", e);
     show("Export fehlgeschlagen: " + (e instanceof Error ? e.message : String(e)), "error");
   }
 
-  // CSV/XLSX SYNCHRON in der Klick-Geste auslösen (kein await vor dem Download).
-  function onCsv() {
-    try {
-      const rows = holeRows();
-      if (!rows.length) { show("Keine Zeilen zum Exportieren.", "warning"); return; }
-      ladeCsv(dateiname("csv"), baueCsv(rows));
-    } catch (e) { meldeFehler(e); }
-  }
-  function onXlsx() {
-    try {
-      const rows = holeRows();
-      if (!rows.length) { show("Keine Zeilen zum Exportieren.", "warning"); return; }
-      ladeXlsx(dateiname("xlsx"), rows); // synchron — xlsx ist beim Modal-Öffnen vorgeladen
-    } catch (e) { meldeFehler(e); }
-  }
   // Zwischenablage: nur die LogIDs. Clipboard-API toleriert das await nach der Geste.
   async function onCopy() {
     try {
@@ -391,8 +380,8 @@ function TeiltypCard({
         </button>
         <div className="flex items-center gap-1 flex-shrink-0">
           <button type="button" aria-label={`${teiltyp}: LogIDs in die Zwischenablage kopieren`} title={exportBereit ? "LogIDs kopieren (eine pro Zeile)" : "Lädt…"} onClick={onCopy} disabled={!exportBereit} className={btn}>📋</button>
-          <button type="button" aria-label={`${teiltyp} als CSV herunterladen`} title={exportBereit ? "CSV (alle Spalten)" : "Lädt…"} onClick={onCsv} disabled={!exportBereit} className={btn}>⬇ CSV</button>
-          <button type="button" aria-label={`${teiltyp} als Excel herunterladen`} title={exportBereit ? "Excel .xlsx (alle Spalten)" : "Lädt…"} onClick={onXlsx} disabled={!exportBereit} className={btn}>⬇ XLSX</button>
+          <a href={exportUrl("csv")} aria-label={`${teiltyp} als CSV herunterladen`} title="CSV (alle Spalten)" className={btn}>⬇ CSV</a>
+          <a href={exportUrl("xlsx")} aria-label={`${teiltyp} als Excel herunterladen`} title="Excel .xlsx (alle Spalten)" className={btn}>⬇ XLSX</a>
         </div>
       </div>
 
