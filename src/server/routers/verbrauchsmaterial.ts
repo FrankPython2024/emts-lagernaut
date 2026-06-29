@@ -74,6 +74,15 @@ function status(aktuellerBestand: number, mindestbestand: number): "OK" | "NACHB
   return aktuellerBestand >= mindestbestand ? "OK" : "NACHBESTELLEN";
 }
 
+// Start der laufenden Zählwoche (Montag 00:00). Eine Zählung pro Artikel pro
+// Woche; alle Wochen-Lookups (artikelByCode, zaehlen, dieseWoche) nutzen das.
+function wochenStart(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // Mo=0 … So=6
+  return d;
+}
+
 // Zeitraum-Auswahl für die Auswertung. "all" → kein Datums-Filter.
 const zeitraumEnum = z.enum(["4w", "3m", "12m", "all"]).default("3m");
 
@@ -157,9 +166,16 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
       const a = await prisma.verbrauchsArtikel.findUnique({ where: { code } });
       if (!a) return { gefunden: false as const, code };
 
-      const letzte = await prisma.verbrauchsZaehlung.findFirst({
-        where: { artikelId: a.id }, orderBy: { datum: "desc" }, select: { datum: true },
-      });
+      const [letzte, woche] = await Promise.all([
+        prisma.verbrauchsZaehlung.findFirst({
+          where: { artikelId: a.id }, orderBy: { datum: "desc" }, select: { datum: true },
+        }),
+        // Zählung DIESER Woche (falls vorhanden) → Handheld kann „dazuzählen?" anbieten.
+        prisma.verbrauchsZaehlung.findFirst({
+          where: { artikelId: a.id, datum: { gte: wochenStart() } },
+          orderBy: { datum: "desc" }, select: { id: true, vorher: true, bestand: true },
+        }),
+      ]);
       return {
         gefunden: true as const,
         artikel: {
@@ -173,17 +189,25 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
           aktiv:             a.aktiv,
           letztesZaehldatum: letzte?.datum ?? null,
           status:            status(a.aktuellerBestand, a.mindestbestand),
+          // null = diese Woche noch nicht gezählt; sonst der bisher erfasste Wochenstand.
+          wocheBereits:      woche ? { bestand: woche.bestand } : null,
         },
       };
     }),
 
-  // Zählung speichern: VerbrauchsZaehlung schreiben (vorher = bisheriger Stand,
-  // bestand = neu gezählt, verbrauch = max(0, vorher-neu)) UND aktuellerBestand
-  // setzen — atomar in einer Transaktion.
+  // Zählung speichern — EINE Zählung pro Artikel pro Woche:
+  //   • erste Zählung der Woche → create (vorher = aktuellerBestand = Vorwochenwert).
+  //   • diese Woche schon gezählt → UPDATE der Wochen-Zeile; `vorher` (Vorwochenwert)
+  //     bleibt IMMER erhalten, nur bestand/verbrauch/datum ändern sich.
+  // Modus:
+  //   • "addieren"  → Teilmenge eines weiteren Lagerorts dazu (bestand += input.bestand).
+  //   • "ersetzen"  → Gesamtwert korrigieren/überschreiben (bestand = input.bestand).
+  // Atomar in einer Transaktion.
   zaehlen: manage
     .input(z.object({
       artikelId: z.number().int().positive(),
       bestand:   z.number().int().min(0),
+      modus:     z.enum(["ersetzen", "addieren"]).default("ersetzen"),
     }))
     .mutation(async ({ input, ctx }) => {
       const user     = ctx.session.user as SessionUser;
@@ -195,13 +219,29 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
         });
         if (!artikel) throw new TRPCError({ code: "NOT_FOUND", message: "Artikel nicht gefunden" });
 
-        const vorher    = artikel.aktuellerBestand;
-        const neu       = input.bestand;
+        const woche = await tx.verbrauchsZaehlung.findFirst({
+          where: { artikelId: input.artikelId, datum: { gte: wochenStart() } },
+          orderBy: { datum: "desc" }, select: { id: true, vorher: true, bestand: true },
+        });
+
+        // vorher = Vorwochenwert. Bei vorhandener Wochen-Zählung NIEMALS neu aus
+        // aktuellerBestand ableiten (sonst würde der Teilbestand zum „vorher").
+        const vorher = woche ? woche.vorher : artikel.aktuellerBestand;
+        const neu    = woche && input.modus === "addieren"
+          ? woche.bestand + input.bestand   // Teilmenge dazu (4 + 6 = 10)
+          : input.bestand;                  // erste Zählung ODER Gesamtwert ersetzen
         const verbrauch = Math.max(0, vorher - neu);
 
-        await tx.verbrauchsZaehlung.create({
-          data: { artikelId: input.artikelId, datum: new Date(), vorher, bestand: neu, verbrauch, benutzer },
-        });
+        if (woche) {
+          await tx.verbrauchsZaehlung.update({
+            where: { id: woche.id },
+            data:  { bestand: neu, verbrauch, datum: new Date(), benutzer },
+          });
+        } else {
+          await tx.verbrauchsZaehlung.create({
+            data: { artikelId: input.artikelId, datum: new Date(), vorher, bestand: neu, verbrauch, benutzer },
+          });
+        }
         await tx.verbrauchsArtikel.update({
           where: { id: input.artikelId }, data: { aktuellerBestand: neu },
         });
@@ -213,9 +253,7 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
   // Artikel — als Fortschritts-/Orientierungsliste. Plus die Gegenliste „offen":
   // aktive Artikel ohne Zählung diese Woche (= noch zu scannen).
   dieseWoche: view.query(async () => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // Mo=0 … So=6
+    const start = wochenStart();
 
     const [zaehlungen, aktiveGesamt] = await Promise.all([
       prisma.verbrauchsZaehlung.findMany({

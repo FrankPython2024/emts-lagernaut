@@ -21,7 +21,13 @@ type AktivArtikel = {
   mindestbestand:    number;
   letztesZaehldatum: Date | string | null;
   status:            "OK" | "NACHBESTELLEN";
+  // null = diese Woche noch nicht gezählt; sonst der bereits erfasste Wochenstand.
+  wocheBereits:      { bestand: number } | null;
 };
+
+// "ersetzen" = Gesamtwert eingeben/überschreiben (Default, auch erste Zählung).
+// "addieren" = Teilmenge eines weiteren Lagerorts zum Wochenstand dazuzählen.
+type Modus = "ersetzen" | "addieren";
 
 type Feedback =
   | { kind: "gespeichert"; name: string; code: string; vorher: number; neu: number; verbrauch: number }
@@ -49,6 +55,7 @@ export default function ZaehlenPage() {
 
   const [eingabe, setEingabe]   = useState("");
   const [aktiv, setAktiv]       = useState<AktivArtikel | null>(null);
+  const [modus, setModus]       = useState<Modus>("ersetzen");
   const [bestand, setBestand]   = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [busy, setBusy]         = useState(false);
@@ -103,6 +110,9 @@ export default function ZaehlenPage() {
       const res = await utils.verbrauchsmaterial.artikelByCode.fetch({ code: c });
       if (res.gefunden) {
         setAktiv(res.artikel);
+        // Schon diese Woche erfasst → „dazuzählen" als Standard (mehrere Lagerorte),
+        // sonst regulär den Gesamtwert erfassen.
+        setModus(res.artikel.wocheBereits ? "addieren" : "ersetzen");
         setBestand("");
         setFeedback(null);
         playScanSound("GEFUNDEN");
@@ -125,7 +135,9 @@ export default function ZaehlenPage() {
     id: number; code: string; name: string; kategorie: string | null; standort: string | null;
     aktuellerBestand: number; mindestbestand: number; status: "OK" | "NACHBESTELLEN";
   }) {
-    setAktiv({ ...a, letztesZaehldatum: null });
+    // Suche/Offen-Liste tragen keinen Wochenstand → als Erstzählung behandeln.
+    setAktiv({ ...a, letztesZaehldatum: null, wocheBereits: null });
+    setModus("ersetzen");
     setBestand("");
     setFeedback(null);
     setSucheText("");
@@ -145,7 +157,7 @@ export default function ZaehlenPage() {
     if (!aktiv) return;
     const n = parseInt(bestand, 10);
     if (!Number.isFinite(n) || n < 0) { playNegativeSound(); return; }
-    zaehlen.mutate({ artikelId: aktiv.id, bestand: n });
+    zaehlen.mutate({ artikelId: aktiv.id, bestand: n, modus });
   }
 
   // Numpad-Tasten — On-Screen für Mobil/Touch (Hardware-Tastatur funktioniert parallel).
@@ -164,14 +176,26 @@ export default function ZaehlenPage() {
   }
 
   const gewaehltN = bestand.trim() === "" ? null : parseInt(bestand, 10);
-  const vorschau =
-    aktiv && gewaehltN != null && Number.isFinite(gewaehltN)
-      ? gewaehltN < aktiv.aktuellerBestand
-        ? { txt: `Verbrauch ${aktiv.aktuellerBestand - gewaehltN}`, farbe: "#BA7517", icon: "▼" }
-        : gewaehltN > aktiv.aktuellerBestand
-          ? { txt: `aufgefüllt +${gewaehltN - aktiv.aktuellerBestand}`, farbe: "#04713f", icon: "▲" }
-          : { txt: "unverändert", farbe: "#65676b", icon: "=" }
+  // Laufende Summe beim Dazuzählen: bisheriger Wochenstand + getippte Teilmenge.
+  const summeJetzt =
+    aktiv?.wocheBereits && gewaehltN != null && Number.isFinite(gewaehltN)
+      ? aktiv.wocheBereits.bestand + gewaehltN
       : null;
+  const vorschau =
+    !aktiv || gewaehltN == null || !Number.isFinite(gewaehltN)
+      ? null
+      : modus === "addieren" && aktiv.wocheBereits
+        // Dazuzählen → nur die neue Gesamtsumme zeigen (Vorwochenwert kennt der Client nicht).
+        ? { txt: `Gesamt ${aktiv.wocheBereits.bestand} + ${gewaehltN} = ${summeJetzt}`, farbe: "#008BD2", icon: "Σ" }
+        : aktiv.wocheBereits
+          // Ersetzen einer Wochen-Zählung → neuer Gesamtwert (kein Verbrauch-Vergleich möglich).
+          ? { txt: `Neuer Gesamtbestand ${gewaehltN}`, farbe: "#65676b", icon: "=" }
+          // Erstzählung: aktuellerBestand IST der Vorwochenwert → Verbrauch korrekt vorzeigbar.
+          : gewaehltN < aktiv.aktuellerBestand
+            ? { txt: `Verbrauch ${aktiv.aktuellerBestand - gewaehltN}`, farbe: "#BA7517", icon: "▼" }
+            : gewaehltN > aktiv.aktuellerBestand
+              ? { txt: `aufgefüllt +${gewaehltN - aktiv.aktuellerBestand}`, farbe: "#04713f", icon: "▲" }
+              : { txt: "unverändert", farbe: "#65676b", icon: "=" };
 
   return (
     <div className="max-w-xl mx-auto space-y-4">
@@ -273,10 +297,46 @@ export default function ZaehlenPage() {
             >×</button>
           </div>
 
+          {/* Schon diese Woche erfasst → Modus-Wahl: dazuzählen oder ersetzen */}
+          {aktiv.wocheBereits && (
+            <div className="rounded-xl border-2 p-3 space-y-3" style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.08)" }}>
+              <div role="status" aria-live="polite" className="text-base font-bold" style={{ color: "#BA7517" }}>
+                ⚠ Diese Woche schon erfasst: <span className="tabular-nums">{aktiv.wocheBereits.bestand}</span> Stück
+              </div>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Was soll passieren?">
+                <button
+                  type="button"
+                  onClick={() => { setModus("addieren"); bestandRef.current?.focus(); }}
+                  aria-pressed={modus === "addieren"}
+                  className="min-h-[56px] rounded-xl border-2 px-2 text-base font-black transition-colors"
+                  style={modus === "addieren"
+                    ? { borderColor: "#04B475", background: "#04B475", color: "#fff" }
+                    : { borderColor: "#ced4da", background: "transparent", color: "#65676b" }}
+                >➕ Dazuzählen</button>
+                <button
+                  type="button"
+                  onClick={() => { setModus("ersetzen"); bestandRef.current?.focus(); }}
+                  aria-pressed={modus === "ersetzen"}
+                  className="min-h-[56px] rounded-xl border-2 px-2 text-base font-black transition-colors"
+                  style={modus === "ersetzen"
+                    ? { borderColor: "#008BD2", background: "#008BD2", color: "#fff" }
+                    : { borderColor: "#ced4da", background: "transparent", color: "#65676b" }}
+                >✏️ Ersetzen</button>
+              </div>
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                {modus === "addieren"
+                  ? "Teilmenge eines weiteren Lagerorts eingeben — wird zur Wochensumme addiert."
+                  : "Gesamten Wochenbestand neu eingeben — überschreibt den erfassten Wert."}
+              </div>
+            </div>
+          )}
+
           {/* Letzter Bestand — groß */}
           <div className="flex items-center justify-between gap-3 rounded-xl bg-[#f0f2f5] dark:bg-[#18191a] px-4 py-3">
             <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">Letzter Bestand</div>
+              <div className="text-xs font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">
+                {aktiv.wocheBereits ? "Bisher diese Woche" : "Letzter Bestand"}
+              </div>
               <div className="text-xs text-[#90939a] dark:text-[#6b6e73]">Stand: {fmtDatum(aktiv.letztesZaehldatum)}</div>
             </div>
             <div className="text-4xl font-black text-[#202F61] dark:text-[#e4e6eb] tabular-nums">{aktiv.aktuellerBestand}</div>
@@ -284,7 +344,13 @@ export default function ZaehlenPage() {
 
           {/* Neuer Bestand */}
           <div>
-            <label htmlFor="bestand-input" className="block text-xs font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8] mb-1">Neuer Bestand (gezählt)</label>
+            <label htmlFor="bestand-input" className="block text-xs font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8] mb-1">
+              {modus === "addieren" && aktiv.wocheBereits
+                ? "Teilmenge dieses Lagerorts"
+                : aktiv.wocheBereits
+                  ? "Neuer Gesamtbestand (gezählt)"
+                  : "Neuer Bestand (gezählt)"}
+            </label>
             <input
               id="bestand-input"
               ref={bestandRef}
@@ -331,7 +397,11 @@ export default function ZaehlenPage() {
             className="w-full inline-flex items-center justify-center gap-2 rounded-xl text-white text-lg font-black disabled:opacity-40 min-h-[56px]"
             style={{ background: "#04B475" }}
           >
-            {zaehlen.isPending ? "Speichere…" : "✓ Speichern & weiter"}
+            {zaehlen.isPending
+              ? "Speichere…"
+              : modus === "addieren" && aktiv.wocheBereits
+                ? `➕ Dazuzählen${summeJetzt != null ? ` → Gesamt ${summeJetzt}` : ""}`
+                : "✓ Speichern & weiter"}
           </button>
         </div>
       )}
