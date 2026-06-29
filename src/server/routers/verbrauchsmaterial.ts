@@ -210,7 +210,8 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
     }),
 
   // Diese Woche (ab Montag 00:00) bereits gezählte Artikel — jüngste Zählung je
-  // Artikel — als Fortschritts-/Orientierungsliste.
+  // Artikel — als Fortschritts-/Orientierungsliste. Plus die Gegenliste „offen":
+  // aktive Artikel ohne Zählung diese Woche (= noch zu scannen).
   dieseWoche: view.query(async () => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -241,7 +242,16 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
         benutzer:  z.benutzer,
       });
     }
-    return { erfasst, anzahl: erfasst.length, aktiveGesamt };
+
+    // Noch offen: aktive Artikel, die diese Woche keine Zählung haben. notIn mit
+    // leerem Array ist in Prisma unkritisch (= keine Ausschlüsse).
+    const offen = await prisma.verbrauchsArtikel.findMany({
+      where:   { aktiv: true, id: { notIn: [...gesehen] } },
+      select:  { id: true, code: true, name: true, kategorie: true, standort: true, aktuellerBestand: true, mindestbestand: true },
+      orderBy: [{ kategorie: "asc" }, { name: "asc" }],
+    });
+
+    return { erfasst, anzahl: erfasst.length, aktiveGesamt, offen, offenAnzahl: offen.length };
   }),
 
   // ── Auswertung (alles MATERIAL_VIEW) ────────────────────────────────────────

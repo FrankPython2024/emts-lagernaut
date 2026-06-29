@@ -131,6 +131,16 @@ export default function ZaehlenPage() {
     setSucheText("");
   }
 
+  // Artikel aus der „Noch offen"-Liste aktivieren — wie Scan/Suche, ohne physisches
+  // Etikett. Status wird aus den Beständen abgeleitet (Backend liefert ihn hier nicht mit).
+  function waehleOffen(a: {
+    id: number; code: string; name: string; kategorie: string | null; standort: string | null;
+    aktuellerBestand: number; mindestbestand: number;
+  }) {
+    waehleAusSuche({ ...a, status: a.aktuellerBestand >= a.mindestbestand ? "OK" : "NACHBESTELLEN" });
+    scanRef.current?.blur();
+  }
+
   function speichern() {
     if (!aktiv) return;
     const n = parseInt(bestand, 10);
@@ -142,6 +152,16 @@ export default function ZaehlenPage() {
   function tippe(d: string) { setBestand((v) => (v + d).replace(/^0+(?=\d)/, "").slice(0, 7)); }
   function loesche()        { setBestand((v) => v.slice(0, -1)); }
   function leere()          { setBestand(""); }
+
+  // „Noch offen" nach Kategorie gruppieren (Liste kommt bereits kategorie→name sortiert).
+  const offen = dieseWocheQ.data?.offen ?? [];
+  const offenGruppen: { kategorie: string; items: typeof offen }[] = [];
+  for (const a of offen) {
+    const kat = a.kategorie?.trim() || "Ohne Kategorie";
+    const letzte = offenGruppen[offenGruppen.length - 1];
+    if (letzte && letzte.kategorie === kat) letzte.items.push(a);
+    else offenGruppen.push({ kategorie: kat, items: [a] });
+  }
 
   const gewaehltN = bestand.trim() === "" ? null : parseInt(bestand, 10);
   const vorschau =
@@ -382,6 +402,58 @@ export default function ZaehlenPage() {
               </li>
             ))}
           </ul>
+        )}
+      </div>
+
+      {/* Noch offen — diese Woche ungezählte aktive Artikel, antippbar zum Abarbeiten */}
+      <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
+        <div className="px-4 py-3 bg-[#f0f2f5] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042] flex items-center justify-between">
+          <h2 className="font-black text-sm uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">📋 Noch offen</h2>
+          {dieseWocheQ.data && (
+            <span role="status" aria-live="polite" className="text-sm font-bold text-[#BA7517] dark:text-[#f0b760]">
+              {dieseWocheQ.data.offenAnzahl} offen
+            </span>
+          )}
+        </div>
+        {dieseWocheQ.isLoading ? (
+          <div className="px-4 py-6 text-center text-sm text-[#65676b] dark:text-[#b0b3b8]">Lädt…</div>
+        ) : (dieseWocheQ.data?.offenAnzahl ?? 0) === 0 ? (
+          <div className="px-4 py-6 text-center text-sm font-semibold" style={{ color: "#04713f" }}>
+            ✓ Alle aktiven Artikel diese Woche erfasst
+          </div>
+        ) : (
+          <div className="max-h-96 overflow-y-auto">
+            {offenGruppen.map((g) => (
+              <div key={g.kategorie}>
+                <div className="px-4 py-1.5 bg-[#f7f8fa] dark:bg-[#1c1d1e] text-xs font-black uppercase tracking-wider text-[#90939a] dark:text-[#8a8d92] sticky top-0">
+                  {g.kategorie}
+                </div>
+                <ul className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+                  {g.items.map((a) => (
+                    <li key={a.id}>
+                      <button
+                        onClick={() => waehleOffen(a)}
+                        className="w-full text-left flex items-center gap-3 px-4 py-2.5 min-h-[48px] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] active:bg-[#e4e6eb] dark:active:bg-[#4a4c4e]"
+                      >
+                        <span className="text-[#BA7517] dark:text-[#f0b760] text-lg flex-shrink-0" aria-hidden>○</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-base font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{a.name}</span>
+                          <span className="block text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                            <span className="font-mono text-[#008BD2] dark:text-[#45bdff]">{a.code}</span>
+                            {a.standort ? ` · ${a.standort}` : ""}
+                          </span>
+                        </span>
+                        <span className="flex flex-col items-end flex-shrink-0">
+                          <span className="text-xs uppercase tracking-wider text-[#90939a] dark:text-[#8a8d92]">Bestand</span>
+                          <span className="text-base font-black text-[#202F61] dark:text-[#e4e6eb] tabular-nums">{a.aktuellerBestand}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
