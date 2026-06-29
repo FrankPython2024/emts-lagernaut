@@ -61,10 +61,18 @@ function ladeBlob(dateiname: string, blob: Blob): void {
   const a = document.createElement("a");
   a.href = url;
   a.download = dateiname;
+  a.rel = "noopener";
+  a.style.display = "none";
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Aufräumen ERST verzögert nach der Klick-Geste: `a.click()` stößt den Download
+  // nur asynchron an. Sofortiges `revokeObjectURL`/`removeChild` invalidiert die
+  // Blob-URL, bevor der Browser sie gelesen hat → Download bricht in manchen
+  // Browsern (Android-Chrome/WebView, ältere Chrome) still ab. 2s sind reichlich.
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 2000);
 }
 
 export function ladeCsv(dateiname: string, csv: string): void {
