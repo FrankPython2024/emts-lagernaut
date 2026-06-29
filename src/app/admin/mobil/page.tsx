@@ -13,6 +13,12 @@ import {
 
 const AKZENT = "#008BD2";
 
+type MobilBereich = "STANDARD" | "DIGITAL_EDUCATION";
+const BEREICH_TABS: { key: MobilBereich; label: string }[] = [
+  { key: "STANDARD",          label: "Standard" },
+  { key: "DIGITAL_EDUCATION", label: "digital Education" },
+];
+
 export default function MobilPage() {
   const { has, isLoading: permsLoading } = usePermissions();
   const darfSehen     = has("MOBIL_VIEW");
@@ -21,13 +27,15 @@ export default function MobilPage() {
   // Browsing-Auswahl: Hersteller (Schritt 1) → Modell (Schritt 2) → Teile (Modal).
   const [selHersteller, setSelHersteller] = useState<string | null>(null);
   const [offenesModell, setOffenesModell] = useState<{ id: number; name: string } | null>(null);
+  // Kostenstelle/Bereich (Reiter). Wechsel setzt die Browsing-Auswahl zurück.
+  const [bereich, setBereich] = useState<MobilBereich>("STANDARD");
 
   const [unterOffen, setUnterOffen] = useState(false);
 
-  const herstellerQ = api.mobil.hersteller.useQuery(undefined, { enabled: darfSehen });
-  const unterQ = api.mobil.mobilUnterMindestbestand.useQuery(undefined, { enabled: darfSehen });
+  const herstellerQ = api.mobil.hersteller.useQuery({ bereich }, { enabled: darfSehen });
+  const unterQ = api.mobil.mobilUnterMindestbestand.useQuery({ bereich }, { enabled: darfSehen });
   const modelleQ = api.mobil.modelle.useQuery(
-    { hersteller: selHersteller ?? "" },
+    { hersteller: selHersteller ?? "", bereich },
     { enabled: darfSehen && !!selHersteller },
   );
 
@@ -53,14 +61,14 @@ export default function MobilPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href="/admin/mobil/statistik"
+            href={`/admin/mobil/statistik?bereich=${bereich}`}
             className="inline-flex items-center gap-2 px-4 rounded-xl text-base font-bold shadow-sm min-h-[44px] border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3a3b3c] transition-colors"
           >
             📊 Statistik
           </Link>
           {darfVerwalten && (
             <Link
-              href="/admin/mobil/import"
+              href={`/admin/mobil/import?bereich=${bereich}`}
               className="inline-flex items-center gap-2 px-4 rounded-xl text-white text-base font-bold shadow-sm min-h-[44px]"
               style={{ background: AKZENT }}
             >
@@ -69,6 +77,25 @@ export default function MobilPage() {
           )}
         </div>
       </header>
+
+      {/* Reiter: Kostenstelle/Bereich — schaltet die ganze Ansicht um */}
+      <div className="flex gap-1 rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-1 w-fit">
+        {BEREICH_TABS.map(({ key, label }) => {
+          const aktiv = bereich === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={aktiv}
+              onClick={() => { setBereich(key); setSelHersteller(null); setOffenesModell(null); }}
+              className={`px-4 min-h-[44px] rounded-lg text-base font-bold transition-colors ${aktiv ? "text-white" : "text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3a3b3c]"}`}
+              style={aktiv ? { background: AKZENT } : undefined}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Übersicht: Gruppen unter Mindestbestand (dezent) */}
       {unterQ.data && (unterQ.data.anzahl > 0 ? (
@@ -176,6 +203,7 @@ export default function MobilPage() {
           hersteller={selHersteller}
           modellId={offenesModell.id}
           modellName={offenesModell.name}
+          bereich={bereich}
           darfVerwalten={darfVerwalten}
           onClose={() => setOffenesModell(null)}
         />
@@ -189,11 +217,12 @@ export default function MobilPage() {
 // Overlay, role="dialog" + aria-modal, Schließen via X / Escape / Overlay-Klick,
 // FocusTrap). Auf schmalem Viewport Vollbild.
 function MobilModellModal({
-  hersteller, modellId, modellName, darfVerwalten, onClose,
+  hersteller, modellId, modellName, bereich, darfVerwalten, onClose,
 }: {
   hersteller: string;
   modellId: number;
   modellName: string;
+  bereich: MobilBereich;
   darfVerwalten: boolean;
   onClose: () => void;
 }) {
@@ -206,7 +235,7 @@ function MobilModellModal({
   // Excel-Bibliothek vorladen, sobald das Modal offen ist — dann ist der XLSX-Export
   // beim Klick rein synchron (keine verlorene User-Geste durch await import(...)).
 
-  const teileQ = api.mobil.teileProModell.useQuery({ modellId });
+  const teileQ = api.mobil.teileProModell.useQuery({ modellId, bereich });
 
   return (
     <FocusTrap
@@ -264,6 +293,7 @@ function MobilModellModal({
                   modellId={modellId}
                   hersteller={hersteller}
                   modellName={modellName}
+                  bereich={bereich}
                   teiltyp={g.teiltyp}
                   stueck={g.stueck}
                   soll={g.soll}
@@ -280,11 +310,12 @@ function MobilModellModal({
 
 // ── Teiltyp-Karte: Kopf mit Stückzahl + Export, aufklappbare LogID-Liste ────────
 function TeiltypCard({
-  modellId, hersteller, modellName, teiltyp, stueck, soll, darfVerwalten,
+  modellId, hersteller, modellName, bereich, teiltyp, stueck, soll, darfVerwalten,
 }: {
   modellId: number;
   hersteller: string;
   modellName: string;
+  bereich: MobilBereich;
   teiltyp: string;
   stueck: number;
   soll: number | null;
@@ -308,14 +339,14 @@ function TeiltypCard({
   function speichern() {
     const n = parseInt(sollInput, 10);
     if (Number.isNaN(n) || n < 0) { show("Bitte eine Zahl ≥ 0 eingeben.", "error"); return; }
-    setMin.mutate({ modellId, teiltyp, sollMenge: n });
+    setMin.mutate({ modellId, teiltyp, sollMenge: n, bereich });
   }
   const sollId = `soll-${modellId}-${teiltyp.replace(/\s+/g, "-")}`;
 
   // Immer laden (nicht erst beim Aufklappen), damit der Export die Zeilen SYNCHRON
   // aus dem Cache nehmen kann — ein async-Nachladen im Klick-Handler würde die
   // User-Geste verlieren und den Download still blockieren.
-  const logIdsQ = api.mobil.logIdsProTeiltyp.useQuery({ modellId, teiltyp });
+  const logIdsQ = api.mobil.logIdsProTeiltyp.useQuery({ modellId, teiltyp, bereich });
 
   // LogIDs nach Colli gruppieren (Liste ist bereits nach colli, logId sortiert).
   const gruppen = useMemo(() => {
@@ -344,7 +375,7 @@ function TeiltypCard({
   // NICHT über programmatischen Blob-Klick — das lädt zuverlässig in jedem Browser
   // / auf jedem Gerät. Braucht nur modellId + teiltyp, keine vorgeladenen Client-Daten.
   const exportUrl = (format: "csv" | "xlsx") =>
-    `/api/mobil/export?format=${format}&modellId=${modellId}&teiltyp=${encodeURIComponent(teiltyp)}`;
+    `/api/mobil/export?format=${format}&modellId=${modellId}&teiltyp=${encodeURIComponent(teiltyp)}&bereich=${bereich}`;
 
   // Fehler NICHT verschlucken: sichtbarer Toast + console.error (Clipboard-Pfad).
   function meldeFehler(e: unknown) {

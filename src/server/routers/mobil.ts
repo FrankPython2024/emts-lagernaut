@@ -11,6 +11,13 @@ import { MOBIL_TEILTYPEN } from "@/lib/mobil/parser";
 const view   = permissionProcedure("MOBIL_VIEW");
 const manage = permissionProcedure("MOBIL_MANAGE");
 
+// Kostenstelle/Bereich-Filter — jede Bestands-/Browsing-/Statistik-Query ist auf
+// EINEN Bereich beschränkt (Default STANDARD). Die UI reicht den aktiven Reiter
+// ("Standard" / "digital Education") durch. Eigene Kostenstelle = eigener Reiter,
+// gleiche Darstellung, getrennte Zahlen.
+const BEREICHE = ["STANDARD", "DIGITAL_EDUCATION"] as const;
+const bereichInput = z.enum(BEREICHE).default("STANDARD");
+
 // Einkaufswert (Prisma.Decimal | null) → plain number | null (superjson serialisiert
 // Decimal nicht sinnvoll). Der Client formatiert selbst.
 function ekZahl(v: unknown): number | null {
@@ -34,10 +41,10 @@ function teiltypRang(name: string): number {
 
 // ── Geteilte Auswertungs-Helfer (DB-seitig aggregiert, KEIN Voll-Load) ──────────
 
-// Gruppen unter Mindestbestand (Ist < Soll, nur Soll>0). Zentrale Logik, die sowohl
-// mobilUnterMindestbestand als auch statUnterMindestbestand/statKpis nutzen.
-// Ist-Menge = aktive Teile (ausgeschieden=false) DISTINCT über die Verknüpfung.
-async function ladeUnterMindestbestand() {
+// Gruppen unter Mindestbestand (Ist < Soll, nur Soll>0) — gescoped auf einen Bereich.
+// Ist-Menge = aktive Teile (ausgeschieden=false) DISTINCT über die Verknüpfung, im
+// gleichen Bereich; Soll-Einträge ebenfalls nur dieses Bereichs.
+async function ladeUnterMindestbestand(bereich: string) {
   const rows = await prisma.$queryRaw<Array<{
     modellId: number; hersteller: string; modell: string; teiltyp: string; ist: bigint; soll: number;
   }>>`
@@ -47,12 +54,12 @@ async function ladeUnterMindestbestand() {
              ( SELECT COUNT(*) FROM \`MobilTeilModell\` tm
                JOIN \`MobilTeil\` t ON t.id = tm.teilId
                WHERE tm.modellId = mb.modellId AND t.teiltypId = mb.teiltypId
-                 AND t.ausgeschieden = false ) AS ist,
+                 AND t.ausgeschieden = false AND t.bereich = ${bereich} ) AS ist,
              mb.sollMenge AS soll
       FROM \`MobilMindestbestand\` mb
       JOIN \`MobilModell\`   m  ON m.id  = mb.modellId
       JOIN \`MobilTeiltyp\`  tt ON tt.id = mb.teiltypId
-      WHERE mb.sollMenge > 0
+      WHERE mb.sollMenge > 0 AND mb.bereich = ${bereich}
     ) x
     WHERE x.ist < x.soll
     ORDER BY (x.soll - x.ist) DESC`;
@@ -64,10 +71,10 @@ async function ladeUnterMindestbestand() {
   return { anzahl: gruppen.length, gruppen };
 }
 
-// Gesamt-Einkaufswert aller AKTIVEN Teile (für KPIs + Lagerwert).
-async function ladeLagerwertGesamt(): Promise<number> {
+// Gesamt-Einkaufswert aller AKTIVEN Teile eines Bereichs (für KPIs + Lagerwert).
+async function ladeLagerwertGesamt(bereich: string): Promise<number> {
   const [row] = await prisma.$queryRaw<Array<{ ekSumme: unknown }>>`
-    SELECT COALESCE(SUM(ek), 0) AS ekSumme FROM \`MobilTeil\` WHERE ausgeschieden = false`;
+    SELECT COALESCE(SUM(ek), 0) AS ekSumme FROM \`MobilTeil\` WHERE ausgeschieden = false AND bereich = ${bereich}`;
   return num(row?.ekSumme);
 }
 
@@ -76,70 +83,77 @@ export const mobilRouter = createTRPCRouter({
   // CSV-Import (ReForm/AfB-Export als Text). Schreibt je LogID eine MobilTeil-Zeile,
   // Sicheres als ERKANNT, Unsicheres als REVIEW. Idempotent (upsert je logId),
   // MANUELL zugeordnete Teile bleiben in der Zuordnung unangetastet.
+  // bereich = Kostenstelle dieses Imports; die Abgangs-Erkennung ist darauf gescoped.
   importieren: manage
     .input(z.object({
       csvText:      z.string().min(1, "Leere CSV"),
       dateiname:    z.string().max(255).optional(),
       dryRun:       z.boolean().optional(), // true → nur Bericht, schreibt NICHTS
       vollAbgleich: z.boolean().optional(), // true → Abgänge herstellerübergreifend (Voll-Export)
+      bereich:      bereichInput,
     }))
     .mutation(async ({ input }) => {
-      return runMobilImport(input.csvText, { dryRun: input.dryRun, vollAbgleich: input.vollAbgleich });
+      return runMobilImport(input.csvText, { dryRun: input.dryRun, vollAbgleich: input.vollAbgleich, bereich: input.bereich });
     }),
 
   // Kurz-Übersicht (Kennzahlen) — kein Anzeige-Interface, nur Zähler.
   // Bestandszahlen (gesamt/erkannt/review/manuell) zählen NUR aktive Teile
-  // (ausgeschieden=false); ausgelieferte Teile sind aus dem Bestand raus.
-  // modelle/teiltypen sind Katalog-Zähler (Definitionen), kein Bestand.
-  stats: view.query(async () => {
-    const [gesamt, erkannt, review, manuell, modelle, teiltypen] = await Promise.all([
-      prisma.mobilTeil.count({ where: { ausgeschieden: false } }),
-      prisma.mobilTeil.count({ where: { ausgeschieden: false, zuordnungStatus: "ERKANNT" } }),
-      prisma.mobilTeil.count({ where: { ausgeschieden: false, zuordnungStatus: "REVIEW" } }),
-      prisma.mobilTeil.count({ where: { ausgeschieden: false, zuordnungStatus: "MANUELL" } }),
-      prisma.mobilModell.count(),
-      prisma.mobilTeiltyp.count(),
-    ]);
-    return { gesamt, erkannt, review, manuell, modelle, teiltypen };
-  }),
+  // (ausgeschieden=false) des Bereichs; ausgelieferte Teile sind aus dem Bestand raus.
+  // modelle/teiltypen sind Katalog-Zähler (Definitionen, bereichsübergreifend).
+  stats: view
+    .input(z.object({ bereich: bereichInput }))
+    .query(async ({ input }) => {
+      const b = input.bereich;
+      const [gesamt, erkannt, review, manuell, modelle, teiltypen] = await Promise.all([
+        prisma.mobilTeil.count({ where: { bereich: b, ausgeschieden: false } }),
+        prisma.mobilTeil.count({ where: { bereich: b, ausgeschieden: false, zuordnungStatus: "ERKANNT" } }),
+        prisma.mobilTeil.count({ where: { bereich: b, ausgeschieden: false, zuordnungStatus: "REVIEW" } }),
+        prisma.mobilTeil.count({ where: { bereich: b, ausgeschieden: false, zuordnungStatus: "MANUELL" } }),
+        prisma.mobilModell.count(),
+        prisma.mobilTeiltyp.count(),
+      ]);
+      return { gesamt, erkannt, review, manuell, modelle, teiltypen };
+    }),
 
   // ── Browsing (read-only) ─────────────────────────────────────────────────────
 
   // Hersteller, die Teile haben: je Hersteller Anzahl Modelle + Anzahl PHYSISCHER
   // Teile (DISTINCT MobilTeil über die Kompatibilitäts-Verknüpfung — ein Teil, das
-  // zu mehreren Modellen passt, zählt pro Hersteller nur einmal).
-  hersteller: view.query(async () => {
-    // Nur AKTIVE Teile (t.ausgeschieden = false) zählen — der Inner-Join auf
-    // MobilTeil schließt ausgeschiedene (ausgelieferte) Teile aus dem Bestand aus.
-    const rows = await prisma.$queryRaw<Array<{ hersteller: string; modelle: bigint; teile: bigint }>>`
-      SELECT m.hersteller AS hersteller,
-             COUNT(DISTINCT m.id)        AS modelle,
-             COUNT(DISTINCT tm.teilId)   AS teile
-      FROM \`MobilModell\` m
-      JOIN \`MobilTeilModell\` tm ON tm.modellId = m.id
-      JOIN \`MobilTeil\` t        ON t.id = tm.teilId AND t.ausgeschieden = false
-      GROUP BY m.hersteller
-      ORDER BY teile DESC, m.hersteller ASC`;
-    return rows.map((r) => ({
-      hersteller: r.hersteller,
-      modelle:    Number(r.modelle),
-      teile:      Number(r.teile),
-    }));
-  }),
+  // zu mehreren Modellen passt, zählt pro Hersteller nur einmal). Nur dieser Bereich.
+  hersteller: view
+    .input(z.object({ bereich: bereichInput }))
+    .query(async ({ input }) => {
+      // Nur AKTIVE Teile (t.ausgeschieden = false) im Bereich zählen — der Inner-Join
+      // auf MobilTeil schließt ausgeschiedene + fremde Bereiche aus dem Bestand aus.
+      const rows = await prisma.$queryRaw<Array<{ hersteller: string; modelle: bigint; teile: bigint }>>`
+        SELECT m.hersteller AS hersteller,
+               COUNT(DISTINCT m.id)        AS modelle,
+               COUNT(DISTINCT tm.teilId)   AS teile
+        FROM \`MobilModell\` m
+        JOIN \`MobilTeilModell\` tm ON tm.modellId = m.id
+        JOIN \`MobilTeil\` t        ON t.id = tm.teilId AND t.ausgeschieden = false AND t.bereich = ${input.bereich}
+        GROUP BY m.hersteller
+        ORDER BY teile DESC, m.hersteller ASC`;
+      return rows.map((r) => ({
+        hersteller: r.hersteller,
+        modelle:    Number(r.modelle),
+        teile:      Number(r.teile),
+      }));
+    }),
 
-  // Modelle eines Herstellers (nur mit Teilen), je mit Gesamt-Stückzahl
+  // Modelle eines Herstellers (nur mit Teilen im Bereich), je mit Gesamt-Stückzahl
   // (DISTINCT MobilTeil über die Verknüpfung — physische Teile, nicht doppelt).
   // Sortiert „nach Modellnummer" (numerisch-natürlich).
   modelle: view
-    .input(z.object({ hersteller: z.string().trim().min(1) }))
+    .input(z.object({ hersteller: z.string().trim().min(1), bereich: bereichInput }))
     .query(async ({ input }) => {
-      // Nur AKTIVE Teile zählen (Inner-Join auf MobilTeil mit ausgeschieden=false);
-      // Modelle ohne aktiven Bestand fallen damit aus der Liste.
+      // Nur AKTIVE Teile im Bereich zählen (Inner-Join auf MobilTeil);
+      // Modelle ohne aktiven Bestand in diesem Bereich fallen aus der Liste.
       const rows = await prisma.$queryRaw<Array<{ id: number; modell: string; stueck: bigint }>>`
         SELECT m.id AS id, m.modell AS modell, COUNT(DISTINCT tm.teilId) AS stueck
         FROM \`MobilModell\` m
         JOIN \`MobilTeilModell\` tm ON tm.modellId = m.id
-        JOIN \`MobilTeil\` t        ON t.id = tm.teilId AND t.ausgeschieden = false
+        JOIN \`MobilTeil\` t        ON t.id = tm.teilId AND t.ausgeschieden = false AND t.bereich = ${input.bereich}
         WHERE m.hersteller = ${input.hersteller}
         GROUP BY m.id, m.modell`;
       return rows
@@ -147,32 +161,32 @@ export const mobilRouter = createTRPCRouter({
         .sort((a, b) => a.modell.localeCompare(b.modell, "de", { numeric: true }));
     }),
 
-  // Teile eines Modells, gruppiert nach Teiltyp: Gesamt-Stückzahl + Aufschlüsselung
-  // je Colli. Stückzahl = COUNT der MobilTeil (1 LogID = 1 Stück); ein Teil ist
-  // einem Modell über die Verknüpfung genau einmal zugeordnet → kein Doppelzählen.
+  // Teile eines Modells (im Bereich), gruppiert nach Teiltyp: Gesamt-Stückzahl +
+  // Aufschlüsselung je Colli. Stückzahl = COUNT der MobilTeil (1 LogID = 1 Stück); ein
+  // Teil ist einem Modell über die Verknüpfung genau einmal zugeordnet → kein Doppeln.
   teileProModell: view
-    .input(z.object({ modellId: z.number().int().positive() }))
+    .input(z.object({ modellId: z.number().int().positive(), bereich: bereichInput }))
     .query(async ({ input }) => {
       const rows = await prisma.$queryRaw<Array<{ teiltyp: string | null; colli: string | null; anzahl: bigint }>>`
         SELECT tt.name AS teiltyp, t.colli AS colli, COUNT(*) AS anzahl
         FROM \`MobilTeilModell\` tm
         JOIN \`MobilTeil\` t      ON t.id = tm.teilId
         LEFT JOIN \`MobilTeiltyp\` tt ON tt.id = t.teiltypId
-        WHERE tm.modellId = ${input.modellId} AND t.ausgeschieden = false
+        WHERE tm.modellId = ${input.modellId} AND t.ausgeschieden = false AND t.bereich = ${input.bereich}
         GROUP BY tt.name, t.colli`;
 
       // Soll-Mengen (Mindestbestand) + Teiltyp-Namen→Id-Auflösung laden, damit jede
       // Gruppe ihr Soll bekommt (Teiltyp-Referenz konsistent zu setMindestbestand).
       const [mindest, teiltypAlle, ausgeschieden] = await Promise.all([
         prisma.mobilMindestbestand.findMany({
-          where:  { modellId: input.modellId },
+          where:  { modellId: input.modellId, bereich: input.bereich },
           select: { teiltypId: true, sollMenge: true },
         }),
         prisma.mobilTeiltyp.findMany({ select: { id: true, name: true } }),
-        // Reiner Hinweis (NICHT im Bestand): wie viele Teile dieses Modells sind
-        // ausgeschieden (ausgeliefert)? Zählt nicht in stueck/gesamt.
+        // Reiner Hinweis (NICHT im Bestand): wie viele Teile dieses Modells im Bereich
+        // sind ausgeschieden (ausgeliefert)? Zählt nicht in stueck/gesamt.
         prisma.mobilTeil.count({
-          where: { ausgeschieden: true, modelle: { some: { modellId: input.modellId } } },
+          where: { ausgeschieden: true, bereich: input.bereich, modelle: { some: { modellId: input.modellId } } },
         }),
       ]);
       const teiltypIdByName = new Map(teiltypAlle.map((t) => [t.name, t.id]));
@@ -213,14 +227,15 @@ export const mobilRouter = createTRPCRouter({
       return { gesamt, teiltypen, ausgeschieden };
     }),
 
-  // Mindestbestand je Modell+Teiltyp setzen (Upsert über @@unique modellId+teiltypId).
-  // sollMenge 0 = kein Mindestbestand (Hinweis aus). Teiltyp per Name (konsistent zu
-  // teileProModell); existiert er noch nicht, wird er angelegt (get-or-create).
+  // Mindestbestand je Modell+Teiltyp+Bereich setzen (Upsert über @@unique
+  // modellId+teiltypId+bereich). sollMenge 0 = kein Mindestbestand (Hinweis aus).
+  // Teiltyp per Name (konsistent zu teileProModell); existiert er noch nicht → anlegen.
   setMindestbestand: manage
     .input(z.object({
       modellId:  z.number().int().positive(),
       teiltyp:   z.string().trim().min(1),
       sollMenge: z.number().int().min(0).max(1_000_000),
+      bereich:   bereichInput,
     }))
     .mutation(async ({ input }) => {
       const tt = await prisma.mobilTeiltyp.upsert({
@@ -229,30 +244,32 @@ export const mobilRouter = createTRPCRouter({
         create: { name: input.teiltyp },
       });
       await prisma.mobilMindestbestand.upsert({
-        where:  { modellId_teiltypId: { modellId: input.modellId, teiltypId: tt.id } },
+        where:  { modellId_teiltypId_bereich: { modellId: input.modellId, teiltypId: tt.id, bereich: input.bereich } },
         update: { sollMenge: input.sollMenge },
-        create: { modellId: input.modellId, teiltypId: tt.id, sollMenge: input.sollMenge },
+        create: { modellId: input.modellId, teiltypId: tt.id, sollMenge: input.sollMenge, bereich: input.bereich },
       });
       return { ok: true, sollMenge: input.sollMenge };
     }),
 
-  // Alle Modell+Teiltyp-Gruppen unter Mindestbestand (Ist < Soll, nur Soll>0).
-  // DB-seitig: je Soll-Eintrag wird die Ist-Menge (DISTINCT Teil über die
-  // Kompatibilitäts-Verknüpfung) per Subquery gezählt — kein Voll-Load.
-  mobilUnterMindestbestand: view.query(() => ladeUnterMindestbestand()),
+  // Alle Modell+Teiltyp-Gruppen unter Mindestbestand des Bereichs (Ist < Soll, Soll>0).
+  mobilUnterMindestbestand: view
+    .input(z.object({ bereich: bereichInput }))
+    .query(({ input }) => ladeUnterMindestbestand(input.bereich)),
 
-  // LogIDs einer Modell+Teiltyp-Gruppe: je Teil logId + colli + stellplatz +
-  // Bezeichnung + EK, plus die WEITEREN kompatiblen Modelle (Mehrfach-Modell-Hinweis,
+  // LogIDs einer Modell+Teiltyp-Gruppe (im Bereich): je Teil logId + colli + stellplatz
+  // + Bezeichnung + EK, plus die WEITEREN kompatiblen Modelle (Mehrfach-Modell-Hinweis,
   // ohne das aktuelle Modell). Sortiert nach colli (leere zuletzt), dann logId.
   logIdsProTeiltyp: view
     .input(z.object({
       modellId: z.number().int().positive(),
       teiltyp:  z.string().trim().min(1),
+      bereich:  bereichInput,
     }))
     .query(async ({ input }) => {
       const teile = await prisma.mobilTeil.findMany({
         where: {
           ausgeschieden: false, // nur aktiver Bestand (ausgelieferte Teile raus)
+          bereich:  input.bereich,
           teiltyp: { name: input.teiltyp },
           modelle: { some: { modellId: input.modellId } },
         },
@@ -288,42 +305,54 @@ export const mobilRouter = createTRPCRouter({
 
   // ── Statistik (read-only, MOBIL_VIEW; DB-seitig aggregiert) ──────────────────
   // Datenehrlichkeit: ALLE Bestands-Auswertungen zählen nur AKTIVE Teile
-  // (ausgeschieden=false). Ausgeschiedene Teile erscheinen ausschließlich in
-  // statAusgeschieden („was wurde ausgeliefert/gebraucht").
+  // (ausgeschieden=false) DES BEREICHS. Ausgeschiedene Teile erscheinen ausschließlich
+  // in statAusgeschieden („was wurde ausgeliefert/gebraucht").
 
   // Kennzahlen-Reihe oben auf der Statistik-Seite.
-  statKpis: view.query(async () => {
-    const [aktiveTeile, modelle, lagerwert, ausgeschieden, unter] = await Promise.all([
-      prisma.mobilTeil.count({ where: { ausgeschieden: false } }),
-      prisma.mobilModell.count(),
-      ladeLagerwertGesamt(),
-      prisma.mobilTeil.count({ where: { ausgeschieden: true } }),
-      ladeUnterMindestbestand(),
-    ]);
-    return { aktiveTeile, modelle, lagerwert, ausgeschieden, unterMindestbestand: unter.anzahl };
-  }),
-
-  // Aktive Teile je Hersteller (Anzahl + EK-Summe). Zuordnung über das PRIMÄRE
-  // Modell (t.modellId) → genau eine Hersteller-Zeile je Teil, kein EK-Doppelzählen.
-  // REVIEW-Teile ohne Modell sind hier nicht zugeordnet (siehe statLagerwert-Rest).
-  statBestandProHersteller: view.query(async () => {
-    const rows = await prisma.$queryRaw<Array<{ hersteller: string; anzahl: bigint; ekSumme: unknown }>>`
-      SELECT m.hersteller AS hersteller, COUNT(*) AS anzahl, COALESCE(SUM(t.ek), 0) AS ekSumme
-      FROM \`MobilTeil\` t
-      JOIN \`MobilModell\` m ON m.id = t.modellId
-      WHERE t.ausgeschieden = false
-      GROUP BY m.hersteller
-      ORDER BY anzahl DESC, m.hersteller ASC`;
-    return rows.map((r) => ({ hersteller: r.hersteller, anzahl: num(r.anzahl), ekSumme: num(r.ekSumme) }));
-  }),
-
-  // Top-N Modelle nach aktivem Bestand. COUNT(DISTINCT teilId) über die
-  // Kompatibilitäts-Verknüpfung (konsistent zur stueck-Semantik der Browsing-Seite);
-  // EK-Summe je Modell zählt jedes kompatible Teil genau einmal (@@unique teil+modell).
-  statTopModelle: view
-    .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }).optional())
+  statKpis: view
+    .input(z.object({ bereich: bereichInput }))
     .query(async ({ input }) => {
-      const limit = input?.limit ?? 10;
+      const b = input.bereich;
+      const [aktiveTeile, modelleRow, lagerwert, ausgeschieden, unter] = await Promise.all([
+        prisma.mobilTeil.count({ where: { bereich: b, ausgeschieden: false } }),
+        // Modelle MIT aktivem Bestand in diesem Bereich (nicht der globale Katalog).
+        prisma.$queryRaw<Array<{ anzahl: bigint }>>`
+          SELECT COUNT(DISTINCT modellId) AS anzahl FROM \`MobilTeil\`
+          WHERE ausgeschieden = false AND bereich = ${b} AND modellId IS NOT NULL`,
+        ladeLagerwertGesamt(b),
+        prisma.mobilTeil.count({ where: { bereich: b, ausgeschieden: true } }),
+        ladeUnterMindestbestand(b),
+      ]);
+      return {
+        aktiveTeile,
+        modelle: num(modelleRow[0]?.anzahl),
+        lagerwert,
+        ausgeschieden,
+        unterMindestbestand: unter.anzahl,
+      };
+    }),
+
+  // Aktive Teile je Hersteller (Anzahl + EK-Summe) im Bereich. Zuordnung über das
+  // PRIMÄRE Modell (t.modellId) → genau eine Hersteller-Zeile je Teil, kein EK-Doppeln.
+  statBestandProHersteller: view
+    .input(z.object({ bereich: bereichInput }))
+    .query(async ({ input }) => {
+      const rows = await prisma.$queryRaw<Array<{ hersteller: string; anzahl: bigint; ekSumme: unknown }>>`
+        SELECT m.hersteller AS hersteller, COUNT(*) AS anzahl, COALESCE(SUM(t.ek), 0) AS ekSumme
+        FROM \`MobilTeil\` t
+        JOIN \`MobilModell\` m ON m.id = t.modellId
+        WHERE t.ausgeschieden = false AND t.bereich = ${input.bereich}
+        GROUP BY m.hersteller
+        ORDER BY anzahl DESC, m.hersteller ASC`;
+      return rows.map((r) => ({ hersteller: r.hersteller, anzahl: num(r.anzahl), ekSumme: num(r.ekSumme) }));
+    }),
+
+  // Top-N Modelle nach aktivem Bestand im Bereich. COUNT(DISTINCT teilId) über die
+  // Kompatibilitäts-Verknüpfung; EK-Summe je Modell zählt jedes kompatible Teil einmal.
+  statTopModelle: view
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(10), bereich: bereichInput }))
+    .query(async ({ input }) => {
+      const limit = input.limit ?? 10;
       const rows = await prisma.$queryRaw<Array<{
         id: number; hersteller: string; modell: string; stueck: bigint; ekSumme: unknown;
       }>>`
@@ -331,7 +360,7 @@ export const mobilRouter = createTRPCRouter({
                COUNT(DISTINCT tm.teilId) AS stueck, COALESCE(SUM(t.ek), 0) AS ekSumme
         FROM \`MobilModell\` m
         JOIN \`MobilTeilModell\` tm ON tm.modellId = m.id
-        JOIN \`MobilTeil\` t        ON t.id = tm.teilId AND t.ausgeschieden = false
+        JOIN \`MobilTeil\` t        ON t.id = tm.teilId AND t.ausgeschieden = false AND t.bereich = ${input.bereich}
         GROUP BY m.id, m.hersteller, m.modell
         ORDER BY stueck DESC, ekSumme DESC
         LIMIT ${limit}`;
@@ -341,61 +370,64 @@ export const mobilRouter = createTRPCRouter({
       }));
     }),
 
-  // Aktive Teile je Teiltyp (Akku/Display/Displaymodul/Digitizer/…). Direkt über
-  // t.teiltypId (ein Teil = ein Teiltyp, keine Verknüpfung nötig). In Teiltyp-
+  // Aktive Teile je Teiltyp im Bereich. Direkt über t.teiltypId. In Teiltyp-
   // Reihenfolge sortiert. Teile ohne Teiltyp (REVIEW) sind nicht enthalten.
-  statTeiltypVerteilung: view.query(async () => {
-    const rows = await prisma.$queryRaw<Array<{ teiltyp: string; anzahl: bigint }>>`
-      SELECT tt.name AS teiltyp, COUNT(*) AS anzahl
-      FROM \`MobilTeil\` t
-      JOIN \`MobilTeiltyp\` tt ON tt.id = t.teiltypId
-      WHERE t.ausgeschieden = false
-      GROUP BY tt.name`;
-    return rows
-      .map((r) => ({ teiltyp: r.teiltyp, anzahl: num(r.anzahl) }))
-      .sort((a, b) => teiltypRang(a.teiltyp) - teiltypRang(b.teiltyp) || a.teiltyp.localeCompare(b.teiltyp, "de"));
-  }),
-
-  // Gesamt-Lagerwert (EK) aller aktiven Teile + Aufschlüsselung je Hersteller.
-  // „Ohne Zuordnung" = aktive Teile ohne primäres Modell (REVIEW), damit die
-  // Summe der Aufschlüsselung dem Gesamtwert entspricht (Datenehrlichkeit).
-  statLagerwert: view.query(async () => {
-    const [gesamt, proHersteller] = await Promise.all([
-      ladeLagerwertGesamt(),
-      prisma.$queryRaw<Array<{ hersteller: string; ekSumme: unknown }>>`
-        SELECT m.hersteller AS hersteller, COALESCE(SUM(t.ek), 0) AS ekSumme
-        FROM \`MobilTeil\` t
-        JOIN \`MobilModell\` m ON m.id = t.modellId
-        WHERE t.ausgeschieden = false
-        GROUP BY m.hersteller
-        ORDER BY ekSumme DESC`,
-    ]);
-    const aufschluesselung = proHersteller.map((r) => ({ hersteller: r.hersteller, ekSumme: num(r.ekSumme) }));
-    const zugeordnet = aufschluesselung.reduce((s, r) => s + r.ekSumme, 0);
-    const ohneZuordnung = Math.max(0, gesamt - zugeordnet);
-    if (ohneZuordnung > 0.005) aufschluesselung.push({ hersteller: "Ohne Zuordnung", ekSumme: ohneZuordnung });
-    return { gesamt, proHersteller: aufschluesselung };
-  }),
-
-  // Ausgeschiedene (ausgelieferte/gebrauchte) Teile — Gesamtzahl seit Tracking-Beginn,
-  // je Teiltyp und je Modell (Top-N). KEIN Zeitverlauf, sondern kumulierte Mengen.
-  statAusgeschieden: view
-    .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }).optional())
+  statTeiltypVerteilung: view
+    .input(z.object({ bereich: bereichInput }))
     .query(async ({ input }) => {
-      const limit = input?.limit ?? 10;
+      const rows = await prisma.$queryRaw<Array<{ teiltyp: string; anzahl: bigint }>>`
+        SELECT tt.name AS teiltyp, COUNT(*) AS anzahl
+        FROM \`MobilTeil\` t
+        JOIN \`MobilTeiltyp\` tt ON tt.id = t.teiltypId
+        WHERE t.ausgeschieden = false AND t.bereich = ${input.bereich}
+        GROUP BY tt.name`;
+      return rows
+        .map((r) => ({ teiltyp: r.teiltyp, anzahl: num(r.anzahl) }))
+        .sort((a, b) => teiltypRang(a.teiltyp) - teiltypRang(b.teiltyp) || a.teiltyp.localeCompare(b.teiltyp, "de"));
+    }),
+
+  // Gesamt-Lagerwert (EK) aller aktiven Teile im Bereich + Aufschlüsselung je Hersteller.
+  // „Ohne Zuordnung" = aktive Teile ohne primäres Modell (REVIEW), damit die Summe der
+  // Aufschlüsselung dem Gesamtwert entspricht (Datenehrlichkeit).
+  statLagerwert: view
+    .input(z.object({ bereich: bereichInput }))
+    .query(async ({ input }) => {
+      const [gesamt, proHersteller] = await Promise.all([
+        ladeLagerwertGesamt(input.bereich),
+        prisma.$queryRaw<Array<{ hersteller: string; ekSumme: unknown }>>`
+          SELECT m.hersteller AS hersteller, COALESCE(SUM(t.ek), 0) AS ekSumme
+          FROM \`MobilTeil\` t
+          JOIN \`MobilModell\` m ON m.id = t.modellId
+          WHERE t.ausgeschieden = false AND t.bereich = ${input.bereich}
+          GROUP BY m.hersteller
+          ORDER BY ekSumme DESC`,
+      ]);
+      const aufschluesselung = proHersteller.map((r) => ({ hersteller: r.hersteller, ekSumme: num(r.ekSumme) }));
+      const zugeordnet = aufschluesselung.reduce((s, r) => s + r.ekSumme, 0);
+      const ohneZuordnung = Math.max(0, gesamt - zugeordnet);
+      if (ohneZuordnung > 0.005) aufschluesselung.push({ hersteller: "Ohne Zuordnung", ekSumme: ohneZuordnung });
+      return { gesamt, proHersteller: aufschluesselung };
+    }),
+
+  // Ausgeschiedene (ausgelieferte/gebrauchte) Teile im Bereich — Gesamtzahl seit
+  // Tracking-Beginn, je Teiltyp und je Modell (Top-N). Kumulierte Mengen, kein Verlauf.
+  statAusgeschieden: view
+    .input(z.object({ limit: z.number().int().min(1).max(50).default(10), bereich: bereichInput }))
+    .query(async ({ input }) => {
+      const limit = input.limit ?? 10;
       const [gesamt, teiltypRows, modellRows] = await Promise.all([
-        prisma.mobilTeil.count({ where: { ausgeschieden: true } }),
+        prisma.mobilTeil.count({ where: { bereich: input.bereich, ausgeschieden: true } }),
         prisma.$queryRaw<Array<{ teiltyp: string; anzahl: bigint }>>`
           SELECT tt.name AS teiltyp, COUNT(*) AS anzahl
           FROM \`MobilTeil\` t
           JOIN \`MobilTeiltyp\` tt ON tt.id = t.teiltypId
-          WHERE t.ausgeschieden = true
+          WHERE t.ausgeschieden = true AND t.bereich = ${input.bereich}
           GROUP BY tt.name`,
         prisma.$queryRaw<Array<{ hersteller: string; modell: string; anzahl: bigint }>>`
           SELECT m.hersteller AS hersteller, m.modell AS modell, COUNT(*) AS anzahl
           FROM \`MobilTeil\` t
           JOIN \`MobilModell\` m ON m.id = t.modellId
-          WHERE t.ausgeschieden = true
+          WHERE t.ausgeschieden = true AND t.bereich = ${input.bereich}
           GROUP BY m.hersteller, m.modell
           ORDER BY anzahl DESC
           LIMIT ${limit}`,
@@ -407,48 +439,47 @@ export const mobilRouter = createTRPCRouter({
       return { gesamt, jeTeiltyp, jeModell };
     }),
 
-  // Gruppen unter Mindestbestand — bündelt die bestehende Logik (Wiederverwendung).
-  statUnterMindestbestand: view.query(() => ladeUnterMindestbestand()),
+  // Gruppen unter Mindestbestand des Bereichs — bündelt die bestehende Logik.
+  statUnterMindestbestand: view
+    .input(z.object({ bereich: bereichInput }))
+    .query(({ input }) => ladeUnterMindestbestand(input.bereich)),
 
-  // Bestandsverlauf über Import-Zeitpunkte. Quelle: die zuletztGesehenImport-Marker
-  // (es gibt keine separate Import-Lauf-Historie). Je distinktem Import-Zeitstempel
-  // die Anzahl Teile, deren LETZTE Sichtung dieser Import war — der jüngste Punkt
-  // entspricht damit dem aktuellen aktiven Bestand. Die Historie baut sich erst über
-  // kommende Importe auf: bei < 2 Zeitpunkten genugDaten=false + leeres Array, damit
-  // die UI den Hinweis statt eines kaputten Diagramms zeigt.
-  statVerlauf: view.query(async () => {
-    const rows = await prisma.$queryRaw<Array<{ zeitpunkt: Date; anzahl: bigint }>>`
-      SELECT zuletztGesehenImport AS zeitpunkt, COUNT(*) AS anzahl
-      FROM \`MobilTeil\`
-      WHERE zuletztGesehenImport IS NOT NULL
-      GROUP BY zuletztGesehenImport
-      ORDER BY zuletztGesehenImport ASC`;
-    const punkte = rows.map((r) => ({ zeitpunkt: r.zeitpunkt, erfasst: num(r.anzahl) }));
-    return { genugDaten: punkte.length >= 2, zeitpunkte: punkte.length, punkte };
-  }),
+  // Bestandsverlauf über Import-Zeitpunkte (im Bereich). Quelle: zuletztGesehenImport-
+  // Marker. Je distinktem Import-Zeitstempel die Anzahl Teile, deren LETZTE Sichtung
+  // dieser Import war. Bei < 2 Zeitpunkten genugDaten=false (UI zeigt Hinweis).
+  statVerlauf: view
+    .input(z.object({ bereich: bereichInput }))
+    .query(async ({ input }) => {
+      const rows = await prisma.$queryRaw<Array<{ zeitpunkt: Date; anzahl: bigint }>>`
+        SELECT zuletztGesehenImport AS zeitpunkt, COUNT(*) AS anzahl
+        FROM \`MobilTeil\`
+        WHERE zuletztGesehenImport IS NOT NULL AND bereich = ${input.bereich}
+        GROUP BY zuletztGesehenImport
+        ORDER BY zuletztGesehenImport ASC`;
+      const punkte = rows.map((r) => ({ zeitpunkt: r.zeitpunkt, erfasst: num(r.anzahl) }));
+      return { genugDaten: punkte.length >= 2, zeitpunkte: punkte.length, punkte };
+    }),
 
-  // Drill-down: die Einzelteile hinter einem Statistik-Diagramm. EIN Filter-Objekt
-  // für alle Fälle — Modell (kompatible Teile), Teiltyp, oder beides; ausgeschieden
-  // schaltet zwischen aktivem Bestand (false, Default) und Abgängen (true) um.
-  // Server-seitig gefiltert + paginiert (skip/take) — KEIN Voll-Load in den Client.
-  // Zeilenform identisch zu logIdsProTeiltyp → gleiche Chip-Darstellung wiederverwendbar.
+  // Drill-down: die Einzelteile hinter einem Statistik-Diagramm (im Bereich). EIN
+  // Filter-Objekt — Modell, Teiltyp, oder beides; ausgeschieden schaltet zwischen
+  // aktivem Bestand (false, Default) und Abgängen (true). Server-seitig paginiert.
   statTeileDetail: view
     .input(z.object({
       modellId:      z.number().int().positive().optional(),
       teiltyp:       z.string().trim().min(1).optional(),
       ausgeschieden: z.boolean().optional(), // default false = aktiver Bestand
+      bereich:       bereichInput,
       seite:         z.number().int().min(1).default(1),
       proSeite:      z.number().int().min(1).max(200).default(50),
     }))
     .query(async ({ input }) => {
       const where: Prisma.MobilTeilWhereInput = {
+        bereich:       input.bereich,
         ausgeschieden: input.ausgeschieden ?? false,
         ...(input.teiltyp  ? { teiltyp: { name: input.teiltyp } } : {}),
         ...(input.modellId ? { modelle: { some: { modellId: input.modellId } } } : {}),
       };
 
-      // Zähler + Seite parallel. Sortierung wie bisher: Colli (leere zuletzt), dann
-      // LogID — DB-seitig (nulls: "last" ab Prisma 5), damit Pagination konsistent ist.
       const [gesamt, teile] = await Promise.all([
         prisma.mobilTeil.count({ where }),
         prisma.mobilTeil.findMany({
@@ -473,7 +504,6 @@ export const mobilRouter = createTRPCRouter({
         aan:         t.aan,
         lieferant:   t.lieferant,
         farbe:       t.farbe,
-        // Weitere kompatible Modelle; bei Modell-Drilldown das aktuelle ausblenden.
         auch:        t.modelle
           .map((mm) => mm.modell)
           .filter((m) => m.id !== input.modellId)

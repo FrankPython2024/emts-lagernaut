@@ -61,6 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const modellId = parseInt(q1(req.query.modellId), 10);
   const teiltyp  = q1(req.query.teiltyp).trim();
   const format   = q1(req.query.format) === "xlsx" ? "xlsx" : "csv";
+  const bereich  = q1(req.query.bereich) === "DIGITAL_EDUCATION" ? "DIGITAL_EDUCATION" : "STANDARD";
   if (!Number.isInteger(modellId) || modellId <= 0 || !teiltyp) {
     return res.status(400).json({ error: "modellId und teiltyp erforderlich" });
   }
@@ -71,6 +72,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     prisma.mobilTeil.findMany({
       where: {
         ausgeschieden: false,                       // nur aktiver Bestand
+        bereich,                                    // nur dieser Bereich/Kostenstelle
         teiltyp: { name: teiltyp },
         modelle: { some: { modellId } },
       },

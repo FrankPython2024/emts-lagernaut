@@ -9,6 +9,7 @@ import {
 } from "recharts";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSearchParams } from "next/navigation";
 
 // Drill-down-Filter: was hinter dem angeklickten Diagramm-Element steckt. titel =
 // Kontext-Überschrift im Modal; filter geht 1:1 an statTeileDetail.
@@ -42,14 +43,20 @@ export default function MobilStatistikPage() {
   // Offener Drill-down (null = keiner). Klick auf Balken/Slice/Zeile setzt ihn.
   const [drill, setDrill] = useState<DrillFilter | null>(null);
 
-  const kpisQ        = api.mobil.statKpis.useQuery(undefined, { enabled });
-  const topQ         = api.mobil.statTopModelle.useQuery({ limit: 10 }, { enabled });
-  const teiltypQ     = api.mobil.statTeiltypVerteilung.useQuery(undefined, { enabled });
-  const herstellerQ  = api.mobil.statBestandProHersteller.useQuery(undefined, { enabled });
-  const lagerwertQ   = api.mobil.statLagerwert.useQuery(undefined, { enabled });
-  const ausgeschQ    = api.mobil.statAusgeschieden.useQuery({ limit: 10 }, { enabled });
-  const unterQ       = api.mobil.statUnterMindestbestand.useQuery(undefined, { enabled });
-  const verlaufQ     = api.mobil.statVerlauf.useQuery(undefined, { enabled });
+  // Bereich/Kostenstelle — Default aus ?bereich= (vom Reiter), umschaltbar.
+  const searchParams = useSearchParams();
+  const [bereich, setBereich] = useState<"STANDARD" | "DIGITAL_EDUCATION">(
+    searchParams?.get("bereich") === "DIGITAL_EDUCATION" ? "DIGITAL_EDUCATION" : "STANDARD",
+  );
+
+  const kpisQ        = api.mobil.statKpis.useQuery({ bereich }, { enabled });
+  const topQ         = api.mobil.statTopModelle.useQuery({ limit: 10, bereich }, { enabled });
+  const teiltypQ     = api.mobil.statTeiltypVerteilung.useQuery({ bereich }, { enabled });
+  const herstellerQ  = api.mobil.statBestandProHersteller.useQuery({ bereich }, { enabled });
+  const lagerwertQ   = api.mobil.statLagerwert.useQuery({ bereich }, { enabled });
+  const ausgeschQ    = api.mobil.statAusgeschieden.useQuery({ limit: 10, bereich }, { enabled });
+  const unterQ       = api.mobil.statUnterMindestbestand.useQuery({ bereich }, { enabled });
+  const verlaufQ     = api.mobil.statVerlauf.useQuery({ bereich }, { enabled });
 
   if (permsLoading) {
     return <div role="status" className="p-8 text-center text-base text-[#65676b] dark:text-[#b0b3b8]">⏳ Lade Berechtigungen…</div>;
@@ -74,15 +81,32 @@ export default function MobilStatistikPage() {
       {/* Kopf */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <Link href="/admin/mobil" className="text-[#65676b] hover:text-[#008BD2] text-sm font-semibold">← Mobil-Ersatzteile</Link>
+          <Link href={`/admin/mobil?bereich=${bereich}`} className="text-[#65676b] hover:text-[#008BD2] text-sm font-semibold">← Mobil-Ersatzteile</Link>
           <h1 className="text-2xl sm:text-3xl font-black text-[#202F61] dark:text-[#e4e6eb]">📊 Mobil-Statistik</h1>
+        </div>
+        <div className="flex gap-1 rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-1">
+          {([["STANDARD", "Standard"], ["DIGITAL_EDUCATION", "digital Education"]] as const).map(([key, label]) => {
+            const aktiv = bereich === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={aktiv}
+                onClick={() => { setBereich(key); setDrill(null); }}
+                className={`px-3 min-h-[40px] rounded-lg text-sm font-bold transition-colors ${aktiv ? "text-white" : "text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3a3b3c]"}`}
+                style={aktiv ? { background: "#008BD2" } : undefined}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* KPI-Reihe */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <Kpi label="Aktive Teile"  wert={kpisQ.data ? nf(kpisQ.data.aktiveTeile) : "—"} farbe={AFB.dunkelblau} hinweis="im Bestand" laden={kpisQ.isLoading} />
-        <Kpi label="Modelle"       wert={kpisQ.data ? nf(kpisQ.data.modelle) : "—"} farbe={AFB.dunkelblau} hinweis="im Katalog" laden={kpisQ.isLoading} />
+        <Kpi label="Modelle"       wert={kpisQ.data ? nf(kpisQ.data.modelle) : "—"} farbe={AFB.dunkelblau} hinweis="mit Bestand" laden={kpisQ.isLoading} />
         <Kpi label="Lagerwert"     wert={kpisQ.data ? eur(kpisQ.data.lagerwert) : "—"} farbe={AFB.blau} hinweis="EK aktiver Teile" laden={kpisQ.isLoading} />
         <Kpi label="Ausgeschieden" wert={kpisQ.data ? nf(kpisQ.data.ausgeschieden) : "—"} farbe={AFB.gruen} hinweis="ausgeliefert/gebraucht" laden={kpisQ.isLoading} />
         <Kpi
@@ -304,7 +328,7 @@ export default function MobilStatistikPage() {
       </Karte>
 
       {/* Drill-down: Einzelteile hinter dem angeklickten Diagramm-Element. */}
-      {drill && <DrilldownModal filter={drill} onClose={() => setDrill(null)} />}
+      {drill && <DrilldownModal filter={drill} bereich={bereich} onClose={() => setDrill(null)} />}
     </div>
   );
 }
@@ -403,7 +427,7 @@ function TabelleFallback({
 // zeigt die LogID-Chip-Darstellung, nach Colli gruppiert (wie das Modell-Modal).
 const PRO_SEITE = 50;
 
-function DrilldownModal({ filter, onClose }: { filter: DrillFilter; onClose: () => void }) {
+function DrilldownModal({ filter, bereich, onClose }: { filter: DrillFilter; bereich: "STANDARD" | "DIGITAL_EDUCATION"; onClose: () => void }) {
   const [seite, setSeite] = useState(1);
   useEffect(() => { setSeite(1); }, [filter]); // neuer Drill-down → zurück auf Seite 1
 
@@ -416,7 +440,7 @@ function DrilldownModal({ filter, onClose }: { filter: DrillFilter; onClose: () 
   }, [onClose]);
 
   const detailQ = api.mobil.statTeileDetail.useQuery(
-    { modellId: filter.modellId, teiltyp: filter.teiltyp, ausgeschieden: filter.ausgeschieden, seite, proSeite: PRO_SEITE },
+    { modellId: filter.modellId, teiltyp: filter.teiltyp, ausgeschieden: filter.ausgeschieden, bereich, seite, proSeite: PRO_SEITE },
     { placeholderData: (prev) => prev }, // vorige Seite halten, bis die neue da ist
   );
 

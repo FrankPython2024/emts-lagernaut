@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
@@ -15,6 +16,12 @@ export default function MobilImportPage() {
 
   const { show } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Bereich/Kostenstelle — Default aus dem ?bereich=-Param (vom Reiter mitgegeben).
+  const searchParams = useSearchParams();
+  const [bereich, setBereich] = useState<"STANDARD" | "DIGITAL_EDUCATION">(
+    searchParams?.get("bereich") === "DIGITAL_EDUCATION" ? "DIGITAL_EDUCATION" : "STANDARD",
+  );
 
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvText, setCsvText]   = useState<string | null>(null);
@@ -66,7 +73,7 @@ export default function MobilImportPage() {
   function starten() {
     if (!csvText || importieren.isPending) return;
     setBericht(null);
-    importieren.mutate({ csvText, dateiname: fileName ?? undefined, dryRun: trocken, vollAbgleich });
+    importieren.mutate({ csvText, dateiname: fileName ?? undefined, dryRun: trocken, vollAbgleich, bereich });
   }
 
   const laeuft = importieren.isPending;
@@ -90,6 +97,34 @@ export default function MobilImportPage() {
         className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-6 space-y-5"
       >
         <h2 id="import-titel" className="sr-only">CSV importieren</h2>
+
+        {/* Bereich / Kostenstelle — bestimmt den Ziel-Reiter + Abgangs-Scope */}
+        <div>
+          <div className="text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] mb-2">Bereich / Kostenstelle</div>
+          <div className="flex gap-1 rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-1 w-fit">
+            {([["STANDARD", "Standard"], ["DIGITAL_EDUCATION", "digital Education"]] as const).map(([key, label]) => {
+              const aktiv = bereich === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={aktiv}
+                  disabled={laeuft}
+                  onClick={() => setBereich(key)}
+                  className={`px-4 min-h-[44px] rounded-lg text-base font-bold transition-colors disabled:opacity-50 ${aktiv ? "text-white" : "text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3a3b3c]"}`}
+                  style={aktiv ? { background: AKZENT } : undefined}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-sm text-[#90939a] dark:text-[#6b6e73] mt-2">
+            Bestimmt, in welchen Reiter die Teile importiert werden. Die Abgangs-Erkennung wirkt
+            <strong> nur innerhalb dieses Bereichs</strong> — ein „digital Education"-Import lässt die
+            Standard-Teile unberührt (und umgekehrt).
+          </p>
+        </div>
 
         {/* Datei wählen */}
         <div>

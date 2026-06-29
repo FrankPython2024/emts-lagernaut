@@ -32,6 +32,7 @@ export const MOBIL_TEILTYPEN = [
   "Backcover",
   "Middle Frame",
   "SIM-Tray",
+  "Klebestreifen",
 ] as const;
 export type MobilTeiltyp = (typeof MOBIL_TEILTYPEN)[number];
 
@@ -163,7 +164,10 @@ function ipadModelle(norm: string): string[] {
   const out: string[] = [];
   // Bei "air"/"mini" nur eine EINZELNE Generationsziffer mitnehmen (nicht die erste
   // Ziffer einer Größe wie 10.9" → sonst fälschlich "Air 1").
-  const re = /ipad\s+(pro\s*\d{1,2}(?:[.,]\d)?|air(?:\s*\d(?!\d|[.,]\d))?|mini(?:\s*\d(?!\d|[.,]\d))?|\d{1,2}[.,]\d)\s*(?:\(\s*(20\d{2}))?/g;
+  // Größe darf mit "(" eingeleitet und in "inch"/"zoll"-Schreibweise stehen; das
+  // Jahr darf direkt (auch ohne eigene Klammer) folgen:
+  //   "iPad (10.9 inch 2022)" → iPad 10.9" (2022),  "iPad 10.2 (2021)" wie bisher.
+  const re = /ipad[\s(]+(pro\s*\d{1,2}(?:[.,]\d)?|air(?:\s*\d(?!\d|[.,]\d))?|mini(?:\s*\d(?!\d|[.,]\d))?|\d{1,2}[.,]\d)\s*(?:inch|zoll|")?\s*(?:\(?\s*(20\d{2}))?/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(norm)) !== null) {
     const teil = m[1].replace(/\s+/g, " ").trim();
@@ -270,6 +274,10 @@ const DISPLAY_FAMILIE = /oled|lcd|touchscreen|display|bildschirm|screen|digitize
 // Modul-Marker: "module"/"modul" (auch geklebt: "displaymodul[e]"), "assembly"
 // (auch "displayassembly"), "einheit" (nur als eigenes Wort → NICHT "bildschirmeinheit").
 const MODUL_MARKER = /modul|assembly|\beinheit\b/;
+// "Modul/Module Assembly" als eigenständige Phrase = komplette Display-Einheit,
+// auch wenn das Wort "Display/Screen" fehlt (Lieferanten-Wortlaut bei iPad-Modulen:
+// "Modul Assembly for iPad Air …"). Reines Touch-Glas bleibt davon ausgenommen.
+const ASSEMBLY_PHRASE = /\bmodul(?:e)?\s+assembly\b/;
 
 // Reihenfolge/Abgrenzung (alle gegenseitig ausschließend → genau ein Treffer):
 //   1) Digitizer  = reines Touch-Glas (kein Panel). Geht VOR Modul/Display.
@@ -278,12 +286,16 @@ const MODUL_MARKER = /modul|assembly|\beinheit\b/;
 const TEILTYP_REGELN: { teiltyp: MobilTeiltyp; test: (norm: string) => boolean }[] = [
   { teiltyp: "Akku",         test: (n) => /\bakku\b|batter(?:y|ies|ie)|diagnostizierbar/.test(n) },
   { teiltyp: "Digitizer",    test: (n) => istReinDigitizer(n) },
-  { teiltyp: "Displaymodul", test: (n) => DISPLAY_FAMILIE.test(n) && MODUL_MARKER.test(n) && !istReinDigitizer(n) },
+  { teiltyp: "Displaymodul", test: (n) => ((DISPLAY_FAMILIE.test(n) && MODUL_MARKER.test(n)) || ASSEMBLY_PHRASE.test(n)) && !istReinDigitizer(n) },
   { teiltyp: "Display",      test: (n) => DISPLAY_FAMILIE.test(n) && !MODUL_MARKER.test(n) && !istReinDigitizer(n) },
   { teiltyp: "Kameraglas",   test: (n) => /camera glass(?:es)?|camera lens(?:es)?|camerglass|kamera\s?glas/.test(n) },
   { teiltyp: "Backcover",    test: (n) => /back\s?glass|rear cover|back\s?cover/.test(n) },
   { teiltyp: "Middle Frame", test: (n) => /middle\s?frame|mittelrahmen/.test(n) },
   { teiltyp: "SIM-Tray",     test: (n) => /sim[-\s]?tray|sim[-\s]?slot|sim[-\s]?karten?/.test(n) },
+  // Klebestreifen/Klebe-Rahmen (Display-Kleberahmen). Nur als HAUPT-Teil ("adhesive
+  // strips/tape/seal", "Klebestreifen") — eine beiläufige "with adhesive"-Erwähnung
+  // an einem Display löst das bewusst NICHT aus.
+  { teiltyp: "Klebestreifen", test: (n) => /adhesive\s+(?:strip|tape|seal|sticker|foil)|klebestreifen|kleberahmen|klebeband/.test(n) },
 ];
 
 export function teiltypenErkennen(norm: string): MobilTeiltyp[] {

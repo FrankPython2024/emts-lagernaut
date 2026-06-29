@@ -866,6 +866,10 @@ model MobilTeil {
   teiltypId           Int?
   teiltyp             MobilTeiltyp?        @relation(fields: [teiltypId], references: [id])
   zuordnungStatus     MobilZuordnungStatus @default(REVIEW)
+  // Kostenstelle/Bereich: trennt z. B. die regulären Mobil-Teile ("STANDARD") von
+  // "DIGITAL_EDUCATION" (eigene Kostenstelle, eigener Reiter). Eigener Import-Scope:
+  // ein DE-Import berührt NUR DE-Teile (Abgangs-Erkennung filtert nach bereich).
+  bereich             String               @default("STANDARD") @db.VarChar(32)
   importiertAm        DateTime             @default(now())
   // Abgangs-Erkennung (Lagerfuchs-Muster): ein Teil, das im aktuellen Voll-Export
   // fehlt, gilt als ausgeschieden (ausgeliefert) und zählt NICHT mehr zum Bestand,
@@ -879,6 +883,7 @@ model MobilTeil {
   @@index([teiltypId])
   @@index([zuordnungStatus])
   @@index([ausgeschieden])
+  @@index([bereich])
 }
 
 // Kompatibilität Teil ↔ Modell (n:m). Ein Eintrag je erkanntem kompatiblen Modell.
@@ -919,8 +924,11 @@ model MobilMindestbestand {
   teiltypId Int
   teiltyp   MobilTeiltyp @relation(fields: [teiltypId], references: [id])
   sollMenge Int
+  // Mindestbestand getrennt je Kostenstelle/Bereich (ein iPad-Modell kann in
+  // STANDARD und DIGITAL_EDUCATION unterschiedliche Soll-Mengen haben).
+  bereich   String       @default("STANDARD") @db.VarChar(32)
 
-  @@unique([modellId, teiltypId])
+  @@unique([modellId, teiltypId, bereich])
 }
 
 // ── Kategorie-Preise (Laptop-Ersatzteile) ───────────────────────────────────
