@@ -59,6 +59,66 @@ function Empty() {
   return <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] text-center py-6">Keine Daten</p>;
 }
 
+// ── Wert ausgegeben (Laptop-Teile über Anfragen) ──────────────────────────────
+
+function euro(n: number): string {
+  return n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+}
+
+function WertAusgegebenPanel({ tage, standortId }: { tage: number; standortId: number | null | undefined }) {
+  const q = api.preise.wertAusgegeben.useQuery({ tage, standortId: standortId ?? null });
+  return (
+    <Panel title="💸 Wert ausgegeben" sub={`Über Anfragen ausgegebene Teile (AUSGANG + Bedarf) × Kategorie-Preis · letzte ${tage} Tage`}>
+      {q.isLoading && <Skeleton h="h-40" />}
+      {q.data && (
+        <>
+          <div className="mb-4">
+            <div className="text-3xl font-black tabular-nums text-[#00a400]">{euro(q.data.gesamt)}</div>
+            <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+              {q.data.mengeGesamt.toLocaleString("de-DE")} Teile · {q.data.proKategorie.length} Kategorien bewertet
+            </div>
+          </div>
+
+          {q.data.proKategorie.length === 0 ? (
+            <Empty />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
+                    <th className="text-left py-2 pr-3">Kategorie</th>
+                    <th className="text-right py-2 px-3">Menge</th>
+                    <th className="text-right py-2 px-3">Preis</th>
+                    <th className="text-right py-2 pl-3">Wert</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+                  {q.data.proKategorie.map((r) => (
+                    <tr key={r.kategorie}>
+                      <td className="py-2 pr-3 font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">{r.kategorie}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-[#65676b] dark:text-[#b0b3b8]">{r.menge.toLocaleString("de-DE")}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-[#65676b] dark:text-[#b0b3b8]">{euro(r.preis)}</td>
+                      <td className="py-2 pl-3 text-right tabular-nums font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{euro(r.wert)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {q.data.ohnePreis.length > 0 && (
+            <div className="mt-3 text-xs text-[#f7b928]">
+              ⚠️ {q.data.ohnePreis.length} Kategorien ohne Preis (nicht enthalten):{" "}
+              {q.data.ohnePreis.map((o) => `${o.kategorie} (${o.menge})`).join(", ")} —{" "}
+              <a href="/admin/preise" className="underline font-semibold">Preise ergänzen</a>
+            </div>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+}
+
 // ── HBarChart mit optionalem Bedarf-Anteil ────────────────────────────────────
 
 function HBarChart({ items, showBedarf, barColor }: {
@@ -762,6 +822,9 @@ export default function StatistikenPage() {
               )}
             </Panel>
           </div>
+
+          {/* Wert ausgegeben (Laptop-Teile über Anfragen) */}
+          <WertAusgegebenPanel tage={tage} standortId={sId} />
 
           {/* Team-Vergleich + Jahresarchiv Tab */}
           <Panel title="Techniker-Analyse">

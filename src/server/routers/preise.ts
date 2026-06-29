@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 
 // ── Kategorie-Preise (Laptop-Ersatzteile) ───────────────────────────────────
@@ -7,12 +8,19 @@ import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 // kommt LIVE aus der Artikel-Tabelle, damit sie immer der echten DB entspricht.
 //
 // Lesen:  ARTIKEL_VIEW   ·  Schreiben: ARTIKEL_EDIT
+// Auswertung „Wert ausgegeben": STATISTIK_VIEW
 // (bewusst keine neuen Permissions → kein seed-rbac-Lauf nötig)
 
-// Prisma.Decimal → plain number (superjson serialisiert Decimal nicht sinnvoll).
+// Prisma.Decimal / BigInt (SUM) / String ($queryRaw) → plain number.
+// superjson serialisiert Decimal nicht sinnvoll; $queryRaw liefert SUM als
+// BigInt oder String je nach Treiber.
 function num(v: unknown): number {
+  if (v == null) return 0;
+  if (typeof v === "bigint") return Number(v);
   return typeof v === "number" ? v : Number(v);
 }
+
+const MS_PRO_TAG = 24 * 60 * 60 * 1000;
 
 export const preiseRouter = createTRPCRouter({
 
@@ -72,5 +80,73 @@ export const preiseRouter = createTRPCRouter({
       });
 
       return { gespeichert, geloescht };
+    }),
+
+  // Auswertung „Wert ausgegeben über Anfragen": Summe menge × Kategorie-Preis
+  // über die echten Ausgabe-Buchungen (AUSGANG + DIREKT/BEDARF), gejoint
+  // Buchung→Artikel(kategorie)→KategoriePreis. Kategorien ohne hinterlegten
+  // Preis werden separat ausgewiesen (zählen NICHT in die Summe).
+  //
+  // Folgt demselben tage-/standortId-Filter wie die übrige Statistik-Seite.
+  // tage = null/0 → alle Buchungen (Gesamt). standortId = null → alle Standorte.
+  //
+  // Hinweis: Buchung speichert keinen Preis-Snapshot → bewertet wird mit dem
+  // AKTUELLEN Kategorie-Preis. Ändert sich ein Preis, ändert sich rückwirkend
+  // auch der ausgewiesene Vergangenheitswert (für groben Überblick ok).
+  wertAusgegeben: permissionProcedure("STATISTIK_VIEW")
+    .input(z.object({
+      tage:       z.number().int().positive().nullable().optional(),
+      standortId: z.number().int().positive().nullable().optional(),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const tage       = input?.tage ?? null;
+      const standortId = input?.standortId ?? null;
+      const cutoff     = tage ? new Date(Date.now() - tage * MS_PRO_TAG) : null;
+
+      const datumFilter    = cutoff     ? Prisma.sql`AND b.datum >= ${cutoff}`     : Prisma.empty;
+      const standortFilter = standortId ? Prisma.sql`AND a.standortId = ${standortId}` : Prisma.empty;
+
+      const rows = await ctx.prisma.$queryRaw<
+        { kategorie: string | null; menge: unknown; preis: unknown }[]
+      >(Prisma.sql`
+        SELECT a.kategorie AS kategorie,
+               SUM(b.menge) AS menge,
+               kp.preis     AS preis
+        FROM Buchung b
+        JOIN Artikel a       ON a.id = b.artikelId
+        LEFT JOIN KategoriePreis kp ON kp.kategorie = a.kategorie
+        WHERE b.typ IN ('AUSGANG', 'DIREKT') ${datumFilter} ${standortFilter}
+        GROUP BY a.kategorie, kp.preis
+        ORDER BY a.kategorie
+      `);
+
+      const proKategorie: { kategorie: string; menge: number; preis: number; wert: number }[] = [];
+      const ohnePreis:    { kategorie: string; menge: number }[] = [];
+      let gesamt = 0;
+      let mengeGesamt = 0;
+
+      for (const r of rows) {
+        const kategorie = r.kategorie?.trim() || "(ohne Kategorie)";
+        const menge     = num(r.menge);
+        mengeGesamt += menge;
+        if (r.preis == null) {
+          ohnePreis.push({ kategorie, menge });
+        } else {
+          const preis = num(r.preis);
+          const wert  = Math.round(menge * preis * 100) / 100;
+          gesamt += wert;
+          proKategorie.push({ kategorie, menge, preis, wert });
+        }
+      }
+
+      proKategorie.sort((a, b) => b.wert - a.wert);
+      ohnePreis.sort((a, b) => b.menge - a.menge);
+
+      return {
+        gesamt:      Math.round(gesamt * 100) / 100,
+        mengeGesamt,
+        proKategorie,
+        ohnePreis,
+      };
     }),
 });
