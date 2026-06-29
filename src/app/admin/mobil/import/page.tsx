@@ -1,8 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
@@ -18,10 +17,14 @@ export default function MobilImportPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Bereich/Kostenstelle — Default aus dem ?bereich=-Param (vom Reiter mitgegeben).
-  const searchParams = useSearchParams();
-  const [bereich, setBereich] = useState<"STANDARD" | "DIGITAL_EDUCATION">(
-    searchParams?.get("bereich") === "DIGITAL_EDUCATION" ? "DIGITAL_EDUCATION" : "STANDARD",
-  );
+  // Clientseitig aus window.location gelesen (kein useSearchParams → kein
+  // Suspense-Zwang beim Prerender/Build).
+  const [bereich, setBereich] = useState<"STANDARD" | "DIGITAL_EDUCATION">("STANDARD");
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("bereich") === "DIGITAL_EDUCATION") {
+      setBereich("DIGITAL_EDUCATION");
+    }
+  }, []);
 
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvText, setCsvText]   = useState<string | null>(null);

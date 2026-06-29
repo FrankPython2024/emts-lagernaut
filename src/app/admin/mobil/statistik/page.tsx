@@ -9,7 +9,6 @@ import {
 } from "recharts";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useSearchParams } from "next/navigation";
 
 // Drill-down-Filter: was hinter dem angeklickten Diagramm-Element steckt. titel =
 // Kontext-Überschrift im Modal; filter geht 1:1 an statTeileDetail.
@@ -44,10 +43,13 @@ export default function MobilStatistikPage() {
   const [drill, setDrill] = useState<DrillFilter | null>(null);
 
   // Bereich/Kostenstelle — Default aus ?bereich= (vom Reiter), umschaltbar.
-  const searchParams = useSearchParams();
-  const [bereich, setBereich] = useState<"STANDARD" | "DIGITAL_EDUCATION">(
-    searchParams?.get("bereich") === "DIGITAL_EDUCATION" ? "DIGITAL_EDUCATION" : "STANDARD",
-  );
+  // Clientseitig aus window.location (kein useSearchParams → kein Suspense-Zwang im Build).
+  const [bereich, setBereich] = useState<"STANDARD" | "DIGITAL_EDUCATION">("STANDARD");
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("bereich") === "DIGITAL_EDUCATION") {
+      setBereich("DIGITAL_EDUCATION");
+    }
+  }, []);
 
   const kpisQ        = api.mobil.statKpis.useQuery({ bereich }, { enabled });
   const topQ         = api.mobil.statTopModelle.useQuery({ limit: 10, bereich }, { enabled });
