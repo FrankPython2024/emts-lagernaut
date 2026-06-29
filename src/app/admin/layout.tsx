@@ -43,6 +43,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Stammdaten",
     items: [
       { href: "/admin/artikel",      label: "Artikel",      icon: "🗃️", permission: "ARTIKEL_VIEW" },
+      { href: "/admin/preise",       label: "Kategorie-Preise", icon: "💶", permission: "ARTIKEL_VIEW" },
       { href: "/admin/modelle",      label: "Modelle",      icon: "💻", permission: "MODELL_VIEW" },
       { href: "/admin/teiltypen",    label: "Teiltypen",    icon: "🧩", permission: "TEILTYP_EDIT" },
       { href: "/admin/lagerplaetze", label: "Lagerplätze",  icon: "🗄️", permission: "LAGERPLATZ_VIEW" },

@@ -922,3 +922,17 @@ model MobilMindestbestand {
 
   @@unique([modellId, teiltypId])
 }
+
+// ── Kategorie-Preise (Laptop-Ersatzteile) ───────────────────────────────────
+// Laptop-Artikel haben selbst KEINEN Preis (aus Altgeräten geerntet). Hier wird
+// ein Stückpreis je Artikel-Kategorie (Akku, Displaymodul, Tastatur, …) gepflegt.
+// Grundlage für die Auswertung „Wert ausgegeben über Anfragen" (menge × preis,
+// gejoint Buchung→Artikel→kategorie). Kein FK auf Artikel — Kategorie ist nur ein
+// String-Feld auf Artikel; Verknüpfung erfolgt über den Kategorie-Namen.
+model KategoriePreis {
+  id             Int      @id @default(autoincrement())
+  kategorie      String   @unique @db.VarChar(191)
+  preis          Decimal  @db.Decimal(10, 2)
+  erstelltAm     DateTime @default(now())
+  aktualisiertAm DateTime @updatedAt
+}
