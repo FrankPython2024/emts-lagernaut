@@ -829,6 +829,7 @@ model MobilModell {
   teilLinks      MobilTeilModell[]               // alle kompatiblen Teile (inkl. Mehrfach-Modell)
   aliase         MobilAlias[]
   mindestbestand MobilMindestbestand[]
+  anfragen       MobilAnfrage[]
 
   @@unique([hersteller, modell])
 }
@@ -947,4 +948,40 @@ model KategoriePreis {
   preis          Decimal  @db.Decimal(10, 2)
   erstelltAm     DateTime @default(now())
   aktualisiertAm DateTime @updatedAt
+}
+
+// ── Mobil-Anfragen (Techniker fragt ein mobiles Ersatzteil an) ───────────────
+enum MobilAnfrageStatus {
+  NEU
+  BEDARF
+  IN_BEARBEITUNG
+  ABGESCHLOSSEN
+  STORNIERT
+}
+
+// Ersatzteil-Anfrage eines Technikers für ein MOBILES Gerät (Smartphone/Tablet).
+// Eigenes System, getrennt von der Laptop-`Anfrage` (kein Artikel-Bezug, damit die
+// Laptop-Statistik/Bestell-Empfehlung NICHT mit Mobil-Zeilen verschmutzt). Der
+// Techniker wählt Bereich → Modell → Teiltyp; Status NEU (Bestand>0) bzw. BEDARF (=0)
+// wird beim Anlegen aus dem aktuellen Mobil-Bestand abgeleitet. Recht: ANFRAGE_MOBIL_CREATE.
+model MobilAnfrage {
+  id            Int                @id @default(autoincrement())
+  datum         DateTime           @default(now())
+  techniker     String                                   // Kürzel des Anfragenden
+  bereich       String             @default("STANDARD") @db.VarChar(32)
+  modellId      Int
+  modell        MobilModell        @relation(fields: [modellId], references: [id])
+  teiltyp       String                                   // Teiltyp-Name (MOBIL_TEILTYPEN)
+  menge         Int                @default(1)
+  kommentar     String?            @db.Text
+  status        MobilAnfrageStatus @default(NEU)
+  bearbeitetVon String?
+  erledigtLogId String?                                  // beim Erledigen ausgegebene Teil-LogID (Etappe B)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([techniker])
+  @@index([status])
+  @@index([modellId])
+  @@index([bereich])
 }

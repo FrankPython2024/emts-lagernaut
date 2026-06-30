@@ -11,6 +11,8 @@ import { type AnfrageRow, type GruppeData } from "./components/constants";
 import { Loader2, MessageCircle } from "lucide-react";
 import { getLucideIcon } from "@/lib/icons/getLucideIcon";
 import { useTestModus, darfTestModus } from "@/lib/testModus/testModus";
+import { usePermissions } from "@/hooks/usePermissions";
+import MobilAnfrageBereich from "./MobilAnfrageBereich";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -100,6 +102,14 @@ export default function TechnikerPage() {
   const kuerzel  = user?.kuerzel ?? "";
   const { on, off } = useSocket();
 
+  // Rechtebasierter Zugang: Laptop- (ANFRAGE_CREATE) und/oder Mobil-Anfragen
+  // (ANFRAGE_MOBIL_CREATE), pro Nutzer. Springer haben beide → Umschalter.
+  const { has, isLoading: permsLoading } = usePermissions();
+  const darfLaptop = has("ANFRAGE_CREATE");
+  const darfMobil  = has("ANFRAGE_MOBIL_CREATE");
+  const [tabWahl, setTabWahl] = useState<"laptop" | "mobil" | null>(null);
+  const aktiverTab: "laptop" | "mobil" = tabWahl ?? (darfLaptop ? "laptop" : "mobil");
+
   // Test-Modus ist nur wirksam, wenn er aktiv ist UND der User ein Admin ist
   // (ADMIN / ADMIN_READONLY). Echte Techniker erzeugen immer reale Anfragen.
   const testModusAktiv = useTestModus() && darfTestModus(user?.rolle);
@@ -126,7 +136,7 @@ export default function TechnikerPage() {
 
   const anfragenQuery = api.anfragen.getByTechniker.useQuery(
     { kuerzel, showAll: true, limit: 100 },
-    { enabled: !!kuerzel, staleTime: 60_000 },
+    { enabled: !!kuerzel && darfLaptop, staleTime: 60_000 },
   );
 
   // Socket-Events sind die alleinige Update-Quelle — kein setInterval-Polling mehr
@@ -178,9 +188,36 @@ export default function TechnikerPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  if (permsLoading) {
+    return <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-dim)" }}>Wird geladen…</div>;
+  }
+
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem 1.25rem 3rem" }}>
 
+      {/* Rechtebasierter Umschalter Notebook ↔ Mobil (nur wenn beide Rechte da) */}
+      {darfLaptop && darfMobil && (
+        <div style={{ display: "flex", gap: 6, background: "var(--card-bg)", border: "1.5px solid var(--border)", borderRadius: 14, padding: 6, width: "fit-content", margin: "0 auto 1.5rem", fontFamily: "'Ubuntu', sans-serif" }}>
+          {([["laptop", "💻 Notebook"], ["mobil", "📱 Mobil"]] as const).map(([key, label]) => {
+            const aktiv = aktiverTab === key;
+            return (
+              <button key={key} type="button" aria-pressed={aktiv} onClick={() => setTabWahl(key)}
+                style={{ minHeight: 48, padding: "0 1.25rem", borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 700, fontFamily: "'Ubuntu', sans-serif", fontSize: "1rem", background: aktiv ? "#008BD2" : "transparent", color: aktiv ? "white" : "var(--text)" }}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {aktiverTab === "mobil" && darfMobil ? (
+        <MobilAnfrageBereich kuerzel={kuerzel} />
+      ) : !darfLaptop ? (
+        <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-dim)" }}>
+          Kein Zugriff auf Anfragen. Bitte wende dich an die Verwaltung.
+        </div>
+      ) : (
+      <>
       {/* ── Two-column grid (kein Begrüßungs-Header) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
@@ -329,6 +366,8 @@ export default function TechnikerPage() {
           kuerzel={kuerzel}
           onClose={() => { setDetailGruppe(null); anfragenQuery.refetch(); }}
         />
+      )}
+      </>
       )}
     </div>
   );

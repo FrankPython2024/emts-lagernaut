@@ -33,6 +33,7 @@ import { geraeteReiseRouter }       from "./geraeteReise";
 import { fehlteileRouter }          from "./fehlteile";
 import { verbrauchsmaterialRouter }  from "./verbrauchsmaterial";
 import { mobilRouter }               from "./mobil";
+import { mobilAnfrageRouter }        from "./mobilAnfrage";
 import { preiseRouter }              from "./preise";
 
 export const appRouter = createTRPCRouter({
@@ -70,6 +71,7 @@ export const appRouter = createTRPCRouter({
   fehlteile:         fehlteileRouter,
   verbrauchsmaterial: verbrauchsmaterialRouter,
   mobil:              mobilRouter,
+  mobilAnfrage:       mobilAnfrageRouter,
   preise:             preiseRouter,
 });
 

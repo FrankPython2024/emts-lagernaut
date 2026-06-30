@@ -21,7 +21,8 @@ const PERMISSIONS = [
   // Anfragen
   { key: "ANFRAGE_VIEW_ALL",    kategorie: "Anfragen",    bezeichnung: "Alle Anfragen sehen" },
   { key: "ANFRAGE_VIEW_EIGENE", kategorie: "Anfragen",    bezeichnung: "Eigene Anfragen sehen" },
-  { key: "ANFRAGE_CREATE",      kategorie: "Anfragen",    bezeichnung: "Anfragen erstellen" },
+  { key: "ANFRAGE_CREATE",      kategorie: "Anfragen",    bezeichnung: "Anfragen erstellen (Laptop-Ersatzteile)" },
+  { key: "ANFRAGE_MOBIL_CREATE", kategorie: "Anfragen",   bezeichnung: "Mobil-Ersatzteile anfragen (Techniker)" },
   { key: "ANFRAGE_EDIT",        kategorie: "Anfragen",    bezeichnung: "Anfragen-Status ändern" },
   { key: "ANFRAGE_DELETE",      kategorie: "Anfragen",    bezeichnung: "Anfragen löschen" },
   { key: "ANFRAGE_AUSLAGERN",   kategorie: "Anfragen",    bezeichnung: "Auslager-Wizard nutzen" },
