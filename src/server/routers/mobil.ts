@@ -59,7 +59,7 @@ async function ladeUnterMindestbestand(bereich: string) {
       FROM \`MobilMindestbestand\` mb
       JOIN \`MobilModell\`   m  ON m.id  = mb.modellId
       JOIN \`MobilTeiltyp\`  tt ON tt.id = mb.teiltypId
-      WHERE mb.sollMenge > 0
+      WHERE mb.sollMenge > 0 AND mb.bereich = ${bereich}
     ) x
     WHERE x.ist < x.soll
     ORDER BY (x.soll - x.ist) DESC`;
@@ -179,7 +179,7 @@ export const mobilRouter = createTRPCRouter({
       // Gruppe ihr Soll bekommt (Teiltyp-Referenz konsistent zu setMindestbestand).
       const [mindest, teiltypAlle, ausgeschieden] = await Promise.all([
         prisma.mobilMindestbestand.findMany({
-          where:  { modellId: input.modellId },
+          where:  { modellId: input.modellId, bereich: input.bereich },
           select: { teiltypId: true, sollMenge: true },
         }),
         prisma.mobilTeiltyp.findMany({ select: { id: true, name: true } }),
@@ -227,10 +227,9 @@ export const mobilRouter = createTRPCRouter({
       return { gesamt, teiltypen, ausgeschieden };
     }),
 
-  // Mindestbestand je Modell+Teiltyp setzen (Upsert über @@unique modellId+teiltypId).
-  // GLOBAL (kein Bereich — siehe Schema-Kommentar). sollMenge 0 = Hinweis aus.
+  // Mindestbestand je Modell+Teiltyp+Bereich setzen (Upsert über @@unique
+  // modellId+teiltypId+bereich). sollMenge 0 = kein Mindestbestand (Hinweis aus).
   // Teiltyp per Name (konsistent zu teileProModell); existiert er noch nicht → anlegen.
-  // bereich wird akzeptiert (Client schickt es), aber NICHT verwendet (Soll ist global).
   setMindestbestand: manage
     .input(z.object({
       modellId:  z.number().int().positive(),
@@ -245,9 +244,9 @@ export const mobilRouter = createTRPCRouter({
         create: { name: input.teiltyp },
       });
       await prisma.mobilMindestbestand.upsert({
-        where:  { modellId_teiltypId: { modellId: input.modellId, teiltypId: tt.id } },
+        where:  { modellId_teiltypId_bereich: { modellId: input.modellId, teiltypId: tt.id, bereich: input.bereich } },
         update: { sollMenge: input.sollMenge },
-        create: { modellId: input.modellId, teiltypId: tt.id, sollMenge: input.sollMenge },
+        create: { modellId: input.modellId, teiltypId: tt.id, sollMenge: input.sollMenge, bereich: input.bereich },
       });
       return { ok: true, sollMenge: input.sollMenge };
     }),
