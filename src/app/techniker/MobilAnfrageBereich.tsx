@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 
-// Mobil-Ersatzteil-Anfrage für Techniker: Bereich → Hersteller → Modell → Teiltyp
-// (mit NEU/BEDARF-Status) → anfragen. Kein LogID-Scan (mobile Geräte haben keine
-// modell-auflösbare LogID); Auswahl modellbasiert, analog zur Admin-Mobil-Ansicht.
+// Mobil-Ersatzteil-Anfrage für Techniker: Bereich → Hersteller → Modell. Ein Klick
+// aufs Modell öffnet ein POP-UP (Teiltypen mit NEU/BEDARF) — analog zur Admin-Mobil-
+// Übersicht, kein Runterscrollen. Teiltyp antippen → Anfrage-Dialog (Menge/Kommentar).
+// Kein LogID-Scan (mobile Geräte haben keine modell-auflösbare LogID).
 // Rechte-Gate (ANFRAGE_MOBIL_CREATE) liegt in der Eltern-Seite.
 
 const CYAN  = "#008BD2";
@@ -26,24 +27,25 @@ const STATUS_CFG: Record<string, { text: string; color: string; bg: string }> = 
   STORNIERT:      { text: "Storniert",      color: "#b91c1c", bg: "#fee2e2" },
 };
 
+const BEREICH_LABEL = (b: string) => (b === "DIGITAL_EDUCATION" ? "digital Education" : "Standard");
+
+const card: React.CSSProperties = {
+  background: "var(--card-bg)", border: "1.5px solid var(--border)",
+  borderRadius: 16, color: "var(--text)", fontFamily: "'Ubuntu', sans-serif",
+};
+
 export default function MobilAnfrageBereich({ kuerzel }: { kuerzel: string }) {
   const { show } = useToast();
   const utils = api.useUtils();
 
-  const [bereich, setBereich]           = useState<Bereich>("STANDARD");
+  const [bereich, setBereich]             = useState<Bereich>("STANDARD");
   const [selHersteller, setSelHersteller] = useState<string | null>(null);
-  const [selModell, setSelModell]       = useState<{ id: number; name: string } | null>(null);
-  // Teiltyp-Anfrage-Dialog (Menge + Kommentar).
-  const [dialog, setDialog]             = useState<{ teiltyp: string; status: string } | null>(null);
+  const [selModell, setSelModell]         = useState<{ id: number; name: string } | null>(null);
 
   const herstellerQ = api.mobilAnfrage.hersteller.useQuery({ bereich });
   const modelleQ    = api.mobilAnfrage.modelle.useQuery(
     { bereich, hersteller: selHersteller ?? "" },
     { enabled: !!selHersteller },
-  );
-  const teiltypenQ  = api.mobilAnfrage.teiltypen.useQuery(
-    { bereich, modellId: selModell?.id ?? 0 },
-    { enabled: !!selModell },
   );
   const meineQ      = api.mobilAnfrage.meine.useQuery(undefined, { enabled: !!kuerzel });
 
@@ -53,16 +55,11 @@ export default function MobilAnfrageBereich({ kuerzel }: { kuerzel: string }) {
     setSelModell(null);
   }
 
-  const card: React.CSSProperties = {
-    background: "var(--card-bg)", border: "1.5px solid var(--border)",
-    borderRadius: 16, color: "var(--text)", fontFamily: "'Ubuntu', sans-serif",
-  };
-
   return (
     <div style={{ display: "grid", gap: "1.5rem", gridTemplateColumns: "1fr", maxWidth: 900, margin: "0 auto" }}>
 
       {/* Bereich-Umschalter */}
-      <div style={{ display: "flex", gap: 6, background: "var(--card-bg)", border: "1.5px solid var(--border)", borderRadius: 14, padding: 6, width: "fit-content" }}>
+      <div style={{ display: "flex", gap: 6, ...card, borderRadius: 14, padding: 6, width: "fit-content" }}>
         {BEREICH_TABS.map(({ key, label }) => {
           const aktiv = bereich === key;
           return (
@@ -106,7 +103,7 @@ export default function MobilAnfrageBereich({ kuerzel }: { kuerzel: string }) {
         )}
       </section>
 
-      {/* Schritt 2: Modell */}
+      {/* Schritt 2: Modell — Klick öffnet das Pop-up */}
       {selHersteller && (
         <section>
           <h2 style={{ margin: "0 0 0.6rem", fontSize: "1.1rem", fontWeight: 800 }}>2 · Modell wählen — {selHersteller}</h2>
@@ -116,50 +113,18 @@ export default function MobilAnfrageBereich({ kuerzel }: { kuerzel: string }) {
             <Hint>Keine Modelle mit Teilen.</Hint>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.5rem" }}>
-              {modelleQ.data.map((m) => {
-                const aktiv = selModell?.id === m.id;
-                return (
-                  <button key={m.id} type="button" aria-pressed={aktiv}
-                    onClick={() => setSelModell({ id: m.id, name: m.modell })}
-                    style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                      padding: "0 1rem", minHeight: 56, cursor: "pointer",
-                      border: aktiv ? `2px solid ${CYAN}` : "1.5px solid var(--border)",
-                      background: aktiv ? "rgba(0,139,210,0.08)" : "var(--card-bg)" }}>
-                    <span style={{ fontWeight: 700 }}>{m.modell}</span>
-                    <span style={{ flexShrink: 0, fontSize: "0.82rem", fontWeight: 700, color: CYAN,
-                      background: "rgba(0,139,210,0.12)", borderRadius: 8, padding: "2px 8px" }}>
-                      {m.stueck} Stück
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Schritt 3: Teiltyp wählen + anfragen */}
-      {selModell && (
-        <section>
-          <h2 style={{ margin: "0 0 0.6rem", fontSize: "1.1rem", fontWeight: 800 }}>3 · Teil anfragen — {selModell.name}</h2>
-          {teiltypenQ.isLoading ? (
-            <Hint>Wird geladen…</Hint>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.6rem" }}>
-              {(teiltypenQ.data ?? []).map((t) => {
-                const cfg = STATUS_CFG[t.status] ?? STATUS_CFG.NEU!;
-                return (
-                  <button key={t.teiltyp} type="button"
-                    onClick={() => setDialog({ teiltyp: t.teiltyp, status: t.status })}
-                    style={{ ...card, padding: "0.85rem 0.75rem", minHeight: 84, cursor: "pointer", textAlign: "center",
-                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                    <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{t.teiltyp}</span>
-                    <span style={{ fontSize: "0.78rem", fontWeight: 700, color: cfg.color, background: cfg.bg, borderRadius: 20, padding: "2px 10px" }}>
-                      {cfg.text}{t.bestand > 0 ? ` · ${t.bestand}` : ""}
-                    </span>
-                  </button>
-                );
-              })}
+              {modelleQ.data.map((m) => (
+                <button key={m.id} type="button" aria-haspopup="dialog"
+                  onClick={() => setSelModell({ id: m.id, name: m.modell })}
+                  style={{ ...card, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                    padding: "0 1rem", minHeight: 56, cursor: "pointer" }}>
+                  <span style={{ fontWeight: 700 }}>{m.modell}</span>
+                  <span style={{ flexShrink: 0, fontSize: "0.82rem", fontWeight: 700, color: CYAN,
+                    background: "rgba(0,139,210,0.12)", borderRadius: 8, padding: "2px 8px" }}>
+                    {m.stueck} Stück
+                  </span>
+                </button>
+              ))}
             </div>
           )}
         </section>
@@ -183,7 +148,7 @@ export default function MobilAnfrageBereich({ kuerzel }: { kuerzel: string }) {
                       {a.modell} <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>· {a.teiltyp}{a.menge > 1 ? ` ×${a.menge}` : ""}</span>
                     </div>
                     <div style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
-                      {a.bereich === "DIGITAL_EDUCATION" ? "digital Education" : "Standard"} · {new Date(a.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+                      {BEREICH_LABEL(a.bereich)} · {new Date(a.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
                       {a.kommentar ? ` · ${a.kommentar}` : ""}
                     </div>
                   </div>
@@ -197,19 +162,14 @@ export default function MobilAnfrageBereich({ kuerzel }: { kuerzel: string }) {
         )}
       </section>
 
-      {/* Anfrage-Dialog */}
-      {dialog && selModell && (
-        <AnfrageDialog
+      {/* Pop-up: Teiltypen des gewählten Modells */}
+      {selModell && (
+        <ModellAnfrageModal
           bereich={bereich}
           modellId={selModell.id}
           modellName={selModell.name}
-          teiltyp={dialog.teiltyp}
-          status={dialog.status}
-          onClose={() => setDialog(null)}
-          onDone={() => {
-            setDialog(null);
-            void utils.mobilAnfrage.meine.invalidate();
-          }}
+          onClose={() => setSelModell(null)}
+          onDone={() => { void utils.mobilAnfrage.meine.invalidate(); }}
           show={show}
         />
       )}
@@ -221,6 +181,86 @@ function Hint({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ padding: "1rem 1.25rem", background: "var(--card-bg)", border: "1px dashed var(--border)", borderRadius: 12, color: "var(--text-dim)", fontSize: "0.95rem" }}>
       {children}
+    </div>
+  );
+}
+
+// Pop-up mit den Teiltypen (NEU/BEDARF). Teiltyp antippen → Anfrage-Dialog darüber.
+function ModellAnfrageModal({
+  bereich, modellId, modellName, onClose, onDone, show,
+}: {
+  bereich: Bereich;
+  modellId: number;
+  modellName: string;
+  onClose: () => void;
+  onDone: () => void;
+  show: (msg: string, typ?: "success" | "error" | "info" | "warning") => void;
+}) {
+  const [dialog, setDialog] = useState<{ teiltyp: string; status: string } | null>(null);
+  const teiltypenQ = api.mobilAnfrage.teiltypen.useQuery({ bereich, modellId });
+
+  // Escape schließt (nur wenn kein Anfrage-Dialog offen ist).
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape" && !dialog) onClose(); };
+    window.addEventListener("keydown", h);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", h); document.body.style.overflow = prev; };
+  }, [onClose, dialog]);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
+      onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={`Teile für ${modellName}`} onClick={(e) => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: 620, background: "var(--card-bg)", color: "var(--text)", borderRadius: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.3)", fontFamily: "'Ubuntu', sans-serif", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: "1.3rem", fontWeight: 800 }}>{modellName}</h2>
+            <div style={{ marginTop: 2, fontSize: "0.85rem", color: "var(--text-dim)" }}>
+              {BEREICH_LABEL(bereich)} · Teil zum Anfragen wählen
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Schließen"
+            style={{ width: 44, height: 44, borderRadius: 10, border: "none", background: "transparent", color: "var(--text-dim)", fontSize: "1.5rem", cursor: "pointer" }}>✕</button>
+        </div>
+
+        <div style={{ padding: "1.25rem 1.5rem", overflowY: "auto" }}>
+          {teiltypenQ.isLoading ? (
+            <Hint>Wird geladen…</Hint>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.6rem" }}>
+              {(teiltypenQ.data ?? []).map((t) => {
+                const cfg = STATUS_CFG[t.status] ?? STATUS_CFG.NEU!;
+                return (
+                  <button key={t.teiltyp} type="button"
+                    onClick={() => setDialog({ teiltyp: t.teiltyp, status: t.status })}
+                    style={{ ...card, padding: "0.85rem 0.75rem", minHeight: 84, cursor: "pointer", textAlign: "center",
+                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{t.teiltyp}</span>
+                    <span style={{ fontSize: "0.78rem", fontWeight: 700, color: cfg.color, background: cfg.bg, borderRadius: 20, padding: "2px 10px" }}>
+                      {cfg.text}{t.bestand > 0 ? ` · ${t.bestand}` : ""}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Anfrage-Dialog (Menge + Kommentar) — über dem Modell-Pop-up */}
+      {dialog && (
+        <AnfrageDialog
+          bereich={bereich}
+          modellId={modellId}
+          modellName={modellName}
+          teiltyp={dialog.teiltyp}
+          status={dialog.status}
+          onClose={() => setDialog(null)}
+          onDone={() => { setDialog(null); onDone(); }}
+          show={show}
+        />
+      )}
     </div>
   );
 }
@@ -256,7 +296,7 @@ function AnfrageDialog({
         style={{ width: "100%", maxWidth: 460, background: "var(--card-bg)", color: "var(--text)", borderRadius: 18, boxShadow: "0 8px 40px rgba(0,0,0,0.3)", fontFamily: "'Ubuntu', sans-serif", padding: "1.5rem" }}>
         <div style={{ fontSize: "1.25rem", fontWeight: 800 }}>{teiltyp}</div>
         <div style={{ marginTop: 2, color: "var(--text-dim)", fontSize: "0.9rem" }}>
-          {modellName} · {bereich === "DIGITAL_EDUCATION" ? "digital Education" : "Standard"}
+          {modellName} · {BEREICH_LABEL(bereich)}
           <span style={{ marginLeft: 8, fontWeight: 700, color: cfg.color, background: cfg.bg, borderRadius: 20, padding: "1px 9px", fontSize: "0.8rem" }}>{cfg.text}</span>
         </div>
 

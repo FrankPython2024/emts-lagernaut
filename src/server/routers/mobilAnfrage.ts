@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import type { Prisma } from "@prisma/client";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import { MOBIL_TEILTYPEN } from "@/lib/mobil/parser";
@@ -8,6 +10,9 @@ import type { SessionUser } from "@/core/types";
 // Eigenes, technikerseitiges Modul — getrennt vom Admin-Mobil-Browsing (MOBIL_VIEW)
 // und vom Laptop-Anfrage-System. Recht: ANFRAGE_MOBIL_CREATE (pro Nutzer vergebbar).
 const req = permissionProcedure("ANFRAGE_MOBIL_CREATE");
+// Admin-Bearbeitung der Mobil-Anfragen: Lesen MOBIL_VIEW, Aktionen MOBIL_MANAGE.
+const view   = permissionProcedure("MOBIL_VIEW");
+const manage = permissionProcedure("MOBIL_MANAGE");
 
 const BEREICHE = ["STANDARD", "DIGITAL_EDUCATION"] as const;
 const bereichInput = z.enum(BEREICHE).default("STANDARD");
@@ -137,4 +142,124 @@ export const mobilAnfrageRouter = createTRPCRouter({
       kommentar:  r.kommentar,
     }));
   }),
+
+  // ── Admin-Bearbeitung ────────────────────────────────────────────────────────
+
+  // Liste aller Mobil-Anfragen (Filter Status/Bereich), paginiert.
+  adminListe: view
+    .input(z.object({
+      status:  z.enum(["ALLE", "NEU", "BEDARF", "IN_BEARBEITUNG", "ABGESCHLOSSEN", "STORNIERT"]).default("ALLE"),
+      bereich: z.enum(["ALLE", "STANDARD", "DIGITAL_EDUCATION"]).default("ALLE"),
+      offset:  z.number().int().min(0).default(0),
+      limit:   z.number().int().min(1).max(200).default(50),
+    }))
+    .query(async ({ input }) => {
+      const where: Prisma.MobilAnfrageWhereInput = {
+        ...(input.status  !== "ALLE" ? { status:  input.status }  : {}),
+        ...(input.bereich !== "ALLE" ? { bereich: input.bereich } : {}),
+      };
+      const [gesamt, rows, offen] = await Promise.all([
+        prisma.mobilAnfrage.count({ where }),
+        prisma.mobilAnfrage.findMany({
+          where, orderBy: { datum: "desc" }, skip: input.offset, take: input.limit,
+          include: { modell: { select: { hersteller: true, modell: true } } },
+        }),
+        // Offen = noch nicht erledigt/storniert (für Badge).
+        prisma.mobilAnfrage.count({ where: { status: { in: ["NEU", "BEDARF", "IN_BEARBEITUNG"] } } }),
+      ]);
+      return {
+        gesamt,
+        offen,
+        zeilen: rows.map((r) => ({
+          id:            r.id,
+          datum:         r.datum,
+          techniker:     r.techniker,
+          bereich:       r.bereich,
+          modellId:      r.modellId,
+          hersteller:    r.modell.hersteller,
+          modell:        r.modell.modell,
+          teiltyp:       r.teiltyp,
+          menge:         r.menge,
+          kommentar:     r.kommentar,
+          status:        r.status,
+          bearbeitetVon: r.bearbeitetVon,
+          erledigtLogId: r.erledigtLogId,
+        })),
+      };
+    }),
+
+  // Verfügbare Teile (LogIDs) für eine Anfrage — zum Ausgeben auswählen.
+  verfuegbareTeile: view
+    .input(z.object({ modellId: z.number().int().positive(), teiltyp: z.string().trim().min(1), bereich: bereichInput }))
+    .query(async ({ input }) => {
+      return prisma.mobilTeil.findMany({
+        where: {
+          ausgeschieden: false,
+          bereich:       input.bereich,
+          teiltyp:       { name: input.teiltyp },
+          modelle:       { some: { modellId: input.modellId } },
+        },
+        select:  { logId: true, colli: true, stellplatz: true, farbe: true },
+        orderBy: [{ colli: { sort: "asc", nulls: "last" } }, { logId: "asc" }],
+        take:    200,
+      });
+    }),
+
+  // Status setzen (In Bearbeitung / Storniert / zurück auf NEU). bearbeitetVon = Admin.
+  setStatus: manage
+    .input(z.object({
+      id:     z.number().int().positive(),
+      status: z.enum(["NEU", "BEDARF", "IN_BEARBEITUNG", "STORNIERT"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const user = ctx.session.user as SessionUser;
+      await prisma.mobilAnfrage.update({
+        where: { id: input.id },
+        data:  { status: input.status, bearbeitetVon: kuerzelVon(user) },
+      });
+      return { ok: true };
+    }),
+
+  // Erledigen/Ausgeben. Mit logId → das konkrete Teil als ausgeschieden (ausgegeben)
+  // markieren (Abgangs-Mechanismus); ohne logId → nur als abgeschlossen markieren
+  // (z.B. BEDARF ohne verfügbares Teil). Verifiziert, dass die LogID zu Modell+
+  // Teiltyp+Bereich passt und noch aktiv ist.
+  erledigen: manage
+    .input(z.object({ id: z.number().int().positive(), logId: z.string().trim().min(1).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const user    = ctx.session.user as SessionUser;
+      const anfrage = await prisma.mobilAnfrage.findUnique({ where: { id: input.id } });
+      if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
+
+      let erledigtLogId: string | null = null;
+      if (input.logId) {
+        const teil = await prisma.mobilTeil.findFirst({
+          where: {
+            logId:         input.logId,
+            ausgeschieden: false,
+            bereich:       anfrage.bereich,
+            teiltyp:       { name: anfrage.teiltyp },
+            modelle:       { some: { modellId: anfrage.modellId } },
+          },
+          select: { id: true },
+        });
+        if (!teil) {
+          throw new TRPCError({
+            code:    "BAD_REQUEST",
+            message: "LogID passt nicht (falsches Modell/Teiltyp/Bereich oder bereits ausgeschieden).",
+          });
+        }
+        await prisma.mobilTeil.update({
+          where: { id: teil.id },
+          data:  { ausgeschieden: true, ausgeschiedenAm: new Date() },
+        });
+        erledigtLogId = input.logId;
+      }
+
+      await prisma.mobilAnfrage.update({
+        where: { id: input.id },
+        data:  { status: "ABGESCHLOSSEN", bearbeitetVon: kuerzelVon(user), erledigtLogId },
+      });
+      return { ok: true, erledigtLogId };
+    }),
 });
