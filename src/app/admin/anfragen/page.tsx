@@ -25,6 +25,7 @@ import {
   type AuslagerBelegData,
 } from "@/components/ui/AuslagerBeleg";
 import type { SessionUser } from "@/core/types";
+import MobilAnfragenListe from "@/app/admin/mobil/anfragen/MobilAnfragenListe";
 
 // ── Gruppen-Status → 4 Klartext-Töpfe (eine Quelle der Wahrheit) ──────────────
 // Bildet ALLE echten AnfrageStatus-Werte (gruppenStatus) auf laienverständliche
@@ -365,6 +366,8 @@ function AnfragenPageInner() {
   const ersteller = user?.kuerzel ?? "ADMIN";
 
   const searchParams = useSearchParams();
+  // Quelle-Reiter: Notebook-Anfragen (bestehend) vs. Mobil-Anfragen (eigene Liste).
+  const [quelle, setQuelle] = useState<"notebook" | "mobil">("notebook");
   const highlightId  = searchParams?.get("highlight") ?? null;
   const gruppeParam  = searchParams?.get("gruppe") ?? null;
 
@@ -624,15 +627,31 @@ function AnfragenPageInner() {
 
   return (
     <div className="space-y-5">
-      {/* Titel + Tagesübersicht */}
+      {/* Titel + Quelle-Reiter (Notebook / Mobil) + Tagesübersicht */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Anfragen</h1>
-        <button onClick={() => setTagesModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#242526] border border-[#ced4da] dark:border-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm font-semibold rounded-xl hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors shadow-sm">
-          🖨️ Tagesübersicht
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Anfragen</h1>
+          <div className="flex gap-1 rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-1">
+            {([["notebook", "💻 Notebook"], ["mobil", "📱 Mobil"]] as const).map(([key, label]) => (
+              <button key={key} type="button" aria-pressed={quelle === key} onClick={() => setQuelle(key)}
+                className={`px-3 min-h-[40px] rounded-lg text-sm font-bold transition-colors ${quelle === key ? "bg-[#0064d2] text-white" : "text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {quelle === "notebook" && (
+          <button onClick={() => setTagesModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#242526] border border-[#ced4da] dark:border-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm font-semibold rounded-xl hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors shadow-sm">
+            🖨️ Tagesübersicht
+          </button>
+        )}
       </div>
 
+      {quelle === "mobil" ? (
+        <MobilAnfragenListe />
+      ) : (
+      <>
       {/* Filter */}
       <div className="flex gap-3 flex-wrap items-center">
         {/* A/B-Umschalter: Liste | Board */}
@@ -1254,6 +1273,8 @@ function AnfragenPageInner() {
           50%       { box-shadow: 0 0 0 8px rgba(0, 100, 210, 0); }
         }
       `}</style>
+      </>
+      )}
     </div>
   );
 }
