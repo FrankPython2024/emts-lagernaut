@@ -917,6 +917,11 @@ model MobilAlias {
 }
 
 // Soll-Mengen je Modell+Teiltyp (für späteren Schritt 4 — Schema gleich vollständig).
+// Mindestbestand je Modell+Teiltyp — GLOBAL (nicht pro Bereich): ein 3-spaltiger
+// Unique inkl. bereich ließe sich auf MySQL nicht migrieren, weil der bestehende
+// 2-spaltige Unique als Backing-Index des modellId-Fremdschlüssels gebraucht wird.
+// Das Soll gilt damit für beide Bereiche; die Ist-Menge wird in den Auswertungen
+// trotzdem pro Bereich gezählt (t.bereich-Filter in ladeUnterMindestbestand).
 model MobilMindestbestand {
   id        Int          @id @default(autoincrement())
   modellId  Int
@@ -924,11 +929,8 @@ model MobilMindestbestand {
   teiltypId Int
   teiltyp   MobilTeiltyp @relation(fields: [teiltypId], references: [id])
   sollMenge Int
-  // Mindestbestand getrennt je Kostenstelle/Bereich (ein iPad-Modell kann in
-  // STANDARD und DIGITAL_EDUCATION unterschiedliche Soll-Mengen haben).
-  bereich   String       @default("STANDARD") @db.VarChar(32)
 
-  @@unique([modellId, teiltypId, bereich])
+  @@unique([modellId, teiltypId])
 }
 
 // ── Kategorie-Preise (Laptop-Ersatzteile) ───────────────────────────────────
