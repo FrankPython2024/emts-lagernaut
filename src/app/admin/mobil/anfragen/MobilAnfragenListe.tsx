@@ -25,7 +25,6 @@ const STATUS_CFG: Record<string, { text: string; color: string; bg: string }> = 
 const STATUS_TABS: { key: StatusFilter; label: string }[] = [
   { key: "ALLE",           label: "Alle" },
   { key: "NEU",            label: "Neu" },
-  { key: "BEDARF",         label: "Bedarf" },
   { key: "IN_BEARBEITUNG", label: "In Arbeit" },
   { key: "ABGESCHLOSSEN",  label: "Erledigt" },
   { key: "STORNIERT",      label: "Storniert" },

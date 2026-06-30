@@ -196,7 +196,7 @@ function ModellAnfrageModal({
   onDone: () => void;
   show: (msg: string, typ?: "success" | "error" | "info" | "warning") => void;
 }) {
-  const [dialog, setDialog] = useState<{ teiltyp: string; status: string } | null>(null);
+  const [dialog, setDialog] = useState<{ teiltyp: string; bestand: number } | null>(null);
   const teiltypenQ = api.mobilAnfrage.teiltypen.useQuery({ bereich, modellId });
 
   // Escape schließt (nur wenn kein Anfrage-Dialog offen ist).
@@ -227,22 +227,21 @@ function ModellAnfrageModal({
         <div style={{ padding: "1.25rem 1.5rem", overflowY: "auto" }}>
           {teiltypenQ.isLoading ? (
             <Hint>Wird geladen…</Hint>
+          ) : (teiltypenQ.data ?? []).length === 0 ? (
+            <Hint>Für dieses Modell ist aktuell kein Teil auf Lager.</Hint>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.6rem" }}>
-              {(teiltypenQ.data ?? []).map((t) => {
-                const cfg = STATUS_CFG[t.status] ?? STATUS_CFG.NEU!;
-                return (
-                  <button key={t.teiltyp} type="button"
-                    onClick={() => setDialog({ teiltyp: t.teiltyp, status: t.status })}
-                    style={{ ...card, padding: "0.85rem 0.75rem", minHeight: 84, cursor: "pointer", textAlign: "center",
-                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                    <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{t.teiltyp}</span>
-                    <span style={{ fontSize: "0.78rem", fontWeight: 700, color: cfg.color, background: cfg.bg, borderRadius: 20, padding: "2px 10px" }}>
-                      {cfg.text}{t.bestand > 0 ? ` · ${t.bestand}` : ""}
-                    </span>
-                  </button>
-                );
-              })}
+              {(teiltypenQ.data ?? []).map((t) => (
+                <button key={t.teiltyp} type="button"
+                  onClick={() => setDialog({ teiltyp: t.teiltyp, bestand: t.bestand })}
+                  style={{ ...card, padding: "0.85rem 0.75rem", minHeight: 84, cursor: "pointer", textAlign: "center",
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{t.teiltyp}</span>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#15803d", background: "#dcfce7", borderRadius: 20, padding: "2px 10px" }}>
+                    {t.bestand} verfügbar
+                  </span>
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -255,7 +254,7 @@ function ModellAnfrageModal({
           modellId={modellId}
           modellName={modellName}
           teiltyp={dialog.teiltyp}
-          status={dialog.status}
+          bestand={dialog.bestand}
           onClose={() => setDialog(null)}
           onDone={() => { setDialog(null); onDone(); }}
           show={show}
@@ -267,13 +266,13 @@ function ModellAnfrageModal({
 
 // Dialog: Menge + optionaler Kommentar, dann anfragen.
 function AnfrageDialog({
-  bereich, modellId, modellName, teiltyp, status, onClose, onDone, show,
+  bereich, modellId, modellName, teiltyp, bestand, onClose, onDone, show,
 }: {
   bereich: Bereich;
   modellId: number;
   modellName: string;
   teiltyp: string;
-  status: string;
+  bestand: number;
   onClose: () => void;
   onDone: () => void;
   show: (msg: string, typ?: "success" | "error" | "info" | "warning") => void;
@@ -281,13 +280,9 @@ function AnfrageDialog({
   const [menge, setMenge]         = useState(1);
   const [kommentar, setKommentar] = useState("");
   const erstellen = api.mobilAnfrage.erstellen.useMutation({
-    onSuccess: (r) => {
-      show(r.status === "BEDARF" ? "Anfrage gesendet (Bedarf — nicht auf Lager)" : "Anfrage gesendet ✅", "success");
-      onDone();
-    },
+    onSuccess: () => { show("Anfrage gesendet ✅", "success"); onDone(); },
     onError: (e) => show(e.message, "error"),
   });
-  const cfg = STATUS_CFG[status] ?? STATUS_CFG.NEU!;
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(3px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
@@ -297,7 +292,7 @@ function AnfrageDialog({
         <div style={{ fontSize: "1.25rem", fontWeight: 800 }}>{teiltyp}</div>
         <div style={{ marginTop: 2, color: "var(--text-dim)", fontSize: "0.9rem" }}>
           {modellName} · {BEREICH_LABEL(bereich)}
-          <span style={{ marginLeft: 8, fontWeight: 700, color: cfg.color, background: cfg.bg, borderRadius: 20, padding: "1px 9px", fontSize: "0.8rem" }}>{cfg.text}</span>
+          <span style={{ marginLeft: 8, fontWeight: 700, color: "#15803d", background: "#dcfce7", borderRadius: 20, padding: "1px 9px", fontSize: "0.8rem" }}>{bestand} verfügbar</span>
         </div>
 
         <label style={{ display: "block", marginTop: "1.25rem", fontWeight: 700, fontSize: "0.95rem" }}>Menge</label>

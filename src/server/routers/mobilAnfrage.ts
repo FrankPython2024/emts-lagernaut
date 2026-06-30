@@ -77,10 +77,11 @@ export const mobilAnfrageRouter = createTRPCRouter({
       const bestandByName = new Map(
         rows.filter((r) => r.teiltyp).map((r) => [r.teiltyp as string, n(r.anzahl)]),
       );
-      return MOBIL_TEILTYPEN.map((name) => {
-        const bestand = bestandByName.get(name) ?? 0;
-        return { teiltyp: name, bestand, status: bestand > 0 ? "NEU" : "BEDARF" } as const;
-      });
+      // Mobilteile: NUR Teiltypen MIT Bestand zeigen — es gibt kein BEDARF (anders
+      // als bei Laptop-Teilen). Was nicht auf Lager ist, ist nicht anfragbar.
+      return MOBIL_TEILTYPEN
+        .map((name) => ({ teiltyp: name, bestand: bestandByName.get(name) ?? 0 }))
+        .filter((t) => t.bestand > 0);
     }),
 
   // Anfrage anlegen. Status wird aus dem aktuellen Bestand abgeleitet (NEU/BEDARF),
@@ -105,7 +106,14 @@ export const mobilAnfrageRouter = createTRPCRouter({
         WHERE tm.modellId = ${input.modellId} AND t.ausgeschieden = false
           AND t.bereich = ${input.bereich} AND tt.name = ${input.teiltyp}`;
       const bestand = n(row?.anzahl);
-      const status: "NEU" | "BEDARF" = bestand > 0 ? "NEU" : "BEDARF";
+      // Mobilteile kennen kein BEDARF: nicht (mehr) vorrätige Teile sind nicht anfragbar.
+      if (bestand <= 0) {
+        throw new TRPCError({
+          code:    "BAD_REQUEST",
+          message: "Dieses Teil ist nicht (mehr) auf Lager und kann nicht angefragt werden.",
+        });
+      }
+      const status = "NEU" as const;
 
       const a = await prisma.mobilAnfrage.create({
         data: {
