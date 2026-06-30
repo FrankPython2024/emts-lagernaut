@@ -16,6 +16,7 @@ export async function middleware(req: NextRequest) {
   }
 
   const rolle = token.rolle as string | undefined;
+  const darfAnfragen = token.darfAnfragen === true; // Anfrage-Recht (beim Login aufgelöst)
   // Bei fehlender Berechtigung IMMER auf die ROLLEN-EIGENE Home umleiten
   // (nicht pauschal /admin oder /techniker) — sonst entsteht ein Redirect-Kreis
   // für Rollen, die in beiden Bereichen abgewiesen werden (z.B. PICKUP).
@@ -40,12 +41,15 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // /techniker → TECHNIKER oder ADMIN
+  // /techniker → TECHNIKER, ADMIN, oder JEDER mit einem Anfrage-Recht (rechtebasiert,
+  // damit auch andere Rollen mit ANFRAGE_(MOBIL_)CREATE ins Anfrage-Portal kommen).
   if (pathname.startsWith("/techniker")) {
-    if (rolle !== "TECHNIKER" && rolle !== "ADMIN") {
+    if (rolle !== "TECHNIKER" && rolle !== "ADMIN" && !darfAnfragen) {
       return heimRedirect();
     }
   }
+
+  // /start (Login-Auswahl) → nur Login-Pflicht (oben erzwungen), keine Rollen-Sperre.
 
   // /pickup → nur Login-Pflicht (oben erzwungen). Feingranulare Berechtigung
   // (PICKUP_PICK) prüft die Seite + die tRPC-Procedures; daher hier KEINE
@@ -56,5 +60,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/techniker/:path*", "/pickup/:path*"],
+  matcher: ["/admin/:path*", "/techniker/:path*", "/pickup/:path*", "/start"],
 };

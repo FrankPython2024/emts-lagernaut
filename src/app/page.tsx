@@ -1,7 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/core/auth/config";
-import { homeFor } from "@/lib/auth/homeFor";
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
@@ -10,8 +9,7 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  // Rollen-eigene Home (PICKUP → /pickup, Admin-Lesesichten → /admin, sonst
-  // /techniker). Vermeidet den Redirect-Kreis für PICKUP.
-  const rolle = (session.user as { rolle?: string }).rolle;
-  redirect(homeFor(rolle));
+  // Die rechtebasierte Auswahl/Weiterleitung übernimmt /start (Admin + Anfrage-Recht
+  // → Auswahl; sonst direkt ins passende Ziel). Hält die Logik an EINER Stelle.
+  redirect("/start");
 }

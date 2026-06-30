@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/core/db/prisma";
 import bcrypt from "bcryptjs";
 import type { SessionUser } from "@/core/types";
+import { getMeinePermissions } from "@/modules/rollen/service";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
@@ -50,6 +51,17 @@ export const authOptions: NextAuthOptions = {
           ]),
         );
 
+        // Anfrage-Berechtigung fürs (rollen-unabhängige) Routing: die Edge-Middleware
+        // hat nur den Token, nicht die Live-Rechte aus der DB. Daher hier einmal beim
+        // Login auflösen. ACHTUNG: Wird ein Anfrage-Recht NACH dem Login vergeben/
+        // entzogen, greift es fürs Routing erst nach erneutem Login (Seiten selbst
+        // prüfen weiter live über usePermissions).
+        const perms = await getMeinePermissions(user.rolle, user.id);
+        const darfAnfragen =
+          perms.includes("SYSTEM_ADMIN") ||
+          perms.includes("ANFRAGE_CREATE") ||
+          perms.includes("ANFRAGE_MOBIL_CREATE");
+
         return {
           id:            String(user.id),
           name:          user.name,
@@ -59,6 +71,7 @@ export const authOptions: NextAuthOptions = {
           standortId:    user.standortId ?? null,
           alleStandorte: user.alleStandorte,
           standortIds,
+          darfAnfragen,
         };
       },
     }),
@@ -73,6 +86,7 @@ export const authOptions: NextAuthOptions = {
         token.standortId    = u.standortId ?? null;
         token.alleStandorte = u.alleStandorte ?? false;
         token.standortIds   = u.standortIds   ?? [];
+        token.darfAnfragen  = (user as { darfAnfragen?: boolean }).darfAnfragen ?? false;
       }
       return token;
     },
