@@ -167,7 +167,7 @@ function ipadModelle(norm: string): string[] {
   // Größe darf mit "(" eingeleitet und in "inch"/"zoll"-Schreibweise stehen; das
   // Jahr darf direkt (auch ohne eigene Klammer) folgen:
   //   "iPad (10.9 inch 2022)" → iPad 10.9" (2022),  "iPad 10.2 (2021)" wie bisher.
-  const re = /ipad[\s(]+(pro\s*\d{1,2}(?:[.,]\d)?|air(?:\s*\d(?!\d|[.,]\d))?|mini(?:\s*\d(?!\d|[.,]\d))?|\d{1,2}[.,]\d)\s*(?:inch|zoll|")?\s*(?:\(?\s*(20\d{2}))?/g;
+  const re = /ipad[\s(]+(pro\s*\d{1,2}(?:[.,]\d)?|air(?:\s*\d(?!\d|[.,]\d))?|mini(?:\s*\d(?!\d|[.,]\d))?|\d{1,2}[.,]\d)\s*(?:inch|zoll|")?\s*(?:\(?\s*(20[0-2]\d))?/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(norm)) !== null) {
     const teil = m[1].replace(/\s+/g, " ").trim();

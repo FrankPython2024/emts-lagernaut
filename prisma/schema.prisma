@@ -885,6 +885,8 @@ model MobilTeil {
   @@index([zuordnungStatus])
   @@index([ausgeschieden])
   @@index([bereich])
+  @@index([colli])
+  @@index([zuletztGesehenImport])
 }
 
 // Kompatibilität Teil ↔ Modell (n:m). Ein Eintrag je erkanntem kompatiblen Modell.

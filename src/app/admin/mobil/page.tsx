@@ -235,11 +235,14 @@ function MobilModellModal({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    // Hintergrund-Scroll sperren, solange das Modal offen ist (wie die anderen Modals).
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handler);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [onClose]);
-
-  // Excel-Bibliothek vorladen, sobald das Modal offen ist — dann ist der XLSX-Export
-  // beim Klick rein synchron (keine verlorene User-Geste durch await import(...)).
 
   const teileQ = api.mobil.teileProModell.useQuery({ modellId, bereich });
 
