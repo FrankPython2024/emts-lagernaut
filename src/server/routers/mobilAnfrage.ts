@@ -162,9 +162,11 @@ export const mobilAnfrageRouter = createTRPCRouter({
       limit:   z.number().int().min(1).max(200).default(50),
     }))
     .query(async ({ input }) => {
+      const bereichWhere: Prisma.MobilAnfrageWhereInput =
+        input.bereich !== "ALLE" ? { bereich: input.bereich } : {};
       const where: Prisma.MobilAnfrageWhereInput = {
-        ...(input.status  !== "ALLE" ? { status:  input.status }  : {}),
-        ...(input.bereich !== "ALLE" ? { bereich: input.bereich } : {}),
+        ...bereichWhere,
+        ...(input.status !== "ALLE" ? { status: input.status } : {}),
       };
       const [gesamt, rows, offen] = await Promise.all([
         prisma.mobilAnfrage.count({ where }),
@@ -172,8 +174,8 @@ export const mobilAnfrageRouter = createTRPCRouter({
           where, orderBy: { datum: "desc" }, skip: input.offset, take: input.limit,
           include: { modell: { select: { hersteller: true, modell: true } } },
         }),
-        // Offen = noch nicht erledigt/storniert (für Badge).
-        prisma.mobilAnfrage.count({ where: { status: { in: ["NEU", "BEDARF", "IN_BEARBEITUNG"] } } }),
+        // Offen = noch nicht erledigt/storniert (für Badge) — im GLEICHEN Bereich wie die Liste.
+        prisma.mobilAnfrage.count({ where: { ...bereichWhere, status: { in: ["NEU", "BEDARF", "IN_BEARBEITUNG"] } } }),
       ]);
       return {
         gesamt,
@@ -257,10 +259,18 @@ export const mobilAnfrageRouter = createTRPCRouter({
             message: "LogID passt nicht (falsches Modell/Teiltyp/Bereich oder bereits ausgeschieden).",
           });
         }
-        await prisma.mobilTeil.update({
-          where: { id: teil.id },
+        // Atomar ausbuchen: nur flippen, wenn noch aktiv. Verhindert Doppel-Ausgabe
+        // desselben Teils durch zwei parallel arbeitende Admins (Race).
+        const flip = await prisma.mobilTeil.updateMany({
+          where: { id: teil.id, ausgeschieden: false },
           data:  { ausgeschieden: true, ausgeschiedenAm: new Date() },
         });
+        if (flip.count === 0) {
+          throw new TRPCError({
+            code:    "BAD_REQUEST",
+            message: "Teil wurde inzwischen ausgegeben. Bitte ein anderes wählen.",
+          });
+        }
         erledigtLogId = input.logId;
       }
 

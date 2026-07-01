@@ -286,7 +286,9 @@ const ASSEMBLY_PHRASE = /\bmodul(?:e)?\s+assembly\b/;
 const TEILTYP_REGELN: { teiltyp: MobilTeiltyp; test: (norm: string) => boolean }[] = [
   { teiltyp: "Akku",         test: (n) => /\bakku\b|batter(?:y|ies|ie)|diagnostizierbar/.test(n) },
   { teiltyp: "Digitizer",    test: (n) => istReinDigitizer(n) },
-  { teiltyp: "Displaymodul", test: (n) => ((DISPLAY_FAMILIE.test(n) && MODUL_MARKER.test(n)) || ASSEMBLY_PHRASE.test(n)) && !istReinDigitizer(n) },
+  // ASSEMBLY_PHRASE („Modul[e] Assembly" allein) NUR ohne Kamera-Kontext — sonst würde
+  // „Camera Module Assembly" fälschlich zu Displaymodul (statt REVIEW).
+  { teiltyp: "Displaymodul", test: (n) => ((DISPLAY_FAMILIE.test(n) && MODUL_MARKER.test(n)) || (ASSEMBLY_PHRASE.test(n) && !/camera|kamera/.test(n))) && !istReinDigitizer(n) },
   { teiltyp: "Display",      test: (n) => DISPLAY_FAMILIE.test(n) && !MODUL_MARKER.test(n) && !istReinDigitizer(n) },
   { teiltyp: "Kameraglas",   test: (n) => /camera glass(?:es)?|camera lens(?:es)?|camerglass|kamera\s?glas/.test(n) },
   { teiltyp: "Backcover",    test: (n) => /back\s?glass|rear cover|back\s?cover/.test(n) },
@@ -312,6 +314,14 @@ export function teiltypErkennen(norm: string): MobilTeiltyp | null {
   if (treffer.includes("Backcover") &&
       treffer.every((t) => t === "Backcover" || t === "Display" || t === "Displaymodul")) {
     return "Backcover";
+  }
+  // Konflikt Klebestreifen ↔ Display: eine Display-Einheit, die beiläufig „adhesive
+  // tape" nennt, IST ein Display — der Klebestreifen ist Zubehör. Klebestreifen gilt
+  // nur als ALLEINIGER Teiltyp; hier gewinnt Display/Displaymodul.
+  if (treffer.includes("Klebestreifen") &&
+      treffer.every((t) => t === "Klebestreifen" || t === "Display" || t === "Displaymodul")) {
+    const rest = treffer.filter((t) => t !== "Klebestreifen");
+    return rest.length === 1 ? rest[0]! : null;
   }
   return null; // 0 = unbekannt, >1 = mehrdeutig (nicht raten)
 }

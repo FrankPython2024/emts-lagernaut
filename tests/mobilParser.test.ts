@@ -281,6 +281,26 @@ check("reines iPhone-Display bleibt Display (1)",
 check("reines iPhone-Display bleibt Display (2)",
   TM("OLED (soft) Touchscreen (Refurb), For iPhone 13"), { t: "Display", m: "iPhone 13" });
 
+// ── Neue Regeln (Audit H2/M4/M8): iPad „inch"-Schreibweise, Assembly-Phrase, Klebestreifen ─
+console.log("\n══ NEUE REGELN (inch / Assembly / Klebestreifen) ══");
+check('iPad „inch"-Schreibweise + Jahr ohne Klammer → iPad 10.9" (2022), Digitizer',
+  kurz("Digitizer - Black, for iPad (10.9 inch 2022)"),
+  { h: "Apple", m: ['iPad 10.9" (2022)'], t: "Digitizer", sicher: true, mehrfach: false });
+check('„Modul Assembly" OHNE Display-Wort → Displaymodul, iPad Air 5',
+  kurz('Modul Assembly for iPad Air 10,9" 5. Generation - OEM NEW quality'),
+  { h: "Apple", m: ["iPad Air 5"], t: "Displaymodul", sicher: true, mehrfach: false });
+check('Adhesive strips → Klebestreifen, iPad 10.2" (2019)',
+  kurz("Adhesive strips, For iPad 10.2 (2019/2020/2021)"),
+  { h: "Apple", m: ['iPad 10.2" (2019)'], t: "Klebestreifen", sicher: true, mehrfach: false });
+// M4: beiläufiges „adhesive tape" an einem Display darf NICHT null (Klebestreifen-Konflikt) erzeugen.
+check('M4: „Display with adhesive tape" → Display (nicht REVIEW)',
+  kurz("OLED Display with adhesive tape, iPhone 13"),
+  { h: "Apple", m: ["iPhone 13"], t: "Display", sicher: true, mehrfach: false });
+// H2: „Camera Module Assembly" darf NICHT fälschlich Displaymodul werden → REVIEW.
+check('H2: „Camera Module Assembly" → teiltyp null (REVIEW, nicht Displaymodul)',
+  kurz("Camera Module Assembly for iPhone 13"),
+  { h: "Apple", m: ["iPhone 13"], t: null, sicher: false, mehrfach: false });
+
 console.log(`\n══════════════════════════════════════════`);
 console.log(`  📊 ${passed} passed  |  ${failed} failed`);
 console.log(`══════════════════════════════════════════\n`);
