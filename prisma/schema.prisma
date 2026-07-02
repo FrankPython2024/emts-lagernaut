@@ -979,6 +979,10 @@ model MobilAnfrage {
   status        MobilAnfrageStatus @default(NEU)
   bearbeitetVon String?
   erledigtLogId String?                                  // beim Erledigen ausgegebene Teil-LogID (Etappe B)
+  // Handheld-Pick-Liste: „gefunden"-Häkchen — reine Picking-Merkhilfe (kein Bestands-/
+  // Status-Effekt; das formale Ausgeben passiert separat am PC über „erledigen").
+  gefunden      Boolean            @default(false)
+  gefundenAm    DateTime?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 

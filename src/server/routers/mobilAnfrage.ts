@@ -280,4 +280,95 @@ export const mobilAnfrageRouter = createTRPCRouter({
       });
       return { ok: true, erledigtLogId };
     }),
+
+  // ── Handheld-Pick-Liste ──────────────────────────────────────────────────────
+
+  // Offene Anfragen (NEU/IN_BEARBEITUNG) für den Picker, mit „gefunden"-Stand.
+  // Ungefunden zuerst; Bereich-Filter optional.
+  pickliste: view
+    .input(z.object({ bereich: z.enum(["ALLE", "STANDARD", "DIGITAL_EDUCATION"]).default("ALLE") }))
+    .query(async ({ input }) => {
+      const where: Prisma.MobilAnfrageWhereInput = {
+        status: { in: ["NEU", "IN_BEARBEITUNG"] },
+        ...(input.bereich !== "ALLE" ? { bereich: input.bereich } : {}),
+      };
+      const rows = await prisma.mobilAnfrage.findMany({
+        where,
+        orderBy: [{ gefunden: "asc" }, { datum: "asc" }],
+        include: { modell: { select: { hersteller: true, modell: true } } },
+      });
+      const zeilen = rows.map((r) => ({
+        id: r.id, techniker: r.techniker, bereich: r.bereich,
+        hersteller: r.modell.hersteller, modell: r.modell.modell,
+        teiltyp: r.teiltyp, menge: r.menge, kommentar: r.kommentar, gefunden: r.gefunden,
+      }));
+      return { zeilen, gesamt: zeilen.length, gefunden: zeilen.filter((z) => z.gefunden).length };
+    }),
+
+  // Teil-LogID scannen → passende offene, noch nicht gefundene Anfrage abhaken.
+  pickScan: manage
+    .input(z.object({
+      logId:   z.string().trim().min(1),
+      bereich: z.enum(["ALLE", "STANDARD", "DIGITAL_EDUCATION"]).default("ALLE"),
+    }))
+    .mutation(async ({ input }) => {
+      // LogID-Kandidaten: roh, nur Ziffern, „XXX.XXX.XXX"-Punktform (Scanner liefert je
+      // nach Label mit/ohne Punkte).
+      const roh     = input.logId.trim();
+      const ziffern = roh.replace(/\D/g, "");
+      const punkt   = ziffern.replace(/(\d{3})(?=\d)/g, "$1.");
+      const kandidaten = [...new Set([roh, ziffern, punkt].filter(Boolean))];
+
+      const teil = await prisma.mobilTeil.findFirst({
+        where:  { logId: { in: kandidaten } },
+        select: {
+          bereich: true,
+          teiltyp: { select: { name: true } },
+          modelle: { select: { modellId: true } },
+        },
+      });
+      if (!teil || !teil.teiltyp) return { status: "unbekannt" as const };
+
+      // Falscher Bereich für die aktive Pick-Liste → nicht abhaken.
+      if (input.bereich !== "ALLE" && teil.bereich !== input.bereich) {
+        return { status: "andererBereich" as const, bereich: teil.bereich };
+      }
+
+      const modellIds = teil.modelle.map((m) => m.modellId);
+      const anfrage = await prisma.mobilAnfrage.findFirst({
+        where: {
+          status:   { in: ["NEU", "IN_BEARBEITUNG"] },
+          gefunden: false,
+          bereich:  teil.bereich,
+          teiltyp:  teil.teiltyp.name,
+          modellId: { in: modellIds },
+        },
+        orderBy: { datum: "asc" },
+        include: { modell: { select: { hersteller: true, modell: true } } },
+      });
+      if (!anfrage) return { status: "keinBedarf" as const, teiltyp: teil.teiltyp.name };
+
+      await prisma.mobilAnfrage.update({
+        where: { id: anfrage.id },
+        data:  { gefunden: true, gefundenAm: new Date() },
+      });
+      return {
+        status:  "gefunden" as const,
+        anfrage: {
+          id: anfrage.id, hersteller: anfrage.modell.hersteller, modell: anfrage.modell.modell,
+          teiltyp: anfrage.teiltyp, menge: anfrage.menge, bereich: anfrage.bereich,
+        },
+      };
+    }),
+
+  // Manuelles Umschalten des „gefunden"-Häkchens (Tap-Fallback / Korrektur).
+  setGefunden: manage
+    .input(z.object({ id: z.number().int().positive(), gefunden: z.boolean() }))
+    .mutation(async ({ input }) => {
+      await prisma.mobilAnfrage.update({
+        where: { id: input.id },
+        data:  { gefunden: input.gefunden, gefundenAm: input.gefunden ? new Date() : null },
+      });
+      return { ok: true };
+    }),
 });

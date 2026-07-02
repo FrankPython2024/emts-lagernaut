@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
@@ -97,6 +98,13 @@ export default function MobilAnfragenListe() {
         {listeQ.data && listeQ.data.offen > 0 && (
           <span className="rounded-full bg-[#008BD2] text-white text-xs font-bold px-2.5 py-1">{listeQ.data.offen} offen</span>
         )}
+        <Link
+          href="/admin/mobil/anfragen/picken"
+          className="ml-auto inline-flex items-center gap-2 min-h-[40px] px-4 rounded-xl text-sm font-bold text-white shadow-sm"
+          style={{ background: "#04B475" }}
+        >
+          📲 Pick-Liste (Handheld)
+        </Link>
       </div>
 
       {listeQ.isLoading ? (
