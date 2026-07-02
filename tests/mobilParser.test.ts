@@ -236,6 +236,7 @@ check("midnight → mitternacht", farbeErkennen("Back Glass - Midnight, For iPho
 check("weiß (DE) → weiß",       farbeErkennen("Display module – weiß"), "weiß");
 check("keine Farbe → null",     farbeErkennen("Diagnose-Akku für iPhone 13"), null);
 check("Tarnish (unbekannt) → null", farbeErkennen("Rear Cover - Tarnish, Xiaomi Redmi Note 11"), null);
+check("Graphite → grau", farbeErkennen("Samsung Galaxy S21 FE Backcover Graphite OEM"), "grau");
 check("Wortgrenze: 'red' nicht in 'Refurb'", farbeErkennen("OLED (soft) Touchscreen (Refurb), For iPhone 13"), null);
 
 // ── iPad-Air-Generation (konstruiert, nicht in CSV) ─────────────────────────

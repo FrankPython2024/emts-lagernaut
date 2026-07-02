@@ -58,7 +58,7 @@ export default function MobilPickListePage() {
       const res = await pickScan.mutateAsync({ logId: c, bereich });
       if (res.status === "gefunden") {
         const a = res.anfrage;
-        setFeedback({ kind: "ok", text: `✓ ${a.modell} · ${a.teiltyp} (${a.gefunden}/${a.menge})${a.komplett ? " — komplett" : ""}` });
+        setFeedback({ kind: "ok", text: `✓ ${a.modell} · ${a.teiltyp}${a.farbe ? ` · 🎨 ${a.farbe}` : ""} (${a.gefunden}/${a.menge})${a.komplett ? " — komplett" : ""}` });
         playScanErfolg();
         void utils.mobilAnfrage.pickliste.invalidate();
       } else if (res.status === "schonErfasst") {
@@ -164,7 +164,7 @@ export default function MobilPickListePage() {
                 >✓</button>
                 <div className="flex-1 min-w-0">
                   <div className={`text-lg font-bold ${z.komplett ? "text-[#65676b] dark:text-[#b0b3b8]" : "text-[#202F61] dark:text-[#e4e6eb]"}`}>
-                    {z.modell} <span className="font-medium text-[#65676b] dark:text-[#b0b3b8]">· {z.teiltyp}</span>
+                    {z.modell} <span className="font-medium text-[#65676b] dark:text-[#b0b3b8]">· {z.teiltyp}</span>{z.farbe ? <span className="font-semibold text-[#008BD2]"> · 🎨 {z.farbe}</span> : null}
                   </div>
                   <div className="text-sm text-[#90939a]">
                     {bezLabel(z.bereich)} · {z.techniker}{z.kommentar ? ` · ${z.kommentar}` : ""}

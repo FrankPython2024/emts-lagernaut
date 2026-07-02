@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import { MOBIL_TEILTYPEN } from "@/lib/mobil/parser";
@@ -68,21 +68,33 @@ export const mobilAnfrageRouter = createTRPCRouter({
   teiltypen: req
     .input(z.object({ bereich: bereichInput, modellId: z.number().int().positive() }))
     .query(async ({ input }) => {
-      const rows = await prisma.$queryRaw<Array<{ teiltyp: string | null; anzahl: bigint }>>`
-        SELECT tt.name AS teiltyp, COUNT(*) AS anzahl
+      const rows = await prisma.$queryRaw<Array<{ teiltyp: string | null; farbe: string | null; anzahl: bigint }>>`
+        SELECT tt.name AS teiltyp, t.farbe AS farbe, COUNT(*) AS anzahl
         FROM \`MobilTeilModell\` tm
         JOIN \`MobilTeil\` t      ON t.id = tm.teilId
         LEFT JOIN \`MobilTeiltyp\` tt ON tt.id = t.teiltypId
         WHERE tm.modellId = ${input.modellId} AND t.ausgeschieden = false AND t.bereich = ${input.bereich}
-        GROUP BY tt.name`;
-      const bestandByName = new Map(
-        rows.filter((r) => r.teiltyp).map((r) => [r.teiltyp as string, n(r.anzahl)]),
-      );
-      // Mobilteile: NUR Teiltypen MIT Bestand zeigen — es gibt kein BEDARF (anders
-      // als bei Laptop-Teilen). Was nicht auf Lager ist, ist nicht anfragbar.
-      return MOBIL_TEILTYPEN
-        .map((name) => ({ teiltyp: name, bestand: bestandByName.get(name) ?? 0 }))
-        .filter((t) => t.bestand > 0);
+        GROUP BY tt.name, t.farbe`;
+      // Je Teiltyp: Gesamtbestand + Farb-Aufschlüsselung (farbe=null → „ohne Farbe").
+      const byTeiltyp = new Map<string, { bestand: number; farben: Map<string | null, number> }>();
+      for (const r of rows) {
+        if (!r.teiltyp) continue;
+        const e = byTeiltyp.get(r.teiltyp) ?? { bestand: 0, farben: new Map<string | null, number>() };
+        const anz = n(r.anzahl);
+        e.bestand += anz;
+        e.farben.set(r.farbe, (e.farben.get(r.farbe) ?? 0) + anz);
+        byTeiltyp.set(r.teiltyp, e);
+      }
+      // Mobilteile: NUR Teiltypen MIT Bestand (kein BEDARF). Farben nach Anzahl sortiert.
+      // flatMap statt map+filter → behält den Teiltyp-Literaltyp, keine null-Prädikate.
+      return MOBIL_TEILTYPEN.flatMap((name) => {
+        const e = byTeiltyp.get(name);
+        if (!e || e.bestand <= 0) return [];
+        const farben = [...e.farben.entries()]
+          .map(([farbe, anzahl]) => ({ farbe, anzahl }))
+          .sort((a, b) => b.anzahl - a.anzahl);
+        return [{ teiltyp: name, bestand: e.bestand, farben }];
+      });
     }),
 
   // Anfrage anlegen. Status wird aus dem aktuellen Bestand abgeleitet (NEU/BEDARF),
@@ -139,6 +151,7 @@ export const mobilAnfrageRouter = createTRPCRouter({
       modellId: z.number().int().positive(),
       items: z.array(z.object({
         teiltyp:   z.string().trim().min(1).max(100),
+        farbe:     z.string().trim().max(32).nullable().optional(),
         menge:     z.number().int().min(1).max(99).default(1),
         kommentar: z.string().max(2000).optional(),
       })).min(1).max(30),
@@ -151,18 +164,20 @@ export const mobilAnfrageRouter = createTRPCRouter({
       const erstellt: string[]  = [];
       const abgelehnt: string[] = [];
       for (const item of input.items) {
-        const [row] = await prisma.$queryRaw<Array<{ anzahl: bigint }>>`
+        const farbe = item.farbe || null;
+        const farbeFilter = farbe ? Prisma.sql`AND t.farbe = ${farbe}` : Prisma.empty;
+        const [row] = await prisma.$queryRaw<Array<{ anzahl: bigint }>>(Prisma.sql`
           SELECT COUNT(*) AS anzahl
           FROM \`MobilTeilModell\` tm
           JOIN \`MobilTeil\` t      ON t.id = tm.teilId
           LEFT JOIN \`MobilTeiltyp\` tt ON tt.id = t.teiltypId
           WHERE tm.modellId = ${input.modellId} AND t.ausgeschieden = false
-            AND t.bereich = ${input.bereich} AND tt.name = ${item.teiltyp}`;
-        if (n(row?.anzahl) <= 0) { abgelehnt.push(item.teiltyp); continue; }
+            AND t.bereich = ${input.bereich} AND tt.name = ${item.teiltyp} ${farbeFilter}`);
+        if (n(row?.anzahl) <= 0) { abgelehnt.push(item.teiltyp + (farbe ? ` (${farbe})` : "")); continue; }
         await prisma.mobilAnfrage.create({
           data: {
             techniker, bereich: input.bereich, modellId: input.modellId,
-            teiltyp: item.teiltyp, menge: item.menge, kommentar: item.kommentar?.trim() || null,
+            teiltyp: item.teiltyp, farbe, menge: item.menge, kommentar: item.kommentar?.trim() || null,
             status: "NEU", gruppenNr,
           },
         });
@@ -187,6 +202,7 @@ export const mobilAnfrageRouter = createTRPCRouter({
       hersteller: r.modell.hersteller,
       modell:     r.modell.modell,
       teiltyp:    r.teiltyp,
+      farbe:      r.farbe,
       menge:      r.menge,
       status:     r.status,
       kommentar:  r.kommentar,
@@ -235,6 +251,7 @@ export const mobilAnfrageRouter = createTRPCRouter({
           hersteller:    r.modell.hersteller,
           modell:        r.modell.modell,
           teiltyp:       r.teiltyp,
+          farbe:         r.farbe,
           menge:         r.menge,
           kommentar:     r.kommentar,
           status:        r.status,
@@ -248,7 +265,12 @@ export const mobilAnfrageRouter = createTRPCRouter({
 
   // Verfügbare Teile (LogIDs) für eine Anfrage — zum Ausgeben auswählen.
   verfuegbareTeile: view
-    .input(z.object({ modellId: z.number().int().positive(), teiltyp: z.string().trim().min(1), bereich: bereichInput }))
+    .input(z.object({
+      modellId: z.number().int().positive(),
+      teiltyp:  z.string().trim().min(1),
+      bereich:  bereichInput,
+      farbe:    z.string().trim().max(32).nullable().optional(), // gewünschte Farbe der Anfrage
+    }))
     .query(async ({ input }) => {
       return prisma.mobilTeil.findMany({
         where: {
@@ -256,6 +278,7 @@ export const mobilAnfrageRouter = createTRPCRouter({
           bereich:       input.bereich,
           teiltyp:       { name: input.teiltyp },
           modelle:       { some: { modellId: input.modellId } },
+          ...(input.farbe ? { farbe: input.farbe } : {}),
         },
         select:  { logId: true, colli: true, stellplatz: true, farbe: true },
         orderBy: [{ colli: { sort: "asc", nulls: "last" } }, { logId: "asc" }],
@@ -354,7 +377,7 @@ export const mobilAnfrageRouter = createTRPCRouter({
         return {
           id: r.id, techniker: r.techniker, bereich: r.bereich,
           hersteller: r.modell.hersteller, modell: r.modell.modell,
-          teiltyp: r.teiltyp, menge: r.menge, kommentar: r.kommentar,
+          teiltyp: r.teiltyp, farbe: r.farbe, menge: r.menge, kommentar: r.kommentar,
           gefundenAnzahl, komplett, manuell: r.gefunden,
           logIds: r.picks.map((p) => p.logId),
         };
@@ -382,7 +405,7 @@ export const mobilAnfrageRouter = createTRPCRouter({
       const teil = await prisma.mobilTeil.findFirst({
         where:  { logId: { in: kandidaten }, ausgeschieden: false },
         select: {
-          logId: true, bereich: true,
+          logId: true, bereich: true, farbe: true,
           teiltyp: { select: { name: true } },
           modelle: { select: { modellId: true } },
         },
@@ -407,12 +430,15 @@ export const mobilAnfrageRouter = createTRPCRouter({
           bereich:  teil.bereich,
           teiltyp:  teil.teiltyp.name,
           modellId: { in: modellIds },
+          // Farbe muss passen ODER die Anfrage ist farb-neutral (farbe = null).
+          OR: [{ farbe: teil.farbe }, { farbe: null }],
         },
         orderBy: { datum: "asc" },
         include: { _count: { select: { picks: true } }, modell: { select: { modell: true } } },
       });
-      // Erste offene Zeile mit Restbedarf (weniger Picks als Menge).
-      const ziel = kandidatAnfragen.find((a) => a._count.picks < a.menge);
+      // Restbedarf; exakte Farbe zuerst, sonst farb-neutrale Anfrage.
+      const offen = kandidatAnfragen.filter((a) => a._count.picks < a.menge);
+      const ziel = offen.find((a) => a.farbe === teil.farbe) ?? offen.find((a) => a.farbe === null);
       if (!ziel) return { status: "keinBedarf" as const, teiltyp: teil.teiltyp.name };
 
       await prisma.mobilAnfragePick.create({
@@ -421,7 +447,7 @@ export const mobilAnfrageRouter = createTRPCRouter({
       const neu = ziel._count.picks + 1;
       return {
         status:  "gefunden" as const,
-        anfrage: { id: ziel.id, modell: ziel.modell.modell, teiltyp: ziel.teiltyp, menge: ziel.menge, gefunden: neu, komplett: neu >= ziel.menge, logId: teil.logId },
+        anfrage: { id: ziel.id, modell: ziel.modell.modell, teiltyp: ziel.teiltyp, farbe: ziel.farbe, menge: ziel.menge, gefunden: neu, komplett: neu >= ziel.menge, logId: teil.logId },
       };
     }),
 

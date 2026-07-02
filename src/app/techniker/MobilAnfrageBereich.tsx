@@ -145,7 +145,7 @@ export default function MobilAnfrageBereich({ kuerzel }: { kuerzel: string }) {
                 <div key={a.id} style={{ ...card, padding: "0.85rem 1rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700 }}>
-                      {a.modell} <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>· {a.teiltyp}{a.menge > 1 ? ` ×${a.menge}` : ""}</span>
+                      {a.modell} <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>· {a.teiltyp}{a.farbe ? ` · 🎨 ${a.farbe}` : ""}{a.menge > 1 ? ` ×${a.menge}` : ""}</span>
                     </div>
                     <div style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
                       {BEREICH_LABEL(a.bereich)} · {new Date(a.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
@@ -198,8 +198,28 @@ function ModellAnfrageModal({
   show: (msg: string, typ?: "success" | "error" | "info" | "warning") => void;
 }) {
   const teiltypenQ = api.mobilAnfrage.teiltypen.useQuery({ bereich, modellId });
-  // Warenkorb: teiltyp → { menge, kommentar }.
-  const [korb, setKorb] = useState<Record<string, { menge: number; kommentar: string }>>({});
+
+  // Jede Teiltyp-Farbe-Kombination ist eine eigene Kachel (z.B. „Backcover · schwarz").
+  // key = teiltyp +   + (farbe ?? "") → im Warenkorb eindeutig.
+  const kombiKey = (teiltyp: string, farbe: string | null) => `${teiltyp} ${farbe ?? ""}`;
+  type Option = { key: string; teiltyp: string; farbe: string | null; label: string; bestand: number };
+  const optionen: Option[] = (teiltypenQ.data ?? []).flatMap((t) => {
+    const echte = t.farben.filter((f) => f.farbe);
+    if (echte.length === 0) {
+      return [{ key: kombiKey(t.teiltyp, null), teiltyp: t.teiltyp, farbe: null, label: t.teiltyp, bestand: t.bestand }];
+    }
+    const opts: Option[] = echte.map((f) => ({
+      key: kombiKey(t.teiltyp, f.farbe), teiltyp: t.teiltyp, farbe: f.farbe,
+      label: `${t.teiltyp} · ${f.farbe}`, bestand: f.anzahl,
+    }));
+    const ohne = t.farben.find((f) => !f.farbe);
+    if (ohne) opts.push({ key: kombiKey(t.teiltyp, null), teiltyp: t.teiltyp, farbe: null, label: `${t.teiltyp} · ohne Farbe`, bestand: ohne.anzahl });
+    return opts;
+  });
+
+  // Warenkorb: key → { teiltyp, farbe, label, menge, kommentar }.
+  type KorbEintrag = { teiltyp: string; farbe: string | null; label: string; menge: number; kommentar: string };
+  const [korb, setKorb] = useState<Record<string, KorbEintrag>>({});
   const korbListe = Object.entries(korb);
 
   const senden = api.mobilAnfrage.erstellenSammel.useMutation({
@@ -215,16 +235,17 @@ function ModellAnfrageModal({
     onError: (e) => show(e.message, "error"),
   });
 
-  function toggle(teiltyp: string) {
+  function toggle(opt: Option) {
     setKorb((prev) => {
       const next = { ...prev };
-      if (next[teiltyp]) delete next[teiltyp];
-      else next[teiltyp] = { menge: 1, kommentar: "" };
+      if (next[opt.key]) delete next[opt.key];
+      else next[opt.key] = { teiltyp: opt.teiltyp, farbe: opt.farbe, label: opt.label, menge: 1, kommentar: "" };
       return next;
     });
   }
-  const setMenge     = (teiltyp: string, menge: number) => setKorb((p) => ({ ...p, [teiltyp]: { ...p[teiltyp]!, menge } }));
-  const setKommentar = (teiltyp: string, kommentar: string) => setKorb((p) => ({ ...p, [teiltyp]: { ...p[teiltyp]!, kommentar } }));
+  const entfernen    = (key: string) => setKorb((p) => { const n = { ...p }; delete n[key]; return n; });
+  const setMenge     = (key: string, menge: number) => setKorb((p) => ({ ...p, [key]: { ...p[key]!, menge } }));
+  const setKommentar = (key: string, kommentar: string) => setKorb((p) => ({ ...p, [key]: { ...p[key]!, kommentar } }));
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -253,22 +274,25 @@ function ModellAnfrageModal({
         <div style={{ padding: "1.25rem 1.5rem", overflowY: "auto", flex: 1 }}>
           {teiltypenQ.isLoading ? (
             <Hint>Wird geladen…</Hint>
-          ) : (teiltypenQ.data ?? []).length === 0 ? (
+          ) : optionen.length === 0 ? (
             <Hint>Für dieses Modell ist aktuell kein Teil auf Lager.</Hint>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.6rem" }}>
-              {(teiltypenQ.data ?? []).map((t) => {
-                const drin = !!korb[t.teiltyp];
+              {optionen.map((opt) => {
+                const drin = !!korb[opt.key];
                 return (
-                  <button key={t.teiltyp} type="button" aria-pressed={drin}
-                    onClick={() => toggle(t.teiltyp)}
+                  <button key={opt.key} type="button" aria-pressed={drin}
+                    onClick={() => toggle(opt)}
                     style={{ ...card, padding: "0.85rem 0.75rem", minHeight: 84, cursor: "pointer", textAlign: "center",
                       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
                       border: drin ? `2px solid ${CYAN}` : "1.5px solid var(--border)",
                       background: drin ? "rgba(0,139,210,0.08)" : "var(--card-bg)" }}>
-                    <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{drin ? "✓ " : ""}{t.teiltyp}</span>
+                    <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{drin ? "✓ " : ""}{opt.teiltyp}</span>
+                    {opt.farbe && (
+                      <span style={{ fontSize: "0.82rem", fontWeight: 700, color: CYAN }}>🎨 {opt.farbe}</span>
+                    )}
                     <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#15803d", background: "#dcfce7", borderRadius: 20, padding: "2px 10px" }}>
-                      {t.bestand} verfügbar
+                      {opt.bestand} verfügbar
                     </span>
                   </button>
                 );
@@ -280,16 +304,18 @@ function ModellAnfrageModal({
             <div style={{ marginTop: "1.25rem", borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
               <div style={{ fontSize: "0.95rem", fontWeight: 800, marginBottom: "0.6rem" }}>Warenkorb ({korbListe.length})</div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-                {korbListe.map(([teiltyp, e]) => (
-                  <div key={teiltyp} style={{ ...card, padding: "0.75rem 0.9rem" }}>
+                {korbListe.map(([key, e]) => (
+                  <div key={key} style={{ ...card, padding: "0.75rem 0.9rem" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ flex: 1, fontWeight: 700 }}>{teiltyp}</span>
-                      <button type="button" aria-label="weniger" onClick={() => setMenge(teiltyp, Math.max(1, e.menge - 1))} style={stepBtnKlein}>−</button>
+                      <span style={{ flex: 1, fontWeight: 700 }}>
+                        {e.teiltyp}{e.farbe ? <span style={{ color: CYAN }}> · 🎨 {e.farbe}</span> : null}
+                      </span>
+                      <button type="button" aria-label="weniger" onClick={() => setMenge(key, Math.max(1, e.menge - 1))} style={stepBtnKlein}>−</button>
                       <span style={{ minWidth: 28, textAlign: "center", fontSize: "1.1rem", fontWeight: 800 }}>{e.menge}</span>
-                      <button type="button" aria-label="mehr" onClick={() => setMenge(teiltyp, Math.min(99, e.menge + 1))} style={stepBtnKlein}>+</button>
-                      <button type="button" aria-label="entfernen" onClick={() => toggle(teiltyp)} style={{ ...stepBtnKlein, color: "#b91c1c", borderColor: "#b91c1c55" }}>✕</button>
+                      <button type="button" aria-label="mehr" onClick={() => setMenge(key, Math.min(99, e.menge + 1))} style={stepBtnKlein}>+</button>
+                      <button type="button" aria-label="entfernen" onClick={() => entfernen(key)} style={{ ...stepBtnKlein, color: "#b91c1c", borderColor: "#b91c1c55" }}>✕</button>
                     </div>
-                    <input type="text" value={e.kommentar} onChange={(ev) => setKommentar(teiltyp, ev.target.value)}
+                    <input type="text" value={e.kommentar} onChange={(ev) => setKommentar(key, ev.target.value)}
                       placeholder="Kommentar (optional)"
                       style={{ width: "100%", marginTop: 8, padding: "0.55rem 0.75rem", borderRadius: 10, border: "1.5px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.9rem", boxSizing: "border-box", outline: "none" }} />
                   </div>
@@ -303,7 +329,7 @@ function ModellAnfrageModal({
           <button type="button" disabled={korbListe.length === 0 || senden.isPending}
             onClick={() => senden.mutate({
               bereich, modellId,
-              items: korbListe.map(([teiltyp, e]) => ({ teiltyp, menge: e.menge, kommentar: e.kommentar.trim() || undefined })),
+              items: korbListe.map(([, e]) => ({ teiltyp: e.teiltyp, farbe: e.farbe, menge: e.menge, kommentar: e.kommentar.trim() || undefined })),
             })}
             style={{ width: "100%", minHeight: 56, borderRadius: 14, border: "none", background: GREEN, color: "white", fontWeight: 800, fontSize: "1.05rem",
               cursor: korbListe.length === 0 ? "default" : "pointer", opacity: korbListe.length === 0 || senden.isPending ? 0.5 : 1, fontFamily: "'Ubuntu', sans-serif" }}>

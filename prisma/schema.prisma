@@ -974,6 +974,7 @@ model MobilAnfrage {
   modellId      Int
   modell        MobilModell        @relation(fields: [modellId], references: [id])
   teiltyp       String                                   // Teiltyp-Name (MOBIL_TEILTYPEN)
+  farbe         String?            @db.VarChar(32)        // gewünschte Farbe (bei Farbvarianten, z.B. Backcover); null = egal
   menge         Int                @default(1)
   kommentar     String?            @db.Text
   // Sendungs-/Warenkorb-Gruppe: alle Teile, die der Techniker in EINER Sendung

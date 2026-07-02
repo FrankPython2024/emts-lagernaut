@@ -36,6 +36,7 @@ const BEREICH_LABEL = (b: string) => (b === "DIGITAL_EDUCATION" ? "digital Educa
 type AnfrageZeile = {
   id: number; datum: Date | string; techniker: string; bereich: string;
   modellId: number; hersteller: string; modell: string; teiltyp: string;
+  farbe: string | null;
   menge: number; kommentar: string | null; status: string;
   bearbeitetVon: string | null; erledigtLogId: string | null;
   gefundenAnzahl: number; logIds: string[];
@@ -143,7 +144,7 @@ export default function MobilAnfragenListe() {
                     return (
                       <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 border-b border-[#f0f2f5] dark:border-[#3a3b3c] last:border-0">
                         <div className="flex-1 min-w-[180px]">
-                          <div className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">{r.modell} <span className="font-medium text-[#65676b] dark:text-[#b0b3b8]">· {r.teiltyp}</span></div>
+                          <div className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">{r.modell} <span className="font-medium text-[#65676b] dark:text-[#b0b3b8]">· {r.teiltyp}</span>{r.farbe ? <span className="ml-1 font-semibold text-[#008BD2]">· 🎨 {r.farbe}</span> : null}</div>
                           <div className="text-xs text-[#90939a]">{r.kommentar ? `${r.kommentar} · ` : ""}{r.gefundenAnzahl > 0 ? `📲 ${r.gefundenAnzahl}/${r.menge} gepickt · ` : ""}{r.erledigtLogId ? `ausgegeben: ${r.erledigtLogId}` : ""}</div>
                         </div>
                         <span className="text-sm tabular-nums font-bold text-[#202F61] dark:text-[#e4e6eb]">×{r.menge}</span>
@@ -192,7 +193,7 @@ function AusgebenModal({
   show: (msg: string, typ?: "success" | "error" | "info" | "warning") => void;
 }) {
   const bereich = anfrage.bereich === "DIGITAL_EDUCATION" ? "DIGITAL_EDUCATION" : "STANDARD";
-  const teileQ = api.mobilAnfrage.verfuegbareTeile.useQuery({ modellId: anfrage.modellId, teiltyp: anfrage.teiltyp, bereich });
+  const teileQ = api.mobilAnfrage.verfuegbareTeile.useQuery({ modellId: anfrage.modellId, teiltyp: anfrage.teiltyp, bereich, farbe: anfrage.farbe });
   const erledigen = api.mobilAnfrage.erledigen.useMutation({
     onSuccess: (r) => { show(r.erledigtLogId ? `Ausgegeben: ${r.erledigtLogId}` : "Als erledigt markiert", "success"); onDone(); },
     onError: (e) => show(e.message, "error"),
@@ -208,7 +209,7 @@ function AusgebenModal({
       <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}
         className="w-full max-w-lg bg-white dark:bg-[#242526] rounded-2xl shadow-2xl border border-[#ced4da] dark:border-[#3e4042] max-h-[90vh] flex flex-col">
         <div className="px-5 py-4 border-b border-[#ced4da] dark:border-[#3e4042]">
-          <h3 className="text-lg font-black text-[#202F61] dark:text-[#e4e6eb]">Ausgeben: {anfrage.modell} · {anfrage.teiltyp}</h3>
+          <h3 className="text-lg font-black text-[#202F61] dark:text-[#e4e6eb]">Ausgeben: {anfrage.modell} · {anfrage.teiltyp}{anfrage.farbe ? ` · 🎨 ${anfrage.farbe}` : ""}</h3>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">{BEREICH_LABEL(anfrage.bereich)} · für {anfrage.techniker}</p>
         </div>
         <div className="px-5 py-4 overflow-y-auto flex-1">

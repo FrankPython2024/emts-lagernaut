@@ -332,7 +332,7 @@ export function teiltypErkennen(norm: string): MobilTeiltyp | null {
 // bei Mehrfach-Farben wie "Blue/Green" → erster = blau). Kein Treffer → null.
 // Reihenfolge: zusammengesetzte/spezielle zuerst (space gray, midnight, starlight).
 const FARBEN: { name: string; muster: RegExp }[] = [
-  { name: "grau",       muster: /\bspace\s?gr[ae]y\b|\bgrau\b|\bgr[ae]y\b/ },
+  { name: "grau",       muster: /\bspace\s?gr[ae]y\b|\bgraphite?\b|\bgraphit\b|\bgrau\b|\bgr[ae]y\b/ },
   { name: "starlight",  muster: /\bstarlight\b|\bpolarstern\b/ },
   { name: "mitternacht", muster: /\bmidnight\b|\bmitternacht\b/ },
   { name: "schwarz",    muster: /\bschwarz\b|\bblack\b/ },
