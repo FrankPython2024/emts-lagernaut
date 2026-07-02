@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
 import type { Prisma } from "@prisma/client";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
@@ -129,6 +130,47 @@ export const mobilAnfrageRouter = createTRPCRouter({
       return { id: a.id, status };
     }),
 
+  // Warenkorb-Sendung: mehrere Teile eines Modells als EINE Anfrage (gemeinsame
+  // gruppenNr). Nur vorrätige Teiltypen (kein BEDARF); 0-Bestand-Teile werden
+  // abgelehnt und separat gemeldet (Race-Schutz — Bestand kann sich geändert haben).
+  erstellenSammel: req
+    .input(z.object({
+      bereich:  bereichInput,
+      modellId: z.number().int().positive(),
+      items: z.array(z.object({
+        teiltyp:   z.string().trim().min(1).max(100),
+        menge:     z.number().int().min(1).max(99).default(1),
+        kommentar: z.string().max(2000).optional(),
+      })).min(1).max(30),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const user      = ctx.session.user as SessionUser;
+      const techniker = kuerzelVon(user);
+      const gruppenNr = randomUUID();
+
+      const erstellt: string[]  = [];
+      const abgelehnt: string[] = [];
+      for (const item of input.items) {
+        const [row] = await prisma.$queryRaw<Array<{ anzahl: bigint }>>`
+          SELECT COUNT(*) AS anzahl
+          FROM \`MobilTeilModell\` tm
+          JOIN \`MobilTeil\` t      ON t.id = tm.teilId
+          LEFT JOIN \`MobilTeiltyp\` tt ON tt.id = t.teiltypId
+          WHERE tm.modellId = ${input.modellId} AND t.ausgeschieden = false
+            AND t.bereich = ${input.bereich} AND tt.name = ${item.teiltyp}`;
+        if (n(row?.anzahl) <= 0) { abgelehnt.push(item.teiltyp); continue; }
+        await prisma.mobilAnfrage.create({
+          data: {
+            techniker, bereich: input.bereich, modellId: input.modellId,
+            teiltyp: item.teiltyp, menge: item.menge, kommentar: item.kommentar?.trim() || null,
+            status: "NEU", gruppenNr,
+          },
+        });
+        erstellt.push(item.teiltyp);
+      }
+      return { gruppenNr, erstellt: erstellt.length, abgelehnt };
+    }),
+
   // Eigene Anfragen des angemeldeten Technikers (neueste zuerst).
   meine: req.query(async ({ ctx }) => {
     const kuerzel = kuerzelVon(ctx.session.user as SessionUser);
@@ -188,6 +230,7 @@ export const mobilAnfrageRouter = createTRPCRouter({
           datum:         r.datum,
           techniker:     r.techniker,
           bereich:       r.bereich,
+          gruppenNr:     r.gruppenNr,
           modellId:      r.modellId,
           hersteller:    r.modell.hersteller,
           modell:        r.modell.modell,

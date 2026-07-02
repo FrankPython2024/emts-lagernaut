@@ -39,7 +39,21 @@ type AnfrageZeile = {
   menge: number; kommentar: string | null; status: string;
   bearbeitetVon: string | null; erledigtLogId: string | null;
   gefundenAnzahl: number; logIds: string[];
+  gruppenNr: string | null;
 };
+
+// Nach Sendungs-Gruppe (gruppenNr) bündeln; Alt-Anfragen ohne gruppenNr = Einzel-Gruppe.
+// Reihenfolge der Zeilen (Datum desc) bleibt erhalten.
+function gruppiere(rows: AnfrageZeile[]): AnfrageZeile[][] {
+  const map = new Map<string, AnfrageZeile[]>();
+  for (const r of rows) {
+    const key = r.gruppenNr ?? `single-${r.id}`;
+    const arr = map.get(key) ?? [];
+    arr.push(r);
+    map.set(key, arr);
+  }
+  return [...map.values()];
+}
 
 export default function MobilAnfragenListe() {
   const { has, isLoading: permsLoading } = usePermissions();
@@ -113,54 +127,45 @@ export default function MobilAnfragenListe() {
       ) : !listeQ.data || listeQ.data.zeilen.length === 0 ? (
         <div className="p-8 text-center text-base text-[#65676b] dark:text-[#b0b3b8]">Keine Anfragen.</div>
       ) : (
-        <div className="rounded-2xl border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] shadow-sm overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-xs font-bold uppercase tracking-wide text-[#90939a] border-b border-[#ced4da] dark:border-[#3e4042]">
-                <th className="px-4 py-3">Datum</th>
-                <th className="px-4 py-3">Techniker</th>
-                <th className="px-4 py-3">Teil</th>
-                <th className="px-4 py-3 text-right">Menge</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Aktion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {listeQ.data.zeilen.map((r) => {
-                const cfg = STATUS_CFG[r.status] ?? STATUS_CFG.NEU!;
-                const offen = r.status === "NEU" || r.status === "BEDARF" || r.status === "IN_BEARBEITUNG";
-                return (
-                  <tr key={r.id} className="border-b border-[#f0f2f5] dark:border-[#3a3b3c] last:border-0 align-top">
-                    <td className="px-4 py-3 text-sm whitespace-nowrap text-[#65676b] dark:text-[#b0b3b8]">
-                      {new Date(r.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })}
-                    </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-[#202F61] dark:text-[#e4e6eb]">{r.techniker}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <div className="font-bold text-[#202F61] dark:text-[#e4e6eb]">{r.modell} <span className="font-medium text-[#65676b] dark:text-[#b0b3b8]">· {r.teiltyp}</span></div>
-                      <div className="text-xs text-[#90939a]">{BEREICH_LABEL(r.bereich)}{r.kommentar ? ` · ${r.kommentar}` : ""}{r.gefundenAnzahl > 0 ? ` · 📲 ${r.gefundenAnzahl}/${r.menge} gepickt` : ""}{r.erledigtLogId ? ` · ausgegeben: ${r.erledigtLogId}` : ""}</div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm tabular-nums">{r.menge}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs font-bold rounded-full px-2.5 py-1" style={{ color: cfg.color, background: cfg.bg }}>{cfg.text}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {darfVerwalten && offen ? (
-                        <div className="flex flex-wrap gap-1.5 justify-end">
-                          {r.status !== "IN_BEARBEITUNG" && (
-                            <button className={aktBtn} disabled={setStatusM.isPending} onClick={() => neuerStatus(r.id, "IN_BEARBEITUNG")}>In Arbeit</button>
-                          )}
-                          <button className={aktBtn} style={{ borderColor: "#04B475", color: "#04B475" }} onClick={() => setAusgeben(r)}>Ausgeben</button>
-                          <button className={aktBtn} style={{ borderColor: "#fa3e3e", color: "#fa3e3e" }} disabled={setStatusM.isPending} onClick={() => neuerStatus(r.id, "STORNIERT")}>Storno</button>
+        <div className="space-y-3">
+          {gruppiere(listeQ.data.zeilen).map((grp) => {
+            const head = grp[0]!;
+            return (
+              <div key={head.gruppenNr ?? `single-${head.id}`} className="rounded-2xl border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] shadow-sm overflow-hidden">
+                {/* Sendungs-Kopf (eine Techniker-Anfrage = eine Gruppe) */}
+                <div className="px-4 py-2.5 bg-[#f7f8fa] dark:bg-[#18191a] border-b border-[#ced4da] dark:border-[#3e4042] text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
+                  📦 {head.techniker} <span className="font-medium text-[#65676b] dark:text-[#b0b3b8]">· {new Date(head.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })} · {grp.length} {grp.length === 1 ? "Teil" : "Teile"} · {BEREICH_LABEL(head.bereich)}</span>
+                </div>
+                <ul>
+                  {grp.map((r) => {
+                    const cfg = STATUS_CFG[r.status] ?? STATUS_CFG.NEU!;
+                    const offen = r.status === "NEU" || r.status === "BEDARF" || r.status === "IN_BEARBEITUNG";
+                    return (
+                      <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 border-b border-[#f0f2f5] dark:border-[#3a3b3c] last:border-0">
+                        <div className="flex-1 min-w-[180px]">
+                          <div className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">{r.modell} <span className="font-medium text-[#65676b] dark:text-[#b0b3b8]">· {r.teiltyp}</span></div>
+                          <div className="text-xs text-[#90939a]">{r.kommentar ? `${r.kommentar} · ` : ""}{r.gefundenAnzahl > 0 ? `📲 ${r.gefundenAnzahl}/${r.menge} gepickt · ` : ""}{r.erledigtLogId ? `ausgegeben: ${r.erledigtLogId}` : ""}</div>
                         </div>
-                      ) : (
-                        <div className="text-right text-xs text-[#90939a]">{r.bearbeitetVon ? `von ${r.bearbeitetVon}` : "—"}</div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        <span className="text-sm tabular-nums font-bold text-[#202F61] dark:text-[#e4e6eb]">×{r.menge}</span>
+                        <span className="text-xs font-bold rounded-full px-2.5 py-1" style={{ color: cfg.color, background: cfg.bg }}>{cfg.text}</span>
+                        {darfVerwalten && offen ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {r.status !== "IN_BEARBEITUNG" && (
+                              <button className={aktBtn} disabled={setStatusM.isPending} onClick={() => neuerStatus(r.id, "IN_BEARBEITUNG")}>In Arbeit</button>
+                            )}
+                            <button className={aktBtn} style={{ borderColor: "#04B475", color: "#04B475" }} onClick={() => setAusgeben(r)}>Ausgeben</button>
+                            <button className={aktBtn} style={{ borderColor: "#fa3e3e", color: "#fa3e3e" }} disabled={setStatusM.isPending} onClick={() => neuerStatus(r.id, "STORNIERT")}>Storno</button>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-[#90939a]">{r.bearbeitetVon ? `von ${r.bearbeitetVon}` : "—"}</div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
         </div>
       )}
 

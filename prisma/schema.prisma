@@ -976,6 +976,9 @@ model MobilAnfrage {
   teiltyp       String                                   // Teiltyp-Name (MOBIL_TEILTYPEN)
   menge         Int                @default(1)
   kommentar     String?            @db.Text
+  // Sendungs-/Warenkorb-Gruppe: alle Teile, die der Techniker in EINER Sendung
+  // abschickt, teilen dieselbe gruppenNr. Spätere Sendung = neue gruppenNr = neue Anfrage.
+  gruppenNr     String?            @db.VarChar(64)
   status        MobilAnfrageStatus @default(NEU)
   bearbeitetVon String?
   erledigtLogId String?                                  // beim Erledigen ausgegebene Teil-LogID (Etappe B)
@@ -992,6 +995,7 @@ model MobilAnfrage {
   @@index([status])
   @@index([modellId])
   @@index([bereich])
+  @@index([gruppenNr])
 }
 
 // Beim Picken (Handheld) gescannte LogIDs je Mobil-Anfrage. Ein Pick = ein
