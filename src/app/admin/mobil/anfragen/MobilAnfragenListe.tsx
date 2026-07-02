@@ -38,6 +38,7 @@ type AnfrageZeile = {
   modellId: number; hersteller: string; modell: string; teiltyp: string;
   menge: number; kommentar: string | null; status: string;
   bearbeitetVon: string | null; erledigtLogId: string | null;
+  gefundenAnzahl: number; logIds: string[];
 };
 
 export default function MobilAnfragenListe() {
@@ -136,7 +137,7 @@ export default function MobilAnfragenListe() {
                     <td className="px-4 py-3 text-sm font-semibold text-[#202F61] dark:text-[#e4e6eb]">{r.techniker}</td>
                     <td className="px-4 py-3 text-sm">
                       <div className="font-bold text-[#202F61] dark:text-[#e4e6eb]">{r.modell} <span className="font-medium text-[#65676b] dark:text-[#b0b3b8]">· {r.teiltyp}</span></div>
-                      <div className="text-xs text-[#90939a]">{BEREICH_LABEL(r.bereich)}{r.kommentar ? ` · ${r.kommentar}` : ""}{r.erledigtLogId ? ` · ausgegeben: ${r.erledigtLogId}` : ""}</div>
+                      <div className="text-xs text-[#90939a]">{BEREICH_LABEL(r.bereich)}{r.kommentar ? ` · ${r.kommentar}` : ""}{r.gefundenAnzahl > 0 ? ` · 📲 ${r.gefundenAnzahl}/${r.menge} gepickt` : ""}{r.erledigtLogId ? ` · ausgegeben: ${r.erledigtLogId}` : ""}</div>
                     </td>
                     <td className="px-4 py-3 text-right text-sm tabular-nums">{r.menge}</td>
                     <td className="px-4 py-3">
@@ -191,6 +192,10 @@ function AusgebenModal({
     onSuccess: (r) => { show(r.erledigtLogId ? `Ausgegeben: ${r.erledigtLogId}` : "Als erledigt markiert", "success"); onDone(); },
     onError: (e) => show(e.message, "error"),
   });
+  const ausbuchen = api.mobilAnfrage.ausbuchenPicks.useMutation({
+    onSuccess: (r) => { show(`${r.ausgebucht} Teil(e) ausgebucht`, "success"); onDone(); },
+    onError: (e) => show(e.message, "error"),
+  });
   const teile = teileQ.data ?? [];
 
   return (
@@ -202,6 +207,22 @@ function AusgebenModal({
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">{BEREICH_LABEL(anfrage.bereich)} · für {anfrage.techniker}</p>
         </div>
         <div className="px-5 py-4 overflow-y-auto flex-1">
+          {/* Beim Picken (Handheld) erfasste LogIDs → direkt ausbuchen */}
+          {anfrage.logIds.length > 0 && (
+            <div className="mb-4 rounded-xl border border-[#04B475]/40 bg-[#04B475]/10 p-3">
+              <div className="text-xs font-bold uppercase text-[#15803d]">📲 Beim Picken erfasst ({anfrage.gefundenAnzahl}/{anfrage.menge})</div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {anfrage.logIds.map((lid) => (
+                  <span key={lid} className="font-mono text-xs rounded-md bg-white dark:bg-[#242526] border border-[#04B475]/40 px-2 py-1 text-[#202F61] dark:text-[#e4e6eb]">{lid}</span>
+                ))}
+              </div>
+              <button type="button" disabled={ausbuchen.isPending}
+                onClick={() => ausbuchen.mutate({ id: anfrage.id })}
+                className="mt-2.5 w-full min-h-[44px] rounded-xl text-sm font-black text-white disabled:opacity-50" style={{ background: "#04B475" }}>
+                {ausbuchen.isPending ? "Bucht aus…" : `Diese ${anfrage.logIds.length} LogID(s) ausbuchen & erledigen`}
+              </button>
+            </div>
+          )}
           {teileQ.isLoading ? (
             <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Lade verfügbare Teile…</div>
           ) : teile.length === 0 ? (

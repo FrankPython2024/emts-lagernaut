@@ -172,7 +172,10 @@ export const mobilAnfrageRouter = createTRPCRouter({
         prisma.mobilAnfrage.count({ where }),
         prisma.mobilAnfrage.findMany({
           where, orderBy: { datum: "desc" }, skip: input.offset, take: input.limit,
-          include: { modell: { select: { hersteller: true, modell: true } } },
+          include: {
+            modell: { select: { hersteller: true, modell: true } },
+            picks:  { select: { logId: true }, orderBy: { gescanntAm: "asc" } },
+          },
         }),
         // Offen = noch nicht erledigt/storniert (für Badge) — im GLEICHEN Bereich wie die Liste.
         prisma.mobilAnfrage.count({ where: { ...bereichWhere, status: { in: ["NEU", "BEDARF", "IN_BEARBEITUNG"] } } }),
@@ -194,6 +197,8 @@ export const mobilAnfrageRouter = createTRPCRouter({
           status:        r.status,
           bearbeitetVon: r.bearbeitetVon,
           erledigtLogId: r.erledigtLogId,
+          gefundenAnzahl: r.picks.length,
+          logIds:        r.picks.map((p) => p.logId),
         })),
       };
     }),
@@ -283,8 +288,8 @@ export const mobilAnfrageRouter = createTRPCRouter({
 
   // ── Handheld-Pick-Liste ──────────────────────────────────────────────────────
 
-  // Offene Anfragen (NEU/IN_BEARBEITUNG) für den Picker, mit „gefunden"-Stand.
-  // Ungefunden zuerst; Bereich-Filter optional.
+  // Offene Anfragen (NEU/IN_BEARBEITUNG) für den Picker, mit Pick-Fortschritt.
+  // gefundenAnzahl = erfasste LogIDs; komplett = manuell ODER picks >= menge.
   pickliste: view
     .input(z.object({ bereich: z.enum(["ALLE", "STANDARD", "DIGITAL_EDUCATION"]).default("ALLE") }))
     .query(async ({ input }) => {
@@ -294,48 +299,65 @@ export const mobilAnfrageRouter = createTRPCRouter({
       };
       const rows = await prisma.mobilAnfrage.findMany({
         where,
-        orderBy: [{ gefunden: "asc" }, { datum: "asc" }],
-        include: { modell: { select: { hersteller: true, modell: true } } },
+        orderBy: { datum: "asc" },
+        include: {
+          modell: { select: { hersteller: true, modell: true } },
+          picks:  { select: { logId: true }, orderBy: { gescanntAm: "asc" } },
+        },
       });
-      const zeilen = rows.map((r) => ({
-        id: r.id, techniker: r.techniker, bereich: r.bereich,
-        hersteller: r.modell.hersteller, modell: r.modell.modell,
-        teiltyp: r.teiltyp, menge: r.menge, kommentar: r.kommentar, gefunden: r.gefunden,
-      }));
-      return { zeilen, gesamt: zeilen.length, gefunden: zeilen.filter((z) => z.gefunden).length };
+      const zeilen = rows.map((r) => {
+        const gefundenAnzahl = r.picks.length;
+        const komplett = r.gefunden || gefundenAnzahl >= r.menge;
+        return {
+          id: r.id, techniker: r.techniker, bereich: r.bereich,
+          hersteller: r.modell.hersteller, modell: r.modell.modell,
+          teiltyp: r.teiltyp, menge: r.menge, kommentar: r.kommentar,
+          gefundenAnzahl, komplett, manuell: r.gefunden,
+          logIds: r.picks.map((p) => p.logId),
+        };
+      });
+      // Offene (nicht komplett) zuerst; innerhalb stabil nach Datum (orderBy oben).
+      zeilen.sort((a, b) => Number(a.komplett) - Number(b.komplett));
+      return { zeilen, gesamt: zeilen.length, komplett: zeilen.filter((z) => z.komplett).length };
     }),
 
-  // Teil-LogID scannen → passende offene, noch nicht gefundene Anfrage abhaken.
+  // Teil-LogID scannen → EIN Stück der passenden offenen Zeile abhaken (LogID erfasst).
+  // Menge>1 braucht entsprechend viele Scans. Bereits erfasste LogID (irgendeine offene
+  // Anfrage) → abgelehnt. Nur aktive Teile (ausgeschieden=false).
   pickScan: manage
     .input(z.object({
       logId:   z.string().trim().min(1),
       bereich: z.enum(["ALLE", "STANDARD", "DIGITAL_EDUCATION"]).default("ALLE"),
     }))
-    .mutation(async ({ input }) => {
-      // LogID-Kandidaten: roh, nur Ziffern, „XXX.XXX.XXX"-Punktform (Scanner liefert je
-      // nach Label mit/ohne Punkte).
+    .mutation(async ({ ctx, input }) => {
+      const user    = ctx.session.user as SessionUser;
       const roh     = input.logId.trim();
       const ziffern = roh.replace(/\D/g, "");
       const punkt   = ziffern.replace(/(\d{3})(?=\d)/g, "$1.");
       const kandidaten = [...new Set([roh, ziffern, punkt].filter(Boolean))];
 
       const teil = await prisma.mobilTeil.findFirst({
-        where:  { logId: { in: kandidaten } },
+        where:  { logId: { in: kandidaten }, ausgeschieden: false },
         select: {
-          bereich: true,
+          logId: true, bereich: true,
           teiltyp: { select: { name: true } },
           modelle: { select: { modellId: true } },
         },
       });
       if (!teil || !teil.teiltyp) return { status: "unbekannt" as const };
-
-      // Falscher Bereich für die aktive Pick-Liste → nicht abhaken.
       if (input.bereich !== "ALLE" && teil.bereich !== input.bereich) {
         return { status: "andererBereich" as const, bereich: teil.bereich };
       }
 
+      // Diese LogID schon an einer offenen Anfrage erfasst? (ein Teil = ein Bedarf)
+      const schon = await prisma.mobilAnfragePick.findFirst({
+        where:  { logId: teil.logId, anfrage: { status: { in: ["NEU", "IN_BEARBEITUNG"] } } },
+        select: { id: true },
+      });
+      if (schon) return { status: "schonErfasst" as const };
+
       const modellIds = teil.modelle.map((m) => m.modellId);
-      const anfrage = await prisma.mobilAnfrage.findFirst({
+      const kandidatAnfragen = await prisma.mobilAnfrage.findMany({
         where: {
           status:   { in: ["NEU", "IN_BEARBEITUNG"] },
           gefunden: false,
@@ -344,24 +366,31 @@ export const mobilAnfrageRouter = createTRPCRouter({
           modellId: { in: modellIds },
         },
         orderBy: { datum: "asc" },
-        include: { modell: { select: { hersteller: true, modell: true } } },
+        include: { _count: { select: { picks: true } }, modell: { select: { modell: true } } },
       });
-      if (!anfrage) return { status: "keinBedarf" as const, teiltyp: teil.teiltyp.name };
+      // Erste offene Zeile mit Restbedarf (weniger Picks als Menge).
+      const ziel = kandidatAnfragen.find((a) => a._count.picks < a.menge);
+      if (!ziel) return { status: "keinBedarf" as const, teiltyp: teil.teiltyp.name };
 
-      await prisma.mobilAnfrage.update({
-        where: { id: anfrage.id },
-        data:  { gefunden: true, gefundenAm: new Date() },
+      await prisma.mobilAnfragePick.create({
+        data: { anfrageId: ziel.id, logId: teil.logId, gescanntVon: kuerzelVon(user) },
       });
+      const neu = ziel._count.picks + 1;
       return {
         status:  "gefunden" as const,
-        anfrage: {
-          id: anfrage.id, hersteller: anfrage.modell.hersteller, modell: anfrage.modell.modell,
-          teiltyp: anfrage.teiltyp, menge: anfrage.menge, bereich: anfrage.bereich,
-        },
+        anfrage: { id: ziel.id, modell: ziel.modell.modell, teiltyp: ziel.teiltyp, menge: ziel.menge, gefunden: neu, komplett: neu >= ziel.menge, logId: teil.logId },
       };
     }),
 
-  // Manuelles Umschalten des „gefunden"-Häkchens (Tap-Fallback / Korrektur).
+  // Einen erfassten Pick (LogID) wieder entfernen (Fehlscan korrigieren).
+  pickEntfernen: manage
+    .input(z.object({ anfrageId: z.number().int().positive(), logId: z.string().trim().min(1) }))
+    .mutation(async ({ input }) => {
+      await prisma.mobilAnfragePick.deleteMany({ where: { anfrageId: input.anfrageId, logId: input.logId } });
+      return { ok: true };
+    }),
+
+  // Manuell „komplett" umschalten (Tap-Fallback ohne Scan — z.B. schon in der Hand).
   setGefunden: manage
     .input(z.object({ id: z.number().int().positive(), gefunden: z.boolean() }))
     .mutation(async ({ input }) => {
@@ -370,5 +399,31 @@ export const mobilAnfrageRouter = createTRPCRouter({
         data:  { gefunden: input.gefunden, gefundenAm: input.gefunden ? new Date() : null },
       });
       return { ok: true };
+    }),
+
+  // Umbuchen: die erfassten LogIDs der Anfrage ausbuchen (jedes Teil → ausgeschieden),
+  // Anfrage → ABGESCHLOSSEN. Nur Teile, die noch aktiv + im richtigen Bereich sind.
+  ausbuchenPicks: manage
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const user    = ctx.session.user as SessionUser;
+      const anfrage = await prisma.mobilAnfrage.findUnique({
+        where:   { id: input.id },
+        include: { picks: { select: { logId: true } } },
+      });
+      if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
+      if (anfrage.picks.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Keine erfassten LogIDs zum Umbuchen." });
+      }
+      const logIds = anfrage.picks.map((p) => p.logId);
+      const res = await prisma.mobilTeil.updateMany({
+        where: { logId: { in: logIds }, ausgeschieden: false, bereich: anfrage.bereich },
+        data:  { ausgeschieden: true, ausgeschiedenAm: new Date() },
+      });
+      await prisma.mobilAnfrage.update({
+        where: { id: input.id },
+        data:  { status: "ABGESCHLOSSEN", bearbeitetVon: kuerzelVon(user), erledigtLogId: logIds[0] ?? null },
+      });
+      return { ok: true, ausgebucht: res.count, logIds };
     }),
 });

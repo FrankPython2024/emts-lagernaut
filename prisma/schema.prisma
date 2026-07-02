@@ -979,10 +979,12 @@ model MobilAnfrage {
   status        MobilAnfrageStatus @default(NEU)
   bearbeitetVon String?
   erledigtLogId String?                                  // beim Erledigen ausgegebene Teil-LogID (Etappe B)
-  // Handheld-Pick-Liste: „gefunden"-Häkchen — reine Picking-Merkhilfe (kein Bestands-/
-  // Status-Effekt; das formale Ausgeben passiert separat am PC über „erledigen").
+  // Manuell „komplett" markiert (Tap-Fallback ohne Scan). Der eigentliche Pick-
+  // Fortschritt kommt aus den erfassten LogIDs (picks): komplett = gefunden ODER
+  // picks.count >= menge.
   gefunden      Boolean            @default(false)
   gefundenAm    DateTime?
+  picks         MobilAnfragePick[]
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
@@ -990,4 +992,19 @@ model MobilAnfrage {
   @@index([status])
   @@index([modellId])
   @@index([bereich])
+}
+
+// Beim Picken (Handheld) gescannte LogIDs je Mobil-Anfrage. Ein Pick = ein
+// physisches Teil gefunden. Beim Umbuchen werden GENAU diese LogIDs ausgebucht.
+model MobilAnfragePick {
+  id          Int          @id @default(autoincrement())
+  anfrageId   Int
+  anfrage     MobilAnfrage @relation(fields: [anfrageId], references: [id], onDelete: Cascade)
+  logId       String       @db.VarChar(191)
+  gescanntVon String?      @db.VarChar(100)
+  gescanntAm  DateTime     @default(now())
+
+  @@unique([anfrageId, logId]) // dieselbe LogID nicht doppelt an derselben Anfrage
+  @@index([anfrageId])
+  @@index([logId])
 }
