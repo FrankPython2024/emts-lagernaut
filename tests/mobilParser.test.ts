@@ -98,9 +98,9 @@ check("X-Familie: Camera glass for iPhone X",
 check("XS: Akku für iPhone Xs",
   kurz("Akku für iPhone Xs"),
   { h: "Apple", m: ["iPhone XS"], t: "Akku", sicher: true, mehrfach: false });
-check("SE (3. Generation) NICHT nach '(3' abgeschnitten",
+check("SE (3. Generation) wird zu SE (2022) normalisiert (dasselbe Gerät)",
   kurz("Akku (kompatibel), für iPhone SE (3. Generation)"),
-  { h: "Apple", m: ["iPhone SE (3. Generation)"], t: "Akku", sicher: true, mehrfach: false });
+  { h: "Apple", m: ["iPhone SE (2022)"], t: "Akku", sicher: true, mehrfach: false });
 check("SE 2022 (Jahr)",
   kurz("Diagnostizierbarer Akku für iPhone SE 2022"),
   { h: "Apple", m: ["iPhone SE (2022)"], t: "Akku", sicher: true, mehrfach: false });

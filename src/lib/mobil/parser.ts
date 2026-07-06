@@ -128,10 +128,20 @@ function iphoneSe(norm: string): string[] {
     const jahre = [...tail.matchAll(/(20\d{2})/g)].map((x) => x[1]);
     const gens  = [...tail.matchAll(/(\d)\.?\s*generation/g)].map((x) => x[1]);
     if (jahre.length)      jahre.forEach((j) => out.push(`iPhone SE (${j})`));
-    else if (gens.length)  gens.forEach((g) => out.push(`iPhone SE (${g}. Generation)`));
+    else if (gens.length)  gens.forEach((g) => out.push(seGenerationZuModell(g)));
     else                   out.push("iPhone SE");
   }
   return out;
+}
+
+// SE-Generationen sind dieselben Geräte wie die Jahres-Schreibweise — es gibt
+// nur EIN Modell pro SE ("iPhone SE (2022)", nie "(3. Generation)"), sonst
+// entstehen Duplikate je nach Lieferanten-Wortlaut. Unbekannte Generation
+// (>3) bleibt unübersetzt stehen, statt ein falsches Jahr zu raten.
+const SE_GENERATION_JAHR: Record<string, string> = { "1": "2016", "2": "2020", "3": "2022" };
+function seGenerationZuModell(gen: string): string {
+  const jahr = SE_GENERATION_JAHR[gen];
+  return jahr ? `iPhone SE (${jahr})` : `iPhone SE (${gen}. Generation)`;
 }
 
 function variantenSuffix(v: string | undefined): string {
