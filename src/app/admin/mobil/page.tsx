@@ -34,6 +34,8 @@ export default function MobilPage() {
 
   const herstellerQ = api.mobil.hersteller.useQuery({ bereich }, { enabled: darfSehen });
   const unterQ = api.mobil.mobilUnterMindestbestand.useQuery({ bereich }, { enabled: darfSehen });
+  const statsQ = api.mobil.stats.useQuery({ bereich }, { enabled: darfSehen });
+  const reviewOffen = statsQ.data?.review ?? 0;
   const modelleQ = api.mobil.modelle.useQuery(
     { hersteller: selHersteller ?? "", bereich },
     { enabled: darfSehen && !!selHersteller },
@@ -66,6 +68,17 @@ export default function MobilPage() {
           >
             🔔 Anfragen
           </Link>
+          {darfVerwalten && reviewOffen > 0 && (
+            <Link
+              href={`/admin/mobil/review?bereich=${bereich}`}
+              className="inline-flex items-center gap-2 px-4 rounded-xl text-base font-bold shadow-sm min-h-[44px] border border-[#b25e00]/50 bg-[#b25e00]/10 text-[#b25e00] dark:text-[#ffb74d] hover:bg-[#b25e00]/20 transition-colors"
+            >
+              🔍 Review
+              <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-[#b25e00] text-white text-xs font-black tabular-nums">
+                {reviewOffen}
+              </span>
+            </Link>
+          )}
           <Link
             href={`/admin/mobil/statistik?bereich=${bereich}`}
             className="inline-flex items-center gap-2 px-4 rounded-xl text-base font-bold shadow-sm min-h-[44px] border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3a3b3c] transition-colors"

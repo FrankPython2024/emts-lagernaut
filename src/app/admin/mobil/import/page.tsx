@@ -268,6 +268,16 @@ export default function MobilImportPage() {
               Sieht gut aus? Häkchen <strong>„Trockenlauf"</strong> entfernen und erneut starten, um zu speichern.
             </p>
           )}
+
+          {/* Nach echtem Import mit offenen Review-Teilen: direkt zum Zuordnen springen. */}
+          {!berichtWarTrocken && bericht.review > 0 && (
+            <Link
+              href={`/admin/mobil/review?bereich=${bereich}`}
+              className="inline-flex items-center gap-2 px-5 min-h-[52px] rounded-xl text-base font-bold shadow-sm border border-[#b25e00]/50 bg-[#b25e00]/10 text-[#b25e00] dark:text-[#ffb74d] hover:bg-[#b25e00]/20 transition-colors"
+            >
+              🔍 {bericht.review} unklare {bericht.review === 1 ? "Teil" : "Teile"} jetzt prüfen und zuordnen →
+            </Link>
+          )}
         </section>
       )}
     </div>

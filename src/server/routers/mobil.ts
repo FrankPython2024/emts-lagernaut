@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import { runMobilImport } from "@/modules/mobil/import";
-import { MOBIL_TEILTYPEN } from "@/lib/mobil/parser";
+import { MOBIL_TEILTYPEN, zuordnen, bezeichnungNormalisieren } from "@/lib/mobil/parser";
 
 // Mobil-Ersatzteile (Smartphone/Tablet-Teile mit LogID).
 // Lesen: MOBIL_VIEW, Import/Verwalten: MOBIL_MANAGE (ADMIN via SYSTEM_ADMIN-Wildcard).
@@ -512,5 +512,132 @@ export const mobilRouter = createTRPCRouter({
       }));
 
       return { zeilen, gesamt, seite: input.seite, proSeite: input.proSeite };
+    }),
+
+  // ── Review: unklar erkannte Teile ansehen + von Hand zuordnen ─────────────────
+  // Aktive REVIEW-Teile des Bereichs, gruppiert nach exaktem Original-Wortlaut
+  // (dieselbe Formulierung ist meist mehrfach da). Je Gruppe der Parser-Vorschlag
+  // (Regelwerk neu ausgewertet — zeigt, was schon halb erkannt wurde) + ein Beispiel-
+  // Datensatz für die Logistik-Chips. Zusätzlich: alle vorhandenen Modelle (für die
+  // Auswahl/Autovervollständigung, Duplikat-Vermeidung) und die Teiltyp-Liste.
+  reviewListe: view
+    .input(z.object({ bereich: bereichInput }))
+    .query(async ({ input }) => {
+      const teile = await prisma.mobilTeil.findMany({
+        where:  { bereich: input.bereich, ausgeschieden: false, zuordnungStatus: "REVIEW" },
+        select: {
+          logId: true, originalBezeichnung: true, colli: true, stellplatz: true,
+          ek: true, aan: true, lieferant: true, farbe: true,
+        },
+        orderBy: [{ originalBezeichnung: "asc" }, { logId: "asc" }],
+      });
+
+      type Beispiel = {
+        colli: string | null; stellplatz: string | null; ek: number | null;
+        aan: string | null; lieferant: string | null; farbe: string | null;
+      };
+      const map = new Map<string, { bezeichnung: string; logIds: string[]; beispiel: Beispiel }>();
+      for (const t of teile) {
+        const g = map.get(t.originalBezeichnung) ?? {
+          bezeichnung: t.originalBezeichnung,
+          logIds:      [],
+          beispiel:    { colli: t.colli, stellplatz: t.stellplatz, ek: ekZahl(t.ek), aan: t.aan, lieferant: t.lieferant, farbe: t.farbe },
+        };
+        g.logIds.push(t.logId);
+        map.set(t.originalBezeichnung, g);
+      }
+
+      const gruppen = [...map.values()]
+        .map((g) => {
+          const z = zuordnen(g.bezeichnung); // Vorschlag rein aus dem Regelwerk (ohne Alias)
+          return {
+            bezeichnung: g.bezeichnung,
+            anzahl:      g.logIds.length,
+            logIds:      g.logIds,
+            beispiel:    g.beispiel,
+            vorschlag:   { hersteller: z.hersteller, modelle: z.modelle, teiltyp: z.teiltyp },
+          };
+        })
+        .sort((a, b) => b.anzahl - a.anzahl || a.bezeichnung.localeCompare(b.bezeichnung, "de"));
+
+      const [modelle, teiltypDb] = await Promise.all([
+        prisma.mobilModell.findMany({
+          select:  { id: true, hersteller: true, modell: true },
+          orderBy: [{ hersteller: "asc" }, { modell: "asc" }],
+        }),
+        prisma.mobilTeiltyp.findMany({ select: { name: true }, orderBy: { name: "asc" } }),
+      ]);
+
+      // Kategorie-Auswahl = kanonische Teiltypen zuerst, danach zusätzliche AKTIVE
+      // Kategorien, die schon in der DB existieren (z. B. früher manuell angelegte).
+      const canon = MOBIL_TEILTYPEN as readonly string[];
+      const teiltypen = [...canon, ...teiltypDb.map((t) => t.name).filter((n) => !canon.includes(n))];
+
+      return { gruppen, modelle, teiltypen };
+    }),
+
+  // Review-Zuordnung übernehmen: die übergebenen LogIDs bekommen Modell + Teiltyp und
+  // werden MANUELL (→ von künftigen Importen in der Zuordnung nicht mehr überschrieben).
+  // Modell (hersteller+modell) und Teiltyp werden case-insensitiv get-or-created
+  // (Duplikat-Vermeidung). aliasLernen=true merkt sich den Wortlaut → künftige Importe
+  // erkennen ihn automatisch (ein Alias je distinktem normalisiertem Wortlaut).
+  reviewZuordnen: manage
+    .input(z.object({
+      logIds:      z.array(z.string().trim().min(1)).min(1).max(5000),
+      hersteller:  z.string().trim().min(1),
+      modell:      z.string().trim().min(1),
+      teiltyp:     z.string().trim().min(1),
+      // Optional angepasste Bezeichnung (Freitext säubern). Leer/undefined = unverändert.
+      bezeichnung: z.string().trim().min(1).max(2000).optional(),
+      aliasLernen: z.boolean().default(true),
+    }))
+    .mutation(async ({ input }) => {
+      const modell = await prisma.mobilModell.upsert({
+        where:  { hersteller_modell: { hersteller: input.hersteller, modell: input.modell } },
+        update: {},
+        create: { hersteller: input.hersteller, modell: input.modell },
+      });
+      const teiltyp = await prisma.mobilTeiltyp.upsert({
+        where:  { name: input.teiltyp },
+        update: {},
+        create: { name: input.teiltyp },
+      });
+
+      const teile = await prisma.mobilTeil.findMany({
+        where:  { logId: { in: input.logIds } },
+        select: { id: true, originalBezeichnung: true },
+      });
+
+      const normSet = new Set<string>();
+      await prisma.$transaction(async (tx) => {
+        for (const t of teile) {
+          await tx.mobilTeil.update({
+            where: { id: t.id },
+            data:  {
+              modellId: modell.id, teiltypId: teiltyp.id, zuordnungStatus: "MANUELL",
+              // Angepasste Bezeichnung übernehmen (falls gesetzt).
+              ...(input.bezeichnung ? { originalBezeichnung: input.bezeichnung } : {}),
+            },
+          });
+          // Kompatibilitäts-Links neu aufbauen (genau das eine Primär-Modell).
+          await tx.mobilTeilModell.deleteMany({ where: { teilId: t.id } });
+          await tx.mobilTeilModell.create({ data: { teilId: t.id, modellId: modell.id } });
+          // Alias auf den URSPRÜNGLICHEN Wortlaut (t.originalBezeichnung, vor dem Edit) —
+          // künftige Importe bringen genau diesen CSV-Text mit, nicht die angepasste Fassung.
+          normSet.add(bezeichnungNormalisieren(t.originalBezeichnung));
+        }
+        if (input.aliasLernen) {
+          for (const norm of normSet) {
+            if (!norm) continue;
+            await tx.mobilAlias.upsert({
+              where:  { bezeichnungNorm: norm },
+              update: { modellId: modell.id, teiltypId: teiltyp.id },
+              create: { bezeichnungNorm: norm, modellId: modell.id, teiltypId: teiltyp.id },
+            });
+          }
+        }
+      }, { timeout: 120_000 });
+
+      return { zugeordnet: teile.length, aliasGelernt: input.aliasLernen ? normSet.size : 0 };
     }),
 });
