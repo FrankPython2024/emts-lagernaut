@@ -329,10 +329,11 @@ export const pickupRouter = createTRPCRouter({
       return { result: "GEFUNDEN" as const, logId, position: shapePos(updated) };
     }),
 
-  // Colli-Inhalt akustisch prüfen (nur LOGID-Aufträge). REIN LESEND — ändert
-  // nichts in der DB, hakt nichts ab. Findet die LogIDs eines Collis aus den
-  // Geräte-Reise-Daten (LogIdStand.colli ist gepunktet gespeichert → REPLACE)
-  // und schneidet sie mit den OFFENEN Positionen des Auftrags.
+  // Colli-Inhalt akustisch prüfen (nur LOGID-Aufträge). REIN LESEND — ändert nichts
+  // in der DB, hakt nichts ab. Quelle sind AUSSCHLIESSLICH die Positionen des Auftrags
+  // (deren Colli-Nr aus der beim Auftrag frisch gezogenen CSV = aktueller Standort).
+  // Der Geräte-Reise-Snapshot (LogIdStand) wird bewusst NICHT herangezogen — andere
+  // Datenquelle, die auseinanderlaufen kann.
   colliPruefen: pickupPick
     .input(z.object({ auftragId: z.number().int().positive(), colliNummer: z.string() }))
     .query(async ({ input }) => {
@@ -341,30 +342,31 @@ export const pickupRouter = createTRPCRouter({
         return { colliZiffern: "", colliBekannt: false, treffer: [], anzahlTreffer: 0 };
       }
 
-      // LogIDs in diesem Colli (Geräte-Reise-Snapshot). REPLACE entfernt die
-      // Punkte der gespeicherten Colli-Nummer; ohne Index, aber nur gelegentlich.
-      const imColli = await prisma.$queryRaw<Array<{ logId: string; bezeichnung: string | null }>>`
-        SELECT logId, bezeichnung
-        FROM \`LogIdStand\`
-        WHERE REPLACE(colli, '.', '') = ${ziffern}`;
+      // Maßgeblich sind AUSSCHLIESSLICH die Positionen dieses Auftrags. Deren Colli-Nr
+      // stammt aus der beim Auftrag frisch (live) gezogenen CSV = aktueller Standort.
+      // Der Geräte-Reise-Snapshot (LogIdStand) ist eine ANDERE Datenquelle und spielt
+      // hier bewusst KEINE Rolle — er lief zuvor auseinander (Umpacken), was fälschlich
+      // 0 Treffer erzeugte, obwohl der Auftrag den Colli klar führt.
+      const alle = await prisma.pickupPosition.findMany({
+        where:  { auftragId: input.auftragId },
+        select: { logId: true, colli: true, bezeichnung: true, status: true },
+      });
 
+      // Positionen, deren eigene Colli-Nr dem Scan entspricht (Punkte ignoriert).
+      const imColli = alle.filter((p) => nurZiffern(p.colli ?? "") === ziffern);
+      // „Bekannt" = dieser Colli gehört überhaupt zum Auftrag (auch wenn alles darin
+      // schon gefunden ist → „kein gesuchtes Gerät drin" statt „unbekannt").
       const colliBekannt = imColli.length > 0;
 
-      // Offene Positionen des Auftrags (logId = reine Ziffern).
-      const offene = await prisma.pickupPosition.findMany({
-        where:  { auftragId: input.auftragId, status: "OFFEN" },
-        select: { logId: true, bezeichnung: true },
-      });
-      const offeneMap = new Map(offene.map((p) => [p.logId, p.bezeichnung]));
-
-      // Schnitt: gesuchte (offene) LogIDs, die in diesem Colli liegen.
+      // Treffer = noch OFFENE Positionen in diesem Colli, über die LogID dedupliziert.
       const treffer: { logId: string; bezeichnung: string | null }[] = [];
       const seen = new Set<string>();
-      for (const row of imColli) {
-        const d = normalizeLogId(row.logId);
-        if (!offeneMap.has(d) || seen.has(d)) continue;
+      for (const p of imColli) {
+        if (p.status !== "OFFEN") continue;
+        const d = normalizeLogId(p.logId);
+        if (seen.has(d)) continue;
         seen.add(d);
-        treffer.push({ logId: d, bezeichnung: row.bezeichnung ?? offeneMap.get(d) ?? null });
+        treffer.push({ logId: d, bezeichnung: p.bezeichnung });
       }
 
       return { colliZiffern: ziffern, colliBekannt, treffer, anzahlTreffer: treffer.length };
