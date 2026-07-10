@@ -640,4 +640,20 @@ export const mobilRouter = createTRPCRouter({
 
       return { zugeordnet: teile.length, aliasGelernt: input.aliasLernen ? normSet.size : 0 };
     }),
+
+  // Katalog für die Zuordnungs-Editoren (Review + Korrektur bestehender Teile):
+  // alle Modelle (für Autovervollständigung/Duplikat-Vermeidung) + aktive Kategorien
+  // (kanonische Teiltypen zuerst, danach in der DB vorhandene Zusatz-Kategorien).
+  katalog: view.query(async () => {
+    const [modelle, teiltypDb] = await Promise.all([
+      prisma.mobilModell.findMany({
+        select:  { id: true, hersteller: true, modell: true },
+        orderBy: [{ hersteller: "asc" }, { modell: "asc" }],
+      }),
+      prisma.mobilTeiltyp.findMany({ select: { name: true }, orderBy: { name: "asc" } }),
+    ]);
+    const canon = MOBIL_TEILTYPEN as readonly string[];
+    const teiltypen = [...canon, ...teiltypDb.map((t) => t.name).filter((n) => !canon.includes(n))];
+    return { modelle, teiltypen };
+  }),
 });

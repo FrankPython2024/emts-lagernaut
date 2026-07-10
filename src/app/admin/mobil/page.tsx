@@ -12,6 +12,7 @@ import {
 } from "@/lib/mobil/export";
 
 const AKZENT = "#008BD2";
+const HERSTELLER = ["Apple", "Samsung", "Google", "Xiaomi"] as const;
 
 type MobilBereich = "STANDARD" | "DIGITAL_EDUCATION";
 const BEREICH_TABS: { key: MobilBereich; label: string }[] = [
@@ -346,6 +347,7 @@ function TeiltypCard({
   const { show } = useToast();
   const utils = api.useUtils();
   const [offen, setOffen] = useState(false);
+  const [editLogId, setEditLogId] = useState<string | null>(null);
 
   // Mindestbestand (Soll) setzen — nur MOBIL_MANAGE.
   const [sollInput, setSollInput] = useState<string>(soll != null ? String(soll) : "");
@@ -492,16 +494,31 @@ function TeiltypCard({
                   <ul className="mt-1.5 space-y-1.5">
                     {rows.map((r) => {
                       const hatChips = !!r.stellplatz || !!r.farbe || !!r.aan || r.ek != null || !!r.lieferant;
+                      const wirdBearbeitet = editLogId === r.logId;
                       return (
                         <li
                           key={r.logId}
                           className="rounded-lg border border-[#e4e6eb] dark:border-[#3a3b3c] bg-white dark:bg-[#242526] px-2.5 py-1.5"
                         >
-                          {/* Kopf: LogID prominent, rechts dezent der Kompatibilitäts-Hinweis */}
-                          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                            <span className="font-mono text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">{r.logId}</span>
-                            {r.auch.length > 0 && (
-                              <span className="text-xs text-[#b25e00] dark:text-[#ffb74d]">auch: {r.auch.join(", ")}</span>
+                          {/* Kopf: LogID prominent, rechts Kompatibilitäts-Hinweis + Bearbeiten */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                              <span className="font-mono text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">{r.logId}</span>
+                              {r.auch.length > 0 && (
+                                <span className="text-xs text-[#b25e00] dark:text-[#ffb74d]">auch: {r.auch.join(", ")}</span>
+                              )}
+                            </div>
+                            {darfVerwalten && (
+                              <button
+                                type="button"
+                                onClick={() => setEditLogId(wirdBearbeitet ? null : r.logId)}
+                                aria-expanded={wirdBearbeitet}
+                                aria-label={`Datensatz ${r.logId} bearbeiten / neu zuordnen`}
+                                title="Bearbeiten / neu zuordnen"
+                                className="flex-shrink-0 inline-flex items-center justify-center min-h-[36px] min-w-[36px] rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3a3b3c] transition-colors"
+                              >
+                                ✏️
+                              </button>
                             )}
                           </div>
                           {/* Detailfelder als abgegrenzte Chips (leere weglassen) */}
@@ -514,6 +531,17 @@ function TeiltypCard({
                               {r.lieferant && <Chip icon="🏭" wert={r.lieferant} />}
                             </div>
                           )}
+                          {wirdBearbeitet && (
+                            <LogIdEditor
+                              logId={r.logId}
+                              hersteller={hersteller}
+                              modell={modellName}
+                              teiltyp={teiltyp}
+                              bezeichnung={r.bezeichnung}
+                              bereich={bereich}
+                              onClose={() => setEditLogId(null)}
+                            />
+                          )}
                         </li>
                       );
                     })}
@@ -524,6 +552,140 @@ function TeiltypCard({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Inline-Editor: bestehenden Datensatz neu zuordnen (wie im Review) ───────────
+// Nutzt dieselbe Server-Mutation wie das Review (reviewZuordnen) — setzt Modell +
+// Teiltyp (+ optional angepasste Bezeichnung), markiert das Teil MANUELL und lernt
+// optional den Wortlaut als Alias. Für EINE LogID (ein physischer Datensatz).
+function LogIdEditor({
+  logId, hersteller, modell, teiltyp, bezeichnung, bereich, onClose,
+}: {
+  logId:       string;
+  hersteller:  string;
+  modell:      string;
+  teiltyp:     string;
+  bezeichnung: string;
+  bereich:     MobilBereich;
+  onClose:     () => void;
+}) {
+  const { show } = useToast();
+  const utils = api.useUtils();
+  const katalogQ = api.mobil.katalog.useQuery();
+
+  const [h, setH] = useState(hersteller);
+  const [m, setM] = useState(modell);
+  const [t, setT] = useState(teiltyp);
+  const [b, setB] = useState(bezeichnung);
+  const [aliasLernen, setAliasLernen] = useState(true);
+
+  const modellVorschlaege = useMemo(
+    () => (katalogQ.data?.modelle ?? []).filter((mm) => !h || mm.hersteller === h).map((mm) => mm.modell),
+    [katalogQ.data, h],
+  );
+  const teiltypen = katalogQ.data?.teiltypen ?? [];
+
+  const speichern = api.mobil.reviewZuordnen.useMutation({
+    onSuccess: (r) => {
+      show(`✅ Datensatz zugeordnet` + (r.aliasGelernt > 0 ? " · Wortlaut gemerkt" : ""), "success");
+      void utils.mobil.teileProModell.invalidate();
+      void utils.mobil.logIdsProTeiltyp.invalidate();
+      void utils.mobil.hersteller.invalidate({ bereich });
+      void utils.mobil.modelle.invalidate();
+      void utils.mobil.mobilUnterMindestbestand.invalidate();
+      void utils.mobil.stats.invalidate({ bereich });
+      onClose();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
+  const bezeichnungGeaendert = b.trim() !== bezeichnung.trim();
+  const kann = !!h.trim() && !!m.trim() && !!t.trim() && !speichern.isPending;
+  const listId = `edit-modelle-${logId.replace(/[^a-z0-9]/gi, "")}`;
+  const feld = "w-full px-2.5 min-h-[44px] rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm outline-none focus:border-[#008BD2]";
+
+  function save() {
+    if (!kann) return;
+    speichern.mutate({
+      logIds:     [logId],
+      hersteller: h.trim(),
+      modell:     m.trim(),
+      teiltyp:    t.trim(),
+      ...(bezeichnungGeaendert && b.trim() ? { bezeichnung: b.trim() } : {}),
+      aliasLernen,
+    });
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border border-[#008BD2]/40 bg-[#008BD2]/5 p-3 space-y-2">
+      <div className="text-xs font-semibold text-[#008BD2] dark:text-[#45bdff]">✏️ Datensatz bearbeiten / neu zuordnen</div>
+
+      <label className="block">
+        <span className="block text-xs font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] mb-0.5">Bezeichnung</span>
+        <textarea
+          value={b}
+          onChange={(e) => setB(e.target.value)}
+          rows={2}
+          className="w-full px-2.5 py-1.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm font-mono leading-snug outline-none focus:border-[#008BD2] resize-y"
+        />
+      </label>
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        <label className="block">
+          <span className="block text-xs font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] mb-0.5">Hersteller</span>
+          <select value={h} onChange={(e) => setH(e.target.value)} className={feld}>
+            <option value="">— wählen —</option>
+            {HERSTELLER.map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </label>
+        <label className="block">
+          <span className="block text-xs font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] mb-0.5">Modell</span>
+          <input
+            list={listId}
+            value={m}
+            onChange={(e) => setM(e.target.value)}
+            placeholder="Modell wählen oder eingeben"
+            className={feld}
+          />
+          <datalist id={listId}>{modellVorschlaege.map((x) => <option key={x} value={x} />)}</datalist>
+        </label>
+        <label className="block">
+          <span className="block text-xs font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] mb-0.5">Teiltyp</span>
+          <select value={t} onChange={(e) => setT(e.target.value)} className={feld}>
+            <option value="">— wählen —</option>
+            {teiltypen.map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-[#1a1a1a] dark:text-[#e4e6eb]">
+          <input type="checkbox" checked={aliasLernen} onChange={(e) => setAliasLernen(e.target.checked)} className="w-4 h-4 accent-[#008BD2]" />
+          Wortlaut merken (künftige Importe erkennen ihn automatisch)
+        </label>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center min-h-[40px] px-3 rounded-lg text-sm font-bold border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3a3b3c] transition-colors"
+          >
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={!kann}
+            className="inline-flex items-center justify-center min-h-[40px] px-4 rounded-lg text-white text-sm font-bold disabled:opacity-40 transition-colors"
+            style={{ background: AKZENT }}
+          >
+            {speichern.isPending ? "Speichert…" : "Speichern"}
+          </button>
+        </div>
+      </div>
+
+      {katalogQ.isLoading && <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">⏳ Lade Auswahllisten…</div>}
     </div>
   );
 }
