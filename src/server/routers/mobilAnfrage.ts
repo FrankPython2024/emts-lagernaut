@@ -97,6 +97,38 @@ export const mobilAnfrageRouter = createTRPCRouter({
       });
     }),
 
+  // ReForm-Original-Bezeichnung(en) der Teile hinter EINER Teiltyp/Farbe-Kachel —
+  // für den Detail-Klick im Techniker-Portal („wie heißt das Teil in ReForm?").
+  // farbe = null trifft exakt die Kachel „ohne Farbe" (Prisma: farbe IS NULL).
+  // Distinct + Anzahl, damit identische Wortlaute nicht mehrfach erscheinen.
+  teilBezeichnungen: req
+    .input(z.object({
+      bereich:  bereichInput,
+      modellId: z.number().int().positive(),
+      teiltyp:  z.string().trim().min(1).max(100),
+      farbe:    z.string().trim().max(32).nullable(),
+    }))
+    .query(async ({ input }) => {
+      const teile = await prisma.mobilTeil.findMany({
+        where: {
+          ausgeschieden: false,
+          bereich:       input.bereich,
+          teiltyp:       { name: input.teiltyp },
+          modelle:       { some: { modellId: input.modellId } },
+          farbe:         input.farbe, // String → equals, null → IS NULL (passt zur Kachel)
+        },
+        select: { originalBezeichnung: true },
+      });
+      const map = new Map<string, number>();
+      for (const t of teile) {
+        const b = (t.originalBezeichnung ?? "").trim() || "(keine Bezeichnung hinterlegt)";
+        map.set(b, (map.get(b) ?? 0) + 1);
+      }
+      return [...map.entries()]
+        .map(([bezeichnung, anzahl]) => ({ bezeichnung, anzahl }))
+        .sort((a, b) => b.anzahl - a.anzahl || a.bezeichnung.localeCompare(b.bezeichnung, "de"));
+    }),
+
   // Anfrage anlegen. Status wird aus dem aktuellen Bestand abgeleitet (NEU/BEDARF),
   // analog zur Laptop-Regel. Kein Bestandseffekt — die Ausgabe erfolgt erst beim
   // Erledigen durch den Admin (Etappe B).

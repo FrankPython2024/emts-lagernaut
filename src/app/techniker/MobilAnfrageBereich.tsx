@@ -222,6 +222,9 @@ function ModellAnfrageModal({
   const [korb, setKorb] = useState<Record<string, KorbEintrag>>({});
   const korbListe = Object.entries(korb);
 
+  // Detail-Klick: zeigt die ReForm-Bezeichnung(en) hinter einer Kachel.
+  const [detailOpt, setDetailOpt] = useState<Option | null>(null);
+
   const senden = api.mobilAnfrage.erstellenSammel.useMutation({
     onSuccess: (r) => {
       if (r.erstellt > 0) {
@@ -256,6 +259,7 @@ function ModellAnfrageModal({
   }, [onClose]);
 
   return (
+    <>
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-label={`Teile für ${modellName}`} onClick={(e) => e.stopPropagation()}
@@ -281,20 +285,34 @@ function ModellAnfrageModal({
               {optionen.map((opt) => {
                 const drin = !!korb[opt.key];
                 return (
-                  <button key={opt.key} type="button" aria-pressed={drin}
-                    onClick={() => toggle(opt)}
-                    style={{ ...card, padding: "0.85rem 0.75rem", minHeight: 84, cursor: "pointer", textAlign: "center",
-                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
-                      border: drin ? `2px solid ${CYAN}` : "1.5px solid var(--border)",
-                      background: drin ? "rgba(0,139,210,0.08)" : "var(--card-bg)" }}>
-                    <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{drin ? "✓ " : ""}{opt.teiltyp}</span>
-                    {opt.farbe && (
-                      <span style={{ fontSize: "0.82rem", fontWeight: 700, color: CYAN }}>🎨 {opt.farbe}</span>
-                    )}
-                    <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#15803d", background: "#dcfce7", borderRadius: 20, padding: "2px 10px" }}>
-                      {opt.bestand} verfügbar
-                    </span>
-                  </button>
+                  // Wrapper (position:relative), damit der ⓘ-Detail-Knopf NEBEN dem
+                  // Warenkorb-Button liegt (verschachtelte <button> wären ungültig).
+                  <div key={opt.key} style={{ position: "relative" }}>
+                    <button type="button" aria-pressed={drin}
+                      onClick={() => toggle(opt)}
+                      style={{ ...card, width: "100%", padding: "0.85rem 0.75rem", minHeight: 84, cursor: "pointer", textAlign: "center",
+                        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+                        border: drin ? `2px solid ${CYAN}` : "1.5px solid var(--border)",
+                        background: drin ? "rgba(0,139,210,0.08)" : "var(--card-bg)" }}>
+                      <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{drin ? "✓ " : ""}{opt.teiltyp}</span>
+                      {opt.farbe && (
+                        <span style={{ fontSize: "0.82rem", fontWeight: 700, color: CYAN }}>🎨 {opt.farbe}</span>
+                      )}
+                      <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#15803d", background: "#dcfce7", borderRadius: 20, padding: "2px 10px" }}>
+                        {opt.bestand} verfügbar
+                      </span>
+                    </button>
+                    <button type="button"
+                      aria-label={`ReForm-Bezeichnung für ${opt.label} anzeigen`}
+                      title="ReForm-Bezeichnung anzeigen"
+                      onClick={() => setDetailOpt(opt)}
+                      style={{ position: "absolute", top: 6, right: 6, width: 30, height: 30, borderRadius: 8,
+                        border: "1.5px solid var(--border)", background: "var(--card-bg)", color: "var(--text-dim)",
+                        fontSize: "0.9rem", fontWeight: 800, cursor: "pointer", lineHeight: 1,
+                        display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      ℹ
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -335,6 +353,67 @@ function ModellAnfrageModal({
               cursor: korbListe.length === 0 ? "default" : "pointer", opacity: korbListe.length === 0 || senden.isPending ? 0.5 : 1, fontFamily: "'Ubuntu', sans-serif" }}>
             {senden.isPending ? "Sende…" : korbListe.length === 0 ? "Teile antippen…" : `Anfrage senden (${korbListe.length} Teil${korbListe.length !== 1 ? "e" : ""})`}
           </button>
+        </div>
+      </div>
+    </div>
+    {detailOpt && (
+      <TeilDetailModal
+        bereich={bereich}
+        modellId={modellId}
+        teiltyp={detailOpt.teiltyp}
+        farbe={detailOpt.farbe}
+        label={detailOpt.label}
+        onClose={() => setDetailOpt(null)}
+      />
+    )}
+    </>
+  );
+}
+
+// ── Detail-Pop-up: ReForm-Bezeichnung(en) hinter einer Teiltyp/Farbe-Kachel ─────
+// Rein lesend; distinct Wortlaute mit Anzahl. Kein Lagerplatz/LogID (Techniker-Sicht).
+function TeilDetailModal({
+  bereich, modellId, teiltyp, farbe, label, onClose,
+}: {
+  bereich:  Bereich;
+  modellId: number;
+  teiltyp:  string;
+  farbe:    string | null;
+  label:    string;
+  onClose:  () => void;
+}) {
+  const q = api.mobilAnfrage.teilBezeichnungen.useQuery({ bereich, modellId, teiltyp, farbe });
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
+      onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={`ReForm-Bezeichnung — ${label}`} onClick={(e) => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: 560, background: "var(--card-bg)", color: "var(--text)", borderRadius: 18, boxShadow: "0 8px 40px rgba(0,0,0,0.35)", fontFamily: "'Ubuntu', sans-serif", maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, padding: "1.1rem 1.35rem", borderBottom: "1px solid var(--border)" }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800 }}>{label}</h3>
+            <div style={{ marginTop: 2, fontSize: "0.82rem", color: "var(--text-dim)" }}>Bezeichnung aus ReForm</div>
+          </div>
+          <button onClick={onClose} aria-label="Schließen"
+            style={{ width: 40, height: 40, borderRadius: 10, border: "none", background: "transparent", color: "var(--text-dim)", fontSize: "1.4rem", cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ padding: "1.1rem 1.35rem", overflowY: "auto" }}>
+          {q.isLoading ? (
+            <Hint>Wird geladen…</Hint>
+          ) : !q.data?.length ? (
+            <Hint>Keine ReForm-Bezeichnung hinterlegt.</Hint>
+          ) : (
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {q.data.map((r, i) => (
+                <li key={i} style={{ ...card, padding: "0.65rem 0.85rem", display: "flex", gap: 10, alignItems: "baseline", justifyContent: "space-between" }}>
+                  <span style={{ fontFamily: "'Ubuntu Mono', monospace", fontSize: "0.9rem", wordBreak: "break-word" }}>{r.bezeichnung}</span>
+                  {r.anzahl > 1 && (
+                    <span style={{ flexShrink: 0, fontSize: "0.78rem", fontWeight: 700, color: CYAN, background: "rgba(0,139,210,0.12)", borderRadius: 8, padding: "2px 8px" }}>×{r.anzahl}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </div>
