@@ -521,6 +521,13 @@ function TeiltypCard({
                               </button>
                             )}
                           </div>
+                          {/* Original-Bezeichnung aus ReForm (der CSV-Freitext dieses Teils) */}
+                          {r.bezeichnung && (
+                            <p className="mt-1 text-xs leading-snug text-[#65676b] dark:text-[#b0b3b8] break-words">
+                              <span className="font-semibold text-[#90939a] dark:text-[#8a8d91]">Bezeichnung aus ReForm:</span>{" "}
+                              <span className="font-mono text-[#1a1a1a] dark:text-[#e4e6eb]">{r.bezeichnung}</span>
+                            </p>
+                          )}
                           {/* Detailfelder als abgegrenzte Chips (leere weglassen) */}
                           {hatChips && (
                             <div className="mt-1 flex flex-wrap gap-1">
