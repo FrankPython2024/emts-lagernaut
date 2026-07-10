@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
+import { kopiereText } from "@/lib/mobil/export";
 
 const AKZENT = "#008BD2";
 const HERSTELLER = ["Apple", "Samsung", "Google", "Xiaomi"] as const;
@@ -137,7 +138,17 @@ function ReviewKarte({
   const [teiltyp, setTeiltyp]       = useState<string>(gruppe.vorschlag.teiltyp ?? "");
   const [bezeichnung, setBezeichnung] = useState<string>(gruppe.bezeichnung);
   const [aliasLernen, setAliasLernen] = useState(true);
+  const [logsOffen, setLogsOffen]     = useState(false);
   const bezeichnungGeaendert = bezeichnung.trim() !== gruppe.bezeichnung.trim();
+
+  async function copyEinzeln(logId: string) {
+    const ok = await kopiereText(logId);
+    show(ok ? `${logId} kopiert` : "Kopieren fehlgeschlagen.", ok ? "success" : "error");
+  }
+  async function copyAlle() {
+    const ok = await kopiereText(gruppe.logIds.join("\n"));
+    show(ok ? `${gruppe.logIds.length} LogIDs kopiert` : "Kopieren fehlgeschlagen.", ok ? "success" : "error");
+  }
 
   // Modell-Vorschläge (Autovervollständigung) für den gewählten Hersteller —
   // vermeidet Tippfehler-Duplikate; neuer Name bleibt trotzdem erlaubt.
@@ -219,6 +230,51 @@ function ReviewKarte({
         <p className="text-xs text-[#90939a] dark:text-[#8a8d91]">
           Parser-Vorschlag: {vorschlagText(gruppe.vorschlag)}
         </p>
+      </div>
+
+      {/* LogIDs anzeigen + kopieren (komplett / einzeln) */}
+      <div className="px-4 pt-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setLogsOffen((o) => !o)}
+            aria-expanded={logsOffen}
+            className="inline-flex items-center gap-1 min-h-[40px] px-1 text-sm font-semibold text-[#202F61] dark:text-[#e4e6eb]"
+          >
+            <span aria-hidden className="inline-block w-4 text-[#90939a]">{logsOffen ? "▾" : "▸"}</span>
+            LogIDs ({gruppe.anzahl})
+          </button>
+          <button
+            type="button"
+            onClick={copyAlle}
+            aria-label={`Alle ${gruppe.anzahl} LogIDs kopieren`}
+            title="Alle LogIDs kopieren (eine pro Zeile)"
+            className="inline-flex items-center gap-1 rounded-lg px-3 min-h-[40px] text-sm font-bold border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3a3b3c] transition-colors"
+          >
+            📋 Alle kopieren
+          </button>
+        </div>
+        {logsOffen && (
+          <ul className="mt-2 space-y-1">
+            {gruppe.logIds.map((id) => (
+              <li
+                key={id}
+                className="flex items-center justify-between gap-2 rounded-lg border border-[#e4e6eb] dark:border-[#3a3b3c] bg-[#f7f8fa] dark:bg-[#18191a] px-2.5 py-1.5"
+              >
+                <span className="font-mono text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] break-all">{id}</span>
+                <button
+                  type="button"
+                  onClick={() => copyEinzeln(id)}
+                  aria-label={`LogID ${id} kopieren`}
+                  title="Diese LogID kopieren"
+                  className="flex-shrink-0 inline-flex items-center justify-center min-h-[36px] min-w-[36px] rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3a3b3c] transition-colors"
+                >
+                  📋
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Editor */}
