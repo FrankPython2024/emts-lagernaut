@@ -9,300 +9,20 @@ import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { useStandortFilter } from "@/lib/standort/standortContext";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
-import { STANDARD_TEILNAMEN } from "@/lib/constants/teiltypen";
 import { getLucideIcon } from "@/lib/icons/getLucideIcon";
-import { ModellPoolModal } from "@/components/admin/ModellPoolModal";
 import { usePermissions } from "@/hooks/usePermissions";
 
 // ── Konstanten ────────────────────────────────────────────────────────────────
 
-const STANDARD_TEILE = STANDARD_TEILNAMEN;
-
 const INPUT_CLS = "px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] text-sm";
 
-// ── Bestand-Farbe ─────────────────────────────────────────────────────────────
-
-function bestandFarbe(n: number): string {
-  if (n > 3)  return "text-[#00a400] font-bold";
-  if (n > 0)  return "text-[#f7b928] font-bold";
-  return "text-[#fa3e3e] font-bold";
-}
-
-function bestandLabel(n: number): string {
-  if (n > 3)  return `${n} 🟢`;
-  if (n > 0)  return `${n} 🟡`;
-  return "0 🔴";
-}
-
-// ── Keyword-Extraktion für Suchvorschlag ──────────────────────────────────────
-
-function extractModellKeyword(modell: string): string {
-  const words = modell.split(/\s+/);
-  return words.find((w) => /\d/.test(w) || (w.length <= 6 && w.length > 1)) ?? words[0] ?? "";
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
-// TeilSucheSection — ein Abschnitt im Verknüpfungs-Modal
+// Zusätzliche Teile für Modell (modell-spezifische Custom-Teiltypen)
 // ══════════════════════════════════════════════════════════════════════════════
-
-function TeilSucheSection({
-  teiltyp, gewaehlt, modellKeyword, onToggle, onPool,
-}: {
-  teiltyp:       string;
-  gewaehlt:      number[];
-  modellKeyword: string;
-  onToggle:      (artikelId: number) => void;
-  onPool?:       (artikelId: number) => void;
-}) {
-  const [open,     setOpen]     = useState(gewaehlt.length > 0);
-  const [query,    setQuery]    = useState(gewaehlt.length === 0 ? modellKeyword : "");
-  const debQuery = useDebounce(query, 300);
-
-  const suche = api.kompatibilitaet.sucheArtikelFuerTeil.useQuery(
-    { query: debQuery, teiltyp, limit: 10 },
-    { enabled: open },
-  );
-
-  const results = suche.data ?? [];
-  const hatVorschlag = gewaehlt.length === 0 && modellKeyword && debQuery === modellKeyword;
-
-  return (
-    <div className="border border-[#ced4da] dark:border-[#3e4042] rounded-xl overflow-hidden">
-      {/* Abschnitt-Header */}
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-[#f0f2f5] dark:bg-[#18191a] hover:bg-[#ced4da]/30 dark:hover:bg-[#3e4042] transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{teiltyp}</span>
-          {gewaehlt.length === 0 ? (
-            <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Nicht verknüpft</span>
-          ) : (
-            <span className="text-xs text-[#00a400] font-semibold">✓ Verknüpft ({gewaehlt.length} Artikel)</span>
-          )}
-        </div>
-        <span className="text-[#65676b] text-xs">{open ? "▲" : "▼"}</span>
-      </button>
-
-      {/* Abschnitt-Body */}
-      {open && (
-        <div className="px-4 py-3 space-y-2 bg-white dark:bg-[#242526]">
-          {/* Suchfeld */}
-          <div className="relative">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={`🔍 Suche in "${teiltyp}"…`}
-              className={`${INPUT_CLS} w-full pr-8`}
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#65676b] hover:text-[#fa3e3e] text-lg leading-none"
-              >
-                ×
-              </button>
-            )}
-          </div>
-
-          {hatVorschlag && (
-            <p className="text-[10px] text-[#f7b928] font-semibold">
-              💡 Vorschlag basierend auf Modellname „{modellKeyword}"
-            </p>
-          )}
-
-          <p className="text-[10px] text-[#65676b] dark:text-[#b0b3b8]">
-            Mehrfachauswahl möglich — alle angehakten Artikel bilden den Bestand-Pool für diesen Teiltyp.
-          </p>
-
-          {/* Ergebnisse */}
-          <div className="space-y-1 max-h-44 overflow-y-auto pr-0.5">
-            {suche.isLoading && (
-              <div className="flex justify-center py-2">
-                <div className="w-4 h-4 border-2 border-[#0064d2]/20 border-t-[#0064d2] rounded-full animate-spin" />
-              </div>
-            )}
-
-            {!suche.isLoading && results.length === 0 && query && (
-              <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] text-center py-2">
-                Keine Artikel gefunden für „{query}"
-              </p>
-            )}
-
-            {results.map((a) => {
-              const sel = gewaehlt.includes(a.id);
-              return (
-                <div key={a.id} className={`flex items-center gap-1 rounded-lg ${sel ? "bg-[#0064d2]/10 border border-[#0064d2]/30" : ""}`}>
-                  <label className="flex-1 flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] min-w-0">
-                    <input
-                      type="checkbox"
-                      checked={sel}
-                      onChange={() => onToggle(a.id)}
-                      className="accent-[#0064d2] flex-shrink-0 w-4 h-4"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{a.bezeichnung}</div>
-                      <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{a.lagerplatz ?? "—"}</div>
-                    </div>
-                    <span className={`text-xs flex-shrink-0 ${bestandFarbe(a.bestand)}`}>
-                      {a.bestand}
-                    </span>
-                  </label>
-                  {sel && onPool && (
-                    <button
-                      type="button"
-                      onClick={() => onPool(a.id)}
-                      title="Diesen Artikel zusätzlich für andere Modelle verknüpfen"
-                      aria-label={`Pool für ${a.bezeichnung} verwalten`}
-                      className="flex items-center justify-center text-base text-[#008bd2] hover:bg-[#008bd2]/10 transition-colors flex-shrink-0 mr-1 rounded-lg"
-                      style={{ minHeight: 36, minWidth: 36 }}
-                    >
-                      🔗
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Verknüpfungs-Modal (neu mit Suche)
-// ══════════════════════════════════════════════════════════════════════════════
-
-function VerknuepfungsModal({
-  modellId, onClose, onSaved,
-}: { modellId: number; onClose: () => void; onSaved: () => void }) {
-  const { show } = useToast();
-
-  const { data, isLoading, error } = api.kompatibilitaet.getModalData.useQuery({ modellId });
-  const [auswahl, setAuswahl] = useState<Record<string, number[]>>({});
-  const [initialized, setInitialized] = useState(false);
-  const [poolModalState, setPoolModalState] = useState<{ artikelId: number; teiltyp: string; bezeichnung?: string } | null>(null);
-
-  useEffect(() => {
-    if (data && !initialized) {
-      const init: Record<string, number[]> = {};
-      for (const teil of STANDARD_TEILE) {
-        // Nur bestehende Verknüpfungen vorauswählen — KEINE automatischen Vorschläge
-        init[teil] = data.currentMap[teil] ?? [];
-      }
-      setAuswahl(init);
-      setInitialized(true);
-    }
-  }, [data, initialized]);
-
-  const setVerknuepfung = api.kompatibilitaet.setVerknuepfteArtikelBulk.useMutation({
-    onSuccess: (r) => {
-      show(`✅ ${r.hinzugefuegt} verknüpft · ${r.entfernt} entfernt`, "success");
-      onSaved();
-      onClose();
-    },
-    onError: (e) => show(e.message, "error"),
-  });
-
-  function toggleArtikel(teiltyp: string, artikelId: number) {
-    setAuswahl((a) => {
-      const cur  = a[teiltyp] ?? [];
-      const next = cur.includes(artikelId) ? cur.filter((x) => x !== artikelId) : [...cur, artikelId];
-      return { ...a, [teiltyp]: next };
-    });
-  }
-
-  function handleSave() {
-    if (!data) return;
-    setVerknuepfung.mutate({
-      geraet:    data.geraetVoll,
-      eintraege: STANDARD_TEILE.map((t) => ({ teiltyp: t, artikelIds: auswahl[t] ?? [] })),
-    });
-  }
-
-  if (error) return (
-    <div className="p-4 rounded-lg bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 text-[#fa3e3e] text-sm">
-      Kompatibilitätsdaten konnten nicht geladen werden: {error.message}
-    </div>
-  );
-
-  if (isLoading || !data) return (
-    <div className="flex justify-center py-8">
-      <div className="w-6 h-6 border-2 border-[#0064d2]/20 border-t-[#0064d2] rounded-full animate-spin" />
-    </div>
-  );
-
-  const modellKeyword = extractModellKeyword(data.geraetVoll.split(" ").slice(1).join(" "));
-
-  return (
-    <div className="space-y-4">
-      {/* Info */}
-      <div>
-        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
-          <strong className="text-[#1a1a1a] dark:text-[#e4e6eb]">{data.geraetVoll}</strong>
-          {" · "}Suchfeld pro Teiltyp ·
-          <span className="text-[#f7b928]"> 💡 = Suchvorschlag (nur Hinweis, kein Auto-Speichern)</span>
-        </p>
-      </div>
-
-      {/* 13 Such-Sektionen */}
-      <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
-        {STANDARD_TEILE.map((teil) => (
-          <TeilSucheSection
-            key={teil}
-            teiltyp={teil}
-            gewaehlt={auswahl[teil] ?? []}
-            modellKeyword={modellKeyword}
-            onToggle={(id) => toggleArtikel(teil, id)}
-            onPool={(artikelId) => setPoolModalState({
-              artikelId,
-              teiltyp:     teil,
-              bezeichnung: data.artikelPerKategorie[teil]?.find((a) => a.id === artikelId)?.bezeichnung,
-            })}
-          />
-        ))}
-      </div>
-
-      {/* Footer */}
-      <div className="flex gap-3 pt-2 border-t border-[#ced4da] dark:border-[#3e4042]">
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex-1 py-2.5 rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-semibold"
-        >
-          Abbrechen
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={setVerknuepfung.isPending}
-          className="flex-1 py-2.5 rounded-xl bg-[#0064d2] text-white font-bold hover:bg-blue-700 disabled:opacity-50"
-        >
-          {setVerknuepfung.isPending ? "..." : "💾 Alle speichern"}
-        </button>
-      </div>
-
-      {/* Pool-Verknüpfung — gestapelt über diesem Modal (eigener Modal-Layer) */}
-      {poolModalState && (
-        <ModellPoolModal
-          artikelId={poolModalState.artikelId}
-          teiltyp={poolModalState.teiltyp}
-          artikelBezeichnung={poolModalState.bezeichnung}
-          onClose={() => setPoolModalState(null)}
-          onSaved={onSaved}
-        />
-      )}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Zusätzliche Teile für Modell (Custom-Teiltyp-Verknüpfungen)
-// ══════════════════════════════════════════════════════════════════════════════
+// HINWEIS: Die Zuordnung von Ersatzteil-ARTIKELN zu Modellen erfolgt ausschließlich
+// über die Artikel-Seite („Modelle verknüpfen"). Die frühere Modell→Artikel-
+// Verknüpfung wurde hier entfernt. Diese Sektion betrifft NUR die Custom-Teiltypen
+// (welche zusätzlichen Teiltypen für ein Modell gelten) — nicht die Artikel.
 
 function ZusaetzlicheTeileForModell({ modellId }: { modellId: number }) {
   const { show } = useToast();
@@ -341,7 +61,7 @@ function ZusaetzlicheTeileForModell({ modellId }: { modellId: number }) {
           Zusätzliche Teile für dieses Modell
         </h4>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
-          Die Standard-Teile sind immer verfügbar. Hier wählst du zusätzlich modell-spezifische Teile.
+          Die Standard-Teile sind immer verfügbar. Hier wählst du zusätzlich modell-spezifische Teiltypen.
         </p>
       </div>
 
@@ -375,7 +95,7 @@ function ZusaetzlicheTeileForModell({ modellId }: { modellId: number }) {
                 style={{ minHeight: 56 }}
               >
                 <Icon size={20} className={isActive ? "text-[#008bd2]" : "text-[#65676b] dark:text-[#b0b3b8]"} />
-                <span className={`flex-1 text-sm font-semibold ${isActive ? "text-[#1a1a1a] dark:text-[#e4e6eb]" : "text-[#1a1a1a] dark:text-[#e4e6eb]"}`}>
+                <span className="flex-1 text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">
                   {t.name}
                 </span>
                 {isActive && <Check size={16} className="text-[#008bd2] flex-shrink-0" />}
@@ -389,257 +109,8 @@ function ZusaetzlicheTeileForModell({ modellId }: { modellId: number }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Detail-Modal
+// Haupt-Seite — reine Modell-Übersicht (Liste, Suche, Anlegen, Aktiv/Inaktiv)
 // ══════════════════════════════════════════════════════════════════════════════
-
-function DetailModal({
-  modellId,
-  onClose,
-  onVerknuepfen,
-  onAlleEntfernen,
-}: {
-  modellId:        number;
-  onClose:         () => void;
-  onVerknuepfen:   () => void;
-  onAlleEntfernen: () => void;
-}) {
-  const { data, isLoading, error } = api.kompatibilitaet.getDetailForModell.useQuery({ modellId });
-
-  if (error) return (
-    <div className="p-4 rounded-lg bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 text-[#fa3e3e] text-sm">
-      Details konnten nicht geladen werden: {error.message}
-    </div>
-  );
-
-  if (isLoading || !data) return (
-    <div className="flex justify-center py-8">
-      <div className="w-6 h-6 border-2 border-[#0064d2]/20 border-t-[#0064d2] rounded-full animate-spin" />
-    </div>
-  );
-
-  const { modell, eintraege, anzahl } = data;
-  const kompMap = new Map(eintraege.map((e) => [e.teiltyp, e]));
-
-  return (
-    <div className="space-y-4">
-      {/* Header-Info */}
-      <div className="flex items-start gap-4">
-        <div className="flex-1">
-          <h3 className="text-lg font-black text-[#1a1a1a] dark:text-[#e4e6eb]">{modell.modell}</h3>
-          <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <span className="text-xs font-bold px-2 py-0.5 bg-[#0064d2]/10 text-[#0064d2] rounded-full uppercase">
-              {modell.hersteller}
-            </span>
-            <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-              Verknüpfte Teile: <strong className={anzahl > 0 ? "text-[#00a400]" : "text-[#fa3e3e]"}>{anzahl}</strong>
-            </span>
-            <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-              Hinzugefügt: {new Date(modell.createdAt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabelle */}
-      <div className="overflow-x-auto border border-[#ced4da] dark:border-[#3e4042] rounded-xl">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-[#f0f2f5] dark:bg-[#18191a] text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
-              <th className="px-4 py-2.5 text-left">Teiltyp</th>
-              <th className="px-4 py-2.5 text-left">Artikel</th>
-              <th className="px-4 py-2.5 text-center">Bestand</th>
-              <th className="px-4 py-2.5 text-left">Lagerplatz</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#ced4da] dark:divide-[#3e4042]">
-            {STANDARD_TEILE.map((teil) => {
-              const eintrag = kompMap.get(teil);
-              const artikel = eintrag?.artikel;
-              return (
-                <tr key={teil} className={`hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] ${!artikel ? "opacity-50" : ""}`}>
-                  <td className="px-4 py-2.5 font-medium text-[#1a1a1a] dark:text-[#e4e6eb]">{teil}</td>
-                  <td className="px-4 py-2.5 text-[#1a1a1a] dark:text-[#e4e6eb] whitespace-normal break-words">
-                    {artikel ? artikel.bezeichnung : (
-                      <span className="text-[#65676b] dark:text-[#b0b3b8] italic text-xs">— Nicht verknüpft</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-center">
-                    {artikel ? (
-                      <span className={bestandFarbe(artikel.bestand)}>{bestandLabel(artikel.bestand)}</span>
-                    ) : "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-xs text-[#65676b] dark:text-[#b0b3b8] font-mono">
-                    {artikel?.lagerplatz ?? "—"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Modell-spezifische Custom-Teiltypen — klar abgesetzt */}
-      <div className="border-t-2 border-[#ced4da] dark:border-[#3e4042] mt-8 pt-6">
-        <ZusaetzlicheTeileForModell modellId={modellId} />
-      </div>
-
-      {/* Footer */}
-      <div className="flex gap-3 pt-2 border-t border-[#ced4da] dark:border-[#3e4042] flex-wrap">
-        <button
-          type="button"
-          onClick={onAlleEntfernen}
-          disabled={anzahl === 0}
-          className="px-4 py-2 text-sm font-bold rounded-xl bg-[#fa3e3e]/10 text-[#fa3e3e] border border-[#fa3e3e]/30 hover:bg-[#fa3e3e]/20 disabled:opacity-30 transition-colors"
-        >
-          🗑️ Alle entfernen
-        </button>
-        <div className="flex-1" />
-        <button
-          type="button"
-          onClick={onVerknuepfen}
-          className="px-4 py-2 text-sm font-bold rounded-xl bg-[#0064d2]/10 text-[#0064d2] border border-[#0064d2]/30 hover:bg-[#0064d2]/20 transition-colors"
-        >
-          🔗 Verknüpfung bearbeiten
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#ced4da] transition-colors"
-        >
-          Schließen
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Alle-Entfernen Confirm Dialog
-// ══════════════════════════════════════════════════════════════════════════════
-
-function ConfirmRemoveAllDialog({
-  geraet, anzahl, isPending, onConfirm, onCancel,
-}: {
-  geraet:    string;
-  anzahl:    number;
-  isPending: boolean;
-  onConfirm: () => void;
-  onCancel:  () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-        <div className="text-center">
-          <div className="text-5xl mb-3">🗑️</div>
-          <h2 className="text-lg font-black text-[#1a1a1a] dark:text-[#e4e6eb]">
-            Alle Kompatibilitäten entfernen?
-          </h2>
-        </div>
-        <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl px-4 py-3 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-          <strong>{geraet}</strong>
-        </div>
-        <p className="text-sm text-center text-[#65676b] dark:text-[#b0b3b8]">
-          Das entfernt <strong className="text-[#fa3e3e]">{anzahl}</strong> Verknüpfung{anzahl !== 1 ? "en" : ""}.
-          <br />Die Artikel selbst bleiben erhalten.
-        </p>
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] font-semibold text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#ced4da] transition-colors"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={isPending}
-            className="flex-1 py-2.5 rounded-xl bg-[#fa3e3e] text-white font-bold hover:bg-red-600 disabled:opacity-50 transition-colors"
-          >
-            {isPending ? "Entferne…" : "Ja, alle entfernen"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Globaler Nuklear-Dialog (alle Kompatibilitäten löschen)
-// ══════════════════════════════════════════════════════════════════════════════
-
-function GlobalRemoveAllDialog({
-  totalCount,
-  isPending,
-  onConfirm,
-  onCancel,
-}: {
-  totalCount: number;
-  isPending:  boolean;
-  onConfirm:  () => void;
-  onCancel:   () => void;
-}) {
-  const [eingabe, setEingabe] = useState("");
-  const bestaetigt = eingabe === "LÖSCHEN";
-
-  return (
-    <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/70 p-4">
-      <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-        {/* Header */}
-        <div className="text-center">
-          <div className="text-5xl mb-3">⚠️</div>
-          <h2 className="text-xl font-black text-[#fa3e3e]">ALLE Kompatibilitäten löschen?</h2>
-        </div>
-
-        {/* Warnung */}
-        <div className="bg-[#fa3e3e]/10 border border-[#fa3e3e]/30 rounded-xl px-4 py-3 space-y-1 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-          <p>Das löscht <strong className="text-[#fa3e3e]">ALLE {totalCount.toLocaleString("de-DE")} Verknüpfungen</strong> aller Modelle im System.</p>
-          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Modelle und Artikel bleiben erhalten. Diese Aktion kann nicht rückgängig gemacht werden!</p>
-        </div>
-
-        {/* Bestätigungs-Eingabe */}
-        <div className="space-y-2">
-          <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
-            Zum Bestätigen <code className="bg-[#f0f2f5] dark:bg-[#3e4042] px-1.5 py-0.5 rounded font-mono text-[#fa3e3e]">LÖSCHEN</code> eingeben:
-          </label>
-          <input
-            type="text"
-            value={eingabe}
-            onChange={(e) => setEingabe(e.target.value)}
-            placeholder="LÖSCHEN"
-            className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#fa3e3e] font-mono text-center text-lg tracking-widest"
-            autoFocus
-          />
-        </div>
-
-        {/* Buttons */}
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] font-semibold text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#ced4da] transition-colors"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={!bestaetigt || isPending}
-            className="flex-1 py-2.5 rounded-xl bg-[#fa3e3e] text-white font-black hover:bg-red-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            {isPending ? "Lösche…" : "Ja, alle löschen"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Haupt-Seite
-// ══════════════════════════════════════════════════════════════════════════════
-
-type Modell = { id: number; hersteller: string; modell: string; kompAnzahl: number; aktiv: boolean };
 
 function ModelleListePageInner() {
   const { show } = useToast();
@@ -651,50 +122,26 @@ function ModelleListePageInner() {
   const initialQ    = searchParams?.get("q")         ?? "";
   const highlightId = searchParams?.get("highlight") ?? null;
 
-  const [search,       setSearch]       = useState(initialQ);
-  const [hersteller,   setHersteller]   = useState("");
-  const [ohneKomp,     setOhneKomp]     = useState(false);
-  const [page,         setPage]         = useState(1);
+  const [search,     setSearch]     = useState(initialQ);
+  const [hersteller, setHersteller] = useState("");
+  const [ohneKomp,   setOhneKomp]   = useState(false);
+  const [page,       setPage]       = useState(1);
   const debouncedSearch = useDebounce(search, 300);
 
-  // Modal-States
-  const [verknuepfenId,    setVerknuepfenId]    = useState<number | null>(null);
-  const [detailId,         setDetailId]         = useState<number | null>(null);
-  const [removeAllTarget,  setRemoveAllTarget]  = useState<Modell | null>(null);
-  const [globalRemoveOpen, setGlobalRemoveOpen] = useState(false);
+  const [detailId, setDetailId] = useState<number | null>(null);
 
   const { data, isLoading, error, refetch } = api.geraete.getAllWithKompCount.useQuery(
     { search: debouncedSearch || undefined, hersteller: hersteller || undefined, ohneKomp, page, limit: 50, standortId: activeStandortId },
     { refetchOnMount: "always", staleTime: 0 },
   );
   const herstellerOpts = api.geraete.getHersteller.useQuery();
-  const globalCount    = api.kompatibilitaet.getCount.useQuery(undefined, { enabled: globalRemoveOpen });
 
   const setAktiv = api.geraete.setAktiv.useMutation({
     onSuccess: () => { refetch(); show("Status aktualisiert", "success"); },
     onError:   (e) => show(e.message, "error"),
   });
 
-  const removeAll = api.kompatibilitaet.removeAllByModell.useMutation({
-    onSuccess: (r) => {
-      show(`🗑️ ${r.geloescht} Verknüpfungen entfernt`, "success");
-      setRemoveAllTarget(null);
-      setDetailId(null);
-      refetch();
-    },
-    onError: (e) => show(e.message, "error"),
-  });
-
-  const removeAllGlobal = api.kompatibilitaet.removeAll.useMutation({
-    onSuccess: (r) => {
-      show(`🗑️ Alle ${r.geloescht} Verknüpfungen gelöscht`, "success");
-      setGlobalRemoveOpen(false);
-      refetch();
-    },
-    onError: (e) => show(e.message, "error"),
-  });
-
-  const selectedModell = data?.modelle.find((m) => m.id === (verknuepfenId ?? detailId));
+  const selectedModell = data?.modelle.find((m) => m.id === detailId);
 
   // Aus GlobalSearch: ?highlight=<id> → Detail-Modal öffnen + zur Zeile scrollen
   useEffect(() => {
@@ -724,18 +171,17 @@ function ModelleListePageInner() {
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-0.5">{total} Modelle</p>
         </div>
         {canEdit && (
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => setGlobalRemoveOpen(true)}
-              className="px-4 py-2 bg-[#fa3e3e]/10 text-[#fa3e3e] border border-[#fa3e3e]/30 font-bold rounded-xl hover:bg-[#fa3e3e]/20 text-sm transition-colors"
-            >
-              🗑️ Alle Verknüpfungen löschen
-            </button>
-            <Link href="/admin/modelle/neu" className="px-4 py-2 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 shadow-sm text-sm">
-              + Neues Modell
-            </Link>
-          </div>
+          <Link href="/admin/modelle/neu" className="px-4 py-2 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 shadow-sm text-sm">
+            + Neues Modell
+          </Link>
         )}
+      </div>
+
+      {/* Hinweis: Verknüpfung läuft über den Artikel */}
+      <div className="rounded-xl border border-[#0064d2]/30 bg-[#0064d2]/5 px-4 py-3 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+        ℹ️ Die Zuordnung von Ersatzteilen erfolgt über die{" "}
+        <Link href="/admin/artikel" className="text-[#0064d2] hover:underline font-semibold">Artikel-Seite</Link>{" "}
+        („Modelle verknüpfen" am jeweiligen Artikel). Diese Seite dient der Modell-Verwaltung.
       </div>
 
       {/* Filter */}
@@ -750,7 +196,7 @@ function ModelleListePageInner() {
         <label className="flex items-center gap-2 text-sm font-medium text-[#65676b] dark:text-[#b0b3b8] cursor-pointer">
           <input type="checkbox" checked={ohneKomp} onChange={(e) => { setOhneKomp(e.target.checked); setPage(1); }}
             className="w-4 h-4 accent-[#fa3e3e]" />
-          Ohne Kompatibilität
+          Ohne verknüpfte Teile
         </label>
       </div>
 
@@ -783,30 +229,13 @@ function ModelleListePageInner() {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex gap-1 justify-end flex-wrap">
-                    {/* 🔗 Verknüpfen */}
-                    <button
-                      onClick={() => setVerknuepfenId(m.id)}
-                      className="px-2.5 py-2 text-xs font-bold rounded-lg min-h-[36px] bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] border border-[#0064d2]/20 hover:bg-[#0064d2]/20 transition-colors"
-                      title="Verknüpfungen bearbeiten"
-                    >
-                      🔗 Verknüpfen
-                    </button>
-                    {/* 📋 Details */}
+                    {/* 📋 Details (modell-spezifische Zusatz-Teiltypen) */}
                     <button
                       onClick={() => setDetailId(m.id)}
                       className="px-2.5 py-2 text-xs font-bold rounded-lg min-h-[36px] bg-[#f0f2f5] dark:bg-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] border border-[#ced4da] dark:border-[#555] hover:bg-[#ced4da] dark:hover:bg-[#555] transition-colors"
                       title="Details anzeigen"
                     >
                       📋 Details
-                    </button>
-                    {/* 🗑️ Alle entfernen */}
-                    <button
-                      onClick={() => setRemoveAllTarget(m)}
-                      disabled={m.kompAnzahl === 0}
-                      className="px-2.5 py-2 text-xs font-bold rounded-lg min-h-[36px] bg-[#fa3e3e]/10 text-[#fa3e3e] border border-[#fa3e3e]/20 hover:bg-[#fa3e3e]/20 disabled:opacity-30 disabled:cursor-default transition-colors"
-                      title="Alle Verknüpfungen entfernen"
-                    >
-                      🗑️
                     </button>
                     {/* Aktiv/Inaktiv */}
                     <button
@@ -822,7 +251,7 @@ function ModelleListePageInner() {
             ))}
             {!modelle.length && (
               <tr><td colSpan={5} className="text-center py-12 text-[#65676b] dark:text-[#b0b3b8]">
-                {ohneKomp ? "Alle Modelle haben Kompatibilitäts-Einträge ✅" : "Keine Modelle gefunden"}
+                {ohneKomp ? "Alle Modelle haben verknüpfte Teile ✅" : "Keine Modelle gefunden"}
               </td></tr>
             )}
           </tbody>
@@ -844,69 +273,15 @@ function ModelleListePageInner() {
         </div>
       )}
 
-      {/* Verknüpfungs-Modal */}
-      <Modal
-        open={verknuepfenId !== null}
-        onClose={() => setVerknuepfenId(null)}
-        title={selectedModell ? `Kompatibilität: ${selectedModell.hersteller} ${selectedModell.modell}` : "Kompatibilität"}
-        width="max-w-2xl"
-      >
-        {verknuepfenId !== null && (
-          <VerknuepfungsModal
-            modellId={verknuepfenId}
-            onClose={() => setVerknuepfenId(null)}
-            onSaved={() => refetch()}
-          />
-        )}
-      </Modal>
-
-      {/* Detail-Modal */}
+      {/* Detail-Modal — modell-spezifische Zusatz-Teiltypen */}
       <Modal
         open={detailId !== null}
         onClose={() => setDetailId(null)}
         title={selectedModell ? `${selectedModell.hersteller} ${selectedModell.modell}` : "Details"}
-        width="max-w-6xl"
+        width="max-w-2xl"
       >
-        {detailId !== null && (
-          <DetailModal
-            modellId={detailId}
-            onClose={() => setDetailId(null)}
-            onVerknuepfen={() => {
-              setVerknuepfenId(detailId);
-              setDetailId(null);
-            }}
-            onAlleEntfernen={() => {
-              const m = modelle.find((x) => x.id === detailId);
-              if (m) setRemoveAllTarget(m);
-            }}
-          />
-        )}
+        {detailId !== null && <ZusaetzlicheTeileForModell modellId={detailId} />}
       </Modal>
-
-      {/* Pro-Modell: Alle-Entfernen Bestätigung */}
-      {removeAllTarget && (
-        <ConfirmRemoveAllDialog
-          geraet={`${removeAllTarget.hersteller} ${removeAllTarget.modell}`}
-          anzahl={removeAllTarget.kompAnzahl}
-          isPending={removeAll.isPending}
-          onConfirm={() =>
-            removeAll.mutate({
-              geraet: `${removeAllTarget.hersteller} ${removeAllTarget.modell}`,
-            })
-          }
-          onCancel={() => setRemoveAllTarget(null)}
-        />
-      )}
-
-      {/* Global: Alle Kompatibilitäten löschen */}
-      {globalRemoveOpen && (
-        <GlobalRemoveAllDialog
-          totalCount={globalCount.data ?? 0}
-          isPending={removeAllGlobal.isPending}
-          onConfirm={() => removeAllGlobal.mutate()}
-          onCancel={() => setGlobalRemoveOpen(false)}
-        />
-      )}
     </div>
   );
 }
