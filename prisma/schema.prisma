@@ -782,9 +782,24 @@ model VerbrauchsArtikel {
   erstelltAm       DateTime @default(now())
   aktualisiertAm   DateTime @updatedAt
   zaehlungen       VerbrauchsZaehlung[]
+  bild             VerbrauchsArtikelBild?
 
   @@index([kategorie])
   @@index([aktiv])
+}
+
+// Foto je Artikel (0..1). Eigene Tabelle, damit die Listen-Query NIE die Bytes
+// mitlädt (schlanke Liste). In der DB gespeichert (überlebt Container-Rebuild —
+// kein flüchtiges public/uploads). Verkleinert vom Client (~1600px, JPEG). Für
+// das A5-Lagerplatz-Schild (Foto + AAN + Beschreibung + Scan-QR). Ausgeliefert
+// über GET /api/verbrauchsmaterial/bild/[id].
+model VerbrauchsArtikelBild {
+  artikelId      Int      @id
+  artikel        VerbrauchsArtikel @relation(fields: [artikelId], references: [id], onDelete: Cascade)
+  mimeType       String   @db.VarChar(100)
+  daten          Bytes    @db.MediumBlob
+  erstelltAm     DateTime @default(now())
+  aktualisiertAm DateTime @updatedAt
 }
 
 // Zählungs-/Bestandshistorie (Grundlage für spätere Verbrauchsauswertung S4).

@@ -116,7 +116,7 @@ EOF
 
 ---
 
-## Modul-Stand (zuletzt: Mobil-Bereich „digital Education", Parser ~99,5 %, Mobil-Anfragen A+B, Login-Routing /start)
+## Modul-Stand (zuletzt: Verbrauchsmaterial Foto je Artikel + A5-Lagerplatz-Schild; davor Mobil-Review/Alias-Lernen, Pickup-Colli-Fix, admin/modelle-Umbau)
 
 ### Mobil-Ersatzteile (Smartphone/Tablet-Teile via LogID aus ReForm-CSV) — KOMPLETT & AUDITIERT
 - **Quelle:** ReForm-CSV-Export (";"-getrennt, UTF-8, Werte in Quotes, 44 Spalten; alle Infos
@@ -216,6 +216,24 @@ EOF
   nebenbei Bug, dass erneutes Zählen `vorher` verfälschte. UI: orangenes Banner „schon X
   erfasst" + Buttons ➕Dazuzählen (grün, default bei Re-Scan) / ✏️Ersetzen (blau) + Live-Summe.
   Dazuzählen nur via **Code-Scan**; Suche/Offen-Liste → immer ersetzen.
+- **NEU — Foto je Artikel + A5-Lagerplatz-Schild:**
+  - **Schema:** eigene Tabelle `VerbrauchsArtikelBild` (`artikelId @id`/1:1, `mimeType`, `daten
+    Bytes @db.MediumBlob`, Zeitstempel; `onDelete: Cascade`). **Bild in der DB** (überlebt
+    Container-Rebuild — kein flüchtiges `public/uploads`). Eigene Tabelle, damit `liste` NIE die
+    Bytes mitlädt (liefert nur `hatBild` + `bildStand`=ms-Cache-Buster).
+  - **Upload:** Client verkleinert das Bild (canvas → JPEG, max ~1600px) → tRPC `setzeBild`
+    (base64; MIME jpeg/png/webp + 8-MB-Deckel; Upsert je artikelId), `loescheBild`. App-Router-
+    tRPC → **kein** 1-MB-Body-Limit. Rechte: `MATERIAL_MANAGE`.
+  - **Ausliefern:** `GET /api/verbrauchsmaterial/bild/[id]?v=<ms>` (Pages-API, Session +
+    `MATERIAL_VIEW`, `Cache-Control: private,max-age=86400`; ?v = Cache-Buster).
+  - **Formular** (`/admin/verbrauchsmaterial` `ArtikelForm`): Foto-Feld (Vorschau, „aufnehmen/
+    wählen" mit `capture="environment"` für Handheld/Handy-Kamera, „entfernen"). `speichern`
+    verkettet Stammdaten → dann Foto (neu braucht erst die id).
+  - **A5-Schild** (`src/lib/print/lagerplatzSchild.ts`, `printLagerplatzSchild`): `@page A5`,
+    bewährte window.open+document.write+Auto-Print-Mechanik (wartet auf `load`, damit das Foto
+    mitdruckt; Fallback-Timeout). Inhalt **groß/kontraststark (inklusiv)**: Foto oben, Name+
+    Merkmale, AAN prominent, Standort/Kategorie, unten großer Scan-QR (roher `VM-…`-Code) +
+    „Zum Erfassen scannen". Buttons **📄 Schild** je Zeile + **📄 A5-Schilder** in der Bulk-Leiste.
 
 ### Weitere Module (live)
 - Admin-Portal (Artikel, Buchungen, Anfragen mit Lock-System, Modelle/Kompatibilität, Benutzer,

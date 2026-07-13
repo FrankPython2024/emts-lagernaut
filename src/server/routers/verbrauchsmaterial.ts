@@ -28,6 +28,12 @@ function cap(v: string | null | undefined, max: number): string | null {
 // Spaltenlimits (prisma/schema.prisma → VerbrauchsArtikel).
 const LIM = { name: 255, merkmale: 255, kategorie: 100, aan: 100, standort: 191, bemerkung: 10_000 } as const;
 
+// Foto-Upload: erlaubte MIME-Typen + Größen-Deckel. Der Client verkleinert vor
+// dem Senden (~1600px, JPEG); der Deckel ist eine defensive Server-Grenze gegen
+// versehentlich riesige Bilder (MediumBlob fasst 16 MB, 8 MB reicht mit Reserve).
+const BILD_MIMES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const BILD_MAX_BYTES = 8 * 1024 * 1024;
+
 // Gemeinsame Feld-Bereinigung für Anlegen/Bearbeiten/Import.
 type RoheFelder = {
   name:             string;
@@ -136,11 +142,16 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
       const artikel = await prisma.verbrauchsArtikel.findMany({
         where,
         orderBy: [{ aktiv: "desc" }, { name: "asc" }],
+        // Nur die Existenz + Änderungszeit des Fotos — NIE die Bytes (schlanke Liste).
+        include: { bild: { select: { aktualisiertAm: true } } },
       });
 
-      return artikel.map((a) => ({
+      return artikel.map(({ bild, ...a }) => ({
         ...a,
         status: status(a.aktuellerBestand, a.mindestbestand),
+        hatBild:   !!bild,
+        // ms-Zeitstempel als Cache-Buster für <img src="…?v=…"> (null = kein Bild).
+        bildStand: bild ? bild.aktualisiertAm.getTime() : null,
       }));
     }),
 
@@ -394,6 +405,50 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
       const data = bereinige(rest);
       if (!data.name) throw new TRPCError({ code: "BAD_REQUEST", message: "Name fehlt" });
       await prisma.verbrauchsArtikel.update({ where: { id }, data });
+      return { ok: true };
+    }),
+
+  // Foto setzen/ersetzen (0..1 je Artikel). Bild kommt als base64 (client-seitig
+  // verkleinert). In DB gespeichert (überlebt Rebuild). Upsert je artikelId.
+  setzeBild: manage
+    .input(z.object({
+      id:         z.number().int().positive(),
+      mimeType:   z.string().trim().min(1),
+      dataBase64: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const mime = input.mimeType.toLowerCase();
+      if (!BILD_MIMES.has(mime)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Nur JPEG, PNG oder WebP erlaubt" });
+      }
+      // reines base64 erwartet (Client entfernt den "data:…;base64,"-Präfix).
+      let daten: Buffer;
+      try {
+        daten = Buffer.from(input.dataBase64, "base64");
+      } catch {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Bild konnte nicht gelesen werden" });
+      }
+      if (daten.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Bild ist leer" });
+      if (daten.length > BILD_MAX_BYTES) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Bild ist zu groß (max. 8 MB)" });
+      }
+
+      const artikel = await prisma.verbrauchsArtikel.findUnique({ where: { id: input.id }, select: { id: true } });
+      if (!artikel) throw new TRPCError({ code: "NOT_FOUND", message: "Artikel nicht gefunden" });
+
+      await prisma.verbrauchsArtikelBild.upsert({
+        where:  { artikelId: input.id },
+        create: { artikelId: input.id, mimeType: mime, daten },
+        update: { mimeType: mime, daten },
+      });
+      return { ok: true };
+    }),
+
+  // Foto entfernen (falls vorhanden). Idempotent.
+  loescheBild: manage
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      await prisma.verbrauchsArtikelBild.deleteMany({ where: { artikelId: input.id } });
       return { ok: true };
     }),
 

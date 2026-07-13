@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { printVerbrauchsmaterialEtiketten } from "@/lib/print/verbrauchsmaterialEtikett";
+import { printLagerplatzSchild } from "@/lib/print/lagerplatzSchild";
 
 const CYAN = "#008BD2";
 
@@ -24,7 +25,40 @@ type Artikel = {
   bemerkung:        string | null;
   aktiv:            boolean;
   status:           "OK" | "NACHBESTELLEN";
+  hatBild:          boolean;
+  bildStand:        number | null; // ms-Zeitstempel als Cache-Buster (null = kein Foto)
 };
+
+// Ausliefer-URL des Fotos inkl. Cache-Buster. null, wenn kein Foto hinterlegt ist.
+function bildUrl(a: Pick<Artikel, "id" | "hatBild" | "bildStand">): string | null {
+  return a.hatBild ? `/api/verbrauchsmaterial/bild/${a.id}?v=${a.bildStand ?? 0}` : null;
+}
+
+// Foto client-seitig verkleinern (spart DB-Platz + Upload-Zeit): auf max. Kanten-
+// länge skalieren, als JPEG exportieren. Liefert base64 (ohne data:-Präfix) für
+// setzeBild + dataUrl für die sofortige Vorschau.
+async function verkleinereBild(
+  file: File, maxKante = 1600, qualitaet = 0.82,
+): Promise<{ base64: string; mime: string; dataUrl: string }> {
+  const bild = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload  = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Bild konnte nicht geladen werden")); };
+    img.src = url;
+  });
+  const skala = Math.min(1, maxKante / Math.max(bild.width, bild.height));
+  const w = Math.max(1, Math.round(bild.width * skala));
+  const h = Math.max(1, Math.round(bild.height * skala));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas nicht verfügbar");
+  ctx.drawImage(bild, 0, 0, w, h);
+  const dataUrl = canvas.toDataURL("image/jpeg", qualitaet);
+  const base64  = dataUrl.split(",")[1] ?? "";
+  return { base64, mime: "image/jpeg", dataUrl };
+}
 
 export default function VerbrauchsmaterialPage() {
   const { has, isLoading: permsLoading } = usePermissions();
@@ -87,6 +121,21 @@ export default function VerbrauchsmaterialPage() {
     const gewaehlt = artikel.filter((a) => auswahl.has(a.id));
     if (gewaehlt.length === 0) return;
     void printVerbrauchsmaterialEtiketten(gewaehlt.map((a) => ({ code: a.code, name: a.name })));
+  }
+  // A5-Lagerplatz-Schild (Foto + AAN + Beschreibung + Scan-QR) zum Aushängen.
+  function schildDaten(a: Artikel) {
+    return {
+      code: a.code, name: a.name, merkmale: a.merkmale, aan: a.aan,
+      standort: a.standort, kategorie: a.kategorie, bildUrl: bildUrl(a),
+    };
+  }
+  function druckeSchild(a: Artikel) {
+    void printLagerplatzSchild([schildDaten(a)]);
+  }
+  function druckeSchilderAuswahl() {
+    const gewaehlt = artikel.filter((a) => auswahl.has(a.id));
+    if (gewaehlt.length === 0) return;
+    void printLagerplatzSchild(gewaehlt.map(schildDaten));
   }
 
   return (
@@ -202,6 +251,12 @@ export default function VerbrauchsmaterialPage() {
               Auswahl aufheben
             </button>
             <button
+              onClick={druckeSchilderAuswahl}
+              className="inline-flex items-center gap-2 px-5 rounded-lg font-bold text-[#202F61] dark:text-[#e4e6eb] border-2 border-[#008BD2]/40 hover:bg-[#008BD2]/10 min-h-[44px]"
+            >
+              📄 A5-Schilder ({auswahl.size})
+            </button>
+            <button
               onClick={druckeAuswahl}
               className="inline-flex items-center gap-2 px-5 rounded-lg font-bold text-white min-h-[44px]"
               style={{ background: CYAN }}
@@ -279,6 +334,14 @@ export default function VerbrauchsmaterialPage() {
                         >
                           🏷️ Etikett
                         </button>
+                        <button
+                          onClick={() => druckeSchild(a)}
+                          title="A5-Lagerplatz-Schild drucken (Foto, AAN, Beschreibung, Scan-Code)"
+                          aria-label={`A5-Schild für ${a.name} drucken`}
+                          className="px-3 rounded-lg text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] font-semibold min-h-[40px]"
+                        >
+                          📄 Schild
+                        </button>
                         {darfVerwalten && (
                           <button
                             onClick={() => bearbeiten(a)}
@@ -349,19 +412,46 @@ function ArtikelForm({
   const [gebindegroesse, setGebinde]    = useState(artikel?.gebindegroesse != null ? String(artikel.gebindegroesse) : "");
   const [bemerkung, setBemerkung]       = useState(artikel?.bemerkung ?? "");
 
-  const anlegen = api.verbrauchsmaterial.anlegen.useMutation({
-    onSuccess: (r) => { show(`✅ Angelegt — Code ${r.code}`, "success"); onSaved(); },
-    onError:   (e) => show(e.message, "error"),
-  });
-  const bearbeiten = api.verbrauchsmaterial.bearbeiten.useMutation({
-    onSuccess: () => { show("✅ Gespeichert", "success"); onSaved(); },
-    onError:   (e) => show(e.message, "error"),
-  });
-  const isPending = anlegen.isPending || bearbeiten.isPending;
+  // Foto: Vorschau startet mit dem hinterlegten Bild (falls vorhanden). `neuBild`
+  // = frisch gewähltes/aufgenommenes (verkleinertes) Bild; `bildEntfernen` = das
+  // bestehende Foto soll beim Speichern gelöscht werden.
+  const [bildPreview, setBildPreview]   = useState<string | null>(artikel ? bildUrl(artikel) : null);
+  const [neuBild, setNeuBild]           = useState<{ base64: string; mime: string } | null>(null);
+  const [bildEntfernen, setBildEntfernen] = useState(false);
+  const [bildBusy, setBildBusy]         = useState(false);
+
+  const anlegen    = api.verbrauchsmaterial.anlegen.useMutation();
+  const bearbeiten = api.verbrauchsmaterial.bearbeiten.useMutation();
+  const setzeBild  = api.verbrauchsmaterial.setzeBild.useMutation();
+  const loescheBild = api.verbrauchsmaterial.loescheBild.useMutation();
+  const isPending = anlegen.isPending || bearbeiten.isPending || setzeBild.isPending || loescheBild.isPending;
 
   function toNum(s: string): number { const n = parseInt(s, 10); return Number.isFinite(n) && n > 0 ? n : 0; }
 
-  function speichern() {
+  async function onDateiGewaehlt(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // erlaubt erneutes Wählen derselben Datei
+    if (!file) return;
+    setBildBusy(true);
+    try {
+      const { base64, mime, dataUrl } = await verkleinereBild(file);
+      setNeuBild({ base64, mime });
+      setBildPreview(dataUrl);
+      setBildEntfernen(false);
+    } catch {
+      show("Bild konnte nicht verarbeitet werden.", "error");
+    } finally {
+      setBildBusy(false);
+    }
+  }
+
+  function fotoEntfernen() {
+    setNeuBild(null);
+    setBildPreview(null);
+    setBildEntfernen(true);
+  }
+
+  async function speichern() {
     if (!name.trim()) { show("Name ist Pflicht.", "error"); return; }
     const felder = {
       name:             name.trim(),
@@ -374,8 +464,26 @@ function ArtikelForm({
       gebindegroesse:   gebindegroesse.trim() ? toNum(gebindegroesse) : null,
       bemerkung:        bemerkung.trim() || null,
     };
-    if (artikel) bearbeiten.mutate({ id: artikel.id, ...felder });
-    else anlegen.mutate(felder);
+    try {
+      // 1) Stammdaten speichern (für „Neu" brauchen wir die frische id fürs Foto).
+      let id: number;
+      let msg: string;
+      if (artikel) {
+        await bearbeiten.mutateAsync({ id: artikel.id, ...felder });
+        id = artikel.id; msg = "✅ Gespeichert";
+      } else {
+        const r = await anlegen.mutateAsync(felder);
+        id = r.id; msg = `✅ Angelegt — Code ${r.code}`;
+      }
+      // 2) Foto setzen / entfernen (nur wenn geändert).
+      if (neuBild)              await setzeBild.mutateAsync({ id, mimeType: neuBild.mime, dataBase64: neuBild.base64 });
+      else if (bildEntfernen)   await loescheBild.mutateAsync({ id });
+
+      show(msg, "success");
+      onSaved();
+    } catch (e) {
+      show(e instanceof Error ? e.message : "Fehler beim Speichern", "error");
+    }
   }
 
   return (
@@ -392,6 +500,30 @@ function ArtikelForm({
         </div>
 
         <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Foto — für die Übersicht + das A5-Lagerplatz-Schild. Kamera auf Handheld/Handy. */}
+          <div className="sm:col-span-2">
+            <span className={labelCls}>Foto</span>
+            <div className="flex items-center gap-4 flex-wrap">
+              {bildPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={bildPreview} alt="Artikel-Foto" className="w-28 h-28 rounded-lg object-cover border border-[#ced4da] dark:border-[#3e4042]" />
+              ) : (
+                <div className="w-28 h-28 rounded-lg border-2 border-dashed border-[#ced4da] dark:border-[#3e4042] flex items-center justify-center text-4xl text-[#b0b3b8]" aria-hidden>📷</div>
+              )}
+              <div className="flex flex-col gap-2">
+                <label className={`inline-flex items-center gap-2 px-4 rounded-lg font-bold text-white cursor-pointer min-h-[48px] ${bildBusy ? "opacity-50 pointer-events-none" : ""}`} style={{ background: CYAN }}>
+                  📷 {bildPreview ? "Foto ändern" : "Foto aufnehmen / wählen"}
+                  <input type="file" accept="image/*" capture="environment" onChange={onDateiGewaehlt} disabled={bildBusy} className="sr-only" />
+                </label>
+                {bildPreview && !bildBusy && (
+                  <button type="button" onClick={fotoEntfernen} className="px-4 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#b3261e] font-semibold min-h-[44px]">
+                    Foto entfernen
+                  </button>
+                )}
+                {bildBusy && <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Bild wird verkleinert…</span>}
+              </div>
+            </div>
+          </div>
           <label className="sm:col-span-2 block">
             <span className={labelCls}>Name *</span>
             <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="z. B. Karton 600×400×400" />
