@@ -455,6 +455,17 @@ function AnfrageKarte({ gruppe, onClick }: { gruppe: GruppeData; onClick: () => 
         <span>{relativeZeit(new Date(gruppe.datum))}</span>
       </div>
 
+      {/* Anmerkungen (Kommentar) — wie im Admin sichtbar, in jedem Status. */}
+      {gruppe.anfragen.some(a => a.kommentar) && (
+        <div style={{ marginTop: "0.45rem", display: "flex", flexDirection: "column", gap: 2 }}>
+          {gruppe.anfragen.filter(a => a.kommentar).map(a => (
+            <div key={a.id} style={{ fontSize: "0.82rem", color: "var(--text-dim)", fontStyle: "italic", lineHeight: 1.35 }}>
+              💬 {a.kommentar}
+            </div>
+          ))}
+        </div>
+      )}
+
       {anfrageIds.length > 0 && (
         <div style={{ marginTop: "0.5rem" }}>
           <ChatBadge anfrageIds={anfrageIds} />
@@ -1549,6 +1560,11 @@ function AnfrageDetailModal({
                     }}>
                       {aCfg.text}
                     </span>
+                    {a.kommentar && (
+                      <div style={{ fontSize: "0.82rem", color: "var(--text-dim)", fontStyle: "italic", lineHeight: 1.35 }}>
+                        💬 {a.kommentar}
+                      </div>
+                    )}
                   </li>
                 );
               })}
