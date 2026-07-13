@@ -68,16 +68,18 @@ export default function VerbrauchsmaterialPage() {
   const [kategorie, setKategorie] = useState("");
   const [standort, setStandort]   = useState("");
   const [zeigeInaktive, setZeigeInaktive] = useState(false);
+  const [nurOhneFoto, setNurOhneFoto]     = useState(false);
   const [editArtikel, setEditArtikel]     = useState<Artikel | null>(null);
   const [formOffen, setFormOffen]         = useState(false);
   const [auswahl, setAuswahl]             = useState<Set<number>>(new Set());
 
   const listeQ = api.verbrauchsmaterial.liste.useQuery(
     {
-      suche:     suche.trim() || undefined,
-      kategorie: kategorie || undefined,
-      standort:  standort || undefined,
-      nurAktive: !zeigeInaktive,
+      suche:       suche.trim() || undefined,
+      kategorie:   kategorie || undefined,
+      standort:    standort || undefined,
+      nurAktive:   !zeigeInaktive,
+      nurOhneFoto,
     },
     { enabled: !permsLoading && has("MATERIAL_VIEW") },
   );
@@ -88,6 +90,10 @@ export default function VerbrauchsmaterialPage() {
     enabled: !permsLoading && has("MATERIAL_VIEW"),
   });
   const nachbestellAnzahl = nachbQ.data?.length ?? 0;
+  const ohneFotoQ = api.verbrauchsmaterial.ohneFotoAnzahl.useQuery(undefined, {
+    enabled: !permsLoading && has("MATERIAL_VIEW"),
+  });
+  const ohneFotoAnzahl = ohneFotoQ.data ?? 0;
 
   if (permsLoading) return <PageLoader />;
   if (!has("MATERIAL_VIEW")) {
@@ -153,6 +159,20 @@ export default function VerbrauchsmaterialPage() {
               >
                 ⚠️ {nachbestellAnzahl} nachzubestellen
               </Link>
+            )}
+            {ohneFotoAnzahl > 0 && (
+              <button
+                onClick={() => setNurOhneFoto((v) => !v)}
+                aria-pressed={nurOhneFoto}
+                title={nurOhneFoto ? "Filter aufheben" : "Nur Artikel ohne Foto zeigen"}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black transition-colors ${
+                  nurOhneFoto
+                    ? "bg-[#008BD2] text-white"
+                    : "bg-[#008BD2]/15 text-[#0064d2] dark:text-[#45bdff] hover:bg-[#008BD2]/25"
+                }`}
+              >
+                📷 {ohneFotoAnzahl} ohne Foto
+              </button>
             )}
           </div>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
@@ -235,6 +255,15 @@ export default function VerbrauchsmaterialPage() {
           />
           <span className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Inaktive zeigen</span>
         </label>
+        <label className="flex items-center gap-2 min-h-[44px] cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={nurOhneFoto}
+            onChange={(e) => setNurOhneFoto(e.target.checked)}
+            className="w-5 h-5 accent-[#008BD2]"
+          />
+          <span className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Nur ohne Foto</span>
+        </label>
       </div>
 
       {/* Bulk-Aktionen */}
@@ -289,6 +318,7 @@ export default function VerbrauchsmaterialPage() {
                       className="w-5 h-5 accent-[#008BD2] align-middle"
                     />
                   </th>
+                  <th scope="col" className="text-left py-2.5 px-4 font-bold">Foto</th>
                   <th scope="col" className="text-left py-2.5 px-4 font-bold">Name</th>
                   <th scope="col" className="text-left py-2.5 px-4 font-bold">Kategorie</th>
                   <th scope="col" className="text-left py-2.5 px-4 font-bold">Standort</th>
@@ -313,6 +343,21 @@ export default function VerbrauchsmaterialPage() {
                         aria-label={`${a.name} auswählen`}
                         className="w-5 h-5 accent-[#008BD2] align-middle"
                       />
+                    </td>
+                    <td className="py-2.5 px-4">
+                      {a.hatBild ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={bildUrl(a) ?? ""}
+                          alt={`Foto ${a.name}`}
+                          loading="lazy"
+                          className="w-11 h-11 rounded-lg object-cover border border-[#ced4da] dark:border-[#3e4042]"
+                        />
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-[#b3261e]/15 text-[#b3261e] whitespace-nowrap">
+                          📷 Kein Foto
+                        </span>
+                      )}
                     </td>
                     <td className="py-2.5 px-4">
                       <div className="font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">{a.name}</div>
@@ -364,7 +409,7 @@ export default function VerbrauchsmaterialPage() {
         <ArtikelForm
           artikel={editArtikel}
           onClose={() => setFormOffen(false)}
-          onSaved={() => { setFormOffen(false); void listeQ.refetch(); void optionenQ.refetch(); }}
+          onSaved={() => { setFormOffen(false); void listeQ.refetch(); void optionenQ.refetch(); void ohneFotoQ.refetch(); }}
         />
       )}
     </div>

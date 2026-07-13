@@ -119,16 +119,18 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
   // Liste mit Filter (Suchtext / Kategorie / Standort) + abgeleitetem Status.
   liste: view
     .input(z.object({
-      suche:     z.string().trim().optional(),
-      kategorie: z.string().trim().optional(),
-      standort:  z.string().trim().optional(),
-      nurAktive: z.boolean().default(true),
+      suche:       z.string().trim().optional(),
+      kategorie:   z.string().trim().optional(),
+      standort:    z.string().trim().optional(),
+      nurAktive:   z.boolean().default(true),
+      nurOhneFoto: z.boolean().default(false),
     }).optional())
     .query(async ({ input }) => {
       const where: Prisma.VerbrauchsArtikelWhereInput = {};
       if (input?.nurAktive !== false) where.aktiv = true;
       if (input?.kategorie) where.kategorie = input.kategorie;
       if (input?.standort)  where.standort  = input.standort;
+      if (input?.nurOhneFoto) where.bild = { is: null }; // nur Artikel ohne hinterlegtes Foto
       if (input?.suche) {
         const q = input.suche;
         where.OR = [
@@ -163,6 +165,11 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
     const kategorien = [...new Set(rows.map((r) => r.kategorie).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b, "de"));
     const standorte  = [...new Set(rows.map((r) => r.standort).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b, "de"));
     return { kategorien, standorte };
+  }),
+
+  // Anzahl aktiver Artikel OHNE hinterlegtes Foto (für den „N ohne Foto"-Hinweis).
+  ohneFotoAnzahl: view.query(async () => {
+    return prisma.verbrauchsArtikel.count({ where: { aktiv: true, bild: { is: null } } });
   }),
 
   // ── Handheld-Zählflow ───────────────────────────────────────────────────────

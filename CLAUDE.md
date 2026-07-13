@@ -234,6 +234,10 @@ EOF
     mitdruckt; Fallback-Timeout). Inhalt **groß/kontraststark (inklusiv)**: Foto oben, Name+
     Merkmale, AAN prominent, Standort/Kategorie, unten großer Scan-QR (roher `VM-…`-Code) +
     „Zum Erfassen scannen". Buttons **📄 Schild** je Zeile + **📄 A5-Schilder** in der Bulk-Leiste.
+  - **Übersicht „ohne Foto":** Liste hat eine **Foto-Spalte** (Thumbnail bzw. rotes „Kein Foto"),
+    Filter **„Nur ohne Foto"** (`liste`-Input `nurOhneFoto` → `where.bild={is:null}`) und ein
+    Kopf-Badge **„📷 N ohne Foto"** (Query `ohneFotoAnzahl` = aktive Artikel ohne Bild; Klick
+    schaltet den Filter).
 
 ### Weitere Module (live)
 - Admin-Portal (Artikel, Buchungen, Anfragen mit Lock-System, Modelle/Kompatibilität, Benutzer,
