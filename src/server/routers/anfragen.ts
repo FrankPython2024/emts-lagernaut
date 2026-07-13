@@ -72,6 +72,8 @@ export const anfragenRouter = createTRPCRouter({
         where: {
           istSonderAnfrage: true,
           testModus:        false,
+          // „Nicht verfügbar" (Teil nicht beschaffbar) liefert keinen Wert → nicht anzeigen.
+          status:           { not: AnfrageStatus.NICHT_VERFUEGBAR },
           ...(input?.nurUnbewertet ? { sonderWert: null } : {}),
         },
         orderBy: { datum: "desc" },

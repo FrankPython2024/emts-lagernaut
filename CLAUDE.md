@@ -203,8 +203,9 @@ EOF
   pauschal, pauschale, wert}` und `gesamt` = Teile-Wert **+** Sonder-Wert (`teileWert` separat).
   Sonderanfragen sind **nicht standort-gebunden** → nur bei „alle Standorte" (kein standortId) einbezogen.
   Review-Seite **`/admin/sonderanfragen`** (Nav „💬 Sonderanfragen bewerten", Auswertung): Liste +
-  Bulk-Werte setzen; tRPC `anfragen.sonderListe` (ANFRAGE_VIEW_ALL) / `anfragen.setSonderWert`
-  (adminProcedure, null → Pauschale). Panel-Sub-Zeile verlinkt dorthin.
+  Bulk-Werte setzen; tRPC `anfragen.sonderListe` (ANFRAGE_VIEW_ALL, blendet `NICHT_VERFUEGBAR` aus —
+  liefert keinen Wert) / `anfragen.setSonderWert` (adminProcedure, null → Pauschale). Panel-Sub-Zeile
+  verlinkt dorthin.
 - **Caveat:** kein Preis-Snapshot auf `Buchung`/Sonderanfrage → bewertet mit **aktuellem** Preis
   (Vergangenheitswert ändert sich bei Anpassung). Test-Modus nicht enthalten (erzeugt keine Buchung).
 - **Rechte:** wiederverwendet `ARTIKEL_VIEW`/`ARTIKEL_EDIT` (Preise) + `STATISTIK_VIEW` (Auswertung)
