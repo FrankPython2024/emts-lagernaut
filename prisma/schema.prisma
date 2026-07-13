@@ -765,6 +765,17 @@ model LogIdBewegung {
   @@index([importId])
 }
 
+// Impact-/Nachhaltigkeits-Kennzahlen — editierbare Pauschal-Annahmen (Singleton,
+// immer id=1). Je wiederverwendetem Ersatzteil eingespartes CO2 (kg) und Gewicht
+// (kg, = vermiedener E-Schrott). Bewusst grobe, anpassbare Schätzwerte; die echte
+// Zahl setzt AfB selbst. Wird auf /admin/impact ausgewertet.
+model ImpactEinstellung {
+  id               Int      @id @default(1)
+  co2ProTeilKg     Decimal  @default(0) @db.Decimal(10, 3)
+  gewichtProTeilKg Decimal  @default(0) @db.Decimal(10, 3)
+  aktualisiertAm   DateTime @updatedAt
+}
+
 // ── Verbrauchsmaterial / Kartonage ────────────────────────────────────────────
 // Bestandsführung für Verbrauchsmaterial (heute in Excel). Stammdaten + aktueller
 // Bestand; Code dient später als QR-/Etiketten-Code. Reine Materialwirtschaft,

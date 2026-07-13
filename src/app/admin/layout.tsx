@@ -57,6 +57,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Analyse",
     items: [
       { href: "/admin/statistiken",      label: "Statistiken",         icon: "📈", permission: "STATISTIK_VIEW" },
+      { href: "/admin/impact",           label: "Impact / Nachhaltigkeit", icon: "🌱", permission: "STATISTIK_VIEW" },
       { href: "/admin/sonderanfragen",   label: "Sonderanfragen bewerten", icon: "💬", permission: "ANFRAGE_VIEW_ALL" },
       { href: "/admin/bestellempfehlung", label: "Bestell-Empfehlungen", icon: "🛒", permission: "ANFRAGE_VIEW_ALL" },
       { href: "/admin/geraete-lookup", label: "LogID Suche",    icon: "🔍", permission: "ARTIKEL_VIEW" },

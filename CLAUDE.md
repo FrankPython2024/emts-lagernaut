@@ -116,7 +116,7 @@ EOF
 
 ---
 
-## Modul-Stand (zuletzt: Verbrauchsmaterial Foto-Galerie je Artikel (Titelbild) + A5-Lagerplatz-Schild + Info-Popup; davor Mobil-Review/Alias-Lernen, Pickup-Colli-Fix)
+## Modul-Stand (zuletzt: Impact/Nachhaltigkeits-Dashboard + Sonderanfragen-Bewertung; davor Verbrauchsmaterial Foto-Galerie/A5-Schild/Info-Popup)
 
 ### Mobil-Ersatzteile (Smartphone/Tablet-Teile via LogID aus ReForm-CSV) — KOMPLETT & AUDITIERT
 - **Quelle:** ReForm-CSV-Export (";"-getrennt, UTF-8, Werte in Quotes, 44 Spalten; alle Infos
@@ -211,6 +211,19 @@ EOF
 - **Rechte:** wiederverwendet `ARTIKEL_VIEW`/`ARTIKEL_EDIT` (Preise) + `STATISTIK_VIEW` (Auswertung)
   + `ANFRAGE_VIEW_ALL`/ADMIN (Sonderanfragen-Bewertung) — **kein neues Recht, kein seed-rbac**
   (nur `db push` für Tabelle/Spalte nötig).
+
+### Impact / Nachhaltigkeit (Laptop-Ersatzteile)
+- **Zweck:** Wirkung der Wiederverwendung sichtbar machen (AfB sozial-grün, „was bringt das"). Seite
+  **`/admin/impact`** (Nav „🌱 Impact / Nachhaltigkeit", Auswertung), Recht `STATISTIK_VIEW` (lesen).
+- **Datenbasis:** wiederverwendete Teile = `SUM(menge)` über Buchungen `typ IN (AUSGANG, DIREKT)`;
+  versorgte Geräte = distinkte `logId` erledigter (Nicht-Test-)Anfragen. Folgt tage-/standortId-Filter.
+- **Kennzahlen:** CO₂ eingespart (kg/t), Elektroschrott vermieden (kg), eingesparter Materialwert (€,
+  = `preise.wertAusgegeben.teileWert`), wiederverwendete Teile, versorgte Geräte. CO₂ zusätzlich als
+  „≈ km Autofahrt" (nur Veranschaulichung, Konstante 0,12 kg/km).
+- **Faktoren PAUSCHAL + editierbar:** `ImpactEinstellung` (Singleton id=1, `co2ProTeilKg`,
+  `gewichtProTeilKg` @db.Decimal(10,3)). Startwerte im Code (5 kg CO₂ / 0,15 kg je Teil), im UI
+  überschreibbar (`impact.setFaktoren`, adminProcedure). Fehlt die Zeile → Defaults. Router `impact`
+  (`kennzahlen`/`setFaktoren`). **Nur additiv (`db push`), kein seed.** Später verfeinerbar auf je-Teiltyp.
 
 ### Verbrauchsmaterial — erweitert
 - **Schema:** `VerbrauchsArtikel` (code/QR, name, mindestbestand, aktuellerBestand, aktiv …) +
