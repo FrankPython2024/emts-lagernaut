@@ -658,6 +658,7 @@ function ArtikelInfo({
 }) {
   const { show } = useToast();
   const url = bildUrl(artikel);
+  const [vollbild, setVollbild] = useState(false);
 
   async function kopiere(text: string, label: string) {
     try {
@@ -669,6 +670,7 @@ function ArtikelInfo({
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
         className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
@@ -681,8 +683,15 @@ function ArtikelInfo({
 
         <div className="p-5 space-y-4">
           {url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={url} alt={`Foto ${artikel.name}`} className="w-full max-h-56 object-contain rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a]" />
+            <button
+              type="button"
+              onClick={() => setVollbild(true)}
+              title="Foto bildschirmfüllend anzeigen"
+              className="block w-full cursor-zoom-in rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt={`Foto ${artikel.name}`} className="w-full max-h-56 object-contain rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a]" />
+            </button>
           ) : (
             <div className="w-full h-28 rounded-lg border-2 border-dashed border-[#ced4da] dark:border-[#3e4042] flex items-center justify-center text-sm font-bold text-[#b3261e]">
               📷 Kein Foto hinterlegt
@@ -726,6 +735,27 @@ function ArtikelInfo({
         </div>
       </div>
     </div>
+
+    {/* Bildschirmfüllende Foto-Ansicht — Klick irgendwo (oder ×) schließt. */}
+    {vollbild && url && (
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 cursor-zoom-out"
+        onClick={() => setVollbild(false)}
+        role="dialog"
+        aria-label="Foto in voller Größe"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt={`Foto ${artikel.name}`} className="max-w-full max-h-full object-contain" />
+        <button
+          onClick={() => setVollbild(false)}
+          aria-label="Schließen"
+          className="absolute top-4 right-4 w-12 h-12 rounded-full bg-white/15 text-white text-2xl font-bold hover:bg-white/25"
+        >
+          ×
+        </button>
+      </div>
+    )}
+    </>
   );
 }
 

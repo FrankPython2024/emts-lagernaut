@@ -241,6 +241,7 @@ EOF
   - **Klick aufs Foto (bzw. „Kein Foto") → Info-Pop-up** (`ArtikelInfo`): Foto groß, Name/Merkmale,
     **AAN und Code je mit „📋 Kopieren"** (`navigator.clipboard`), Kategorie/Standort/Bestände +
     Schnellzugriff „📄 Schild" / „Bearbeiten". Rein Anzeige (Daten aus der Listen-Zeile), kein Backend.
+    Klick aufs Foto im Pop-up → **bildschirmfüllende** Ansicht (Lightbox, Klick/× schließt).
 
 ### Weitere Module (live)
 - Admin-Portal (Artikel, Buchungen, Anfragen mit Lock-System, Modelle/Kompatibilität, Benutzer,
