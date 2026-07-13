@@ -117,7 +117,7 @@ export default function AnfragenItem({ anfrage, idx, onStorno }: Props) {
           ⚠️ Wird vom Admin geprüft
         </div>
       )}
-      {anfrage.kommentar && !isAbgeschlossen && !isInBearbeitung && (
+      {anfrage.kommentar && (
         <div style={{ fontSize: "0.75rem", color: "var(--text-dim)", fontStyle: "italic", marginTop: 4, paddingLeft: 28 }}>
           💬 {anfrage.kommentar}
         </div>
