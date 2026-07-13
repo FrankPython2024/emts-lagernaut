@@ -116,7 +116,7 @@ EOF
 
 ---
 
-## Modul-Stand (zuletzt: Verbrauchsmaterial Foto je Artikel + A5-Lagerplatz-Schild; davor Mobil-Review/Alias-Lernen, Pickup-Colli-Fix, admin/modelle-Umbau)
+## Modul-Stand (zuletzt: Verbrauchsmaterial Foto-Galerie je Artikel (Titelbild) + A5-Lagerplatz-Schild + Info-Popup; davor Mobil-Review/Alias-Lernen, Pickup-Colli-Fix)
 
 ### Mobil-Ersatzteile (Smartphone/Tablet-Teile via LogID aus ReForm-CSV) — KOMPLETT & AUDITIERT
 - **Quelle:** ReForm-CSV-Export (";"-getrennt, UTF-8, Werte in Quotes, 44 Spalten; alle Infos
@@ -216,32 +216,40 @@ EOF
   nebenbei Bug, dass erneutes Zählen `vorher` verfälschte. UI: orangenes Banner „schon X
   erfasst" + Buttons ➕Dazuzählen (grün, default bei Re-Scan) / ✏️Ersetzen (blau) + Live-Summe.
   Dazuzählen nur via **Code-Scan**; Suche/Offen-Liste → immer ersetzen.
-- **NEU — Foto je Artikel + A5-Lagerplatz-Schild:**
-  - **Schema:** eigene Tabelle `VerbrauchsArtikelBild` (`artikelId @id`/1:1, `mimeType`, `daten
-    Bytes @db.MediumBlob`, Zeitstempel; `onDelete: Cascade`). **Bild in der DB** (überlebt
-    Container-Rebuild — kein flüchtiges `public/uploads`). Eigene Tabelle, damit `liste` NIE die
-    Bytes mitlädt (liefert nur `hatBild` + `bildStand`=ms-Cache-Buster).
-  - **Upload:** Client verkleinert das Bild (canvas → JPEG, max ~1600px) → tRPC `setzeBild`
-    (base64; MIME jpeg/png/webp + 8-MB-Deckel; Upsert je artikelId), `loescheBild`. App-Router-
-    tRPC → **kein** 1-MB-Body-Limit. Rechte: `MATERIAL_MANAGE`.
-  - **Ausliefern:** `GET /api/verbrauchsmaterial/bild/[id]?v=<ms>` (Pages-API, Session +
-    `MATERIAL_VIEW`, `Cache-Control: private,max-age=86400`; ?v = Cache-Buster).
-  - **Formular** (`/admin/verbrauchsmaterial` `ArtikelForm`): Foto-Feld (Vorschau, „aufnehmen/
-    wählen" mit `capture="environment"` für Handheld/Handy-Kamera, „entfernen"). `speichern`
-    verkettet Stammdaten → dann Foto (neu braucht erst die id).
+- **NEU — Foto-Galerie je Artikel (0..n) + A5-Lagerplatz-Schild:**
+  - **Schema:** Tabelle `VerbrauchsArtikelFoto` (`id` autoincr, `artikelId`+`@@index`, `position`,
+    `mimeType`, `daten Bytes @db.MediumBlob`, Zeitstempel; `onDelete: Cascade`). **Titelbild =
+    kleinste `position`** (Liste-Thumbnail, A5-Schild, Info-Vorschau). Bytes in der DB (überlebt
+    Rebuild). `liste` lädt nur das Titelbild-Meta (`take:1` position asc → `hatBild`+`bildStand`),
+    NIE die Bytes. **Migration von der alten 1:1-Tabelle `VerbrauchsArtikelBild`:** additiv (neue
+    Tabelle) + einmaliges Skript `prisma/scripts/migrate-vm-fotos.ts` (übernimmt Altbild als
+    position 0, idempotent). Alte Tabelle + Relation `bild` bleiben vorerst, später per db push
+    entfernbar (droppt sie dann).
+  - **Upload/Verwaltung:** Client verkleinert (canvas → JPEG, ~1600px) → tRPC `fotoHinzufuegen`
+    (base64, MIME jpeg/png/webp + 8-MB-Deckel, hängt ans Ende), `fotoLoeschen`, `fotosNeuOrdnen`
+    (Client schickt Foto-Id-Reihenfolge → position 0..n), `fotos` (Metadaten-Liste je Artikel).
+    App-Router-tRPC → **kein** 1-MB-Body-Limit. Rechte: `MATERIAL_MANAGE` (fotos = VIEW).
+  - **Ausliefern:** `GET /api/verbrauchsmaterial/bild/[artikelId]?v=<ms>` (Titelbild = kleinste
+    position) bzw. `GET /api/verbrauchsmaterial/foto/[fotoId]?v=<ms>` (einzelnes Galerie-Foto),
+    beide Pages-API + Session + `MATERIAL_VIEW`, `Cache-Control: private,max-age=86400`.
+  - **Formular** (`/admin/verbrauchsmaterial` `ArtikelForm`): **Foto-Galerie** — mehrere Fotos
+    hinzufügen (Mehrfachauswahl, `capture="environment"`-Kamera), je Foto ★Als-Titel / ←→ sortieren
+    / ✕ entfernen; erstes trägt „★ Titel"-Badge. `speichern` verkettet Stammdaten → Löschungen →
+    Uploads in Reihenfolge → `fotosNeuOrdnen`.
   - **A5-Schild** (`src/lib/print/lagerplatzSchild.ts`, `printLagerplatzSchild`): `@page A5`,
     bewährte window.open+document.write+Auto-Print-Mechanik (wartet auf `load`, damit das Foto
     mitdruckt; Fallback-Timeout). Inhalt **groß/kontraststark (inklusiv)**: Foto oben, Name+
     Merkmale, AAN prominent, Standort/Kategorie, unten großer Scan-QR (roher `VM-…`-Code) +
     „Zum Erfassen scannen". Buttons **📄 Schild** je Zeile + **📄 A5-Schilder** in der Bulk-Leiste.
-  - **Übersicht „ohne Foto":** Liste hat eine **Foto-Spalte** (Thumbnail bzw. rotes „Kein Foto"),
-    Filter **„Nur ohne Foto"** (`liste`-Input `nurOhneFoto` → `where.bild={is:null}`) und ein
-    Kopf-Badge **„📷 N ohne Foto"** (Query `ohneFotoAnzahl` = aktive Artikel ohne Bild; Klick
+  - **Übersicht „ohne Foto":** Liste hat eine **Foto-Spalte** (Titelbild-Thumbnail bzw. rotes „Kein
+    Foto"), Filter **„Nur ohne Foto"** (`liste`-Input `nurOhneFoto` → `where.fotos={none:{}}`) und
+    ein Kopf-Badge **„📷 N ohne Foto"** (Query `ohneFotoAnzahl` = aktive Artikel ohne Foto; Klick
     schaltet den Filter).
-  - **Klick aufs Foto (bzw. „Kein Foto") → Info-Pop-up** (`ArtikelInfo`): Foto groß, Name/Merkmale,
-    **AAN und Code je mit „📋 Kopieren"** (`navigator.clipboard`), Kategorie/Standort/Bestände +
-    Schnellzugriff „📄 Schild" / „Bearbeiten". Rein Anzeige (Daten aus der Listen-Zeile), kein Backend.
-    Klick aufs Foto im Pop-up → **bildschirmfüllende** Ansicht (Lightbox, Klick/× schließt).
+  - **Klick aufs Titelbild (bzw. „Kein Foto") → Info-Pop-up** (`ArtikelInfo`): Titelbild groß +
+    Miniatur-Streifen aller Fotos, Name/Merkmale, **AAN und Code je mit „📋 Kopieren"**
+    (`navigator.clipboard`), Kategorie/Standort/Bestände + Schnellzugriff „📄 Schild"/„Bearbeiten"
+    (Foto-Metadaten via `fotos`-Query). Klick auf ein Foto → **bildschirmfüllende** Lightbox mit
+    Blättern (‹ ›, Zähler; Klick auf Rand/× schließt).
 
 ### Weitere Module (live)
 - Admin-Portal (Artikel, Buchungen, Anfragen mit Lock-System, Modelle/Kompatibilität, Benutzer,

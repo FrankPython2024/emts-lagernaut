@@ -782,17 +782,37 @@ model VerbrauchsArtikel {
   erstelltAm       DateTime @default(now())
   aktualisiertAm   DateTime @updatedAt
   zaehlungen       VerbrauchsZaehlung[]
-  bild             VerbrauchsArtikelBild?
+  bild             VerbrauchsArtikelBild?   // ALT (1:1) — nur noch für Backfill, danach entfernbar
+  fotos            VerbrauchsArtikelFoto[]
 
   @@index([kategorie])
   @@index([aktiv])
 }
 
-// Foto je Artikel (0..1). Eigene Tabelle, damit die Listen-Query NIE die Bytes
-// mitlädt (schlanke Liste). In der DB gespeichert (überlebt Container-Rebuild —
-// kein flüchtiges public/uploads). Verkleinert vom Client (~1600px, JPEG). Für
-// das A5-Lagerplatz-Schild (Foto + AAN + Beschreibung + Scan-QR). Ausgeliefert
-// über GET /api/verbrauchsmaterial/bild/[id].
+// Foto-Galerie je Artikel (0..n). `position` bestimmt die Reihenfolge; das Foto
+// mit der KLEINSTEN position ist das **Titelbild** (Liste-Thumbnail, A5-Schild,
+// Info-Vorschau). Eigene Tabelle, damit die Listen-Query NIE die Bytes mitlädt.
+// In der DB gespeichert (überlebt Container-Rebuild — kein flüchtiges
+// public/uploads). Verkleinert vom Client (~1600px, JPEG). Ausgeliefert über
+// GET /api/verbrauchsmaterial/bild/[artikelId] (Titelbild) bzw.
+// GET /api/verbrauchsmaterial/foto/[fotoId] (einzelnes Galerie-Foto).
+model VerbrauchsArtikelFoto {
+  id             Int      @id @default(autoincrement())
+  artikelId      Int
+  artikel        VerbrauchsArtikel @relation(fields: [artikelId], references: [id], onDelete: Cascade)
+  position       Int      @default(0)  // 0 = Titelbild; aufsteigend sortiert
+  mimeType       String   @db.VarChar(100)
+  daten          Bytes    @db.MediumBlob
+  erstelltAm     DateTime @default(now())
+  aktualisiertAm DateTime @updatedAt
+
+  @@index([artikelId])
+}
+
+// ALT: Foto je Artikel (1:1). Wird durch VerbrauchsArtikelFoto (Galerie) abgelöst.
+// Bleibt nur, bis der Backfill (prisma/scripts/migrate-vm-fotos.ts) die Bilder in
+// die neue Tabelle übernommen hat — danach kann Modell + Relation `bild` weg
+// (db push droppt dann die Tabelle).
 model VerbrauchsArtikelBild {
   artikelId      Int      @id
   artikel        VerbrauchsArtikel @relation(fields: [artikelId], references: [id], onDelete: Cascade)

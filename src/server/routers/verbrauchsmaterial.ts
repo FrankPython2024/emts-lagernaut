@@ -130,7 +130,7 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
       if (input?.nurAktive !== false) where.aktiv = true;
       if (input?.kategorie) where.kategorie = input.kategorie;
       if (input?.standort)  where.standort  = input.standort;
-      if (input?.nurOhneFoto) where.bild = { is: null }; // nur Artikel ohne hinterlegtes Foto
+      if (input?.nurOhneFoto) where.fotos = { none: {} }; // nur Artikel ohne hinterlegtes Foto
       if (input?.suche) {
         const q = input.suche;
         where.OR = [
@@ -144,17 +144,20 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
       const artikel = await prisma.verbrauchsArtikel.findMany({
         where,
         orderBy: [{ aktiv: "desc" }, { name: "asc" }],
-        // Nur die Existenz + Änderungszeit des Fotos — NIE die Bytes (schlanke Liste).
-        include: { bild: { select: { aktualisiertAm: true } } },
+        // Nur das Titelbild (kleinste position) — Existenz + Änderungszeit, NIE die
+        // Bytes (schlanke Liste). Cache-Buster fürs Thumbnail via ?v=<bildStand>.
+        include: { fotos: { orderBy: { position: "asc" }, take: 1, select: { aktualisiertAm: true } } },
       });
 
-      return artikel.map(({ bild, ...a }) => ({
-        ...a,
-        status: status(a.aktuellerBestand, a.mindestbestand),
-        hatBild:   !!bild,
-        // ms-Zeitstempel als Cache-Buster für <img src="…?v=…"> (null = kein Bild).
-        bildStand: bild ? bild.aktualisiertAm.getTime() : null,
-      }));
+      return artikel.map(({ fotos, ...a }) => {
+        const titel = fotos[0];
+        return {
+          ...a,
+          status:    status(a.aktuellerBestand, a.mindestbestand),
+          hatBild:   !!titel,
+          bildStand: titel ? titel.aktualisiertAm.getTime() : null,
+        };
+      });
     }),
 
   // Distinct-Werte für die Filter-Dropdowns (nur nicht-leere).
@@ -169,7 +172,7 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
 
   // Anzahl aktiver Artikel OHNE hinterlegtes Foto (für den „N ohne Foto"-Hinweis).
   ohneFotoAnzahl: view.query(async () => {
-    return prisma.verbrauchsArtikel.count({ where: { aktiv: true, bild: { is: null } } });
+    return prisma.verbrauchsArtikel.count({ where: { aktiv: true, fotos: { none: {} } } });
   }),
 
   // ── Handheld-Zählflow ───────────────────────────────────────────────────────
@@ -415,11 +418,24 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
       return { ok: true };
     }),
 
-  // Foto setzen/ersetzen (0..1 je Artikel). Bild kommt als base64 (client-seitig
-  // verkleinert). In DB gespeichert (überlebt Rebuild). Upsert je artikelId.
-  setzeBild: manage
+  // Foto-Galerie eines Artikels (nur Metadaten, NIE die Bytes) — sortiert nach
+  // position (erstes = Titelbild). Für Formular + Info-Pop-up.
+  fotos: view
+    .input(z.object({ artikelId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const fotos = await prisma.verbrauchsArtikelFoto.findMany({
+        where:   { artikelId: input.artikelId },
+        orderBy: { position: "asc" },
+        select:  { id: true, position: true, aktualisiertAm: true },
+      });
+      return fotos.map((f) => ({ id: f.id, position: f.position, stand: f.aktualisiertAm.getTime() }));
+    }),
+
+  // Neues Foto ans Ende der Galerie hängen (position = max+1). Bild kommt als
+  // base64 (client-seitig verkleinert), landet in der DB (überlebt Rebuild).
+  fotoHinzufuegen: manage
     .input(z.object({
-      id:         z.number().int().positive(),
+      id:         z.number().int().positive(), // artikelId
       mimeType:   z.string().trim().min(1),
       dataBase64: z.string().min(1),
     }))
@@ -443,19 +459,47 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
       const artikel = await prisma.verbrauchsArtikel.findUnique({ where: { id: input.id }, select: { id: true } });
       if (!artikel) throw new TRPCError({ code: "NOT_FOUND", message: "Artikel nicht gefunden" });
 
-      await prisma.verbrauchsArtikelBild.upsert({
-        where:  { artikelId: input.id },
-        create: { artikelId: input.id, mimeType: mime, daten },
-        update: { mimeType: mime, daten },
+      const letzte = await prisma.verbrauchsArtikelFoto.findFirst({
+        where: { artikelId: input.id }, orderBy: { position: "desc" }, select: { position: true },
       });
+      const position = (letzte?.position ?? -1) + 1;
+
+      const foto = await prisma.verbrauchsArtikelFoto.create({
+        data: { artikelId: input.id, position, mimeType: mime, daten },
+        select: { id: true },
+      });
+      return { fotoId: foto.id };
+    }),
+
+  // Einzelnes Foto löschen. Idempotent. Löscht das kleinste-position-Foto weg →
+  // rückt automatisch das nächste zum Titelbild vor (Sortierung bleibt).
+  fotoLoeschen: manage
+    .input(z.object({ fotoId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      await prisma.verbrauchsArtikelFoto.deleteMany({ where: { id: input.fotoId } });
       return { ok: true };
     }),
 
-  // Foto entfernen (falls vorhanden). Idempotent.
-  loescheBild: manage
-    .input(z.object({ id: z.number().int().positive() }))
+  // Reihenfolge der Galerie neu setzen — Client schickt die gewünschte Foto-Id-
+  // Reihenfolge; position wird auf 0..n gesetzt (erstes = Titelbild). Nur Fotos,
+  // die wirklich zum Artikel gehören, werden angefasst (Schutz vor Fremd-Ids).
+  fotosNeuOrdnen: manage
+    .input(z.object({
+      artikelId:   z.number().int().positive(),
+      reihenfolge: z.array(z.number().int().positive()).min(1),
+    }))
     .mutation(async ({ input }) => {
-      await prisma.verbrauchsArtikelBild.deleteMany({ where: { artikelId: input.id } });
+      const eigene = await prisma.verbrauchsArtikelFoto.findMany({
+        where: { artikelId: input.artikelId }, select: { id: true },
+      });
+      const erlaubt = new Set(eigene.map((f) => f.id));
+      const order = input.reihenfolge.filter((id) => erlaubt.has(id));
+
+      await prisma.$transaction(
+        order.map((id, i) =>
+          prisma.verbrauchsArtikelFoto.update({ where: { id }, data: { position: i } }),
+        ),
+      );
       return { ok: true };
     }),
 

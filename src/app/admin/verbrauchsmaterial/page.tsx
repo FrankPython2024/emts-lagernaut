@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent } from "react";
+import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import Link from "next/link";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -29,9 +29,25 @@ type Artikel = {
   bildStand:        number | null; // ms-Zeitstempel als Cache-Buster (null = kein Foto)
 };
 
-// Ausliefer-URL des Fotos inkl. Cache-Buster. null, wenn kein Foto hinterlegt ist.
+// Ausliefer-URL des TITELBILDs (kleinste position) inkl. Cache-Buster. null, wenn
+// kein Foto hinterlegt ist. Für Liste-Thumbnail, A5-Schild, Info-Vorschau.
 function bildUrl(a: Pick<Artikel, "id" | "hatBild" | "bildStand">): string | null {
   return a.hatBild ? `/api/verbrauchsmaterial/bild/${a.id}?v=${a.bildStand ?? 0}` : null;
+}
+
+// Ausliefer-URL eines EINZELNEN Galerie-Fotos (nach fotoId) inkl. Cache-Buster.
+function fotoUrl(fotoId: number, stand: number): string {
+  return `/api/verbrauchsmaterial/foto/${fotoId}?v=${stand}`;
+}
+
+// Ein Foto im Formular-Galerie-Zustand: entweder schon in der DB („vorhanden")
+// oder frisch gewählt/aufgenommen und verkleinert („neu", noch nicht hochgeladen).
+type FotoItem =
+  | { key: string; kind: "vorhanden"; fotoId: number; stand: number }
+  | { key: string; kind: "neu"; base64: string; mime: string; dataUrl: string };
+
+function fotoItemSrc(f: FotoItem): string {
+  return f.kind === "neu" ? f.dataUrl : fotoUrl(f.fotoId, f.stand);
 }
 
 // Foto client-seitig verkleinern (spart DB-Platz + Upload-Zeit): auf max. Kanten-
@@ -475,43 +491,80 @@ function ArtikelForm({
   const [gebindegroesse, setGebinde]    = useState(artikel?.gebindegroesse != null ? String(artikel.gebindegroesse) : "");
   const [bemerkung, setBemerkung]       = useState(artikel?.bemerkung ?? "");
 
-  // Foto: Vorschau startet mit dem hinterlegten Bild (falls vorhanden). `neuBild`
-  // = frisch gewähltes/aufgenommenes (verkleinertes) Bild; `bildEntfernen` = das
-  // bestehende Foto soll beim Speichern gelöscht werden.
-  const [bildPreview, setBildPreview]   = useState<string | null>(artikel ? bildUrl(artikel) : null);
-  const [neuBild, setNeuBild]           = useState<{ base64: string; mime: string } | null>(null);
-  const [bildEntfernen, setBildEntfernen] = useState(false);
-  const [bildBusy, setBildBusy]         = useState(false);
+  // Foto-Galerie (Reihenfolge = Anzeige; erstes = Titelbild). Bestehende Fotos
+  // werden beim Öffnen geladen; `ursprungIds` merkt sich, was in der DB war, um
+  // beim Speichern Löschungen zu erkennen.
+  const [fotos, setFotos]       = useState<FotoItem[]>([]);
+  const [fotoBusy, setFotoBusy] = useState(false);
+  const ursprungIds = useRef<number[]>([]);
+  const neuCounter  = useRef(0);
+  const geladen     = useRef(false);
 
-  const anlegen    = api.verbrauchsmaterial.anlegen.useMutation();
-  const bearbeiten = api.verbrauchsmaterial.bearbeiten.useMutation();
-  const setzeBild  = api.verbrauchsmaterial.setzeBild.useMutation();
-  const loescheBild = api.verbrauchsmaterial.loescheBild.useMutation();
-  const isPending = anlegen.isPending || bearbeiten.isPending || setzeBild.isPending || loescheBild.isPending;
+  const fotosQ = api.verbrauchsmaterial.fotos.useQuery(
+    { artikelId: artikel?.id ?? 0 },
+    { enabled: !!artikel },
+  );
+  // Einmalig aus der DB in den Bearbeitungszustand übernehmen.
+  useEffect(() => {
+    if (geladen.current) return;
+    if (!artikel) { geladen.current = true; return; } // neuer Artikel → leer
+    if (fotosQ.data) {
+      setFotos(fotosQ.data.map((f) => ({ key: `v${f.id}`, kind: "vorhanden" as const, fotoId: f.id, stand: f.stand })));
+      ursprungIds.current = fotosQ.data.map((f) => f.id);
+      geladen.current = true;
+    }
+  }, [artikel, fotosQ.data]);
+
+  const anlegen        = api.verbrauchsmaterial.anlegen.useMutation();
+  const bearbeiten     = api.verbrauchsmaterial.bearbeiten.useMutation();
+  const fotoHinzufuegen = api.verbrauchsmaterial.fotoHinzufuegen.useMutation();
+  const fotoLoeschen   = api.verbrauchsmaterial.fotoLoeschen.useMutation();
+  const fotosNeuOrdnen = api.verbrauchsmaterial.fotosNeuOrdnen.useMutation();
+  const isPending = anlegen.isPending || bearbeiten.isPending || fotoBusy
+    || fotoHinzufuegen.isPending || fotoLoeschen.isPending || fotosNeuOrdnen.isPending;
 
   function toNum(s: string): number { const n = parseInt(s, 10); return Number.isFinite(n) && n > 0 ? n : 0; }
 
-  async function onDateiGewaehlt(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  // Eine oder mehrere Dateien wählen/aufnehmen → verkleinern → hinten anhängen.
+  async function onDateienGewaehlt(e: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
     e.target.value = ""; // erlaubt erneutes Wählen derselben Datei
-    if (!file) return;
-    setBildBusy(true);
+    if (files.length === 0) return;
+    setFotoBusy(true);
     try {
-      const { base64, mime, dataUrl } = await verkleinereBild(file);
-      setNeuBild({ base64, mime });
-      setBildPreview(dataUrl);
-      setBildEntfernen(false);
+      for (const file of files) {
+        const { base64, mime, dataUrl } = await verkleinereBild(file);
+        neuCounter.current += 1;
+        const key = `n${neuCounter.current}`;
+        setFotos((prev) => [...prev, { key, kind: "neu", base64, mime, dataUrl }]);
+      }
     } catch {
-      show("Bild konnte nicht verarbeitet werden.", "error");
+      show("Ein Bild konnte nicht verarbeitet werden.", "error");
     } finally {
-      setBildBusy(false);
+      setFotoBusy(false);
     }
   }
 
-  function fotoEntfernen() {
-    setNeuBild(null);
-    setBildPreview(null);
-    setBildEntfernen(true);
+  function fotoEntferne(idx: number) {
+    setFotos((prev) => prev.filter((_, i) => i !== idx));
+  }
+  function fotoVerschiebe(idx: number, delta: number) {
+    setFotos((prev) => {
+      const j = idx + delta;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[j]] = [next[j], next[idx]];
+      return next;
+    });
+  }
+  function fotoAlsTitel(idx: number) {
+    setFotos((prev) => {
+      if (idx <= 0) return prev;
+      const next = [...prev];
+      const [it] = next.splice(idx, 1);
+      next.unshift(it);
+      return next;
+    });
   }
 
   async function speichern() {
@@ -538,9 +591,23 @@ function ArtikelForm({
         const r = await anlegen.mutateAsync(felder);
         id = r.id; msg = `✅ Angelegt — Code ${r.code}`;
       }
-      // 2) Foto setzen / entfernen (nur wenn geändert).
-      if (neuBild)              await setzeBild.mutateAsync({ id, mimeType: neuBild.mime, dataBase64: neuBild.base64 });
-      else if (bildEntfernen)   await loescheBild.mutateAsync({ id });
+      // 2) Fotos abgleichen:
+      //    a) gelöschte bestehende Fotos entfernen
+      const behalten = new Set(fotos.filter((f) => f.kind === "vorhanden").map((f) => f.fotoId));
+      for (const del of ursprungIds.current) {
+        if (!behalten.has(del)) await fotoLoeschen.mutateAsync({ fotoId: del });
+      }
+      //    b) finale Reihenfolge bauen; neue Fotos hochladen (in Reihenfolge)
+      const finalIds: number[] = [];
+      for (const f of fotos) {
+        if (f.kind === "vorhanden") finalIds.push(f.fotoId);
+        else {
+          const r = await fotoHinzufuegen.mutateAsync({ id, mimeType: f.mime, dataBase64: f.base64 });
+          finalIds.push(r.fotoId);
+        }
+      }
+      //    c) Positionen 0..n setzen (erstes = Titelbild)
+      if (finalIds.length > 0) await fotosNeuOrdnen.mutateAsync({ artikelId: id, reihenfolge: finalIds });
 
       show(msg, "success");
       onSaved();
@@ -563,28 +630,39 @@ function ArtikelForm({
         </div>
 
         <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Foto — für die Übersicht + das A5-Lagerplatz-Schild. Kamera auf Handheld/Handy. */}
+          {/* Foto-Galerie — erstes Foto = Titelbild (Liste/A5-Schild). Kamera auf Handheld/Handy. */}
           <div className="sm:col-span-2">
-            <span className={labelCls}>Foto</span>
-            <div className="flex items-center gap-4 flex-wrap">
-              {bildPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={bildPreview} alt="Artikel-Foto" className="w-28 h-28 rounded-lg object-cover border border-[#ced4da] dark:border-[#3e4042]" />
-              ) : (
-                <div className="w-28 h-28 rounded-lg border-2 border-dashed border-[#ced4da] dark:border-[#3e4042] flex items-center justify-center text-4xl text-[#b0b3b8]" aria-hidden>📷</div>
-              )}
-              <div className="flex flex-col gap-2">
-                <label className={`inline-flex items-center gap-2 px-4 rounded-lg font-bold text-white cursor-pointer min-h-[48px] ${bildBusy ? "opacity-50 pointer-events-none" : ""}`} style={{ background: CYAN }}>
-                  📷 {bildPreview ? "Foto ändern" : "Foto aufnehmen / wählen"}
-                  <input type="file" accept="image/*" capture="environment" onChange={onDateiGewaehlt} disabled={bildBusy} className="sr-only" />
-                </label>
-                {bildPreview && !bildBusy && (
-                  <button type="button" onClick={fotoEntfernen} className="px-4 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#b3261e] font-semibold min-h-[44px]">
-                    Foto entfernen
-                  </button>
-                )}
-                {bildBusy && <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Bild wird verkleinert…</span>}
-              </div>
+            <span className={labelCls}>
+              Fotos <span className="normal-case font-normal text-[#65676b] dark:text-[#b0b3b8]">— erstes = Titelbild</span>
+            </span>
+            <div className="flex flex-wrap gap-3">
+              {fotos.map((f, idx) => (
+                <div key={f.key} className="w-28">
+                  <div className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={fotoItemSrc(f)} alt="" className="w-28 h-28 rounded-lg object-cover border border-[#ced4da] dark:border-[#3e4042]" />
+                    {idx === 0 && (
+                      <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-black text-white" style={{ background: "#04B475" }}>★ Titel</span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex items-center justify-center gap-1">
+                    <button type="button" onClick={() => fotoAlsTitel(idx)} disabled={idx === 0} title="Als Titelbild"
+                      className="w-8 h-8 rounded-md text-sm disabled:opacity-30 hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]">★</button>
+                    <button type="button" onClick={() => fotoVerschiebe(idx, -1)} disabled={idx === 0} title="nach vorne"
+                      className="w-8 h-8 rounded-md text-sm disabled:opacity-30 hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]">←</button>
+                    <button type="button" onClick={() => fotoVerschiebe(idx, 1)} disabled={idx === fotos.length - 1} title="nach hinten"
+                      className="w-8 h-8 rounded-md text-sm disabled:opacity-30 hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]">→</button>
+                    <button type="button" onClick={() => fotoEntferne(idx)} title="entfernen"
+                      className="w-8 h-8 rounded-md text-sm text-[#b3261e] hover:bg-[#b3261e]/10">✕</button>
+                  </div>
+                </div>
+              ))}
+              {/* Hinzufügen-Kachel (mehrere Dateien möglich) */}
+              <label className={`w-28 h-28 rounded-lg border-2 border-dashed border-[#008BD2]/50 flex flex-col items-center justify-center cursor-pointer text-[#0064d2] dark:text-[#45bdff] hover:bg-[#008BD2]/5 ${fotoBusy ? "opacity-50 pointer-events-none" : ""}`}>
+                <span className="text-3xl" aria-hidden>📷</span>
+                <span className="text-xs font-bold mt-1">{fotoBusy ? "verkleinere…" : "Hinzufügen"}</span>
+                <input type="file" accept="image/*" capture="environment" multiple onChange={onDateienGewaehlt} disabled={fotoBusy} className="sr-only" />
+              </label>
             </div>
           </div>
           <label className="sm:col-span-2 block">
@@ -657,8 +735,9 @@ function ArtikelInfo({
   onSchild: (a: Artikel) => void;
 }) {
   const { show } = useToast();
-  const url = bildUrl(artikel);
-  const [vollbild, setVollbild] = useState(false);
+  const fotosQ = api.verbrauchsmaterial.fotos.useQuery({ artikelId: artikel.id });
+  const fotos = fotosQ.data ?? [];
+  const [vollbildIdx, setVollbildIdx] = useState<number | null>(null);
 
   async function kopiere(text: string, label: string) {
     try {
@@ -682,16 +761,36 @@ function ArtikelInfo({
         </div>
 
         <div className="p-5 space-y-4">
-          {url ? (
-            <button
-              type="button"
-              onClick={() => setVollbild(true)}
-              title="Foto bildschirmfüllend anzeigen"
-              className="block w-full cursor-zoom-in rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt={`Foto ${artikel.name}`} className="w-full max-h-56 object-contain rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a]" />
-            </button>
+          {fotos.length > 0 ? (
+            <div className="space-y-2">
+              {/* Titelbild groß (Klick → bildschirmfüllend) */}
+              <button
+                type="button"
+                onClick={() => setVollbildIdx(0)}
+                title="Foto bildschirmfüllend anzeigen"
+                className="block w-full cursor-zoom-in rounded-lg focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={fotoUrl(fotos[0].id, fotos[0].stand)} alt={`Foto ${artikel.name}`} className="w-full max-h-56 object-contain rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a]" />
+              </button>
+              {/* Weitere Fotos als Miniatur-Streifen */}
+              {fotos.length > 1 && (
+                <div className="flex flex-wrap gap-2">
+                  {fotos.map((f, i) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setVollbildIdx(i)}
+                      title={i === 0 ? "Titelbild" : "Foto anzeigen"}
+                      className={`w-14 h-14 rounded-md overflow-hidden border-2 focus:outline-none focus:ring-2 focus:ring-[#008BD2] ${i === 0 ? "border-[#04B475]" : "border-[#ced4da] dark:border-[#3e4042]"}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={fotoUrl(f.id, f.stand)} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
             <div className="w-full h-28 rounded-lg border-2 border-dashed border-[#ced4da] dark:border-[#3e4042] flex items-center justify-center text-sm font-bold text-[#b3261e]">
               📷 Kein Foto hinterlegt
@@ -736,18 +835,42 @@ function ArtikelInfo({
       </div>
     </div>
 
-    {/* Bildschirmfüllende Foto-Ansicht — Klick irgendwo (oder ×) schließt. */}
-    {vollbild && url && (
+    {/* Bildschirmfüllende Foto-Ansicht mit Blättern — Klick auf den Rand (oder ×) schließt. */}
+    {vollbildIdx !== null && fotos[vollbildIdx] && (
       <div
-        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 cursor-zoom-out"
-        onClick={() => setVollbild(false)}
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4"
+        onClick={() => setVollbildIdx(null)}
         role="dialog"
         aria-label="Foto in voller Größe"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt={`Foto ${artikel.name}`} className="max-w-full max-h-full object-contain" />
+        <img
+          src={fotoUrl(fotos[vollbildIdx].id, fotos[vollbildIdx].stand)}
+          alt={`Foto ${artikel.name}`}
+          className="max-w-full max-h-full object-contain"
+          onClick={(e) => e.stopPropagation()}
+        />
+
+        {fotos.length > 1 && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); setVollbildIdx((i) => (i === null ? null : (i - 1 + fotos.length) % fotos.length)); }}
+              aria-label="Vorheriges Foto"
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 text-white text-2xl font-bold hover:bg-white/25"
+            >‹</button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setVollbildIdx((i) => (i === null ? null : (i + 1) % fotos.length)); }}
+              aria-label="Nächstes Foto"
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 text-white text-2xl font-bold hover:bg-white/25"
+            >›</button>
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/15 text-white text-sm font-bold">
+              {vollbildIdx + 1} / {fotos.length}
+            </div>
+          </>
+        )}
+
         <button
-          onClick={() => setVollbild(false)}
+          onClick={() => setVollbildIdx(null)}
           aria-label="Schließen"
           className="absolute top-4 right-4 w-12 h-12 rounded-full bg-white/15 text-white text-2xl font-bold hover:bg-white/25"
         >

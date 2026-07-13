@@ -1,6 +1,7 @@
-// Verbrauchsmaterial — Foto ausliefern (Pages-API, weil rohe Bytes gestreamt
-// werden). GET /api/verbrauchsmaterial/bild/[id]?v=<ms> — der optionale ?v-
-// Parameter ist nur ein Cache-Buster; der Inhalt hängt allein an der id.
+// Verbrauchsmaterial — TITELBILD eines Artikels ausliefern (Pages-API, weil rohe
+// Bytes gestreamt werden). GET /api/verbrauchsmaterial/bild/[id]?v=<ms> — id =
+// artikelId; geliefert wird das Foto mit der kleinsten position (= Titelbild).
+// ?v ist nur ein Cache-Buster. Einzelne Galerie-Fotos: /api/…/foto/[fotoId].
 //
 // Auth wie beim Upload-Endpoint: Session + Recht MATERIAL_VIEW. Kein offener
 // Endpoint (die Bilder liegen in der DB, nicht in public/).
@@ -31,9 +32,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const id = Number(Array.isArray(req.query.id) ? req.query.id[0] : req.query.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Ungültige id" });
 
-  const bild = await prisma.verbrauchsArtikelBild.findUnique({
-    where:  { artikelId: id },
-    select: { mimeType: true, daten: true },
+  // Titelbild = Foto mit der kleinsten position dieses Artikels.
+  const bild = await prisma.verbrauchsArtikelFoto.findFirst({
+    where:   { artikelId: id },
+    orderBy: { position: "asc" },
+    select:  { mimeType: true, daten: true },
   });
   if (!bild) return res.status(404).json({ error: "Kein Foto" });
 
