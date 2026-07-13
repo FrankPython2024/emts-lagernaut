@@ -238,6 +238,9 @@ EOF
     Filter **„Nur ohne Foto"** (`liste`-Input `nurOhneFoto` → `where.bild={is:null}`) und ein
     Kopf-Badge **„📷 N ohne Foto"** (Query `ohneFotoAnzahl` = aktive Artikel ohne Bild; Klick
     schaltet den Filter).
+  - **Klick aufs Foto (bzw. „Kein Foto") → Info-Pop-up** (`ArtikelInfo`): Foto groß, Name/Merkmale,
+    **AAN und Code je mit „📋 Kopieren"** (`navigator.clipboard`), Kategorie/Standort/Bestände +
+    Schnellzugriff „📄 Schild" / „Bearbeiten". Rein Anzeige (Daten aus der Listen-Zeile), kein Backend.
 
 ### Weitere Module (live)
 - Admin-Portal (Artikel, Buchungen, Anfragen mit Lock-System, Modelle/Kompatibilität, Benutzer,

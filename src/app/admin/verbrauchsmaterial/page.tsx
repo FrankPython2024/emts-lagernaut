@@ -70,6 +70,7 @@ export default function VerbrauchsmaterialPage() {
   const [zeigeInaktive, setZeigeInaktive] = useState(false);
   const [nurOhneFoto, setNurOhneFoto]     = useState(false);
   const [editArtikel, setEditArtikel]     = useState<Artikel | null>(null);
+  const [infoArtikel, setInfoArtikel]     = useState<Artikel | null>(null);
   const [formOffen, setFormOffen]         = useState(false);
   const [auswahl, setAuswahl]             = useState<Set<number>>(new Set());
 
@@ -345,19 +346,26 @@ export default function VerbrauchsmaterialPage() {
                       />
                     </td>
                     <td className="py-2.5 px-4">
-                      {a.hatBild ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={bildUrl(a) ?? ""}
-                          alt={`Foto ${a.name}`}
-                          loading="lazy"
-                          className="w-11 h-11 rounded-lg object-cover border border-[#ced4da] dark:border-[#3e4042]"
-                        />
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-[#b3261e]/15 text-[#b3261e] whitespace-nowrap">
-                          📷 Kein Foto
-                        </span>
-                      )}
+                      <button
+                        onClick={() => setInfoArtikel(a)}
+                        title="Info anzeigen (AAN kopieren …)"
+                        aria-label={`Info zu ${a.name} anzeigen`}
+                        className="block rounded-lg hover:ring-2 hover:ring-[#008BD2]/40 focus:outline-none focus:ring-2 focus:ring-[#008BD2]"
+                      >
+                        {a.hatBild ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={bildUrl(a) ?? ""}
+                            alt={`Foto ${a.name}`}
+                            loading="lazy"
+                            className="w-11 h-11 rounded-lg object-cover border border-[#ced4da] dark:border-[#3e4042]"
+                          />
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-[#b3261e]/15 text-[#b3261e] whitespace-nowrap">
+                            📷 Kein Foto
+                          </span>
+                        )}
+                      </button>
                     </td>
                     <td className="py-2.5 px-4">
                       <div className="font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">{a.name}</div>
@@ -410,6 +418,16 @@ export default function VerbrauchsmaterialPage() {
           artikel={editArtikel}
           onClose={() => setFormOffen(false)}
           onSaved={() => { setFormOffen(false); void listeQ.refetch(); void optionenQ.refetch(); void ohneFotoQ.refetch(); }}
+        />
+      )}
+
+      {infoArtikel && (
+        <ArtikelInfo
+          artikel={infoArtikel}
+          darfVerwalten={darfVerwalten}
+          onClose={() => setInfoArtikel(null)}
+          onBearbeiten={(a) => { setInfoArtikel(null); bearbeiten(a); }}
+          onSchild={druckeSchild}
         />
       )}
     </div>
@@ -621,6 +639,130 @@ function ArtikelForm({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Artikel-Info (Klick aufs Foto) ───────────────────────────────────────────
+// Kurz-Info mit großem Foto + Feldern; AAN und Code direkt per Klick in die
+// Zwischenablage kopierbar. Rein Anzeige (alle Daten kommen aus der Listen-Zeile).
+
+function ArtikelInfo({
+  artikel, darfVerwalten, onClose, onBearbeiten, onSchild,
+}: {
+  artikel: Artikel;
+  darfVerwalten: boolean;
+  onClose: () => void;
+  onBearbeiten: (a: Artikel) => void;
+  onSchild: (a: Artikel) => void;
+}) {
+  const { show } = useToast();
+  const url = bildUrl(artikel);
+
+  async function kopiere(text: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      show(`${label} kopiert: ${text}`, "success");
+    } catch {
+      show("Kopieren nicht möglich (Zwischenablage gesperrt)", "error");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#ced4da] dark:border-[#3e4042] sticky top-0 bg-white dark:bg-[#242526]">
+          <h2 className="font-black text-lg text-[#202F61] dark:text-[#e4e6eb]">Artikel-Info</h2>
+          <button onClick={onClose} aria-label="Schließen" className="w-10 h-10 rounded-lg text-[#65676b] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]">×</button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={url} alt={`Foto ${artikel.name}`} className="w-full max-h-56 object-contain rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a]" />
+          ) : (
+            <div className="w-full h-28 rounded-lg border-2 border-dashed border-[#ced4da] dark:border-[#3e4042] flex items-center justify-center text-sm font-bold text-[#b3261e]">
+              📷 Kein Foto hinterlegt
+            </div>
+          )}
+
+          <div>
+            <div className="text-xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">{artikel.name}</div>
+            {artikel.merkmale && <div className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-0.5">{artikel.merkmale}</div>}
+          </div>
+
+          <div className="space-y-2">
+            <KopierZeile label="AAN"  wert={artikel.aan}  onKopiere={kopiere} />
+            <KopierZeile label="Code" wert={artikel.code} onKopiere={kopiere} mono />
+          </div>
+
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            <InfoFeld label="Kategorie"      wert={artikel.kategorie} />
+            <InfoFeld label="Standort"       wert={artikel.standort} />
+            <InfoFeld label="Bestand"        wert={String(artikel.aktuellerBestand)} />
+            <InfoFeld label="Mindestbestand" wert={String(artikel.mindestbestand)} />
+          </dl>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-[#ced4da] dark:border-[#3e4042] sticky bottom-0 bg-white dark:bg-[#242526]">
+          <button
+            onClick={() => onSchild(artikel)}
+            className="px-4 rounded-lg border-2 border-[#008BD2]/40 text-[#0064d2] dark:text-[#45bdff] font-bold hover:bg-[#008BD2]/10 min-h-[44px]"
+          >
+            📄 Schild
+          </button>
+          {darfVerwalten && (
+            <button
+              onClick={() => onBearbeiten(artikel)}
+              className="px-5 rounded-lg text-white font-bold min-h-[44px]"
+              style={{ background: CYAN }}
+            >
+              Bearbeiten
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Feld mit Wert + „Kopieren"-Knopf (Zwischenablage). Ohne Wert: „—", kein Knopf.
+function KopierZeile({
+  label, wert, onKopiere, mono,
+}: {
+  label: string;
+  wert: string | null;
+  onKopiere: (text: string, label: string) => void;
+  mono?: boolean;
+}) {
+  const t = wert?.trim() ?? "";
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] px-3 py-2">
+      <div className="min-w-0">
+        <div className="text-xs font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">{label}</div>
+        <div className={`text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb] truncate ${mono ? "font-mono" : ""}`}>{t || "—"}</div>
+      </div>
+      {t && (
+        <button
+          onClick={() => onKopiere(t, label)}
+          title={`${label} kopieren`}
+          className="shrink-0 inline-flex items-center gap-1 px-3 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#0064d2] dark:text-[#45bdff] font-semibold min-h-[40px] hover:bg-[#008BD2]/10"
+        >
+          📋 Kopieren
+        </button>
+      )}
+    </div>
+  );
+}
+
+function InfoFeld({ label, wert }: { label: string; wert: string | null }) {
+  return (
+    <div>
+      <dt className="text-xs font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">{label}</dt>
+      <dd className="text-[#1a1a1a] dark:text-[#e4e6eb] mt-0.5">{wert && wert.trim() ? wert : "—"}</dd>
     </div>
   );
 }
