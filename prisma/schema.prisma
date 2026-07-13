@@ -211,6 +211,9 @@ model Anfrage {
   istSonderAnfrage Boolean       @default(false)
   beschreibung     String?       @db.Text
   sonderKategorie  String?
+  // Manuell bewerteter Wert einer Sonderanfrage (Admin-Review). null = noch nicht
+  // bewertet → in der Auswertung „Wert ausgegeben" gilt die Pauschale (5 €).
+  sonderWert       Decimal?      @db.Decimal(10, 2)
   status           AnfrageStatus @default(NEU)
   bearbeitetVon    String?
   bearbeitetSeit   DateTime?

@@ -22,6 +22,10 @@ function num(v: unknown): number {
 
 const MS_PRO_TAG = 24 * 60 * 60 * 1000;
 
+// Pauschale für erledigte Sonderanfragen ohne manuell gesetzten Wert (`sonderWert`).
+// Bewusst niedrig — nur damit „alles erfasst" ist; genaue Werte per Admin-Review.
+const SONDER_PAUSCHALE = 5;
+
 export const preiseRouter = createTRPCRouter({
 
   // Alle Artikel-Kategorien (live) mit Artikel-Anzahl + ggf. hinterlegtem Preis.
@@ -142,11 +146,45 @@ export const preiseRouter = createTRPCRouter({
       proKategorie.sort((a, b) => b.wert - a.wert);
       ohnePreis.sort((a, b) => b.menge - a.menge);
 
+      const teileWert = Math.round(gesamt * 100) / 100;
+
+      // ── Sonderanfragen (kein Lagerartikel → keine Kategorie/Preis) ────────────
+      // Erledigte Sonderanfragen (ohne Test) im Zeitraum: Wert = sonderWert ?? Pauschale.
+      // Sonderanfragen sind NICHT standort-gebunden → nur bei „alle Standorte" (kein
+      // standortId-Filter) einbezogen, um einen einzelnen Standort nicht zu verfälschen.
+      let sonderAnzahl = 0, sonderBewertet = 0, sonderWertSumme = 0;
+      if (!standortId) {
+        const sonder = await ctx.prisma.anfrage.findMany({
+          where: {
+            istSonderAnfrage: true,
+            testModus:        false,
+            status:           "ABGESCHLOSSEN",
+            ...(cutoff ? { datum: { gte: cutoff } } : {}),
+          },
+          select: { sonderWert: true },
+        });
+        sonderAnzahl = sonder.length;
+        for (const s of sonder) {
+          if (s.sonderWert != null) { sonderWertSumme += num(s.sonderWert); sonderBewertet++; }
+          else                        sonderWertSumme += SONDER_PAUSCHALE;
+        }
+        sonderWertSumme = Math.round(sonderWertSumme * 100) / 100;
+      }
+
       return {
-        gesamt:      Math.round(gesamt * 100) / 100,
-        mengeGesamt,
+        // Gesamt-Wert inkl. Sonderanfragen (Antwort auf „was bringt das eigentlich").
+        gesamt:      Math.round((teileWert + sonderWertSumme) * 100) / 100,
+        teileWert,        // nur Katalog-Ersatzteile (menge × Kategorie-Preis)
+        mengeGesamt,      // Anzahl ausgegebener Katalog-Teile
         proKategorie,
         ohnePreis,
+        sonderanfragen: {
+          anzahl:    sonderAnzahl,
+          bewertet:  sonderBewertet,                 // davon mit manuellem Wert
+          pauschal:  sonderAnzahl - sonderBewertet,  // Rest zählt mit Pauschale
+          pauschale: SONDER_PAUSCHALE,
+          wert:      sonderWertSumme,
+        },
       };
     }),
 });

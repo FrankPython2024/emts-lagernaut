@@ -68,15 +68,25 @@ function euro(n: number): string {
 function WertAusgegebenPanel({ tage, standortId }: { tage: number; standortId: number | null | undefined }) {
   const q = api.preise.wertAusgegeben.useQuery({ tage, standortId: standortId ?? null });
   return (
-    <Panel title="💸 Wert ausgegeben" sub={`Über Anfragen ausgegebene Teile (AUSGANG + Bedarf) × Kategorie-Preis · letzte ${tage} Tage`}>
+    <Panel title="💸 Wert ausgegeben" sub={`Teile (AUSGANG + Bedarf) × Kategorie-Preis + Sonderanfragen (Pauschale/Review) · letzte ${tage} Tage`}>
       {q.isLoading && <Skeleton h="h-40" />}
       {q.data && (
         <>
           <div className="mb-4">
             <div className="text-3xl font-black tabular-nums text-[#00a400]">{euro(q.data.gesamt)}</div>
             <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-              {q.data.mengeGesamt.toLocaleString("de-DE")} Teile · {q.data.proKategorie.length} Kategorien bewertet
+              🧩 {q.data.mengeGesamt.toLocaleString("de-DE")} Teile ({euro(q.data.teileWert)}) · {q.data.proKategorie.length} Kategorien bewertet
             </div>
+            {q.data.sonderanfragen.anzahl > 0 && (
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
+                💬 {q.data.sonderanfragen.anzahl.toLocaleString("de-DE")} Sonderanfragen ({euro(q.data.sonderanfragen.wert)})
+                {q.data.sonderanfragen.pauschal > 0 && (
+                  <> · {q.data.sonderanfragen.pauschal}× Pauschale {euro(q.data.sonderanfragen.pauschale)}</>
+                )}
+                {" "}
+                <a href="/admin/sonderanfragen" className="underline font-semibold">bewerten</a>
+              </div>
+            )}
           </div>
 
           {q.data.proKategorie.length === 0 ? (

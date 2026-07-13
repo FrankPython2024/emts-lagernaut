@@ -61,6 +61,49 @@ export const anfragenRouter = createTRPCRouter({
   zaehleNeue: anfragenReadProcedure
     .query(({ ctx }) => zaehleNeueAnfragen(getZugaenglicheStandortIds(ctx))),
 
+  // ── Sonderanfragen bewerten (Admin-Review) ──────────────────────────────────
+  // Sonderanfragen haben keinen Lagerartikel → keine Kategorie/keinen Preis. Für die
+  // Auswertung „Wert ausgegeben" gilt sonst die Pauschale (5 €). Hier kann ein Admin
+  // je Sonderanfrage einen genauen Wert (`sonderWert`) setzen. null = zurück zur Pauschale.
+  sonderListe: anfragenReadProcedure
+    .input(z.object({ nurUnbewertet: z.boolean().default(false) }).optional())
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.prisma.anfrage.findMany({
+        where: {
+          istSonderAnfrage: true,
+          testModus:        false,
+          ...(input?.nurUnbewertet ? { sonderWert: null } : {}),
+        },
+        orderBy: { datum: "desc" },
+        select: {
+          id: true, datum: true, techniker: true, geraet: true, logId: true,
+          beschreibung: true, sonderKategorie: true, status: true, menge: true, sonderWert: true,
+        },
+      });
+      return rows.map((r) => ({
+        ...r,
+        sonderWert: r.sonderWert == null ? null : Number(r.sonderWert),
+      }));
+    }),
+
+  // Wert einer Sonderanfrage setzen/löschen (null → Pauschale). Nur Admin.
+  setSonderWert: adminProcedure
+    .input(z.object({
+      id:   z.number().int().positive(),
+      wert: z.number().min(0).max(1_000_000).nullable(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const anfrage = await ctx.prisma.anfrage.findUnique({
+        where: { id: input.id }, select: { id: true, istSonderAnfrage: true },
+      });
+      if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
+      if (!anfrage.istSonderAnfrage) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Nur Sonderanfragen können bewertet werden." });
+      }
+      await ctx.prisma.anfrage.update({ where: { id: input.id }, data: { sonderWert: input.wert } });
+      return { ok: true };
+    }),
+
   // Anfrage als "Ersatzteil nicht beschaffbar" markieren — nur Admin
   markiereNichtVerfuegbar: adminProcedure
     .input(z.object({ anfrageId: z.number().int().positive() }))

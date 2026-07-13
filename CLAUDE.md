@@ -195,10 +195,21 @@ EOF
   `preise.wertAusgegeben`: `SUM(menge × Kategorie-Preis)` über Buchungen `typ IN (AUSGANG, DIREKT)`,
   gejoint Buchung→Artikel(kategorie)→KategoriePreis ($queryRaw). Folgt dem Seiten-Zeitfilter (`tage`)
   + Standortfilter. Kategorien **ohne** Preis separat gewarnt (zählen NICHT in die Summe).
-- **Caveat:** kein Preis-Snapshot auf `Buchung` → bewertet mit **aktuellem** Preis (Vergangenheitswert
-  ändert sich bei Preis-Anpassung). Test-Modus nicht enthalten (erzeugt keine echte Buchung).
-- **Rechte:** wiederverwendet `ARTIKEL_VIEW`/`ARTIKEL_EDIT` (Preise) + `STATISTIK_VIEW` (Auswertung) —
-  **kein neues Recht, kein seed-rbac** (nur `db push` für die neue Tabelle nötig).
+- **Sonderanfragen-Bewertung:** Sonderanfragen haben **keinen Artikel** → keine Kategorie/Preis →
+  erzeugen **keine Buchung** (`istSonderAnfrage` ⇒ `artikelId=null`; bucheLager läuft nur mit artikelId).
+  Damit „alles erfasst" ist: erledigte Sonderanfragen zählen im Panel mit **Pauschale 5 €**
+  (`SONDER_PAUSCHALE`), überschreibbar per **Admin-Review** je Anfrage (Feld `Anfrage.sonderWert
+  Decimal?`; null = Pauschale). `wertAusgegeben` liefert Block `sonderanfragen {anzahl, bewertet,
+  pauschal, pauschale, wert}` und `gesamt` = Teile-Wert **+** Sonder-Wert (`teileWert` separat).
+  Sonderanfragen sind **nicht standort-gebunden** → nur bei „alle Standorte" (kein standortId) einbezogen.
+  Review-Seite **`/admin/sonderanfragen`** (Nav „💬 Sonderanfragen bewerten", Auswertung): Liste +
+  Bulk-Werte setzen; tRPC `anfragen.sonderListe` (ANFRAGE_VIEW_ALL) / `anfragen.setSonderWert`
+  (adminProcedure, null → Pauschale). Panel-Sub-Zeile verlinkt dorthin.
+- **Caveat:** kein Preis-Snapshot auf `Buchung`/Sonderanfrage → bewertet mit **aktuellem** Preis
+  (Vergangenheitswert ändert sich bei Anpassung). Test-Modus nicht enthalten (erzeugt keine Buchung).
+- **Rechte:** wiederverwendet `ARTIKEL_VIEW`/`ARTIKEL_EDIT` (Preise) + `STATISTIK_VIEW` (Auswertung)
+  + `ANFRAGE_VIEW_ALL`/ADMIN (Sonderanfragen-Bewertung) — **kein neues Recht, kein seed-rbac**
+  (nur `db push` für Tabelle/Spalte nötig).
 
 ### Verbrauchsmaterial — erweitert
 - **Schema:** `VerbrauchsArtikel` (code/QR, name, mindestbestand, aktuellerBestand, aktiv …) +
