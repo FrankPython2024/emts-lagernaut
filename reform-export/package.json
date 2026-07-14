@@ -1,0 +1,10 @@
+{
+  "name": "reform-export",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless-Export der Mobilteile-CSV aus dem ReForm-Portal (Playwright).",
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

@@ -37,7 +37,15 @@ function berichtAusgeben(b: MobilImportBericht, dry: boolean) {
   console.log(`  uebersprungen      ${z(b.uebersprungen)}   (Zeilen ohne LogID)`);
   console.log(`  ${dry ? "würde neue Modelle" : "neue Modelle"}   ${z(b.neueModelle)}`);
   console.log(`  ${dry ? "würde neue Teiltypen" : "neue Teiltypen"} ${z(b.neueTeiltypen)}`);
+  console.log(line);
+  // Abgangs-Erkennung (Snapshot→Diff) — der einzige "schreibende" Risiko-Teil.
+  console.log(`  ${dry ? "würde ausscheiden" : "ausgeschieden"}  ${z(b.anzahlAusgeschieden)}   (fehlen im Export → Abgang)`);
+  console.log(`  wieder-Eingang     ${z(b.anzahlWiederEingang)}`);
+  console.log(`  Modus / Bereich    ${b.modus} / ${b.bereich}`);
+  console.log(`  Hersteller-Scope   ${b.herstellerImport.join(", ") || "—"}`);
+  if (b.abgangUebersprungen) console.log(`  ⚠️  Abgangs-Erkennung ÜBERSPRUNGEN (Plausibilitäts-Sicherung)`);
   console.log(`${line}\n`);
+  if (b.warnung) console.log(`⚠️  ${b.warnung}\n`);
 }
 
 async function main() {
