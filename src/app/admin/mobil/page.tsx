@@ -601,6 +601,7 @@ function LogIdEditor({
       void utils.mobil.logIdsProTeiltyp.invalidate();
       void utils.mobil.hersteller.invalidate({ bereich });
       void utils.mobil.modelle.invalidate();
+      void utils.mobil.katalog.invalidate(); // neuer Teiltyp taucht künftig in der Auswahl auf
       void utils.mobil.mobilUnterMindestbestand.invalidate();
       void utils.mobil.stats.invalidate({ bereich });
       onClose();
@@ -610,7 +611,8 @@ function LogIdEditor({
 
   const bezeichnungGeaendert = b.trim() !== bezeichnung.trim();
   const kann = !!h.trim() && !!m.trim() && !!t.trim() && !speichern.isPending;
-  const listId = `edit-modelle-${logId.replace(/[^a-z0-9]/gi, "")}`;
+  const listId        = `edit-modelle-${logId.replace(/[^a-z0-9]/gi, "")}`;
+  const teiltypListId = `edit-teiltyp-${logId.replace(/[^a-z0-9]/gi, "")}`;
   const feld = "w-full px-2.5 min-h-[44px] rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm outline-none focus:border-[#008BD2]";
 
   function save() {
@@ -660,10 +662,14 @@ function LogIdEditor({
         </label>
         <label className="block">
           <span className="block text-xs font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] mb-0.5">Teiltyp</span>
-          <select value={t} onChange={(e) => setT(e.target.value)} className={feld}>
-            <option value="">— wählen —</option>
-            {teiltypen.map((x) => <option key={x} value={x}>{x}</option>)}
-          </select>
+          <input
+            list={teiltypListId}
+            value={t}
+            onChange={(e) => setT(e.target.value)}
+            placeholder="Teiltyp wählen oder neu eingeben"
+            className={feld}
+          />
+          <datalist id={teiltypListId}>{teiltypen.map((x) => <option key={x} value={x} />)}</datalist>
         </label>
       </div>
 

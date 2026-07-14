@@ -158,6 +158,10 @@ EOF
   Chip-Liste 📍🎨·AAN·EK·🏭, nach Colli), `/admin/mobil/import` (Bereich-Auswahl, Trockenlauf default),
   `/admin/mobil/statistik` (recharts + Bereich-Umschalter; Drill-down → `statTeileDetail`),
   `/admin/mobil/anfragen` (Mobil-Anfragen, s.u.).
+- **Eigene Teiltypen anlegen:** Teiltyp-Feld im Editor (`LogIdEditor` in `/admin/mobil` + Review-Seite)
+  ist ein **Combobox** (`<input list>`+`<datalist>`, wie das Modell-Feld) — Wert wählen ODER neu
+  eintippen (z. B. „Back Glass"). `reviewZuordnen` upsertet `MobilTeiltyp` by name → neuer Teiltyp
+  wird angelegt und das Teil zugeordnet; `katalog`-Invalidate macht ihn künftig in der Auswahl sichtbar.
 - **Rechte:** `MOBIL_VIEW`/`MOBIL_MANAGE`, an ADMIN geseedet.
 - **Export-Download (CSV/XLSX): server-seitiger Endpoint** `src/pages/api/mobil/export.ts`
   (`Content-Disposition: attachment`) — ein echter Link `/api/mobil/export?format=&modellId=&teiltyp=&bereich=`,

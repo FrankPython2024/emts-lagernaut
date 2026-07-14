@@ -166,12 +166,14 @@ function ReviewKarte({
       void utils.mobil.reviewListe.invalidate({ bereich });
       void utils.mobil.stats.invalidate({ bereich });
       void utils.mobil.hersteller.invalidate({ bereich });
+      void utils.mobil.katalog.invalidate(); // neuer Teiltyp taucht künftig in der Auswahl auf
     },
     onError: (e) => show(e.message, "error"),
   });
 
   const kannSpeichern = darfVerwalten && !!hersteller.trim() && !!modell.trim() && !!teiltyp.trim() && !zuordnen.isPending;
-  const listId = `modelle-${gruppe.bezeichnung.replace(/[^a-z0-9]/gi, "").slice(0, 40)}`;
+  const listId        = `modelle-${gruppe.bezeichnung.replace(/[^a-z0-9]/gi, "").slice(0, 40)}`;
+  const teiltypListId = `teiltyp-${gruppe.bezeichnung.replace(/[^a-z0-9]/gi, "").slice(0, 40)}`;
 
   const b = gruppe.beispiel;
   const hatChips = !!b.stellplatz || !!b.farbe || !!b.aan || b.ek != null || !!b.lieferant || !!b.colli;
@@ -309,15 +311,17 @@ function ReviewKarte({
 
         <label className="block">
           <span className="block text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">Teiltyp</span>
-          <select
+          <input
+            list={teiltypListId}
             value={teiltyp}
             onChange={(e) => setTeiltyp(e.target.value)}
             disabled={!darfVerwalten}
+            placeholder="Teiltyp wählen oder neu eingeben"
             className={feld}
-          >
-            <option value="">— wählen —</option>
-            {teiltypen.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
+          />
+          <datalist id={teiltypListId}>
+            {teiltypen.map((t) => <option key={t} value={t} />)}
+          </datalist>
         </label>
       </div>
 
