@@ -13,9 +13,10 @@ RUN npm install --omit=dev
 RUN npx playwright install --with-deps chromium
 
 COPY mobil-export.mjs ./
+COPY umbuchen.mjs ./
 
 ENV HEADLESS=1
 ENV OUT_DIR=/out
 
-# Schreibt /out/mobil-export.csv (per Volume nach außen gereicht).
+# Default = Export (CMD überschreibbar: `… reform-export node umbuchen.mjs`).
 CMD ["node", "mobil-export.mjs"]

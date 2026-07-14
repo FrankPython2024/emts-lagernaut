@@ -5,16 +5,23 @@ set -uo pipefail
 
 DATA=/var/www/lagernaut/reform
 TRIGGER="$DATA/trigger"
-SYNC=/var/www/lagernaut/emts-lagernaut/reform-export/reform-sync.sh
+UMBUCHEN="$DATA/umbuchen.json"
+BASE=/var/www/lagernaut/emts-lagernaut/reform-export
+SYNC="$BASE/reform-sync.sh"
+UMB="$BASE/reform-umbuchen.sh"
 
 mkdir -p "$DATA"
-echo "[$(date '+%F %T')] reform-watch gestartet (pollt $TRIGGER)…"
+echo "[$(date '+%F %T')] reform-watch gestartet (pollt Sync + Umbuchung)…"
 
 while true; do
   if [ -f "$TRIGGER" ]; then
     rm -f "$TRIGGER"
-    echo "[$(date '+%F %T')] Trigger erkannt → Sync (manuell)…"
+    echo "[$(date '+%F %T')] Sync-Trigger erkannt…"
     bash "$SYNC" manuell || true
+  fi
+  if [ -f "$UMBUCHEN" ]; then
+    echo "[$(date '+%F %T')] Umbuch-Anfrage erkannt…"
+    bash "$UMB" || true
   fi
   sleep 3
 done
