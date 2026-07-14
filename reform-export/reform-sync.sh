@@ -37,15 +37,18 @@ fi
 
 # ── 1) Export ─────────────────────────────────────────────────────────────────
 echo "[$(date '+%F %T')] ── ReForm-Export ($QUELLE)…"
-status export "Export aus ReForm läuft…"
-if ! docker run --rm --env-file "$ENV_FILE" -e HEADLESS=1 -v "$DATA:/out" reform-export; then
+status export "🔌 Verbinde zum ReForm-Portal…"
+# Der Export-Container schreibt seine Live-Schritte selbst in /out/status.json.
+if ! docker run --rm --env-file "$ENV_FILE" -e HEADLESS=1 \
+     -e SYNC_STATUS=/out/status.json -e SYNC_START="$START" -e SYNC_QUELLE="$QUELLE" \
+     -v "$DATA:/out" reform-export; then
   fehler_exit "Export aus ReForm fehlgeschlagen"
 fi
 [ -s "$CSV" ] || fehler_exit "Keine/leere CSV erzeugt"
 
 # ── 2) Import ─────────────────────────────────────────────────────────────────
 echo "[$(date '+%F %T')] ── Import in Lagernaut…"
-status import "Import in Lagernaut läuft…"
+status import "⚙️ Verarbeite Datensätze in Lagernaut…"
 docker compose cp scripts/mobil-import.ts app:/app/mobil-import.ts >/dev/null 2>&1 || fehler_exit "Skript-Kopie fehlgeschlagen"
 docker compose cp "$CSV" app:/tmp/mobil-export.csv >/dev/null 2>&1 || fehler_exit "CSV-Kopie fehlgeschlagen"
 OUT="$(docker compose exec -T app npx tsx /app/mobil-import.ts /tmp/mobil-export.csv --json 2>&1)"

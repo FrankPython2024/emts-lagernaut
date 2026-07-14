@@ -17,6 +17,23 @@ const STELLPLATZ_FILTER = "ETL-Mobil";
 const OUT_DIR   = process.env.OUT_DIR || "/out";
 const HEADLESS  = process.env.HEADLESS !== "0"; // Default headless
 
+// Live-Status für die Anzeige in Lagernaut (vom Sync via Env gesetzt). Jeder
+// Schritt schreibt seine „nerdige" Phase atomar in status.json → App pollt sie.
+const SYNC_STATUS = process.env.SYNC_STATUS || null;
+const SYNC_START  = Number(process.env.SYNC_START || Date.now());
+const SYNC_QUELLE = process.env.SYNC_QUELLE || "cron";
+function melde(phase) {
+  console.log("   " + phase);
+  if (!SYNC_STATUS) return;
+  try {
+    fs.writeFileSync(`${SYNC_STATUS}.tmp`, JSON.stringify({
+      state: "export", phase, quelle: SYNC_QUELLE, startedAt: SYNC_START,
+      endedAt: null, bericht: null, fehler: null,
+    }));
+    fs.renameSync(`${SYNC_STATUS}.tmp`, SYNC_STATUS);
+  } catch { /* Status ist nur Kosmetik — Export läuft weiter */ }
+}
+
 if (!USER || !PASS) { console.error("❌ Bitte PORTAL_USER und PORTAL_PASS setzen."); process.exit(1); }
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
@@ -35,12 +52,15 @@ let ok = false;
 
 try {
   step(1, "Login…");
+  melde("🔌 Verbinde zum ReForm-Portal…");
   await page.goto(URL, { waitUntil: "domcontentloaded", timeout: 60000 });
+  melde("🔐 Authentifiziere…");
   await page.locator("#userTextField").fill(USER);
   await page.locator("#pwTextField").fill(PASS);
   await page.getByRole("button", { name: "Anmelden", exact: true }).click();
 
   step(2, `Mandant wählen (nur falls Dialog wirklich da): ${MANDANT}`);
+  melde(`🏢 Prüfe Mandant „${MANDANT}"…`);
   await page.waitForTimeout(2500);
   try {
     await page.locator(".qx-last-chosen-client-button", { hasText: MANDANT }).click({ timeout: 4000 });
@@ -51,6 +71,7 @@ try {
   }
 
   step(3, "Öffne 'alle Lagerdetails' (Favorit)…");
+  melde("🧭 Navigiere zu „alle Lagerdetails"…");
   await page.waitForTimeout(6000);
   const lagerBtn = page.getByRole("button", { name: "alle Lagerdetails" }).first();
   if (!(await lagerBtn.count())) throw new Error("'alle Lagerdetails'-Button nicht gefunden.");
@@ -58,6 +79,7 @@ try {
   await page.waitForTimeout(2500);
 
   step(4, `Filter: Stellplatz enthält "${STELLPLATZ_FILTER}"`);
+  melde(`🔎 Filtere Mobilteile (Stellplatz „${STELLPLATZ_FILTER}")…`);
   const logIdBtn = page.getByRole("button", { name: "LogId" });
   if (await logIdBtn.count()) {
     await logIdBtn.click();
@@ -71,10 +93,11 @@ try {
   const tab = page.getByRole("tabpanel", { name: "alle Lagerdetails" });
   await tab.getByRole("textbox").fill(STELLPLATZ_FILTER);
   await tab.getByRole("textbox").press("Enter"); // lädt die gefilterten Daten
-  console.log("   → Enter gedrückt, warte auf Daten…");
+  melde("⏳ ReForm lädt die Datensätze…");
   await page.waitForTimeout(6000);
 
   step(5, "Export: Erdkugel-Icon → CSV…");
+  melde("📥 Extrahiere Daten aus ReForm (CSV)…");
   // Erdkugel (Export, kein Text/Titel) = Icon-Button DIREKT LINKS vom "Stellplatz"-Feld.
   const stellBox = await page.getByRole("button", { name: "Stellplatz" }).first().boundingBox();
   if (!stellBox) throw new Error("'Stellplatz'-Feld nicht gefunden (Anker für Export-Icon).");
