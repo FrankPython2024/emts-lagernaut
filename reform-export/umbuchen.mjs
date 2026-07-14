@@ -98,6 +98,11 @@ try {
     await page.screenshot({ path: "/out/umbuchen-dry.png", fullPage: true }).catch(() => {});
     melde("fertig", `🧪 Trockenlauf OK — WÜRDE LogID ${logId} auf Colli ${colli} buchen (nicht ausgeführt).`);
   } else {
+    // Sicherheits-Check: steht wirklich UNSERE LogID im Feld? Sonst NICHT buchen.
+    const eingetragen = (await logField.inputValue().catch(() => "")).trim();
+    if (eingetragen !== logId) {
+      throw new Error(`Sicherheits-Abbruch: Feld enthält „${eingetragen}" statt „${logId}" — nicht gebucht.`);
+    }
     await logField.press("Enter");
     await page.waitForTimeout(2500);
     await page.screenshot({ path: "/out/umbuchen-real.png", fullPage: true }).catch(() => {});
