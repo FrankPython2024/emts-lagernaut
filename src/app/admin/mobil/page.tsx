@@ -341,8 +341,10 @@ function ReformSync() {
   const { show } = useToast();
 
   const statusQ = api.reform.syncStatus.useQuery(undefined, {
-    refetchInterval: (q) => (q.state.data?.aktiv ? 2000 : false),
-    refetchOnWindowFocus: false,
+    // Aktiv: schnell (2s). Leerlauf: alle 20s — so werden auch AUTOMATISCHE
+    // (cron-)Syncs live sichtbar, ohne die App zu belasten (liest nur die Datei).
+    refetchInterval: (q) => (q.state.data?.aktiv ? 2000 : 20000),
+    refetchOnWindowFocus: true,
   });
   const starten = api.reform.syncStarten.useMutation({
     onSuccess: (r) => {

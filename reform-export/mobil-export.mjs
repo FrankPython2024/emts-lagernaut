@@ -71,7 +71,7 @@ try {
   }
 
   step(3, "Öffne 'alle Lagerdetails' (Favorit)…");
-  melde("🧭 Navigiere zu „alle Lagerdetails"…");
+  melde("🧭 Navigiere zu den Lagerdetails…");
   await page.waitForTimeout(6000);
   const lagerBtn = page.getByRole("button", { name: "alle Lagerdetails" }).first();
   if (!(await lagerBtn.count())) throw new Error("'alle Lagerdetails'-Button nicht gefunden.");
