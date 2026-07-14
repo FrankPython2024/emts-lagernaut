@@ -45,6 +45,11 @@ docker build -t reform-export reform-export/
 # App mit Volume-Mount neu starten (docker-compose.yml wurde ergänzt):
 docker compose up -d
 
+# WICHTIG: Ordner dem App-Container-Nutzer (nextjs, UID 1001) geben — sonst kann
+# die App Trigger/Status nicht schreiben ("Trigger nicht schreibbar"). Root + der
+# Sync schreiben weiterhin (root umgeht Rechte):
+chown -R 1001:1001 /var/www/lagernaut/reform
+
 # Host-Wächter als Dienst (für den Button):
 cp reform-export/reform-watch.service /etc/systemd/system/
 systemctl daemon-reload
