@@ -62,9 +62,9 @@ export const mobilAnfrageRouter = createTRPCRouter({
         .sort((a, b) => a.modell.localeCompare(b.modell, "de", { numeric: true }));
     }),
 
-  // Alle Standard-Teiltypen für ein Modell+Bereich, jeweils mit Bestand + Status
-  // (NEU = Bestand>0, BEDARF = 0). Bewusst die FESTE Teiltyp-Liste, damit der
-  // Techniker auch ein nicht vorrätiges Teil (BEDARF) anfragen kann.
+  // Teiltypen für ein Modell+Bereich, die AKTUELL Bestand haben (nur diese sind
+  // anfragbar — Mobil kennt kein BEDARF). Aus den echten Teilen abgeleitet, also
+  // inkl. manuell angelegter Teiltypen (z. B. „Back Glass").
   teiltypen: req
     .input(z.object({ bereich: bereichInput, modellId: z.number().int().positive() }))
     .query(async ({ input }) => {
@@ -85,16 +85,24 @@ export const mobilAnfrageRouter = createTRPCRouter({
         e.farben.set(r.farbe, (e.farben.get(r.farbe) ?? 0) + anz);
         byTeiltyp.set(r.teiltyp, e);
       }
-      // Mobilteile: NUR Teiltypen MIT Bestand (kein BEDARF). Farben nach Anzahl sortiert.
-      // flatMap statt map+filter → behält den Teiltyp-Literaltyp, keine null-Prädikate.
-      return MOBIL_TEILTYPEN.flatMap((name) => {
-        const e = byTeiltyp.get(name);
-        if (!e || e.bestand <= 0) return [];
-        const farben = [...e.farben.entries()]
-          .map(([farbe, anzahl]) => ({ farbe, anzahl }))
-          .sort((a, b) => b.anzahl - a.anzahl);
-        return [{ teiltyp: name, bestand: e.bestand, farben }];
-      });
+      // Mobilteile: NUR Teiltypen MIT Bestand (kein BEDARF). ALLE vorhandenen
+      // Teiltypen — auch manuell angelegte wie „Back Glass" (NICHT auf die feste
+      // Parser-Liste beschränken, sonst sind Custom-Teiltypen für den Techniker
+      // unsichtbar). Reihenfolge: kanonische zuerst, Custom danach alphabetisch.
+      const rang = (name: string) => {
+        const i = (MOBIL_TEILTYPEN as readonly string[]).indexOf(name);
+        return i === -1 ? MOBIL_TEILTYPEN.length : i;
+      };
+      return [...byTeiltyp.keys()]
+        .sort((a, b) => rang(a) - rang(b) || a.localeCompare(b, "de"))
+        .flatMap((name) => {
+          const e = byTeiltyp.get(name)!;
+          if (e.bestand <= 0) return [];
+          const farben = [...e.farben.entries()]
+            .map(([farbe, anzahl]) => ({ farbe, anzahl }))
+            .sort((a, b) => b.anzahl - a.anzahl);
+          return [{ teiltyp: name, bestand: e.bestand, farben }];
+        });
     }),
 
   // ReForm-Original-Bezeichnung(en) der Teile hinter EINER Teiltyp/Farbe-Kachel —

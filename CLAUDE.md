@@ -181,7 +181,9 @@ EOF
   den Teiltypen, Teiltyp → Dialog (Menge/Kommentar) → anfragen. **KEIN „Bedarf" für Mobil:** nur
   Teiltypen mit Bestand >0 erscheinen/sind anfragbar; `erstellen` lehnt 0-Bestand ab (Race-Schutz),
   Status immer NEU. Router `mobilAnfrage` (hersteller/modelle/teiltypen/erstellen/meine), gated
-  ANFRAGE_MOBIL_CREATE.
+  ANFRAGE_MOBIL_CREATE. **`mobilAnfrage.teiltypen` leitet die Liste aus dem echten Bestand ab (ALLE
+  vorhandenen Teiltypen inkl. manuell angelegter wie „Back Glass"), NICHT aus der festen
+  `MOBIL_TEILTYPEN`-Parser-Liste** — sonst wären Custom-Teiltypen für den Techniker unsichtbar.
 - **Admin-Bearbeitung:** geteilte Komponente `MobilAnfragenListe` — als eigene Seite
   `/admin/mobil/anfragen` UND als **Reiter „📱 Mobil" in `/admin/anfragen`** (optisch getrennt vom
   Notebook). Filter Status/Bereich, „N offen"-Badge. Aktionen (MOBIL_MANAGE): In Arbeit / Storno /
