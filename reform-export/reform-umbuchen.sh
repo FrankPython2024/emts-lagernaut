@@ -18,6 +18,8 @@ cd "$REPO" || exit 1
 
 # Frische Session: alte Queue + Close-Signal wegräumen.
 mkdir -p "$DATA/queue"
+# Die App (Container-Nutzer nextjs, UID 1001) muss LogID-Dateien in queue/ schreiben.
+chown 1001:1001 "$DATA/queue" 2>/dev/null || true
 rm -f "$DATA/session-close"
 rm -f "$DATA"/queue/*.json 2>/dev/null || true
 
