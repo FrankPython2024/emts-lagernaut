@@ -70,6 +70,8 @@ async function main() {
   if (dry) console.log("\n🔎 TROCKENLAUF — es wird NICHTS in die Datenbank geschrieben.");
   const bericht = await runMobilImport(csvText, { dryRun: dry });
   berichtAusgeben(bericht, dry);
+  // Maschinenlesbare Ausgabe für den Sync-Wächter (reform-sync.sh greppt diese Zeile).
+  if (args.includes("--json")) console.log(`##BERICHT## ${JSON.stringify(bericht)}`);
 }
 
 main()

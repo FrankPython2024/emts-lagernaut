@@ -12,6 +12,11 @@ services:
       - DB_EXPLORER_PASSWORD=kräutertee
       - NEXTAUTH_URL=http://49.13.162.158:3000
       - DB_EXPLORER_PASSWORD=kräutertee
+      - REFORM_DIR=/data/reform
+    volumes:
+      # Gemeinsamer Ordner mit dem ReForm-Sync (Trigger + Status). Der Host-Wächter
+      # liest den Trigger; die App schreibt Trigger/Status. Bind-Mount vom Host.
+      - /var/www/lagernaut/reform:/data/reform
     depends_on:
       - db
       - redis

@@ -1,0 +1,15 @@
+[Unit]
+Description=ReForm-Sync Waechter (Trigger-Datei -> Sync)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env bash /var/www/lagernaut/emts-lagernaut/reform-export/reform-watch.sh
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/reform-sync.log
+StandardError=append:/var/log/reform-sync.log
+
+[Install]
+WantedBy=multi-user.target
