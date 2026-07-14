@@ -21,7 +21,14 @@ if (!USER || !PASS) { console.error("❌ Bitte PORTAL_USER und PORTAL_PASS setze
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
 const browser = await chromium.launch({ headless: HEADLESS });
-const ctx     = await browser.newContext({ acceptDownloads: true });
+// WICHTIG: Deutsche Locale — sonst rendert das Portal im Container auf Englisch
+// (Login-Button "Login" statt "Anmelden") und alle deutschen Selektoren scheitern.
+const ctx     = await browser.newContext({
+  acceptDownloads:  true,
+  locale:           "de-DE",
+  timezoneId:       "Europe/Berlin",
+  extraHTTPHeaders: { "Accept-Language": "de-DE,de;q=0.9" },
+});
 const page    = await ctx.newPage();
 const step = (n, t) => console.log(`→ [${n}] ${t}`);
 let ok = false;
