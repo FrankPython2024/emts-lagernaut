@@ -138,6 +138,7 @@ function ReviewKarte({
   const [teiltyp, setTeiltyp]       = useState<string>(gruppe.vorschlag.teiltyp ?? "");
   const [bezeichnung, setBezeichnung] = useState<string>(gruppe.bezeichnung);
   const [aliasLernen, setAliasLernen] = useState(true);
+  const [neuTeiltyp, setNeuTeiltyp]   = useState(false); // "➕ Neuer Teiltyp…" gewählt
   const [logsOffen, setLogsOffen]     = useState(false);
   const bezeichnungGeaendert = bezeichnung.trim() !== gruppe.bezeichnung.trim();
 
@@ -172,8 +173,7 @@ function ReviewKarte({
   });
 
   const kannSpeichern = darfVerwalten && !!hersteller.trim() && !!modell.trim() && !!teiltyp.trim() && !zuordnen.isPending;
-  const listId        = `modelle-${gruppe.bezeichnung.replace(/[^a-z0-9]/gi, "").slice(0, 40)}`;
-  const teiltypListId = `teiltyp-${gruppe.bezeichnung.replace(/[^a-z0-9]/gi, "").slice(0, 40)}`;
+  const listId = `modelle-${gruppe.bezeichnung.replace(/[^a-z0-9]/gi, "").slice(0, 40)}`;
 
   const b = gruppe.beispiel;
   const hatChips = !!b.stellplatz || !!b.farbe || !!b.aan || b.ek != null || !!b.lieferant || !!b.colli;
@@ -311,17 +311,29 @@ function ReviewKarte({
 
         <label className="block">
           <span className="block text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">Teiltyp</span>
-          <input
-            list={teiltypListId}
-            value={teiltyp}
-            onChange={(e) => setTeiltyp(e.target.value)}
+          <select
+            value={neuTeiltyp ? "__neu__" : teiltyp}
+            onChange={(e) => {
+              if (e.target.value === "__neu__") { setNeuTeiltyp(true); setTeiltyp(""); }
+              else { setNeuTeiltyp(false); setTeiltyp(e.target.value); }
+            }}
             disabled={!darfVerwalten}
-            placeholder="Teiltyp wählen oder neu eingeben"
             className={feld}
-          />
-          <datalist id={teiltypListId}>
-            {teiltypen.map((t) => <option key={t} value={t} />)}
-          </datalist>
+          >
+            <option value="">— wählen —</option>
+            {teiltypen.map((t) => <option key={t} value={t}>{t}</option>)}
+            <option value="__neu__">➕ Neuer Teiltyp…</option>
+          </select>
+          {neuTeiltyp && (
+            <input
+              autoFocus
+              value={teiltyp}
+              onChange={(e) => setTeiltyp(e.target.value)}
+              disabled={!darfVerwalten}
+              placeholder="z. B. Back Glass"
+              className={`${feld} mt-1`}
+            />
+          )}
         </label>
       </div>
 

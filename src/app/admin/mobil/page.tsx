@@ -587,6 +587,7 @@ function LogIdEditor({
   const [t, setT] = useState(teiltyp);
   const [b, setB] = useState(bezeichnung);
   const [aliasLernen, setAliasLernen] = useState(true);
+  const [neuTeiltyp, setNeuTeiltyp] = useState(false); // "➕ Neuer Teiltyp…" gewählt
 
   const modellVorschlaege = useMemo(
     () => (katalogQ.data?.modelle ?? []).filter((mm) => !h || mm.hersteller === h).map((mm) => mm.modell),
@@ -611,8 +612,7 @@ function LogIdEditor({
 
   const bezeichnungGeaendert = b.trim() !== bezeichnung.trim();
   const kann = !!h.trim() && !!m.trim() && !!t.trim() && !speichern.isPending;
-  const listId        = `edit-modelle-${logId.replace(/[^a-z0-9]/gi, "")}`;
-  const teiltypListId = `edit-teiltyp-${logId.replace(/[^a-z0-9]/gi, "")}`;
+  const listId = `edit-modelle-${logId.replace(/[^a-z0-9]/gi, "")}`;
   const feld = "w-full px-2.5 min-h-[44px] rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm outline-none focus:border-[#008BD2]";
 
   function save() {
@@ -662,14 +662,27 @@ function LogIdEditor({
         </label>
         <label className="block">
           <span className="block text-xs font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] mb-0.5">Teiltyp</span>
-          <input
-            list={teiltypListId}
-            value={t}
-            onChange={(e) => setT(e.target.value)}
-            placeholder="Teiltyp wählen oder neu eingeben"
+          <select
+            value={neuTeiltyp ? "__neu__" : t}
+            onChange={(e) => {
+              if (e.target.value === "__neu__") { setNeuTeiltyp(true); setT(""); }
+              else { setNeuTeiltyp(false); setT(e.target.value); }
+            }}
             className={feld}
-          />
-          <datalist id={teiltypListId}>{teiltypen.map((x) => <option key={x} value={x} />)}</datalist>
+          >
+            <option value="">— wählen —</option>
+            {teiltypen.map((x) => <option key={x} value={x}>{x}</option>)}
+            <option value="__neu__">➕ Neuer Teiltyp…</option>
+          </select>
+          {neuTeiltyp && (
+            <input
+              autoFocus
+              value={t}
+              onChange={(e) => setT(e.target.value)}
+              placeholder="z. B. Back Glass"
+              className={`${feld} mt-1`}
+            />
+          )}
         </label>
       </div>
 
