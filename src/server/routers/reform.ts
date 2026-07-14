@@ -15,9 +15,12 @@ import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 const DIR     = process.env.REFORM_DIR || "/data/reform";
 const STATUS  = path.join(DIR, "status.json");
 const TRIGGER = path.join(DIR, "trigger");
-const UMB_REQ    = path.join(DIR, "umbuchen.json");
-const UMB_STATUS = path.join(DIR, "umbuchen-status.json");
-const STALE_MS = 5 * 60 * 1000; // laufender Sync gilt nach 5 Min als hängengeblieben
+const SESSION_REQ    = path.join(DIR, "session-req.json");
+const SESSION_STATUS = path.join(DIR, "session-status.json");
+const SESSION_CLOSE  = path.join(DIR, "session-close");
+const QUEUE_DIR      = path.join(DIR, "queue");
+const STALE_MS      = 5 * 60 * 1000; // laufender Sync gilt nach 5 Min als hängengeblieben
+const SESSION_STALE_MS = 30 * 1000;  // Session ohne Heartbeat >30s → gilt als beendet/tot
 
 const view   = permissionProcedure("MOBIL_VIEW");
 const manage = permissionProcedure("MOBIL_MANAGE");
@@ -52,20 +55,23 @@ function schreibeStatus(s: Status): void {
   fs.renameSync(tmp, STATUS);
 }
 
-// ── Umbuchung (LogID → Colli) ────────────────────────────────────────────────
-type UmbStatus = {
-  state:     "leer" | "angefordert" | "laeuft" | "fertig" | "fehler";
+// ── Buch-Session (Colli offen halten, wiederholt LogIDs draufbuchen) ──────────
+type GebuchtItem = { logId: string; ok: boolean; fehler?: string; dry?: boolean; ts: number };
+type SessionStatus = {
+  state:     "leer" | "start" | "bereit" | "buchen" | "beendet" | "fehler";
   phase:     string;
-  colli?:    string; logId?: string; dryRun?: boolean;
-  startedAt?: number; endedAt?: number | null; fehler?: string | null;
+  colli?:    string; dryRun?: boolean;
+  startedAt?: number; lastActivity?: number; endedAt?: number | null; fehler?: string | null;
+  gebucht?:  GebuchtItem[];
 };
-const UMB_LAEUFT: UmbStatus["state"][] = ["angefordert", "laeuft"];
-function leseUmb(): UmbStatus {
-  try { return JSON.parse(fs.readFileSync(UMB_STATUS, "utf8")) as UmbStatus; }
-  catch { return { state: "leer", phase: "Noch keine Umbuchung." }; }
+const SESSION_LAEUFT: SessionStatus["state"][] = ["start", "bereit", "buchen"];
+function leseSession(): SessionStatus {
+  try { return JSON.parse(fs.readFileSync(SESSION_STATUS, "utf8")) as SessionStatus; }
+  catch { return { state: "leer", phase: "Keine Session." }; }
 }
-function umbAktiv(s: UmbStatus): boolean {
-  return UMB_LAEUFT.includes(s.state) && !!s.startedAt && Date.now() - s.startedAt < STALE_MS;
+// „offen" = läuft UND kürzlich Heartbeat geschrieben (Container lebt noch).
+function sessionOffen(s: SessionStatus): boolean {
+  return SESSION_LAEUFT.includes(s.state) && !!s.lastActivity && Date.now() - s.lastActivity < SESSION_STALE_MS;
 }
 
 export const reformRouter = createTRPCRouter({
@@ -97,36 +103,59 @@ export const reformRouter = createTRPCRouter({
     return { gestartet: true as const };
   }),
 
-  // ── Umbuchung: Status lesen ─────────────────────────────────────────────────
-  umbuchenStatus: view.query(() => {
-    const s = leseUmb();
-    return { ...s, aktiv: umbAktiv(s) };
+  // ── Session-Status (Polling / Live-Liste) ───────────────────────────────────
+  sessionStatus: view.query(() => {
+    const s = leseSession();
+    const offen = sessionOffen(s);
+    return { ...s, offen, bereit: offen && (s.state === "bereit" || s.state === "buchen") };
   }),
 
-  // ── Umbuchung anstoßen: LogID auf Colli buchen (Trockenlauf default) ─────────
-  umbuchenStarten: manage
-    .input(z.object({
-      colli:  z.string().trim().min(1).max(50),
-      logId:  z.string().trim().min(1).max(50),
-      dryRun: z.boolean().default(true),
-    }))
+  // Colli-Session starten (öffnet den Colli, danach LogIDs scannen).
+  sessionStarten: manage
+    .input(z.object({ colli: z.string().trim().min(1).max(50), dryRun: z.boolean().default(true) }))
     .mutation(({ input }) => {
-      const s = leseUmb();
-      if (umbAktiv(s)) return { gestartet: false as const, grund: "Eine Umbuchung läuft bereits." };
+      if (sessionOffen(leseSession())) return { gestartet: false as const, grund: "Es läuft bereits eine Session." };
       try {
         const startedAt = Date.now();
-        const status: UmbStatus = {
-          state: "angefordert", phase: "Angefordert — startet gleich…",
-          colli: input.colli, logId: input.logId, dryRun: input.dryRun,
-          startedAt, endedAt: null, fehler: null,
+        const status: SessionStatus = {
+          state: "start", phase: "Öffne Colli…", colli: input.colli, dryRun: input.dryRun,
+          startedAt, lastActivity: startedAt, endedAt: null, fehler: null, gebucht: [],
         };
         fs.mkdirSync(DIR, { recursive: true });
-        fs.writeFileSync(`${UMB_STATUS}.tmp`, JSON.stringify(status));
-        fs.renameSync(`${UMB_STATUS}.tmp`, UMB_STATUS);
-        fs.writeFileSync(UMB_REQ, JSON.stringify({ colli: input.colli, logId: input.logId, dryRun: input.dryRun, ts: startedAt }));
+        try { fs.rmSync(SESSION_CLOSE, { force: true }); } catch { /* egal */ }
+        fs.writeFileSync(`${SESSION_STATUS}.tmp`, JSON.stringify(status));
+        fs.renameSync(`${SESSION_STATUS}.tmp`, SESSION_STATUS);
+        fs.writeFileSync(SESSION_REQ, JSON.stringify({ colli: input.colli, dryRun: input.dryRun, ts: startedAt }));
       } catch {
-        return { gestartet: false as const, grund: "Anfrage nicht schreibbar — Volume/Wächter prüfen." };
+        return { gestartet: false as const, grund: "Nicht schreibbar — Volume/Wächter prüfen." };
       }
       return { gestartet: true as const };
     }),
+
+  // LogID in die Warteschlange der offenen Session legen (wird sofort gebucht).
+  sessionLogId: manage
+    .input(z.object({ logId: z.string().trim().min(1).max(50) }))
+    .mutation(({ input }) => {
+      const s = leseSession();
+      if (!sessionOffen(s) || !(s.state === "bereit" || s.state === "buchen")) {
+        return { ok: false as const, grund: "Keine offene Colli-Session." };
+      }
+      try {
+        fs.mkdirSync(QUEUE_DIR, { recursive: true });
+        const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const tmp = path.join(QUEUE_DIR, `${name}.tmp`);
+        fs.writeFileSync(tmp, JSON.stringify({ logId: input.logId, ts: Date.now() }));
+        fs.renameSync(tmp, path.join(QUEUE_DIR, `${name}.json`));
+      } catch {
+        return { ok: false as const, grund: "LogID nicht schreibbar." };
+      }
+      return { ok: true as const };
+    }),
+
+  // Session beenden (Signal-Datei → der Container schließt den Browser).
+  sessionBeenden: manage.mutation(() => {
+    try { fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(SESSION_CLOSE, String(Date.now())); }
+    catch { return { ok: false as const }; }
+    return { ok: true as const };
+  }),
 });

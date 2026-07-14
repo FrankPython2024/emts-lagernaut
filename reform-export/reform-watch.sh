@@ -5,13 +5,13 @@ set -uo pipefail
 
 DATA=/var/www/lagernaut/reform
 TRIGGER="$DATA/trigger"
-UMBUCHEN="$DATA/umbuchen.json"
+SESSION="$DATA/session-req.json"
 BASE=/var/www/lagernaut/emts-lagernaut/reform-export
 SYNC="$BASE/reform-sync.sh"
 UMB="$BASE/reform-umbuchen.sh"
 
 mkdir -p "$DATA"
-echo "[$(date '+%F %T')] reform-watch gestartet (pollt Sync + Umbuchung)…"
+echo "[$(date '+%F %T')] reform-watch gestartet (pollt Sync + Buch-Session)…"
 
 while true; do
   if [ -f "$TRIGGER" ]; then
@@ -19,9 +19,9 @@ while true; do
     echo "[$(date '+%F %T')] Sync-Trigger erkannt…"
     bash "$SYNC" manuell || true
   fi
-  if [ -f "$UMBUCHEN" ]; then
-    echo "[$(date '+%F %T')] Umbuch-Anfrage erkannt…"
-    bash "$UMB" || true
+  if [ -f "$SESSION" ]; then
+    echo "[$(date '+%F %T')] Buch-Session-Auftrag erkannt…"
+    bash "$UMB" || true    # blockiert für die Dauer der Session (gewollt)
   fi
-  sleep 3
+  sleep 2
 done
