@@ -376,6 +376,10 @@ function AnfragenPageInner() {
   const [meinFilter,   setMeinFilter]   = useState(false);
   const [ohneTest,     setOhneTest]     = useState(false); // Test-Anfragen ausblenden
   const [tagesModal,   setTagesModal]   = useState(false);
+  // IDs, die der Techniker in DIESER Session selbst storniert hat (Live-Event).
+  // Sessionweit gemerkt, damit die Position auch nach einem Listen-Refetch als
+  // „vom Techniker storniert" markiert bleibt — nicht mit einem Admin-Storno verwechselbar.
+  const [technikerStorniert, setTechnikerStorniert] = useState<Set<number>>(() => new Set());
 
   // A/B-Ansicht: "liste" (Default) | "board". Auswahl in localStorage merken.
   const [ansicht, setAnsicht] = useState<"liste" | "board">("liste");
@@ -508,10 +512,16 @@ function AnfragenPageInner() {
       }
     });
     on(EVENTS.ANFRAGE_GELOESCHT, () => { refetch(); });
+    on(EVENTS.ANFRAGE_STORNIERT, (d: unknown) => {
+      const s = d as { id: number };
+      setTechnikerStorniert((prev) => { const n = new Set(prev); n.add(s.id); return n; });
+      refetch();
+    });
     return () => {
       off(EVENTS.ANFRAGE_UEBERNOMMEN);
       off(EVENTS.ANFRAGE_FREIGEGEBEN);
       off(EVENTS.ANFRAGE_GELOESCHT);
+      off(EVENTS.ANFRAGE_STORNIERT);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ersteller]);
@@ -997,6 +1007,11 @@ function AnfragenPageInner() {
                           <div className="text-xs text-orange-600/70 dark:text-orange-400/70 mt-0.5">⚠️ Kein Standard-Artikel · Bitte manuell prüfen</div>
                         )}
                         {a.kommentar && <span className="ml-2 text-xs text-[#0064d2] dark:text-[#45bdff]">⌨️ {a.kommentar}</span>}
+                        {technikerStorniert.has(a.id) && (
+                          <span className="ml-2 text-xs font-black px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 whitespace-nowrap">
+                            ⚠️ vom Techniker storniert
+                          </span>
+                        )}
                         {/* Bearbeiter-Hinweis per Anfrage */}
                         {a.bearbeitetVon && a.status === AnfrageStatus.IN_BEARBEITUNG && (
                           <span className={`ml-2 text-xs font-semibold ${isLockedByMe && a.bearbeitetVon.toUpperCase() === ersteller.toUpperCase() ? "text-blue-600 dark:text-blue-400" : "text-amber-600 dark:text-amber-400"}`}>

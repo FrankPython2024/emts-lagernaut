@@ -55,4 +55,5 @@ export type StornoPayload = {
   teil:      string;
   techniker: string;
   logId:     string;
+  status:    string; // für den Hinweis „wird schon bearbeitet" im Storno-Dialog
 };

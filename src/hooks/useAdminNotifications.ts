@@ -79,6 +79,27 @@ export function useAdminNotifications(): void {
     return () => off(EVENTS.ANFRAGE_NEU);
   }, [active, on, off]);
 
+  // ── Trigger 1a: Techniker-Storno (Socket) ─────────────────────────────────
+  // Auffällig: Ping (Glocken-Toggle respektiert) IMMER, plus Browser-Notification,
+  // wenn das Fenster nicht aktiv ist — damit eine bereits in Bearbeitung befindliche
+  // Position nicht unnötig weiter ausgegeben wird. Der Toast kommt aus dem Layout.
+  useEffect(() => {
+    if (!active) return;
+    const handler = (d: unknown) => {
+      const a = d as { id: number; teil: string; techniker: string; logId?: string; warInBearbeitung?: boolean };
+      playPing();
+      if (!document.hidden && document.hasFocus()) return;
+      zeigeAnfrageNotification({
+        title: a.warInBearbeitung ? "Storniert (war in Bearbeitung!)" : "Position storniert",
+        body:  `${a.techniker} hat „${a.teil}" storniert — nicht mehr ausgeben`,
+        tag:   `anfrage-storniert-${a.id}`,
+        href:  `/admin/anfragen?highlight=${a.id}`,
+      });
+    };
+    on(EVENTS.ANFRAGE_STORNIERT, handler);
+    return () => off(EVENTS.ANFRAGE_STORNIERT);
+  }, [active, on, off]);
+
   // ── Trigger 1b: Pickup abgeschlossen (Socket) ─────────────────────────────
   // Gleiche Schiene: Ping (Glocken-Toggle respektiert) + Browser-Notification,
   // wenn das Fenster nicht aktiv ist. Der Toast kommt aus dem Admin-Layout.

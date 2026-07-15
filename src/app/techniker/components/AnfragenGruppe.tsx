@@ -85,7 +85,7 @@ export default function AnfragenGruppe({ gruppe, kuerzel, onStorno }: Props) {
             key={a.id}
             anfrage={a}
             idx={idx}
-            onStorno={() => onStorno({ id: a.id, teil: a.teil, techniker: a.techniker, logId: a.logId })}
+            onStorno={() => onStorno({ id: a.id, teil: a.teil, techniker: a.techniker, logId: a.logId, status: a.status })}
           />
         ))}
       </div>

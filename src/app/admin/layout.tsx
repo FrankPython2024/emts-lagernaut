@@ -342,6 +342,13 @@ function SocketNotifications() {
       const a = d as { techniker: string; teil: string };
       show(`🔔 Neue Anfrage: ${a.teil} (${a.techniker})`, "info");
     });
+    on(EVENTS.ANFRAGE_STORNIERT, (d: unknown) => {
+      const a = d as { teil: string; techniker: string; warInBearbeitung?: boolean };
+      show(
+        `⚠️ ${a.techniker} hat „${a.teil}" storniert${a.warInBearbeitung ? " — war schon in Bearbeitung!" : ""} · bitte nicht mehr ausgeben`,
+        "warning",
+      );
+    });
     on(EVENTS.PICKUP_ABGESCHLOSSEN, (d: unknown) => {
       const p = d as { name: string; gesamt: number; gefunden: number; nichtGefunden: number };
       if (p.nichtGefunden > 0) {
@@ -355,6 +362,7 @@ function SocketNotifications() {
       off(EVENTS.TECHNIKER_ONLINE);
       off(EVENTS.TECHNIKER_OFFLINE);
       off(EVENTS.ANFRAGE_NEU);
+      off(EVENTS.ANFRAGE_STORNIERT);
       off(EVENTS.PICKUP_ABGESCHLOSSEN);
     };
   }, [on, off, show]);

@@ -107,26 +107,28 @@ export async function storniereAnfrage(
 ): Promise<void> {
   const techniker = data.techniker.toUpperCase().trim();
 
+  // Stornierbar bis zur Ausgabe: NEU, BEDARF UND IN_BEARBEITUNG. Wird eine bereits
+  // in Bearbeitung genommene Position storniert, muss der Admin auffällig gewarnt
+  // werden (s. u. ANFRAGE_STORNIERT), damit er sie nicht unnötig weiter ausgibt.
+  const stornierbar = [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG];
   const anfrage = "id" in data
     ? await prisma.anfrage.findFirst({
-        where: {
-          id:        data.id,
-          techniker,
-          status:    { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] },
-        },
-        select: { id: true, status: true, artikelId: true },
+        where: { id: data.id, techniker, status: { in: stornierbar } },
+        select: { id: true, status: true, artikelId: true, teil: true, logId: true, geraeteName: true, bearbeitetVon: true },
       })
     : await prisma.anfrage.findFirst({
         where: {
           techniker,
           logId:  normalizeLogId(data.logId),
           teil:   data.teil.trim(),
-          status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] },
+          status: { in: stornierbar },
         },
-        select: { id: true, status: true, artikelId: true },
+        select: { id: true, status: true, artikelId: true, teil: true, logId: true, geraeteName: true, bearbeitetVon: true },
       });
 
-  if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Keine stornierbare Anfrage gefunden (nur NEU oder BEDARF möglich)." });
+  if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Keine stornierbare Anfrage gefunden (nur bis zur Ausgabe möglich)." });
+
+  const warInBearbeitung = anfrage.status === AnfrageStatus.IN_BEARBEITUNG;
 
   await prisma.anfrage.update({ where: { id: anfrage.id }, data: { status: AnfrageStatus.STORNIERT } });
   meilisearchSync.anfrage(anfrage.id);
@@ -136,6 +138,18 @@ export async function storniereAnfrage(
   const payload = { id: anfrage.id, status: AnfrageStatus.STORNIERT };
   emitToBackoffice(EVENTS.ANFRAGE_UPDATED, payload);
   emitToUser(techniker, EVENTS.ANFRAGE_UPDATED, payload);
+  // Eigenes, auffälliges Event: Techniker hat eine EINZELNE Position selbst storniert.
+  // Trägt genug Kontext für Toast/Notification + Listen-Markierung im Admin-Portal,
+  // damit die Position nicht weiter bearbeitet und keine Zeit verschwendet wird.
+  emitToBackoffice(EVENTS.ANFRAGE_STORNIERT, {
+    id:               anfrage.id,
+    teil:             anfrage.teil,
+    techniker,
+    logId:            anfrage.logId,
+    geraeteName:      anfrage.geraeteName,
+    warInBearbeitung,
+    bearbeitetVon:    anfrage.bearbeitetVon ?? null,
+  });
   invalidateTechnikerCache(techniker).catch(() => {});
 }
 

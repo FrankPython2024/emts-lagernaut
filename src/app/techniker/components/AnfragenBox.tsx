@@ -267,9 +267,14 @@ export default function AnfragenBox({ kuerzel }: Props) {
           >
             <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>🗑️</div>
             <h3 style={{ margin: "0 0 8px", color: "var(--danger)" }}>Anfrage stornieren</h3>
-            <p style={{ color: "var(--text-dim)", margin: "0 0 1.5rem" }}>
+            <p style={{ color: "var(--text-dim)", margin: "0 0 1rem" }}>
               Möchtest du <strong style={{ color: "var(--text)" }}>{stornoItem.teil}</strong> wirklich stornieren?
             </p>
+            {stornoItem.status === "IN_BEARBEITUNG" && (
+              <p style={{ background: "rgba(217,119,6,0.12)", color: "#b45309", borderRadius: 8, padding: "8px 12px", margin: "0 0 1.5rem", fontSize: "0.82rem", fontWeight: 600 }}>
+                ⚠️ Diese Position wird bereits vom Lager bearbeitet. Beim Stornieren wird der Lagerist sofort informiert.
+              </p>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <button onClick={() => setStornoItem(null)} style={BTN}>
                 Abbrechen

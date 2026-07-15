@@ -7,6 +7,7 @@ export const EVENTS = {
   // Anfragen
   ANFRAGE_NEU:          "anfrage:neu",
   ANFRAGE_UPDATED:      "anfrage:updated",
+  ANFRAGE_STORNIERT:    "anfrage:storniert", // Techniker hat eine EINZELNE Position selbst storniert
   ANFRAGE_UEBERNOMMEN:  "anfrage:uebernommen",
   ANFRAGE_FREIGEGEBEN:  "anfrage:freigegeben",
   ANFRAGE_GELOESCHT:    "anfrage:geloescht",

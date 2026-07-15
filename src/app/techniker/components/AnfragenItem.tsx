@@ -9,7 +9,9 @@ interface Props {
 
 export default function AnfragenItem({ anfrage, idx, onStorno }: Props) {
   const cfg             = STATUS_CFG[anfrage.status] ?? STATUS_CFG["STORNIERT"]!;
-  const canStorno       = anfrage.status === "NEU" || anfrage.status === "BEDARF";
+  // Stornierbar bis zur Ausgabe — auch wenn der Lagerist die Position schon
+  // in Bearbeitung hat (dann wird er im Admin-Portal auffällig gewarnt).
+  const canStorno       = anfrage.status === "NEU" || anfrage.status === "BEDARF" || anfrage.status === "IN_BEARBEITUNG";
   const isAbgeschlossen = anfrage.status === "ABGESCHLOSSEN";
   const isStorniert     = anfrage.status === "STORNIERT";
   const isInBearbeitung = anfrage.status === "IN_BEARBEITUNG";
