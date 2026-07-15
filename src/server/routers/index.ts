@@ -36,7 +36,6 @@ import { mobilRouter }               from "./mobil";
 import { mobilAnfrageRouter }        from "./mobilAnfrage";
 import { preiseRouter }              from "./preise";
 import { impactRouter }              from "./impact";
-import { reformRouter }              from "./reform";
 
 export const appRouter = createTRPCRouter({
   lager:           lagerRouter,
@@ -76,7 +75,6 @@ export const appRouter = createTRPCRouter({
   mobilAnfrage:       mobilAnfrageRouter,
   preise:             preiseRouter,
   impact:             impactRouter,
-  reform:             reformRouter,
 });
 
 export type AppRouter = typeof appRouter;

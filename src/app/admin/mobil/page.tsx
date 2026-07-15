@@ -88,14 +88,6 @@ export default function MobilPage() {
           </Link>
           {darfVerwalten && (
             <Link
-              href="/admin/mobil/umbuchen"
-              className="inline-flex items-center gap-2 px-4 rounded-xl text-base font-bold shadow-sm min-h-[44px] border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3a3b3c] transition-colors"
-            >
-              📦 Umbuchen
-            </Link>
-          )}
-          {darfVerwalten && (
-            <Link
               href={`/admin/mobil/import?bereich=${bereich}`}
               className="inline-flex items-center gap-2 px-4 rounded-xl text-white text-base font-bold shadow-sm min-h-[44px]"
               style={{ background: AKZENT }}
