@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import FocusTrap from "focus-trap-react";
 import { api } from "@/trpc/react";
@@ -105,8 +105,6 @@ export default function MobilPage() {
           )}
         </div>
       </header>
-
-      {darfVerwalten && <ReformSync />}
 
       {/* Reiter: Kostenstelle/Bereich — schaltet die ganze Ansicht um */}
       <div className="flex gap-1 rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-1 w-fit">
@@ -338,117 +336,6 @@ function MobilModellModal({
         </div>
       </div>
     </FocusTrap>
-  );
-}
-
-// ── ReForm-Sync: Button „Aus ReForm aktualisieren" + Fortschrittsbalken ─────────
-// Stößt über die App eine Trigger-Datei an; der Host-Wächter fährt Export+Import
-// und schreibt status.json, das wir hier pollen. (Router: reform.syncStarten/Status)
-function ReformSync() {
-  const utils = api.useUtils();
-  const { show } = useToast();
-
-  const statusQ = api.reform.syncStatus.useQuery(undefined, {
-    // Aktiv: schnell (2s). Leerlauf: alle 20s — so werden auch AUTOMATISCHE
-    // (cron-)Syncs live sichtbar, ohne die App zu belasten (liest nur die Datei).
-    refetchInterval: (q) => (q.state.data?.aktiv ? 2000 : 20000),
-    refetchOnWindowFocus: true,
-  });
-  const starten = api.reform.syncStarten.useMutation({
-    onSuccess: (r) => {
-      if (r.gestartet) { show("🔄 ReForm-Sync gestartet…", "info"); void statusQ.refetch(); }
-      else show(r.grund ?? "Läuft bereits.", "info");
-    },
-    onError: (e) => show(e.message, "error"),
-  });
-
-  const s = statusQ.data;
-  const aktiv = !!s?.aktiv;
-
-  // Nach Abschluss die Mobil-Listen auffrischen.
-  const warAktiv = useRef(false);
-  useEffect(() => {
-    if (warAktiv.current && !aktiv && s?.state === "fertig") {
-      void utils.mobil.invalidate();
-      show("✅ ReForm-Sync fertig — Daten aktualisiert.", "success");
-    }
-    warAktiv.current = aktiv;
-  }, [aktiv, s?.state]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Live-Ticker für den Countdown zum nächsten Auto-Import (cron läuft alle 10 Min).
-  const [jetzt, setJetzt] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setJetzt(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  const INTERVAL_MS = 10 * 60 * 1000;
-  const naechster = Math.ceil((jetzt + 1) / INTERVAL_MS) * INTERVAL_MS;
-  const restMs    = Math.max(0, naechster - jetzt);
-  const restStr   = `${Math.floor(restMs / 60000)}:${String(Math.floor((restMs % 60000) / 1000)).padStart(2, "0")}`;
-
-  const fehler = s?.state === "fehler" || !!s?.haengt;
-  const prozent =
-    s?.state === "angefordert" ? 12 :
-    s?.state === "export"      ? 45 :
-    s?.state === "import"      ? 80 :
-    (s?.state === "fertig" || fehler) ? 100 : 0;
-  const zeigBalken = aktiv || s?.state === "fertig" || fehler;
-  const b = (s?.bericht ?? null) as { importiertGesamt?: number; erkannt?: number; neu?: number; anzahlAusgeschieden?: number } | null;
-  const uhr = (ms: number) => new Date(ms).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-
-  return (
-    <div className="rounded-xl border border-[#008BD2]/30 bg-[#008BD2]/5 p-4 flex flex-col gap-3">
-      {/* Kopf: Titel + Countdown zum nächsten Auto-Import + Button */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb]">🌉 ReForm-Sync</span>
-          {!aktiv && (
-            <span className="text-xs font-mono text-[#65676b] dark:text-[#b0b3b8]">
-              ⏭️ nächster Auto-Import um {uhr(naechster)} <span className="tabular-nums">(in {restStr})</span>
-            </span>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => starten.mutate()}
-          disabled={aktiv || starten.isPending}
-          className="inline-flex items-center gap-2 px-4 rounded-xl text-white text-base font-bold shadow-sm min-h-[44px] disabled:opacity-50"
-          style={{ background: AKZENT }}
-        >
-          🔄 {aktiv ? "Aktualisiere…" : "Aus ReForm aktualisieren"}
-        </button>
-      </div>
-
-      {/* Terminal-Live-Zeile während des Syncs (zeigt den echten Schritt des Exports) */}
-      {aktiv && (
-        <div className="rounded-lg bg-[#0b1020] text-[#7CE38B] font-mono text-sm px-3 py-2 flex items-center gap-2 overflow-hidden">
-          <span className="inline-block w-2 h-2 rounded-full bg-[#7CE38B] animate-pulse shrink-0" aria-hidden />
-          <span className="truncate">{s?.phase ?? "…"}</span>
-          <span className="ml-auto text-[#4a5568] text-xs shrink-0">{s?.quelle === "cron" ? "auto" : "manuell"}</span>
-        </div>
-      )}
-
-      {/* Fortschrittsbalken */}
-      {zeigBalken && (
-        <div>
-          <div className="h-2.5 w-full rounded-full bg-[#ced4da] dark:bg-[#3e4042] overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${prozent}%`, background: fehler ? "#b3261e" : s?.state === "fertig" ? "#04B475" : AKZENT }}
-            />
-          </div>
-          {!aktiv && (
-            <div className="mt-1 text-xs text-[#65676b] dark:text-[#b0b3b8]">
-              {fehler
-                ? `⚠️ ${s?.fehler || "Sync hängt oder wurde abgebrochen."}`
-                : s?.state === "fertig"
-                  ? `✅ Fertig${b ? ` — ${(b.importiertGesamt ?? 0).toLocaleString("de-DE")} Teile · ${b.erkannt ?? 0} erkannt · ${b.neu ?? 0} neu · ${b.anzahlAusgeschieden ?? 0} ausgeschieden` : ""}${s?.endedAt ? ` · um ${uhr(s.endedAt)}${s.quelle === "cron" ? " (auto)" : ""}` : ""}`
-                  : ""}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
   );
 }
 
