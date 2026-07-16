@@ -114,6 +114,9 @@ async function erkenneTyp(tmpPath: string): Promise<{ typ: Typ; gesamt: number; 
       header:         true,
       delimiter:      ";",
       skipEmptyLines: true,
+      // UTF-8-BOM am ersten Header entfernen — sonst heißt die erste Spalte
+      // "﻿LogId", die LogId-Spalte ist unauffindbar und JEDE Zeile fällt raus.
+      transformHeader: (h: string) => h.replace(/^﻿/, "").trim(),
       step: (result) => {
         if (!logIdRoh(result.data)) return; // nur echte Datenzeilen
         gesamt += 1;
@@ -175,6 +178,9 @@ async function runFehlteilImport(tmpPath: string, importId: number, importiertAm
       header:         true,
       delimiter:      ";",
       skipEmptyLines: true,
+      // UTF-8-BOM am ersten Header entfernen — sonst heißt die erste Spalte
+      // "﻿LogId", die LogId-Spalte ist unauffindbar und JEDE Zeile fällt raus.
+      transformHeader: (h: string) => h.replace(/^﻿/, "").trim(),
       step: (result, parser) => {
         const gemappt = mappeFehlteil(result.data);
         if (gemappt) puffer.push(gemappt);
@@ -309,6 +315,9 @@ async function runLagerfuchsImport(tmpPath: string, importId: number, importiert
       header:         true,
       delimiter:      ";",
       skipEmptyLines: true,
+      // UTF-8-BOM am ersten Header entfernen — sonst heißt die erste Spalte
+      // "﻿LogId", die LogId-Spalte ist unauffindbar und JEDE Zeile fällt raus.
+      transformHeader: (h: string) => h.replace(/^﻿/, "").trim(),
       step: (result, parser) => {
         const gemappt = mappeZeile(result.data);
         if (gemappt) puffer.push(gemappt);
@@ -336,7 +345,19 @@ async function runLagerfuchsImport(tmpPath: string, importId: number, importiert
   // LogIDs, die in DIESEM Voll-Snapshot fehlen (zuletztImportId < importId) und
   // noch nicht ausgeschieden, haben das System verlassen. Set-basiert.
   let anzahlAusgeschieden = 0;
-  {
+
+  // SICHERUNG gegen Total-Ausscheidung durch einen leeren/kaputten/geschrumpften
+  // Snapshot (leere Datei, falscher Delimiter, BOM, abgebrochener/gefilterter Export):
+  // Nur ausscheiden, wenn dieser Import plausibel viele LogIDs gesehen hat (>= 50 %
+  // des bisherigen aktiven Bestands). Sonst wird die Abgangs-Erkennung übersprungen,
+  // damit nicht der komplette Bestand faelschlich als „ausgeschieden" markiert wird.
+  const wuerdenAusscheiden = await prisma.logIdStand.count({
+    where: { zuletztImportId: { lt: importId }, ausgeschieden: false },
+  });
+  const aktivGesamt = zeilen + wuerdenAusscheiden;
+  const snapshotPlausibel = zeilen > 0 && (aktivGesamt === 0 || zeilen >= 0.5 * aktivGesamt);
+
+  if (snapshotPlausibel) {
     // 1) Je Abgang eine Bewegung schreiben — VOR dem Flag-Update (liest den
     //    letzten Verbleib + ausgeschieden=false). „von" = letzter Verbleib bzw.
     //    „im System", „nach" = „ausgeschieden".
@@ -359,6 +380,8 @@ async function runLagerfuchsImport(tmpPath: string, importId: number, importiert
       where: { zuletztImportId: importId, ausgeschieden: true },
       data:  { ausgeschieden: false, ausgeschiedenAm: null },
     });
+  } else if (wuerdenAusscheiden > 0) {
+    console.warn(`[geraete-reise] Abgangs-Erkennung ÜBERSPRUNGEN: nur ${zeilen} von ~${aktivGesamt} LogIDs im Snapshot (verdaechtig klein/leer) — kein Ausscheiden, Bestand geschuetzt.`);
   }
 
   await prisma.logIdImport.update({

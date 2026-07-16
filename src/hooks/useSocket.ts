@@ -22,16 +22,25 @@ export function useSocket() {
         path:                "/api/socketio",
         addTrailingSlash:    false,
         auth:                { kuerzel: user.kuerzel, rolle: user.rolle },
-        reconnectionAttempts: 5,
+        // Nie dauerhaft aufgeben: nach einem Deploy (Server ist Minuten weg) sollen
+        // offene Tabs von selbst wieder verbinden, statt nach ~20s tot zu bleiben.
+        reconnectionAttempts: Infinity,
         reconnectionDelay:    1_000,
+        reconnectionDelayMax: 5_000,
         transports:          ["polling", "websocket"],
       });
     }
 
     const socket = globalSocket;
 
-    socket.on("connect",    () => { setConnected(true);  console.log("[Socket.io] verbunden"); });
-    socket.on("disconnect", () => { setConnected(false); console.log("[Socket.io] getrennt"); });
+    // Benannte Handler, damit die Cleanup sie wieder entfernen kann — sonst sammeln
+    // sich bei jedem Mount/Remount neue connect/disconnect-Listener auf dem Singleton.
+    const onConnect    = () => { setConnected(true);  console.log("[Socket.io] verbunden"); };
+    const onDisconnect = () => { setConnected(false); console.log("[Socket.io] getrennt"); };
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    // Aktuellen Verbindungsstand sofort spiegeln (spät gemountete Konsumenten).
+    setConnected(socket.connected);
 
     // Heartbeat
     const hbInterval = setInterval(() => {
@@ -40,7 +49,9 @@ export function useSocket() {
 
     return () => {
       clearInterval(hbInterval);
-      // Socket NICHT disconnecten (Singleton bleibt bestehen)
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      // Socket selbst NICHT disconnecten (Singleton bleibt bestehen)
     };
   }, [user?.kuerzel, user?.rolle]);
 

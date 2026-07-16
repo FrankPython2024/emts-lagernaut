@@ -498,7 +498,10 @@ export async function getAnfragenGruppiert(input?: {
   ohneTest?:   boolean;  // true = Test-Anfragen ausblenden (Admin-Filter)
 }): Promise<GruppenAnfrage[]> {
   const where = {
-    ...(input?.standortId != null && { artikel: { standortId: input.standortId } }),
+    // Standort-Filter: artikellose Anfragen (Sonderanfragen, BEDARF ohne Artikel)
+    // haben keinen Standort und MUESSEN sichtbar bleiben — sonst verschwinden sie
+    // fuer standort-eingeschraenkte Admins komplett (analog getAnfragenAdmin).
+    ...(input?.standortId != null && { OR: [{ artikel: { standortId: input.standortId } }, { artikelId: null }] }),
     ...(input?.ohneTest && { testModus: false }),
     ...(input?.status    && { status: input.status }),
     ...(input?.techniker && { techniker: input.techniker.toUpperCase().trim() }),

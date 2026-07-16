@@ -1472,7 +1472,9 @@ function AnfrageDetailModal({
   const geraet        = gruppe.geraeteName ?? (hasLogId ? gruppe.logId! : "Unbekanntes Gerät");
   const status        = gruppeStatus(gruppe);
   const cfg           = STATUS_CFG[status] ?? STATUS_CFG.NEU!;
-  const stornoItems   = gruppe.anfragen.filter(a => a.status === "NEU" || a.status === "BEDARF");
+  // Stornierbar bis zur Ausgabe — inkl. IN_BEARBEITUNG (der Admin wird beim
+  // Stornieren einer bereits bearbeiteten Position auffaellig gewarnt).
+  const stornoItems   = gruppe.anfragen.filter(a => a.status === "NEU" || a.status === "BEDARF" || a.status === "IN_BEARBEITUNG");
   const kannStornieren = stornoItems.length > 0;
 
   async function handleStornoConfirm() {

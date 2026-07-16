@@ -102,7 +102,7 @@ async function handleMeilisearchJob(job: { id?: string | undefined; name: string
       const artikelId = job.data.artikelId as number;
       const a = await prisma.artikel.findUnique({
         where:  { id: artikelId },
-        select: { id: true, bezeichnung: true, kategorie: true, bestand: true, lagerplatz: true },
+        select: { id: true, bezeichnung: true, kategorie: true, bestand: true, lagerplatz: true, standortId: true },
       });
       if (!a) {
         await meilisearch.index("artikel").deleteDocument(artikelId);
@@ -112,6 +112,7 @@ async function handleMeilisearchJob(job: { id?: string | undefined; name: string
       await meilisearch.index("artikel").addDocuments([{
         id: a.id, bezeichnung: a.bezeichnung, kategorie: a.kategorie, bestand: a.bestand,
         lagerplatz: a.lagerplatz ?? null,
+        standortId: a.standortId, // sonst faellt der Datensatz nach Bearbeitung aus der standort-gefilterten Suche
         modell: t.length > 1 ? t.slice(0, -1).join(" ") : a.bezeichnung,
         bestandStatus: a.bestand > 0 ? "vorhanden" : "leer",
       }], { primaryKey: "id" });

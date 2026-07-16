@@ -101,6 +101,15 @@ export async function updateUser(
     throw new TRPCError({ code: "NOT_FOUND", message: "Benutzer nicht gefunden." });
   }
 
+  // Letzten aktiven ADMIN nicht degradieren — sonst sperrt sich das System selbst
+  // aus (adminProcedure haengt an rolle==='ADMIN'; danach nur noch DB-Eingriff).
+  if (data.rolle && data.rolle !== "ADMIN" && user.rolle === "ADMIN") {
+    const adminsAktiv = await prisma.user.count({ where: { rolle: "ADMIN", aktiv: true } });
+    if (adminsAktiv <= 1) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Der letzte aktive Admin kann nicht herabgestuft werden." });
+    }
+  }
+
   return prisma.user.update({
     where: { id },
     data: {
@@ -182,6 +191,11 @@ const DEFAULT_PW = "techniker123";
 export async function resetPasswordToDefault(id: number): Promise<{ kuerzel: string; rolle: string }> {
   const user = await prisma.user.findUnique({ where: { id }, select: { id: true, rolle: true, kuerzel: true } });
   if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Benutzer nicht gefunden." });
+  // Rolle ZUERST pruefen — sonst wird das Admin-Passwort auf den oeffentlich
+  // bekannten Default gesetzt, bevor die Sperre greift (Sicherheitsluecke).
+  if (user.rolle === "ADMIN") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Admin-Passwörter können nicht auf den Standard zurückgesetzt werden." });
+  }
   const hash = await bcrypt.hash(DEFAULT_PW, BCRYPT_ROUNDS);
   await prisma.user.update({ where: { id }, data: { password: hash } });
   return { kuerzel: user.kuerzel, rolle: user.rolle };

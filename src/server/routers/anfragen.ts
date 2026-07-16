@@ -296,9 +296,17 @@ export const anfragenRouter = createTRPCRouter({
 
         // TEST-MODUS: Sicherheitsgurt — Test-Anfragen erzeugen NIE eine Buchung
         // und verändern NIE den Bestand. Status wird unten via setzeStatus gesetzt.
-        if (anfrage && !anfrage.testModus) {
-          // AUSGANG-Buchung erstellen — nur wenn Artikel verknüpft und noch nicht ABGESCHLOSSEN
-          if (anfrage.artikelId && anfrage.status !== AnfrageStatus.ABGESCHLOSSEN) {
+        // Nur aus einem BUCHBAREN (nicht-terminalen) Zustand darf eine AUSGANG-Buchung
+        // + Beleg entstehen. Sonst wuerde ein setStatus(ABGESCHLOSSEN) auf eine bereits
+        // STORNIERTE/NICHT_VERFUEGBARE Anfrage still Bestand verbrauchen und eine Belegnr
+        // ziehen, bevor setzeStatus() den unzulaessigen Uebergang unten ablehnt.
+        const buchbar = anfrage != null && ([
+          AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG,
+        ] as AnfrageStatus[]).includes(anfrage.status);
+
+        if (anfrage && !anfrage.testModus && buchbar) {
+          // AUSGANG-Buchung erstellen — nur wenn Artikel verknüpft
+          if (anfrage.artikelId) {
             try {
               await bucheLager({
                 artikelId:   anfrage.artikelId,
@@ -309,9 +317,13 @@ export const anfragenRouter = createTRPCRouter({
               });
             } catch (e) {
               // "Kein Bestand" / "Nicht genug Bestand" sind erwartete Fälle (BEDARF-Anfragen)
+              // und duerfen als "ohne Teil erledigt" durchgehen. ALLE anderen Fehler
+              // (z.B. transiente DB-Fehler) werden NICHT verschluckt — sonst wuerde die
+              // Anfrage ABGESCHLOSSEN + Beleg gesetzt, obwohl KEINE Buchung entstand.
               const msg = e instanceof Error ? e.message : String(e);
               if (!msg.includes("Kein Bestand") && !msg.includes("Nicht genug Bestand")) {
                 console.error(`[setStatus] AUSGANG für Anfrage #${input.id} fehlgeschlagen: ${msg}`);
+                throw e;
               }
             }
           }

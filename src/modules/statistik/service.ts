@@ -134,10 +134,12 @@ export async function getBuchungenVerlauf(tage: number, standortId?: number | nu
     orderBy: { datum: "asc" },
   });
 
-  // Tageweise aggregieren
+  // Tageweise aggregieren. von = heute - tage (00:00), die Query liefert datum >= von,
+  // also von..heute (inkl. heute). Deshalb i <= tage — sonst fehlt der HEUTIGE Tag
+  // und alle heutigen Buchungen fallen unten in `if (!tag) continue` heraus.
   const tagesMap = new Map<string, { eingang: number; ausgang: number; direkt: number }>();
 
-  for (let i = 0; i < tage; i++) {
+  for (let i = 0; i <= tage; i++) {
     const d = new Date(von);
     d.setDate(d.getDate() + i);
     tagesMap.set(d.toISOString().slice(0, 10), { eingang: 0, ausgang: 0, direkt: 0 });
