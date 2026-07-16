@@ -194,11 +194,22 @@ function TeilKonfigurator({
     if (istVerschiedenes) freitextRef.current?.focus();
   }, [istVerschiedenes]);
 
+  // Menge frei eingebbar (3D-Druck liefert oft große Stückzahlen). Cap 9999 =
+  // Server-Limit; Warnhinweis erst bei ungewöhnlich hohen Werten (Tippfehler-Schutz).
+  function setMengeSicher(n: number) {
+    const clamped = Math.max(1, Math.min(9999, Number.isFinite(n) ? n : 1));
+    setWarn(clamped > 50);
+    setMenge(clamped);
+  }
   function changeMenge(delta: number) {
-    const next = Math.max(1, Math.min(99, menge + delta));
-    if (next > 5 && menge <= 5) setWarn(true);
-    else setWarn(false);
-    setMenge(next);
+    setMengeSicher(menge + delta);
+  }
+  function onMengeInput(raw: string) {
+    const digits = raw.replace(/[^0-9]/g, "").slice(0, 4);
+    if (digits === "") { setMenge(0); setWarn(false); return; } // transient leer; Blur setzt auf 1
+    const n = Math.min(9999, parseInt(digits, 10));
+    setMenge(n);
+    setWarn(n > 50);
   }
 
   function handleSave() {
@@ -208,7 +219,7 @@ function TeilKonfigurator({
       teiltyp:    teil.id,
       label:      istVerschiedenes && ft ? `${teil.label} — ${ft}` : teil.label,
       icon:       teil.icon,
-      menge,
+      menge:      Math.max(1, Math.min(9999, menge)),
       grading,
       notiz,
       lagerplatz: initial.lagerplatz ?? "",
@@ -315,7 +326,7 @@ function TeilKonfigurator({
           {/* Menge */}
           <div style={{ marginBottom: "1.5rem" }}>
             <div style={{ fontWeight: 800, marginBottom: 10, fontSize: "1rem" }}>
-              ❓ Wie viele Stück?
+              ❓ Wie viele Stück? <span style={{ fontWeight: 400, color: "var(--text-dim)", fontSize: "0.85rem" }}>(Zahl direkt eintippbar)</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 16, justifyContent: "center" }}>
               <button
@@ -329,9 +340,23 @@ function TeilKonfigurator({
                   opacity: menge <= 1 ? 0.4 : 1, fontFamily: "'Ubuntu', sans-serif",
                 }}
               >−</button>
-              <span style={{ fontSize: "2.5rem", fontWeight: 900, minWidth: 60, textAlign: "center", color: "var(--text)" }}>
-                {menge}
-              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={menge === 0 ? "" : menge}
+                onChange={(e) => onMengeInput(e.target.value)}
+                onFocus={(e) => e.currentTarget.select()}
+                onBlur={() => setMengeSicher(menge || 1)}
+                aria-label="Stückzahl (frei eingebbar)"
+                style={{
+                  width: 130, height: 60, textAlign: "center",
+                  fontSize: "2.5rem", fontWeight: 900, color: "var(--text)",
+                  background: "var(--bg)", border: "2px solid var(--border)", borderRadius: 12,
+                  fontFamily: "'Ubuntu', sans-serif", outline: "none",
+                }}
+                onFocusCapture={(e) => (e.currentTarget.style.borderColor = "var(--afb-navy)")}
+                onBlurCapture={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+              />
               <button
                 onClick={() => changeMenge(1)}
                 aria-label="Mehr"

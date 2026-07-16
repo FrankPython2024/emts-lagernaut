@@ -16,7 +16,7 @@ import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
 
 const EinlagerItemSchema = z.object({
   teiltyp:          z.string().min(1).max(100),
-  menge:            z.number().int().min(1).max(99),
+  menge:            z.number().int().min(1).max(9999), // 3D-Druck: freie, teils große Stückzahlen
   grading:          z.string().min(1).max(5),
   notiz:            z.string().max(500).optional(),
   lagerplatz:       z.string().max(50).optional(),
