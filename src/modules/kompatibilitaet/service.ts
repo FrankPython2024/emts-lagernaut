@@ -297,13 +297,19 @@ export async function autoVerknuepfung(modellId: number) {
   let neu = 0;
 
   if (fehlendeTl.length > 0 && keywords.length > 0) {
-    // Alle Kandidaten in einer Query laden
+    // WICHTIG: NUR der vollständige Modellname wird gematcht — NICHT die von
+    // extractKeywords zusätzlich gelieferten kürzeren Varianten. Sonst trifft
+    // `contains: "EliteBook"` auch „EliteBook 830 G7 Tastatur" und verknüpft ein
+    // Teil der FALSCHEN Gerätegeneration. Eine falsche Kompatibilität führt dazu,
+    // dass ein Techniker ein nicht passendes Teil bekommt — lieber keine
+    // Verknüpfung als eine falsche (der Admin kann jederzeit manuell zuordnen).
     const kandidaten = await prisma.artikel.findMany({
       where: {
-        kategorie: { in: fehlendeTl },
-        OR: keywords.map((kw) => ({ bezeichnung: { contains: kw } })),
+        kategorie:   { in: fehlendeTl },
+        bezeichnung: { contains: modell.modell },
       },
-      select: { id: true, kategorie: true },
+      select:  { id: true, kategorie: true },
+      orderBy: { id: "asc" }, // deterministisch — vorher entschied die DB-Reihenfolge
     });
 
     const kandidatenMap = new Map<string, number>();

@@ -1456,7 +1456,7 @@ function StepBestaetigung({
   const [localItems, setLocalItems] = useState<AusgewaehltItem[]>(items);
 
   const previewQuery = api.einlagern.preview.useQuery(
-    { geraetName: geraet.name, items: localItems.map((i) => ({ teiltyp: i.teiltyp, menge: i.menge, grading: i.grading, verschiedenesText: i.verschiedenesText })) },
+    { geraetName: geraet.name, standortId, items: localItems.map((i) => ({ teiltyp: i.teiltyp, menge: i.menge, grading: i.grading, verschiedenesText: i.verschiedenesText })) },
     { staleTime: 0 },
   );
 

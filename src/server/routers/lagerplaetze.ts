@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createTRPCRouter, adminProcedure, protectedProcedure } from "@/server/trpc";
+import { createTRPCRouter, adminProcedure, permissionProcedure } from "@/server/trpc";
 import {
   getAlleLagerplaetze,
   getBereiche,
@@ -9,15 +9,21 @@ import {
   verschiebeAlle,
 } from "@/modules/lagerplaetze/service";
 
+// Lesen erfordert LAGERPLATZ_VIEW — vorher lief das alte Modul auf protectedProcedure,
+// d.h. JEDER eingeloggte Nutzer (auch Techniker) konnte die komplette Lagerstruktur
+// samt Artikelverteilung abfragen. Der neuere lagerplatzRouter gated dieselben Daten
+// bereits so; Techniker sollen Lagerplätze bewusst NICHT sehen.
+const lagerplatzView = permissionProcedure("LAGERPLATZ_VIEW");
+
 export const lagerplaetzeRouter = createTRPCRouter({
 
   // Alle Lagerplätze (distinct Strings) mit Artikel-Anzahl
-  getAll: protectedProcedure
+  getAll: lagerplatzView
     .input(z.object({ bereich: z.string().optional() }).optional())
     .query(({ input }) => getAlleLagerplaetze(input)),
 
   // Alle Bereiche für Filter-Dropdown
-  getBereiche: protectedProcedure
+  getBereiche: lagerplatzView
     .query(() => getBereiche()),
 
   // Neuen Lagerplatz manuell anlegen — Admin
@@ -30,7 +36,7 @@ export const lagerplaetzeRouter = createTRPCRouter({
     .mutation(({ input }) => createLagerplatz(input)),
 
   // Lagerplatz-Details: alle Artikel mit diesem Code
-  getByCode: protectedProcedure
+  getByCode: lagerplatzView
     .input(z.object({ code: z.string().min(1) }))
     .query(({ input }) => getLagerplatzDetails(input.code)),
 

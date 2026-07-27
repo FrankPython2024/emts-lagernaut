@@ -134,7 +134,10 @@ export type PreviewResult = {
   neuerBestand:     number;
 };
 
-export async function preview(items: PreviewItem[], geraetName: string): Promise<PreviewResult[]> {
+// standortId MUSS derselbe sein, mit dem execute() später bucht — sonst zeigt die
+// Vorschau den Artikel/Bestand eines FREMDEN Standorts (vorher fest auf 1 verdrahtet)
+// und widerspricht dem, was tatsächlich passiert.
+export async function preview(items: PreviewItem[], geraetName: string, standortId = 1): Promise<PreviewResult[]> {
   return Promise.all(
     items.map(async (item): Promise<PreviewResult> => {
       // Verschiedenes: pro Freitext eindeutiger teiltyp-Schlüssel; Freitext wird
@@ -145,8 +148,10 @@ export async function preview(items: PreviewItem[], geraetName: string): Promise
       const artikelBezeichnung = `${geraetName} ${teiltypKey}`;
 
       // 1. Exakter Kompatibilitaets-Treffer für dieses Gerät + Teiltyp
+      //    (nur Artikel des Ziel-Standorts — sonst zeigt die Vorschau den Bestand
+      //    eines anderen Standorts an, während execute() hier neu anlegt.)
       const komp = await prisma.kompatibilitaet.findFirst({
-        where:   { geraet: geraetName, teiltyp: teiltypKey },
+        where:   { geraet: geraetName, teiltyp: teiltypKey, artikel: { standortId } },
         include: { artikel: true },
       });
       if (komp) {
@@ -166,7 +171,7 @@ export async function preview(items: PreviewItem[], geraetName: string): Promise
       // 2. Exakter Artikel-Bezeichnungs-Lookup — KEIN Kategorie-Fallback!
       //    Verhindert Cross-Device-Zuordnung (z.B. T14-Tastatur zu HP 840 zuweisen)
       const artikel = await prisma.artikel.findFirst({
-        where: { bezeichnung: artikelBezeichnung, kategorie: item.teiltyp, standortId: 1 },
+        where: { bezeichnung: artikelBezeichnung, kategorie: item.teiltyp, standortId },
       });
       if (artikel) {
         return {

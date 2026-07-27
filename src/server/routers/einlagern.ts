@@ -49,8 +49,11 @@ export const einlagernRouter = createTRPCRouter({
     .input(z.object({
       geraetName: z.string().min(1).max(255),
       items:      z.array(EinlagerItemSchema).min(1).max(13),
+      // muss zum Standort passen, mit dem execute() bucht — sonst zeigt die Vorschau
+      // Artikel/Bestände eines fremden Standorts an.
+      standortId: z.number().int().positive().optional(),
     }))
-    .query(({ input }) => preview(input.items, input.geraetName)),
+    .query(({ input }) => preview(input.items, input.geraetName, input.standortId ?? 1)),
 
   // Einbuchen: Artikel anlegen/finden, EINGANG-Buchung, Kompatibilitaet setzen, Lagerplatz zuweisen
   execute: adminProcedure
