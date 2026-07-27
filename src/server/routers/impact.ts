@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AnfrageStatus } from "@prisma/client";
 import { createTRPCRouter, permissionProcedure, adminProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
+import { NICHT_UMLAGERUNG } from "@/lib/buchungen/umlagerung";
 
 // ── Impact-/Nachhaltigkeits-Kennzahlen (Laptop-Ersatzteile) ──────────────────
 // Wiederverwendete Teile = Ausgabe-Buchungen (AUSGANG + DIREKT). Daraus über
@@ -56,7 +57,14 @@ export const impactRouter = createTRPCRouter({
         // Wiederverwendete Teile = Summe menge über Ausgabe-Buchungen.
         prisma.buchung.aggregate({
           _sum: { menge: true },
-          where: { typ: { in: ["AUSGANG", "DIREKT"] }, ...(datum ? { datum } : {}), ...(artikel ? { artikel } : {}) },
+          // Umlagerungen (Fach-/Standortwechsel) sind KEINE Wiederverwendung —
+          // sonst zählen CO2/E-Schrott/Teile Lager-interne Umzüge mit.
+          where: {
+            typ: { in: ["AUSGANG", "DIREKT"] },
+            ...NICHT_UMLAGERUNG,
+            ...(datum ? { datum } : {}),
+            ...(artikel ? { artikel } : {}),
+          },
         }),
         // Versorgte Geräte = distinkte LogIDs erledigter (Nicht-Test-)Anfragen.
         prisma.anfrage.findMany({

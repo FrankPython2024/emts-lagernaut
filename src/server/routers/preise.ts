@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
+import { nichtUmlagerungSql } from "@/lib/buchungen/umlagerung";
 
 // ── Kategorie-Preise (Laptop-Ersatzteile) ───────────────────────────────────
 // Laptop-Artikel haben keinen eigenen Preis. Hier wird ein Stückpreis je
@@ -119,7 +120,7 @@ export const preiseRouter = createTRPCRouter({
         FROM Buchung b
         JOIN Artikel a       ON a.id = b.artikelId
         LEFT JOIN KategoriePreis kp ON kp.kategorie = a.kategorie
-        WHERE b.typ IN ('AUSGANG', 'DIREKT') ${datumFilter} ${standortFilter}
+        WHERE b.typ IN ('AUSGANG', 'DIREKT') ${nichtUmlagerungSql("b")} ${datumFilter} ${standortFilter}
         GROUP BY a.kategorie, kp.preis
         ORDER BY a.kategorie
       `);
