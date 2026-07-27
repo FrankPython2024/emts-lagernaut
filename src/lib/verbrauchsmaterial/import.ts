@@ -39,8 +39,14 @@ function clean(v: unknown): string | null {
 
 // Ganzzahl aus beliebiger Zelle (auch "1.000", "12 Stk", "3,0"). Negatives und
 // Unparsbares → 0.
+// WICHTIG: Der Dezimalteil muss ABGESCHNITTEN werden, bevor Nicht-Ziffern fallen —
+// sonst wird "3,0" zu "30" (verzehnfachter Bestand). Deutsche Konvention:
+// Komma = Dezimaltrenner; Punkt = Tausendertrenner, ausser ihm folgen 1-2 Ziffern.
 function toInt(v: unknown): number {
-  const s = String(v ?? "").replace(/[^\d-]/g, "");
+  const s = String(v ?? "").trim()
+    .replace(/,\d*$/, "")        // "3,0" → "3" · "1.234,56" → "1.234"
+    .replace(/\.\d{1,2}$/, "")   // "3.5" → "3"  ("1.000" bleibt: 3 Ziffern = Tausender)
+    .replace(/[^\d-]/g, "");     // "1.000" → "1000" · "12 Stk" → "12"
   const n = parseInt(s, 10);
   return Number.isFinite(n) && n > 0 ? n : 0;
 }

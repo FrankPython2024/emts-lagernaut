@@ -260,6 +260,16 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     }
   }
 
+  // Der Nutzer hat bewusst ein Fach gewaehlt — ohne aufgeloestes Modell kann aber
+  // keine Belegung entstehen. Das darf NICHT still verschluckt werden (sonst denkt
+  // er, der Platz sei vergeben). Steht VOR allen Buchungen → kein Teil-Zustand.
+  if (input.gewaehlterLagerplatzId && !modellId) {
+    throw new TRPCError({
+      code:    "BAD_REQUEST",
+      message: "Lagerplatz konnte nicht vergeben werden: Hersteller/Modell wurde nicht eindeutig erkannt. Bitte den Gerätenamen MIT Hersteller angeben (z. B. „HP EliteBook 840 G5“).",
+    });
+  }
+
   // Lagerplatz zuweisen — mehrere Modelle pro Fach (gleicher Hersteller, max 4).
   let etlLagerplatzCode: string | undefined;
   if (modellId) {

@@ -95,13 +95,27 @@ export async function bucheLager(data: BucheLagerData): Promise<Buchung> {
       },
     });
 
-    // DIREKT: Bestand NICHT ändern
-    if (data.typ !== BuchungsTyp.DIREKT) {
-      const delta = data.typ === BuchungsTyp.EINGANG ? data.menge : -data.menge;
+    // DIREKT: Bestand NICHT ändern (Pass-Through — heilige Regel)
+    if (data.typ === BuchungsTyp.EINGANG) {
       await tx.artikel.update({
         where: { id: data.artikelId },
-        data:  { bestand: { increment: delta } },
+        data:  { bestand: { increment: data.menge } },
       });
+    } else if (data.typ === BuchungsTyp.AUSGANG) {
+      // BEDINGTES Dekrement: nur wenn wirklich genug da ist. Die Vorab-Pruefung oben
+      // liegt ausserhalb der Transaktion — zwei parallele Ausgaenge koennten den
+      // Bestand sonst unter 0 druecken. Meldung bewusst mit "Nicht genug Bestand",
+      // darauf prueft der Anfragen-Abschluss (setStatus) als erwarteten Fall.
+      const dek = await tx.artikel.updateMany({
+        where: { id: data.artikelId, bestand: { gte: data.menge } },
+        data:  { bestand: { decrement: data.menge } },
+      });
+      if (dek.count === 0) {
+        throw new TRPCError({
+          code:    "BAD_REQUEST",
+          message: `Nicht genug Bestand. Angefragt: ${data.menge} (inzwischen vergriffen).`,
+        });
+      }
     }
 
     return [neueBuchung];

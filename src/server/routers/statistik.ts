@@ -26,6 +26,7 @@ import {
   getTechnikerVerfuegbareJahre,
   getTechnikerMonatsDetail,
   getAllTechnikerJahresOverview,
+  type StandortFilterId,
 } from "@/modules/statistik/service";
 
 const TageSchema = z.object({
@@ -36,10 +37,14 @@ const TageSchema = z.object({
 function resolveStatStandortId(
   ctx:    Parameters<typeof getZugaenglicheStandortIds>[0],
   input?: { standortId?: number | null },
-): number | null {
+): StandortFilterId {
   const ids = getZugaenglicheStandortIds(ctx, input?.standortId);
-  if (ids === null) return null; // Admin, kein Filter → alle Daten
-  return ids.length === 1 ? (ids[0] ?? null) : null; // Techniker oder Admin-Filter
+  if (ids === null) return null;            // Admin/Wildcard, kein Filter → alle Daten
+  if (ids.length === 1) return ids[0] ?? null;
+  // MEHRERE zugaengliche Standorte: NICHT null zurueckgeben — null hiesse downstream
+  // "kein Filter" und wuerde dem Nutzer die Zahlen ALLER Standorte zeigen (Leak).
+  // Stattdessen exakt auf seine Standorte einschraenken (leere Liste = nichts).
+  return ids;
 }
 
 export const statistikRouter = createTRPCRouter({

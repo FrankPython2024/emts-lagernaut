@@ -525,14 +525,29 @@ export const mobilAnfrageRouter = createTRPCRouter({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Keine erfassten LogIDs zum Umbuchen." });
       }
       const logIds = anfrage.picks.map((p) => p.logId);
+      // Nur die Teile, die JETZT noch aktiv sind, werden ausgebucht. Vorher merken,
+      // welche das sind — sonst wuerde erledigtLogId auf ein Teil zeigen, das gar
+      // nicht durch diese Anfrage ausgegeben wurde.
+      const aktive = await prisma.mobilTeil.findMany({
+        where:  { logId: { in: logIds }, ausgeschieden: false, bereich: anfrage.bereich },
+        select: { logId: true },
+      });
       const res = await prisma.mobilTeil.updateMany({
         where: { logId: { in: logIds }, ausgeschieden: false, bereich: anfrage.bereich },
         data:  { ausgeschieden: true, ausgeschiedenAm: new Date() },
       });
+      // Kein einziges Teil war noch verfuegbar → NICHT abschliessen (sonst stiller
+      // Fehl-Abschluss: Anfrage gilt als erledigt, obwohl nichts ausgegeben wurde).
+      if (res.count === 0) {
+        throw new TRPCError({
+          code:    "BAD_REQUEST",
+          message: "Keines der erfassten Teile ist noch verfügbar (bereits ausgegeben?). Anfrage wurde NICHT abgeschlossen.",
+        });
+      }
       await prisma.mobilAnfrage.update({
         where: { id: input.id },
-        data:  { status: "ABGESCHLOSSEN", bearbeitetVon: kuerzelVon(user), erledigtLogId: logIds[0] ?? null },
+        data:  { status: "ABGESCHLOSSEN", bearbeitetVon: kuerzelVon(user), erledigtLogId: aktive[0]?.logId ?? null },
       });
-      return { ok: true, ausgebucht: res.count, logIds };
+      return { ok: true, ausgebucht: res.count, logIds, unvollstaendig: res.count < logIds.length };
     }),
 });

@@ -16,8 +16,17 @@ export type LiveStats = {
 };
 
 // Standort-Filter-Fragmente (fire-and-forget, kein import nötig)
-function aF(sId?: number | null) { return sId != null ? { artikel: { standortId: sId } } : {}; }
-function sF(sId?: number | null) { return sId != null ? { standortId: sId } : {}; }
+// Standort-Filter: EINE id, eine LISTE von ids (Nutzer mit Zugriff auf mehrere,
+// aber nicht alle Standorte) oder null/undefined = kein Filter (= alle Standorte).
+export type StandortFilterId = number | number[] | null;
+
+function standortWo(sId?: StandortFilterId) {
+  if (sId == null) return null;
+  if (Array.isArray(sId)) return sId.length > 0 ? { in: sId } : { in: [-1] }; // leere Liste = nichts sichtbar
+  return sId;
+}
+function aF(sId?: StandortFilterId) { const w = standortWo(sId); return w != null ? { artikel: { standortId: w } } : {}; }
+function sF(sId?: StandortFilterId) { const w = standortWo(sId); return w != null ? { standortId: w } : {}; }
 
 // Test-Anfragen zählen NIEMALS in Statistik/KPIs. In jede Anfrage-Query gespreizt.
 // (Buchungen sind automatisch sauber — Test-Anfragen erzeugen keine Buchung.)
@@ -35,7 +44,7 @@ function tageZuDateRange(tage: number): { von: Date; bis: Date } {
 /**
  * Live-Kennzahlen für Dashboard.
  */
-export async function getLiveStats(standortId?: number | null): Promise<LiveStats> {
+export async function getLiveStats(standortId?: StandortFilterId): Promise<LiveStats> {
   const heute      = new Date();
   const heuteStart = new Date(heute.toISOString().slice(0, 10));
   const heuteEnde  = new Date(heuteStart);
@@ -74,7 +83,7 @@ export async function getLiveStats(standortId?: number | null): Promise<LiveStat
 /**
  * Meistgefragte Geräte im Zeitraum.
  */
-export async function getMeistgefragteGeraete(tage: number, standortId?: number | null) {
+export async function getMeistgefragteGeraete(tage: number, standortId?: StandortFilterId) {
   const von = new Date();
   von.setDate(von.getDate() - tage);
 
@@ -92,7 +101,7 @@ export async function getMeistgefragteGeraete(tage: number, standortId?: number 
 /**
  * Meistgefragte Teile / Kategorien im Zeitraum.
  */
-export async function getMeistgefragteTeile(tage: number, standortId?: number | null) {
+export async function getMeistgefragteTeile(tage: number, standortId?: StandortFilterId) {
   const von = new Date();
   von.setDate(von.getDate() - tage);
 
@@ -110,7 +119,7 @@ export async function getMeistgefragteTeile(tage: number, standortId?: number | 
 /**
  * Anfragen nach Status aufgeteilt.
  */
-export async function getAnfragenNachStatus(standortId?: number | null) {
+export async function getAnfragenNachStatus(standortId?: StandortFilterId) {
   const gruppen = await prisma.anfrage.groupBy({
     by:     ["status"],
     where:  { ...aF(standortId), ...OHNE_TEST },
@@ -123,7 +132,7 @@ export async function getAnfragenNachStatus(standortId?: number | null) {
 /**
  * Buchungsverlauf der letzten N Tage (täglich).
  */
-export async function getBuchungenVerlauf(tage: number, standortId?: number | null) {
+export async function getBuchungenVerlauf(tage: number, standortId?: StandortFilterId) {
   const von = new Date();
   von.setDate(von.getDate() - tage);
   von.setHours(0, 0, 0, 0);
@@ -161,7 +170,7 @@ export async function getBuchungenVerlauf(tage: number, standortId?: number | nu
 /**
  * KPI-Übersicht — tage: Anzahl Tage rückwärts von heute.
  */
-export async function getKpiOverview(tage: number, standortId?: number | null) {
+export async function getKpiOverview(tage: number, standortId?: StandortFilterId) {
   const { von, bis } = tageZuDateRange(tage);
   const where  = { datum: { gte: von, lte: bis } };
   const artFlt = aF(standortId);
@@ -186,7 +195,7 @@ export async function getKpiOverview(tage: number, standortId?: number | null) {
 /**
  * Techniker-Statistik — tage: Anzahl Tage rückwärts von heute.
  */
-export async function getTechnikerStats(tage: number, standortId?: number | null) {
+export async function getTechnikerStats(tage: number, standortId?: StandortFilterId) {
   const { von, bis } = tageZuDateRange(tage);
   const where = { ...aF(standortId), ...OHNE_TEST, datum: { gte: von, lte: bis } };
 
@@ -209,7 +218,7 @@ export async function getTechnikerStats(tage: number, standortId?: number | null
  * Anfragen-Verlauf täglich (ersetzt Buchungs-Verlauf in Techniker-Statistik).
  * Optional nach Techniker-Kürzel filterbar.
  */
-export async function getAnfragenVerlauf(tage: number, kuerzel?: string, standortId?: number | null) {
+export async function getAnfragenVerlauf(tage: number, kuerzel?: string, standortId?: StandortFilterId) {
   const von = new Date();
   von.setDate(von.getDate() - tage);
   von.setHours(0, 0, 0, 0);
@@ -413,7 +422,7 @@ export async function getTechnikerLetzteAnfragen(kuerzel: string, tage: number, 
 /**
  * Team-Vergleich: alle Techniker mit mehreren Metriken (für Radar/Grid).
  */
-export async function getTechnikerTeamVergleich(tage: number, standortId?: number | null) {
+export async function getTechnikerTeamVergleich(tage: number, standortId?: StandortFilterId) {
   const { von, bis } = tageZuDateRange(tage);
 
   const alle = await prisma.anfrage.findMany({
@@ -448,7 +457,7 @@ export async function getTechnikerTeamVergleich(tage: number, standortId?: numbe
 /**
  * Monatsbericht: alle Buchungen + Anfragen eines Monats.
  */
-export async function getMonatsbericht(monat: number, jahr: number, standortId?: number | null) {
+export async function getMonatsbericht(monat: number, jahr: number, standortId?: StandortFilterId) {
   const von    = new Date(jahr, monat - 1, 1);
   const bis    = new Date(jahr, monat, 1);
   const artFlt = aF(standortId);

@@ -108,6 +108,25 @@ export async function getOrCreateModell(
     return { modell: null, istNeu: true, istUnsicher: false, aehnliche };
   }
 
+  // Ein DEAKTIVIERTES Modell mit exakt (hersteller, modell) blockiert das create,
+  // weil GeraeteModell einen @@unique([hersteller, modell]) hat — die Exact-Match-
+  // Schritte oben filtern aber aktiv=true und uebersehen es. Ohne diese Pruefung
+  // knallt der Einlager-/Anlege-Flow mit einem rohen Prisma-Unique-Fehler.
+  // Da der Admin die Anlage explizit bestaetigt hat, wird es reaktiviert.
+  const inaktivExakt = await prisma.geraeteModell.findFirst({
+    where:  { hersteller, modell: sauber },
+    select: { id: true },
+  });
+  if (inaktivExakt) {
+    const reaktiviert = await prisma.geraeteModell.update({
+      where: { id: inaktivExakt.id },
+      data:  { aktiv: true, deaktiviertGrund: null, deaktiviertAm: null },
+    });
+    meilisearchSync.modell(reaktiviert.id);
+    console.log(`[getOrCreateModell] deaktiviertes Modell reaktiviert: ${hersteller} ${sauber} (#${reaktiviert.id})`);
+    return { modell: reaktiviert, istNeu: false, istUnsicher: false, aehnliche };
+  }
+
   const neu = await prisma.geraeteModell.create({
     data: { modell: sauber, hersteller, aktiv: true },
   });

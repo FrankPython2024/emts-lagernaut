@@ -346,10 +346,19 @@ export const auslagernRouter = createTRPCRouter({
             // Wirft wenn buchungsTyp fälschlicherweise DIREKT wäre (defensive programming).
             assertKeinBestandEffekt(buchungsTyp, "auslagern.teile AUSGANG-Zweig");
 
-            await tx.artikel.update({
-              where: { id: anfrage.artikelId },
-              data:  { bestand: neuerBestand },
+            // ATOMAR + bedingt statt absolutem Setzen: der findUnique oben nimmt KEINEN
+            // Row-Lock, zwei parallele Auslagerungen desselben Artikels wuerden sonst
+            // beide vom selben Ausgangsbestand rechnen (Lost Update → Bestand zu hoch).
+            const dek = await tx.artikel.updateMany({
+              where: { id: anfrage.artikelId, bestand: { gte: anfrage.menge } },
+              data:  { bestand: { decrement: anfrage.menge } },
             });
+            if (dek.count === 0) {
+              throw new TRPCError({
+                code:    "CONFLICT",
+                message: `Nicht genug Bestand für „${anfrage.artikel.bezeichnung}" — inzwischen vergriffen. Bitte erneut prüfen.`,
+              });
+            }
           }
           // DIREKT: absichtlich kein Artikel-Update.
           // assertKeinBestandEffekt(DIREKT) würde hier feuern — das IST die Sicherung.

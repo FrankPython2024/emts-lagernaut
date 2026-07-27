@@ -214,7 +214,10 @@ export async function gruppeFreigeben(
 
   let freigegeben = 0;
   for (const a of anfragen) {
-    const neuerStatus = a.artikelId && (a.artikel?.bestand ?? 0) === 0
+    // Artikellose Anfragen (Sonderanfragen) sind per Definition IMMER BEDARF
+    // (erstelleAnfrage erzwingt das) — sonst landen sie beim Freigeben auf NEU
+    // und werden vom Lock-Flow nicht mehr korrekt behandelt.
+    const neuerStatus = (!a.artikelId || (a.artikel?.bestand ?? 0) === 0)
       ? AnfrageStatus.BEDARF
       : AnfrageStatus.NEU;
     await prisma.anfrage.update({
@@ -248,7 +251,10 @@ export async function gruppeZurueckgeben(
   }
 
   for (const a of anfragen) {
-    const neuerStatus = a.artikelId && (a.artikel?.bestand ?? 0) === 0
+    // Artikellose Anfragen (Sonderanfragen) sind per Definition IMMER BEDARF
+    // (erstelleAnfrage erzwingt das) — sonst landen sie beim Freigeben auf NEU
+    // und werden vom Lock-Flow nicht mehr korrekt behandelt.
+    const neuerStatus = (!a.artikelId || (a.artikel?.bestand ?? 0) === 0)
       ? AnfrageStatus.BEDARF
       : AnfrageStatus.NEU;
     await prisma.anfrage.update({
