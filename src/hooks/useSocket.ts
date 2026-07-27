@@ -21,6 +21,11 @@ export function useSocket() {
       globalSocket = io({
         path:                "/api/socketio",
         addTrailingSlash:    false,
+        // Der Server verifiziert die Identität serverseitig aus dem Session-Cookie
+        // (siehe lib/auth/socketAuth). `auth` unten ist nur noch Diagnose-Info und
+        // wird NICHT mehr geglaubt. withCredentials stellt sicher, dass das
+        // Session-Cookie am Handshake wirklich mitgeht.
+        withCredentials:     true,
         auth:                { kuerzel: user.kuerzel, rolle: user.rolle },
         // Nie dauerhaft aufgeben: nach einem Deploy (Server ist Minuten weg) sollen
         // offene Tabs von selbst wieder verbinden, statt nach ~20s tot zu bleiben.

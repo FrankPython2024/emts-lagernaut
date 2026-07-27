@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { Server } from "socket.io";
 import type { Server as HTTPServer } from "http";
 import type { Socket as NetSocket } from "net";
+import { ermittleSocketIdentitaet } from "@/lib/auth/socketAuth";
 
 // ── Type-Erweiterungen für Next.js Pages API ──────────────────────────────────
 
@@ -41,9 +42,30 @@ export default function handler(
     perMessageDeflate: false,
   });
 
+  // AUTH-Gate: läuft VOR jedem `connection`-Event. Ohne gültige Session kommt
+  // niemand rein — `handshake.auth` wird bewusst ignoriert (Client-Behauptung).
+  io.use((socket, next) => {
+    void ermittleSocketIdentitaet(socket.request.headers.cookie, socket.request.headers)
+      .then((ident) => {
+        if (!ident) {
+          console.warn("[Socket.io] Verbindung ohne gültige Session abgelehnt");
+          next(new Error("unauthorized"));
+          return;
+        }
+        socket.data.kuerzel = ident.kuerzel;
+        socket.data.rolle   = ident.rolle;
+        next();
+      })
+      .catch((e) => {
+        console.error("[Socket.io] Auth-Prüfung fehlgeschlagen:", e);
+        next(new Error("unauthorized"));
+      });
+  });
+
   io.on("connection", (socket) => {
-    const kuerzel = socket.handshake.auth?.kuerzel as string | undefined;
-    const rolle   = socket.handshake.auth?.rolle   as string | undefined;
+    // Verifizierte Identität aus dem Session-Cookie (siehe io.use oben).
+    const kuerzel = socket.data.kuerzel as string | undefined;
+    const rolle   = socket.data.rolle   as string | undefined;
 
     if (!kuerzel) {
       socket.disconnect();
@@ -92,8 +114,8 @@ export default function handler(
 
     socket.on("activity", (data: unknown) => {
       // Navigation server-seitig festhalten (Nerd-Dashboard "Letzter Menüpunkt").
-      // kuerzel kommt aus dem Handshake (vertrauenswürdig), NICHT aus dem Payload.
-      // Aus dem Payload nur den Pfad, defensiv geprüft.
+      // kuerzel stammt aus der serverseitig verifizierten Session (socket.data),
+      // NICHT aus dem Payload. Aus dem Payload nur den Pfad, defensiv geprüft.
       const path = (data as { path?: unknown } | null)?.path;
       if (kuerzel && typeof path === "string" && path.length > 0 && path.length <= 200) {
         // Fire & forget: Redis-Client wirft sofort (enableOfflineQueue:false) —
