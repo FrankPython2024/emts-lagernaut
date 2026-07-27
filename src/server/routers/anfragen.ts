@@ -432,7 +432,9 @@ export const anfragenRouter = createTRPCRouter({
         logId:       anfrage?.logId,
         geraeteName: anfrage?.geraeteName,
       };
-      emitToAdmins(EVENTS.ANFRAGE_UEBERNOMMEN, payload);
+      // Backoffice statt nur "admins": BETRACHTER/ADMIN_READONLY sollen Lock-Wechsel
+      // genauso live sehen wie ANFRAGE_UPDATED — sonst zeigt ihre Liste veraltete Locks.
+      emitToBackoffice(EVENTS.ANFRAGE_UEBERNOMMEN, payload);
       if (anfrage) emitToUser(anfrage.techniker, EVENTS.ANFRAGE_UEBERNOMMEN, payload);
 
       return { locked };
@@ -454,7 +456,7 @@ export const anfragenRouter = createTRPCRouter({
       });
 
       const payload = { anfrageIds: input.anfrageIds, durch: user.kuerzel, vorBearbeiter, grund: input.grund };
-      emitToAdmins(EVENTS.ANFRAGE_FREIGEGEBEN, payload);
+      emitToBackoffice(EVENTS.ANFRAGE_FREIGEGEBEN, payload);
       if (anfrage) emitToUser(anfrage.techniker, EVENTS.ANFRAGE_FREIGEGEBEN, payload);
 
       return { freigegeben, vorBearbeiter };
@@ -468,7 +470,7 @@ export const anfragenRouter = createTRPCRouter({
       const zurueck = await gruppeZurueckgeben(input.anfrageIds, user.kuerzel);
 
       const payload = { anfrageIds: input.anfrageIds, bearbeiter: user.kuerzel };
-      emitToAdmins(EVENTS.ANFRAGE_FREIGEGEBEN, { ...payload, durch: user.kuerzel, vorBearbeiter: user.kuerzel });
+      emitToBackoffice(EVENTS.ANFRAGE_FREIGEGEBEN, { ...payload, durch: user.kuerzel, vorBearbeiter: user.kuerzel });
 
       return { zurueck };
     }),

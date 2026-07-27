@@ -358,28 +358,41 @@ async function runLagerfuchsImport(tmpPath: string, importId: number, importiert
   const snapshotPlausibel = zeilen > 0 && (aktivGesamt === 0 || zeilen >= 0.5 * aktivGesamt);
 
   if (snapshotPlausibel) {
-    // 1) Je Abgang eine Bewegung schreiben — VOR dem Flag-Update (liest den
-    //    letzten Verbleib + ausgeschieden=false). „von" = letzter Verbleib bzw.
-    //    „im System", „nach" = „ausgeschieden".
-    await prisma.$executeRaw`
-      INSERT INTO \`LogIdBewegung\` (logId, feld, vonWert, nachWert, zeitpunkt, bearbeiter, importId, createdAt)
-      SELECT logId, 'ausgeschieden', COALESCE(NULLIF(verbleib, ''), 'im System'), 'ausgeschieden', ${importiertAm}, NULL, ${importId}, NOW()
-      FROM \`LogIdStand\`
-      WHERE zuletztImportId < ${importId} AND ausgeschieden = false`;
+    // Alle vier Schritte in EINER Transaktion: sonst kann ein Abbruch zwischen
+    // Bewegungs-INSERT und Flag-Update einen halben Zustand hinterlassen
+    // (Bewegung geschrieben, Gerät aber noch „im System" — oder umgekehrt).
+    const [, abgang] = await prisma.$transaction([
+      // 1) Je Abgang eine Bewegung schreiben — VOR dem Flag-Update (liest den
+      //    letzten Verbleib + ausgeschieden=false). „von" = letzter Verbleib bzw.
+      //    „im System", „nach" = „ausgeschieden".
+      prisma.$executeRaw`
+        INSERT INTO \`LogIdBewegung\` (logId, feld, vonWert, nachWert, zeitpunkt, bearbeiter, importId, createdAt)
+        SELECT logId, 'ausgeschieden', COALESCE(NULLIF(verbleib, ''), 'im System'), 'ausgeschieden', ${importiertAm}, NULL, ${importId}, NOW()
+        FROM \`LogIdStand\`
+        WHERE zuletztImportId < ${importId} AND ausgeschieden = false`,
 
-    // 2) Flag setzen.
-    const abgang = await prisma.logIdStand.updateMany({
-      where: { zuletztImportId: { lt: importId }, ausgeschieden: false },
-      data:  { ausgeschieden: true, ausgeschiedenAm: importiertAm },
-    });
+      // 2) Flag setzen.
+      prisma.logIdStand.updateMany({
+        where: { zuletztImportId: { lt: importId }, ausgeschieden: false },
+        data:  { ausgeschieden: true, ausgeschiedenAm: importiertAm },
+      }),
+
+      // 3) Wieder-Eingang ebenfalls als Bewegung protokollieren — VOR dem Reset,
+      //    sonst fehlt die Rückkehr in der Geräte-Historie komplett.
+      prisma.$executeRaw`
+        INSERT INTO \`LogIdBewegung\` (logId, feld, vonWert, nachWert, zeitpunkt, bearbeiter, importId, createdAt)
+        SELECT logId, 'ausgeschieden', 'ausgeschieden', COALESCE(NULLIF(verbleib, ''), 'im System'), ${importiertAm}, NULL, ${importId}, NOW()
+        FROM \`LogIdStand\`
+        WHERE zuletztImportId = ${importId} AND ausgeschieden = true`,
+
+      // 4) Wieder aufgetauchte Geräte (in DIESEM Import gesehen) zurücksetzen.
+      prisma.logIdStand.updateMany({
+        where: { zuletztImportId: importId, ausgeschieden: true },
+        data:  { ausgeschieden: false, ausgeschiedenAm: null },
+      }),
+    ]);
     anzahlAusgeschieden = abgang.count;
     bewegungen += abgang.count;
-
-    // 3) Wieder aufgetauchte Geräte (in DIESEM Import gesehen) zurücksetzen.
-    await prisma.logIdStand.updateMany({
-      where: { zuletztImportId: importId, ausgeschieden: true },
-      data:  { ausgeschieden: false, ausgeschiedenAm: null },
-    });
   } else if (wuerdenAusscheiden > 0) {
     console.warn(`[geraete-reise] Abgangs-Erkennung ÜBERSPRUNGEN: nur ${zeilen} von ~${aktivGesamt} LogIDs im Snapshot (verdaechtig klein/leer) — kein Ausscheiden, Bestand geschuetzt.`);
   }

@@ -450,6 +450,19 @@ export const systemRouter = createTRPCRouter({
       const user = ctx.session!.user as { kuerzel?: string };
       console.log(`[System] RESET gestartet durch ${user.kuerzel ?? "unbekannt"}`);
       const result = await resetAllData();
+
+      // Suchindizes mitleeren — sonst liefert die globale Suche nach dem Reset
+      // Phantom-Treffer auf geloeschte Artikel/Anfragen/Modelle. Nicht kritisch:
+      // Fehler werden nur geloggt, der Reset selbst gilt als erfolgreich.
+      await Promise.allSettled(
+        ["artikel", "anfragen", "modelle", "buchungen"].map((idx) =>
+          meilisearch.index(idx).deleteAllDocuments(),
+        ),
+      ).then((res) => {
+        const fehler = res.filter((r) => r.status === "rejected").length;
+        if (fehler > 0) console.warn(`[System] RESET: ${fehler} Meilisearch-Index/Indizes nicht geleert (unkritisch).`);
+      });
+
       console.log(`[System] RESET abgeschlossen: ${JSON.stringify(result)}`);
       return result;
     }),

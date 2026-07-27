@@ -182,8 +182,11 @@ export async function getModalData(modellId: number) {
     // Alle Kandidaten für fehlende Teile in einem Query
     const kandidaten = await prisma.artikel.findMany({
       where: {
-        kategorie:   { in: fehlendeTl },
-        bezeichnung: { in: keywords.map((kw) => kw) }, // Fallback
+        kategorie: { in: fehlendeTl },
+        // KEIN zusaetzliches `bezeichnung: { in: keywords }` — das wird mit UND
+        // verknuepft und verlangt, dass die Bezeichnung EXAKT einem Keyword
+        // entspricht ("elitebook"). Damit war das contains-OR faktisch tot und es
+        // kamen nie Vorschlaege. Nur die Teilstring-Suche zaehlt.
         OR: keywords.map((kw) => ({ bezeichnung: { contains: kw } })),
       },
       select: { id: true, kategorie: true, bezeichnung: true },

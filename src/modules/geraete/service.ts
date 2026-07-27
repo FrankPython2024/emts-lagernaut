@@ -104,12 +104,22 @@ export async function legeEinzelteilAn(data: {
   }
 
   const { artikel } = await prisma.$transaction(async (tx) => {
-    const artikel = await tx.artikel.create({
-      data: { bezeichnung, kategorie: data.teiltyp.trim(), bestand: 0 },
+    // Artikel wiederverwenden statt blind anzulegen: (bezeichnung, kategorie,
+    // standortId) ist unique — ein bereits existierender Artikel (z.B. aus einer
+    // frueheren Modell-Anlage) haette sonst einen rohen Prisma-Fehler ausgeloest,
+    // statt die Kompatibilitaet einfach zu ergaenzen (analog legeModellAn).
+    const kategorie = data.teiltyp.trim();
+    const vorhanden = await tx.artikel.findFirst({
+      where:  { bezeichnung, kategorie, standortId: 1 },
+      select: { id: true },
+    });
+
+    const artikel = vorhanden ?? await tx.artikel.create({
+      data: { bezeichnung, kategorie, bestand: 0 },
     });
 
     await tx.kompatibilitaet.create({
-      data: { geraet: geraetVoll, teiltyp: data.teiltyp.trim(), artikelId: artikel.id },
+      data: { geraet: geraetVoll, teiltyp: kategorie, artikelId: artikel.id },
     });
 
     return { artikel };
