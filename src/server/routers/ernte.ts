@@ -35,7 +35,8 @@ export const erne = createTRPCRouter({
       const datumFilter    = cutoff     ? Prisma.sql`AND b.datum >= ${cutoff}`     : Prisma.empty;
       const standortFilter = standortId ? Prisma.sql`AND a.standortId = ${standortId}` : Prisma.empty;
 
-      // Materialwert pro Kategorie (nur Teile mit herkunftLogId = geernte Teile).
+      // Materialwert pro Kategorie (alle EINGANG-Buchungen, unabhängig von LogID).
+      // Alte Teile ohne LogID werden auch gezählt, neue mit LogID zugeordnet.
       const wertRows = await prisma.$queryRaw<
         { kategorie: string | null; menge: unknown; preis: unknown }[]
       >(Prisma.sql`
@@ -46,7 +47,6 @@ export const erne = createTRPCRouter({
         JOIN Artikel a       ON a.id = b.artikelId
         LEFT JOIN KategoriePreis kp ON kp.kategorie = a.kategorie
         WHERE b.typ = 'EINGANG'
-          AND b.herkunftLogId IS NOT NULL
           ${datumFilter}
           ${standortFilter}
         GROUP BY a.kategorie, kp.preis
@@ -75,7 +75,7 @@ export const erne = createTRPCRouter({
       proKategorie.sort((a, b) => b.wert - a.wert);
       ohnePreis.sort((a, b) => b.menge - a.menge);
 
-      // Top-Modelle (herkunftLogId mit höchster Teile-Summe).
+      // Top-Modelle (nur Teile mit bekannter Spender-LogID, damit Nachverfolgung möglich).
       const topModelle = await prisma.$queryRaw<
         { logId: string; menge: unknown; wert: unknown }[]
       >(Prisma.sql`
