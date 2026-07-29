@@ -129,6 +129,96 @@ function WertAusgegebenPanel({ tage, standortId }: { tage: number; standortId: n
   );
 }
 
+// ── Bauteil-Ernte: was wurde aus Spender-Altgeräten gewonnen ─────────────────
+// Zeigt nur Einlagerungen MIT gescannter Spender-LogID. Ältere Einlagerungen
+// haben keine Herkunft (die LogID wurde früher nicht gespeichert) — die Anzahl
+// wird bewusst offen ausgewiesen, damit die Zahlen nicht als „alles" gelesen werden.
+
+function ErntePanel({ tage, standortId }: { tage: number; standortId: number | null | undefined }) {
+  const q = api.preise.wertGeerntet.useQuery({ tage, standortId: standortId ?? null });
+  return (
+    <Panel title="🔧 Bauteil-Ernte" sub={`Aus Spender-Altgeräten gewonnene Teile × Kategorie-Preis · letzte ${tage} Tage`}>
+      {q.isLoading && <Skeleton h="h-40" />}
+      {q.data && (
+        <>
+          <div className="mb-4">
+            <div className="text-3xl font-black tabular-nums text-[#04B475]">{euro(q.data.wert)}</div>
+            <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+              📦 {q.data.geraete.toLocaleString("de-DE")} Spendergeräte · 🧩 {q.data.mengeGesamt.toLocaleString("de-DE")} Teile gewonnen
+              {q.data.geraete > 0 && <> · Ø {q.data.proGeraet.toLocaleString("de-DE")} Teile je Gerät</>}
+            </div>
+            {q.data.erfassung.ohneHerkunft > 0 && (
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
+                ℹ️ {q.data.erfassung.ohneHerkunft.toLocaleString("de-DE")} Einlagerungen ohne Spender-LogID (nicht enthalten)
+              </div>
+            )}
+          </div>
+
+          {q.data.mengeGesamt === 0 ? (
+            <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+              Noch keine Ernte mit Spender-LogID erfasst. Beim Einlagern die LogID des Altgeräts scannen —
+              dann erscheint hier, was aus welchem Gerät gewonnen wurde.
+            </div>
+          ) : (
+            <>
+              {q.data.proKategorie.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
+                        <th className="text-left py-2 pr-3">Kategorie</th>
+                        <th className="text-right py-2 px-3">Menge</th>
+                        <th className="text-right py-2 px-3">Preis</th>
+                        <th className="text-right py-2 pl-3">Wert</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+                      {q.data.proKategorie.map((r) => (
+                        <tr key={r.kategorie}>
+                          <td className="py-2 pr-3 font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">{r.kategorie}</td>
+                          <td className="py-2 px-3 text-right tabular-nums text-[#65676b] dark:text-[#b0b3b8]">{r.menge.toLocaleString("de-DE")}</td>
+                          <td className="py-2 px-3 text-right tabular-nums text-[#65676b] dark:text-[#b0b3b8]">{euro(r.preis)}</td>
+                          <td className="py-2 pl-3 text-right tabular-nums font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{euro(r.wert)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {q.data.topModelle.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] mb-1.5">
+                    Ergiebigste Spendermodelle
+                  </div>
+                  <ul className="space-y-1">
+                    {q.data.topModelle.map((m) => (
+                      <li key={m.modell} className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{m.modell}</span>
+                        <span className="tabular-nums text-[#65676b] dark:text-[#b0b3b8] shrink-0">
+                          {m.teile.toLocaleString("de-DE")} Teile aus {m.geraete.toLocaleString("de-DE")} Gerät{m.geraete === 1 ? "" : "en"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {q.data.ohnePreis.length > 0 && (
+                <div className="mt-3 text-xs text-[#f7b928]">
+                  ⚠️ {q.data.ohnePreis.length} Kategorien ohne Preis (nicht im Wert enthalten):{" "}
+                  {q.data.ohnePreis.map((o) => `${o.kategorie} (${o.menge})`).join(", ")} —{" "}
+                  <a href="/admin/preise" className="underline font-semibold">Preise ergänzen</a>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+}
+
 // ── HBarChart mit optionalem Bedarf-Anteil ────────────────────────────────────
 
 function HBarChart({ items, showBedarf, barColor }: {
@@ -835,6 +925,9 @@ export default function StatistikenPage() {
 
           {/* Wert ausgegeben (Laptop-Teile über Anfragen) */}
           <WertAusgegebenPanel tage={tage} standortId={sId} />
+
+          {/* Bauteil-Ernte: was kam aus den Spender-Altgeräten rein */}
+          <ErntePanel tage={tage} standortId={sId} />
 
           {/* Team-Vergleich + Jahresarchiv Tab */}
           <Panel title="Techniker-Analyse">

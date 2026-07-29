@@ -179,12 +179,22 @@ model Buchung {
   typ         BuchungsTyp
   menge       Int
   notiz       String?
+  // ── Bauteil-Ernte: Herkunft des eingelagerten Teils ────────────────────────
+  // LogID des SPENDER-Altgeräts, aus dem dieses Teil ausgebaut wurde. Wird nur
+  // beim Einlagern (EINGANG über den Einlager-Assistenten) gesetzt und nur, wenn
+  // der Nutzer die LogID gescannt hat. Vorher wurde die gescannte LogID lediglich
+  // ins Server-Log geschrieben und war danach verloren — damit war nicht
+  // nachvollziehbar, aus welchem Gerät ein Ersatzteil stammt.
+  // Grundlage für: Ernte-Auswertung (Teile je Gerät), Rückverfolgung bei
+  // Reklamation und die Bewertung des gewonnenen Materialwerts.
+  herkunftLogId String?   @db.VarChar(100)
   artikel     Artikel     @relation(fields: [artikelId], references: [id])
   createdAt   DateTime    @default(now())
 
   @@index([artikelId])
   @@index([typ])
   @@index([datum])
+  @@index([herkunftLogId])
 }
 
 enum BuchungsTyp {

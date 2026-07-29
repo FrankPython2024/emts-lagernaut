@@ -404,6 +404,9 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
       typ:         BuchungsTyp.EINGANG,
       mitarbeiter: input.mitarbeiter,
       notiz,
+      // Herkunft festhalten: aus WELCHEM Spender-Altgerät stammt dieses Teil.
+      // Die LogID wurde bisher nur ins Server-Log geschrieben und war danach weg.
+      herkunftLogId: input.logId?.trim() || null,
     });
 
     // 5. Beleg-Nummer

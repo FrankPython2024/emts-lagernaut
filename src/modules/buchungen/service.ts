@@ -20,6 +20,8 @@ export type BucheLagerData = {
   typ:         BuchungsTyp;
   mitarbeiter: string;
   notiz?:      string;
+  // Bauteil-Ernte: LogID des Spender-Altgeräts (nur beim Einlagern gesetzt).
+  herkunftLogId?: string | null;
 };
 
 /**
@@ -92,6 +94,7 @@ export async function bucheLager(data: BucheLagerData): Promise<Buchung> {
         menge:       data.menge,
         mitarbeiter: data.mitarbeiter,
         notiz:       data.notiz,
+        herkunftLogId: data.herkunftLogId ?? null,
       },
     });
 

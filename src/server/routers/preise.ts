@@ -188,4 +188,115 @@ export const preiseRouter = createTRPCRouter({
         },
       };
     }),
+
+  // ── Auswertung „Bauteil-Ernte" ──────────────────────────────────────────────
+  // Was wurde aus welchen Spender-Altgeräten gewonnen — und was ist es wert?
+  // Basis: EINGANG-Buchungen MIT herkunftLogId (nur die kommen aus dem
+  // Einlager-Assistenten mit gescanntem Spendergerät). Bewertung wie bei
+  // `wertAusgegeben` über den Kategorie-Preis des Artikels.
+  //
+  // WICHTIG: Erst ab Einführung des Feldes gefüllt — ältere Einlagerungen haben
+  // keine Herkunft (die gescannte LogID wurde vorher nicht gespeichert). Die
+  // Auswertung zeigt deshalb bewusst NUR Buchungen mit Herkunft und weist die
+  // Anzahl der Einlagerungen ohne Herkunft separat aus.
+  wertGeerntet: permissionProcedure("STATISTIK_VIEW")
+    .input(z.object({
+      tage:       z.number().int().positive().nullable().optional(),
+      standortId: z.number().int().positive().nullable().optional(),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const tage       = input?.tage ?? null;
+      const standortId = input?.standortId ?? null;
+      const cutoff     = tage ? new Date(Date.now() - tage * MS_PRO_TAG) : null;
+
+      const datumFilter    = cutoff     ? Prisma.sql`AND b.datum >= ${cutoff}`         : Prisma.empty;
+      const standortFilter = standortId ? Prisma.sql`AND a.standortId = ${standortId}` : Prisma.empty;
+
+      // 1) Je Kategorie: geerntete Menge + Preis (für den Wert)
+      const rows = await ctx.prisma.$queryRaw<
+        { kategorie: string | null; menge: unknown; preis: unknown }[]
+      >(Prisma.sql`
+        SELECT a.kategorie AS kategorie,
+               SUM(b.menge) AS menge,
+               kp.preis     AS preis
+        FROM Buchung b
+        JOIN Artikel a              ON a.id = b.artikelId
+        LEFT JOIN KategoriePreis kp ON kp.kategorie = a.kategorie
+        WHERE b.typ = 'EINGANG' AND b.herkunftLogId IS NOT NULL
+          ${datumFilter} ${standortFilter}
+        GROUP BY a.kategorie, kp.preis
+        ORDER BY a.kategorie
+      `);
+
+      // 2) Kennzahlen: wie viele verschiedene Spendergeräte, wie viele Einlagerungen
+      //    ohne Herkunft (Alt-Daten bzw. Einlagern ohne LogID-Scan).
+      const [kopf] = await ctx.prisma.$queryRaw<
+        { geraete: unknown; mitHerkunft: unknown; ohneHerkunft: unknown }[]
+      >(Prisma.sql`
+        SELECT COUNT(DISTINCT b.herkunftLogId)                        AS geraete,
+               SUM(CASE WHEN b.herkunftLogId IS NOT NULL THEN 1 ELSE 0 END) AS mitHerkunft,
+               SUM(CASE WHEN b.herkunftLogId IS NULL     THEN 1 ELSE 0 END) AS ohneHerkunft
+        FROM Buchung b
+        JOIN Artikel a ON a.id = b.artikelId
+        WHERE b.typ = 'EINGANG' ${datumFilter} ${standortFilter}
+      `);
+
+      // 3) Top-Spendermodelle: LogID über den Geräte-Lookup zum Modellnamen auflösen.
+      const topModelle = await ctx.prisma.$queryRaw<
+        { modell: string | null; geraete: unknown; teile: unknown }[]
+      >(Prisma.sql`
+        SELECT COALESCE(g.bereinigt, '(Modell unbekannt)')  AS modell,
+               COUNT(DISTINCT b.herkunftLogId)              AS geraete,
+               SUM(b.menge)                                 AS teile
+        FROM Buchung b
+        JOIN Artikel a          ON a.id = b.artikelId
+        LEFT JOIN GeraeteLookup g ON g.logId = b.herkunftLogId
+        WHERE b.typ = 'EINGANG' AND b.herkunftLogId IS NOT NULL
+          ${datumFilter} ${standortFilter}
+        GROUP BY modell
+        ORDER BY teile DESC
+        LIMIT 10
+      `);
+
+      const proKategorie: { kategorie: string; menge: number; preis: number; wert: number }[] = [];
+      const ohnePreis:    { kategorie: string; menge: number }[] = [];
+      let wert = 0, mengeGesamt = 0;
+
+      for (const r of rows) {
+        const kategorie = r.kategorie?.trim() || "(ohne Kategorie)";
+        const menge     = num(r.menge);
+        mengeGesamt += menge;
+        if (r.preis == null) {
+          ohnePreis.push({ kategorie, menge });
+        } else {
+          const preis = num(r.preis);
+          const w     = Math.round(menge * preis * 100) / 100;
+          wert += w;
+          proKategorie.push({ kategorie, menge, preis, wert: w });
+        }
+      }
+      proKategorie.sort((a, b) => b.wert - a.wert);
+      ohnePreis.sort((a, b) => b.menge - a.menge);
+
+      const geraete = num(kopf?.geraete);
+
+      return {
+        geraete,                                   // verschiedene Spender-Altgeräte
+        mengeGesamt,                               // daraus gewonnene Teile
+        wert: Math.round(wert * 100) / 100,        // Materialwert der Ernte
+        proGeraet: geraete > 0 ? Math.round((mengeGesamt / geraete) * 10) / 10 : 0,
+        proKategorie,
+        ohnePreis,
+        topModelle: topModelle.map((t) => ({
+          modell:  t.modell ?? "(Modell unbekannt)",
+          geraete: num(t.geraete),
+          teile:   num(t.teile),
+        })),
+        // Transparenz: wie viele Einlagerungen haben (noch) keine Herkunft?
+        erfassung: {
+          mitHerkunft:  num(kopf?.mitHerkunft),
+          ohneHerkunft: num(kopf?.ohneHerkunft),
+        },
+      };
+    }),
 });
