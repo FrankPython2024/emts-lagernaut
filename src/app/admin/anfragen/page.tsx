@@ -1107,7 +1107,7 @@ function AnfragenPageInner() {
                         {canEdit && a.status === AnfrageStatus.ABGESCHLOSSEN && (
                           <button
                             onClick={() => {
-                              if (window.confirm(`Anfrage zurücksetzen? Die Buchung wird gelöscht und die Statistik korrigiert.`)) {
+                              if (window.confirm(`Anfrage zurücksetzen? Die Buchung wird gelöscht. Der Status wird auf NEU (wenn Bestand) oder BEDARF (kein Bestand) gesetzt.`)) {
                                 resetMutation.mutate({ id: a.id });
                               }
                             }}
