@@ -575,6 +575,16 @@ function AnfragenPageInner() {
     onError: (e) => show(e.message, "error"),
   });
 
+  // ── Zurücksetzen (nur für erledigte) ──────────────────────────────────────────
+  const resetMutation = api.anfragen.reset.useMutation({
+    onSuccess: (r) => {
+      show(`↻ Anfrage #${r.id} zurückgesetzt — Buchung gelöscht, Statistik korrigiert`, "success");
+      refetch();
+      refetchChatBadges();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
   // ── Löschen ─────────────────────────────────────────────────────────────────
   type DeleteCandidate =
     | { type: "single"; id: number; label: string }
@@ -1062,6 +1072,22 @@ function AnfragenPageInner() {
                             className="px-2 py-2 text-xs bg-[#00a400]/10 text-[#00a400] rounded hover:bg-[#00a400]/20 font-bold disabled:opacity-40 transition-colors min-h-[36px]"
                           >
                             ✓
+                          </button>
+                        )}
+
+                        {/* Zurücksetzen — nur für erledigte Anfragen */}
+                        {canEdit && a.status === AnfrageStatus.ABGESCHLOSSEN && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Anfrage zurücksetzen? Die Buchung wird gelöscht und die Statistik korrigiert.`)) {
+                                resetMutation.mutate({ id: a.id });
+                              }
+                            }}
+                            disabled={isBusy}
+                            title="Anfrage auf NEU zurücksetzen (Buchung wird gelöscht)"
+                            className="px-2 py-2 text-xs bg-[#008bd2]/10 text-[#008bd2] rounded hover:bg-[#008bd2]/20 font-bold disabled:opacity-40 transition-colors min-h-[36px]"
+                          >
+                            🔄
                           </button>
                         )}
 

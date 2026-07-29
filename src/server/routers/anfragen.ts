@@ -349,6 +349,63 @@ export const anfragenRouter = createTRPCRouter({
       return { ...aktualisiert, belegNr, restBestand, artikel: artikelInfo };
     }),
 
+  // ── Anfrage zurücksetzen — nur Admin. Löscht die Buchung, setzt Status auf NEU ──
+  reset: adminProcedure
+    .input(z.object({
+      id: z.number().int().positive(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const anfrage = await ctx.prisma.anfrage.findUnique({
+        where:   { id: input.id },
+        include: { artikel: { select: { id: true } } },
+      });
+
+      if (!anfrage) {
+        throw new TRPCError({ code: "NOT_FOUND", message: `Anfrage #${input.id} nicht gefunden` });
+      }
+
+      if (anfrage.status !== AnfrageStatus.ABGESCHLOSSEN) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Anfrage #${input.id} ist nicht erledigt (Status: ${anfrage.status}). Nur erledigte Anfragen können zurückgesetzt werden.`,
+        });
+      }
+
+      // Transaktional: Buchung löschen + Status auf NEU + Bestand korrigieren
+      await ctx.prisma.$transaction(async (tx) => {
+        // Finde die AUSGANG-Buchung für diese Anfrage
+        const buchung = await tx.buchung.findFirst({
+          where: {
+            typ:     BuchungsTyp.AUSGANG,
+            notiz:   `Anfrage #${input.id}`,
+            artikelId: anfrage.artikelId || undefined,
+          },
+        });
+
+        if (buchung) {
+          // Buchung löschen
+          await tx.buchung.delete({ where: { id: buchung.id } });
+          console.log(`[reset] Buchung #${buchung.id} (Anfrage #${input.id}) gelöscht`);
+        }
+
+        // Status auf NEU zurücksetzen
+        await tx.anfrage.update({
+          where:  { id: input.id },
+          data:   { status: AnfrageStatus.NEU },
+        });
+      });
+
+      // Bestand korrigieren (falls Artikel vorhanden)
+      let restBestand: number | null = null;
+      if (anfrage.artikelId) {
+        restBestand = await syncBestandAusHistorie(anfrage.artikelId);
+        emitToAll(EVENTS.BESTAND_UPDATED, { artikelId: anfrage.artikelId, bestand: restBestand });
+      }
+
+      console.log(`[reset] Anfrage #${input.id} zurückgesetzt auf NEU`);
+      return { id: input.id, status: AnfrageStatus.NEU, restBestand };
+    }),
+
   // Gruppenansicht — read (ANFRAGE_VIEW_ALL)
   getGruppiert: anfragenReadProcedure
     .input(z.object({
