@@ -349,7 +349,72 @@ export const anfragenRouter = createTRPCRouter({
       return { ...aktualisiert, belegNr, restBestand, artikel: artikelInfo };
     }),
 
-  // ── Anfrage zurücksetzen — nur Admin. Löscht die Buchung, setzt Status auf NEU ──
+  // ── Anfrage mit LogID erledigen — speichert Spender-LogID in der Buchung ──
+  erledigenMitLogId: protectedProcedure
+    .input(z.object({
+      id:    z.number().int().positive(),
+      logId: z.string().min(1).max(100),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const user = ctx.session.user as SessionUser;
+
+      const anfrage = await ctx.prisma.anfrage.findUnique({
+        where:   { id: input.id },
+        include: { artikel: { select: { id: true, bezeichnung: true, lagerplatz: true, kategorie: true } } },
+      });
+
+      if (!anfrage) {
+        throw new TRPCError({ code: "NOT_FOUND", message: `Anfrage #${input.id} nicht gefunden` });
+      }
+
+      // Nur aus buchbarem Zustand erledigbar
+      const buchbar = ([AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] as AnfrageStatus[])
+        .includes(anfrage.status);
+      if (!buchbar) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Anfrage #${input.id} kann nicht erledigt werden (Status: ${anfrage.status})`,
+        });
+      }
+
+      let belegNr: string | null = null;
+      let restBestand: number | null = null;
+
+      // AUSGANG-Buchung mit herkunftLogId erstellen
+      if (!anfrage.testModus && anfrage.artikelId) {
+        try {
+          await bucheLager({
+            artikelId:    anfrage.artikelId,
+            menge:        anfrage.menge,
+            typ:          BuchungsTyp.AUSGANG,
+            mitarbeiter:  user.kuerzel,
+            notiz:        `Anfrage #${input.id}`,
+            herkunftLogId: input.logId.trim() || null,  // Spender-LogID speichern
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (!msg.includes("Kein Bestand") && !msg.includes("Nicht genug Bestand")) {
+            throw e;
+          }
+        }
+      }
+
+      belegNr = await naechsteBelegNr("AL");
+
+      // Bestand neu berechnen
+      if (anfrage.artikelId) {
+        restBestand = await syncBestandAusHistorie(anfrage.artikelId);
+        emitToAll(EVENTS.BESTAND_UPDATED, { artikelId: anfrage.artikelId, bestand: restBestand });
+      }
+
+      // Status auf ABGESCHLOSSEN setzen
+      const aktualisiert = await setzeStatus(input.id, AnfrageStatus.ABGESCHLOSSEN);
+
+      console.log(`[erledigenMitLogId] Anfrage #${input.id} erledigt mit LogID ${input.logId}`);
+      return { ...aktualisiert, belegNr, restBestand };
+    }),
+
+  // ── Anfrage zurücksetzen — nur Admin. Löscht Buchung, Status = NEU oder BEDARF ──
   reset: adminProcedure
     .input(z.object({
       id: z.number().int().positive(),
@@ -371,7 +436,7 @@ export const anfragenRouter = createTRPCRouter({
         });
       }
 
-      // Transaktional: Buchung löschen + Status auf NEU + Bestand korrigieren
+      // Transaktional: Buchung löschen + Bestand neu berechnen
       await ctx.prisma.$transaction(async (tx) => {
         // Finde die AUSGANG-Buchung für diese Anfrage
         const buchung = await tx.buchung.findFirst({
@@ -387,23 +452,28 @@ export const anfragenRouter = createTRPCRouter({
           await tx.buchung.delete({ where: { id: buchung.id } });
           console.log(`[reset] Buchung #${buchung.id} (Anfrage #${input.id}) gelöscht`);
         }
-
-        // Status auf NEU zurücksetzen
-        await tx.anfrage.update({
-          where:  { id: input.id },
-          data:   { status: AnfrageStatus.NEU },
-        });
       });
 
-      // Bestand korrigieren (falls Artikel vorhanden)
+      // Bestand korrigieren + Status setzen (NEU wenn Bestand > 0, sonst BEDARF)
       let restBestand: number | null = null;
+      let neuerStatus: AnfrageStatus = AnfrageStatus.BEDARF; // Default: nicht verfügbar
+
       if (anfrage.artikelId) {
         restBestand = await syncBestandAusHistorie(anfrage.artikelId);
+        if (restBestand > 0) {
+          neuerStatus = AnfrageStatus.NEU; // Bestand vorhanden → neue Anfrage
+        }
         emitToAll(EVENTS.BESTAND_UPDATED, { artikelId: anfrage.artikelId, bestand: restBestand });
       }
 
-      console.log(`[reset] Anfrage #${input.id} zurückgesetzt auf NEU`);
-      return { id: input.id, status: AnfrageStatus.NEU, restBestand };
+      // Status aktualisieren
+      await ctx.prisma.anfrage.update({
+        where:  { id: input.id },
+        data:   { status: neuerStatus },
+      });
+
+      console.log(`[reset] Anfrage #${input.id} zurückgesetzt auf ${neuerStatus} (Bestand: ${restBestand})`);
+      return { id: input.id, status: neuerStatus, restBestand };
     }),
 
   // Gruppenansicht — read (ANFRAGE_VIEW_ALL)
