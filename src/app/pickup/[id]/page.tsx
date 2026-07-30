@@ -390,7 +390,13 @@ export default function PickupScanPage() {
   // feiert genau diesen Moment (Sound + Toast). "Ohne Colli/Stellplatz" (key "")
   // wird nicht gefeiert. Wird der GANZE Auftrag durch diesen Scan komplett, hat
   // die Auftrags-Fanfare (playComplete, unten) Vorrang — kein doppeltes Feiern.
+  //
+  // WICHTIG: Solange `data` noch nicht geladen ist, ist colliGruppen leer — ohne
+  // das Warten hier würde die erste (leere) Ausführung fälschlich als Ausgangs-
+  // zustand gelten. Sobald die echten Daten nachladen, sähen dann bereits
+  // abgeschlossene Collis wie "gerade neu fertig" aus (Retrigger bei jedem F5).
   useEffect(() => {
+    if (!data) return;
     const current = new Map<string, boolean>();
     for (const [key, items] of colliGruppen.entries()) {
       if (!key) continue;
@@ -415,7 +421,7 @@ export default function PickupScanPage() {
       }
     }
     colliKomplettMapRef.current = current;
-  }, [colliGruppen, vollstaendig]);
+  }, [colliGruppen, vollstaendig, data]);
 
   // Ref auf die aktuelle Gruppierung, damit der Order-Effekt die offenen Anzahlen
   // lesen kann, OHNE bei jedem Scan neu zu feuern.
