@@ -7,7 +7,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
 import { formatLogId } from "@/lib/pickup/logId";
 import { nurZiffern } from "@/lib/format/ziffern";
-import { playScanSound, playComplete, playNegativeSound, playWagenTreffer, playWagenLeer, type ScanResult } from "@/lib/pickup/scanSound";
+import { playScanSound, playComplete, playColliKomplett, playNegativeSound, playWagenTreffer, playWagenLeer, type ScanResult } from "@/lib/pickup/scanSound";
 import { useScannerMode } from "@/lib/pickup/useScannerMode";
 import { GeraeteUmschalter } from "@/components/pickup/ModusBanner";
 
@@ -269,6 +269,24 @@ export default function PickupScanPage() {
   const [abschlussErgebnis, setAbschlussErgebnis] = useState<{ name: string; gesamt: number; gefunden: number; nichtGefunden: number } | null>(null);
   const prevVollRef = useRef<boolean | null>(null);
 
+  // "Colli/Stellplatz komplett"-Toast — feiert, wenn innerhalb EINES Collis
+  // (bzw. Stellplatzes) alle gesuchten LogIDs gefunden wurden. Eigener Sound,
+  // unabhängig von der Gesamt-Auftrags-Fanfare (playComplete).
+  const [colliToast, setColliToast]           = useState<{ key: string; anzahl: number } | null>(null);
+  const colliKomplettInitRef = useRef(false);
+  const colliKomplettMapRef  = useRef<Map<string, boolean>>(new Map());
+  const colliToastTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Beim Wechsel des Auftrags (andere id) den Erkennungs-Zustand zurücksetzen,
+  // sonst könnte ein alter Zwischenstand fälschlich als "neu komplett" gelten.
+  useEffect(() => {
+    colliKomplettInitRef.current = false;
+    colliKomplettMapRef.current  = new Map();
+    setColliToast(null);
+  }, [id]);
+
+  useEffect(() => () => { if (colliToastTimerRef.current) clearTimeout(colliToastTimerRef.current); }, []);
+
   const abschliessen = api.pickup.abschliessen.useMutation({
     onSuccess: (r) => {
       setAbschlussErgebnis({ name: r.name, gesamt: r.gesamt, gefunden: r.gefunden, nichtGefunden: r.nichtGefunden });
@@ -367,6 +385,37 @@ export default function PickupScanPage() {
   // Signatur der Colli-Schlüsselmenge — ändert sich NICHT beim bloßen Abhaken,
   // nur wenn Collis hinzukommen/wegfallen (Lade-/Typ-Wechsel).
   const colliKeysSig = useMemo(() => [...colliGruppen.keys()].sort().join("|"), [colliGruppen]);
+
+  // Erkennt den Übergang "Colli/Stellplatz war offen → ist jetzt komplett" und
+  // feiert genau diesen Moment (Sound + Toast). "Ohne Colli/Stellplatz" (key "")
+  // wird nicht gefeiert. Wird der GANZE Auftrag durch diesen Scan komplett, hat
+  // die Auftrags-Fanfare (playComplete, unten) Vorrang — kein doppeltes Feiern.
+  useEffect(() => {
+    const current = new Map<string, boolean>();
+    for (const [key, items] of colliGruppen.entries()) {
+      if (!key) continue;
+      current.set(key, items.length > 0 && items.every((p) => p.status === "GEFUNDEN"));
+    }
+    if (!colliKomplettInitRef.current) {
+      colliKomplettInitRef.current = true;
+      colliKomplettMapRef.current = current;
+      return;
+    }
+    const prev = colliKomplettMapRef.current;
+    if (!vollstaendig) {
+      for (const [key, komplett] of current.entries()) {
+        if (komplett && prev.get(key) !== true) {
+          const anzahl = colliGruppen.get(key)?.length ?? 0;
+          setColliToast({ key, anzahl });
+          playColliKomplett();
+          if (colliToastTimerRef.current) clearTimeout(colliToastTimerRef.current);
+          colliToastTimerRef.current = setTimeout(() => setColliToast(null), 2600);
+          break; // Regelfall: ein Scan schließt genau ein Colli ab
+        }
+      }
+    }
+    colliKomplettMapRef.current = current;
+  }, [colliGruppen, vollstaendig]);
 
   // Ref auf die aktuelle Gruppierung, damit der Order-Effekt die offenen Anzahlen
   // lesen kann, OHNE bei jedem Scan neu zu feuern.
@@ -530,7 +579,32 @@ export default function PickupScanPage() {
           70%  { box-shadow: 0 0 0 10px transparent; }
           100% { box-shadow: 0 0 0 0 transparent; }
         }
+        .colli-toast { animation: colliToastIn 0.25s ease-out; }
+        @keyframes colliToastIn {
+          0%   { opacity: 0; transform: translate(-50%, -12px) scale(0.94); }
+          100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+        }
       `}</style>
+
+      {/* "Colli/Stellplatz komplett"-Toast — nicht-blockierend, verschwindet von selbst. */}
+      {colliToast && (
+        <div
+          role="status"
+          aria-live="assertive"
+          className="colli-toast fixed top-3 left-1/2 z-50 w-[calc(100%-1.5rem)] max-w-md rounded-2xl border-2 px-5 py-4 shadow-2xl flex items-center gap-3"
+          style={{ borderColor: "#04B475", background: "#04B475", color: "#fff" }}
+        >
+          <span className="text-3xl" aria-hidden>🎉</span>
+          <div className="min-w-0">
+            <div className="font-black text-base leading-tight">
+              {istColli ? "Stellplatz" : "Colli"} {formatLogId(colliToast.key)} komplett!
+            </div>
+            <div className="text-sm opacity-90">
+              Alle {colliToast.anzahl} {colliToast.anzahl === 1 ? "Gerät" : "Geräte"} gefunden.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── KOPF — scrollt mit der Seite mit (nicht mehr gepinnt) ── */}
       <div className="space-y-2">

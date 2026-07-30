@@ -107,6 +107,23 @@ export function playComplete(): void {
   }
 }
 
+// Colli/Stellplatz komplett: alle gesuchten LogIDs innerhalb EINES Collis (bzw.
+// Stellplatzes) gefunden — eigener, lauter Dreiklang (G5-B5-D6), bewusst anders
+// als der GEFUNDEN-Doppelton und die Auftrags-Fanfare (playComplete), damit der
+// Picker den Unterschied "ein Colli fertig" vs. "ganzer Auftrag fertig" hört.
+export function playColliKomplett(): void {
+  try {
+    const ctx = getCtx();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    tonLaut(ctx, 784.0,  0,    0.11, "sine", 0.9);  // G5
+    tonLaut(ctx, 987.77, 0.09, 0.11, "sine", 0.9);  // B5
+    tonLaut(ctx, 1174.7, 0.18, 0.24, "sine", 0.9);  // D6
+  } catch {
+    /* Audio nicht verfügbar — bewusst ignorieren */
+  }
+}
+
 // Negativ-Signal für die Colli-Inhaltsprüfung (0 Treffer / Colli unbekannt).
 // Bewusst HÖRBAR ANDERS als die LogID-Scan-Töne: zwei klar absteigende Töne
 // (G4 → C4) statt des tiefen FREMD-Buzz — „kein Treffer hier".
