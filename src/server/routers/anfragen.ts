@@ -515,6 +515,12 @@ export const anfragenRouter = createTRPCRouter({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Keine Anfragen zum Löschen." });
       }
 
+      // Vor dem Löschen: Techniker auslesen, damit sie notifiziert werden
+      const betroffeneAnfragen = await ctx.prisma.anfrage.findMany({
+        where: { id: { in: allIds } },
+        select: { id: true, techniker: true, logId: true },
+      });
+
       const result = await ctx.prisma.$transaction(async (tx) => {
         const chatKeys = allIds.map(id => `chat:${id}`);
         const deletedNachrichten = await tx.nachricht.deleteMany({
@@ -530,8 +536,15 @@ export const anfragenRouter = createTRPCRouter({
         };
       });
 
-      // Andere Admin-UIs live informieren
+      // Admin-UIs live informieren
       emitToBackoffice(EVENTS.ANFRAGE_GELOESCHT, { ids: result.ids });
+
+      // Techniker notifizieren: Anfragen für diese LogIDs sind gelöscht
+      // → Ihr lokaler Cache ist invalid, bitte neu laden
+      const technikerSet = new Set(betroffeneAnfragen.map(a => a.techniker));
+      for (const techniker of technikerSet) {
+        emitToUser(techniker, EVENTS.ANFRAGE_GELOESCHT, { ids: result.ids });
+      }
 
       return result;
     }),
