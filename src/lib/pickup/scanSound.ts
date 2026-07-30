@@ -74,8 +74,8 @@ export function playScanErfolg(): void {
   try {
     const c = getCtx();
     if (!c) return;
-    tonLaut(c, 988,  0,    0.13, "sine", 0.98); // B5
-    tonLaut(c, 1319, 0.12, 0.18, "sine", 0.98); // E6
+    tonLaut(c, 988,  0,    0.13, "sine", 1.0); // B5
+    tonLaut(c, 1319, 0.12, 0.18, "sine", 1.0); // E6
   } catch {
     /* Audio nicht verfügbar — bewusst ignorieren */
   }
@@ -86,8 +86,8 @@ export function playScanNichtBenoetigt(): void {
   try {
     const c = getCtx();
     if (!c) return;
-    tonLaut(c, 220, 0,    0.20, "sawtooth", 0.95); // A3
-    tonLaut(c, 146, 0.17, 0.30, "sawtooth", 0.95); // D3 (tiefer → fallend)
+    tonLaut(c, 220, 0,    0.20, "sawtooth", 1.0); // A3
+    tonLaut(c, 146, 0.17, 0.30, "sawtooth", 1.0); // D3 (tiefer → fallend)
   } catch {
     /* Audio nicht verfügbar — bewusst ignorieren */
   }
@@ -101,7 +101,7 @@ export function playComplete(): void {
     if (!ctx) return;
     const t = ctx.currentTime;
     const noten = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
-    noten.forEach((f, i) => ton(ctx, f, t + i * 0.12, 0.16, "sine", 0.2));
+    noten.forEach((f, i) => ton(ctx, f, t + i * 0.12, 0.16, "sine", 0.85));
   } catch {
     /* Audio nicht verfügbar — bewusst ignorieren */
   }
@@ -115,8 +115,8 @@ export function playNegativeSound(): void {
     const ctx = getCtx();
     if (!ctx) return;
     const t = ctx.currentTime;
-    ton(ctx, 392, t,        0.16, "triangle", 0.22); // G4
-    ton(ctx, 261, t + 0.16, 0.22, "triangle", 0.22); // C4 (tiefer → absteigend)
+    ton(ctx, 392, t,        0.16, "triangle", 0.75); // G4
+    ton(ctx, 261, t + 0.16, 0.22, "triangle", 0.75); // C4 (tiefer → absteigend)
   } catch {
     /* Audio nicht verfügbar — bewusst ignorieren */
   }
@@ -140,7 +140,7 @@ export function playWagenTreffer(): void {
     if (!ctx) return;
     const t = ctx.currentTime;
     const noten = [440, 554.37, 659.25]; // A4 C#5 E5 (Dur-Dreiklang, aufsteigend)
-    noten.forEach((f, i) => ton(ctx, f, t + i * 0.09, 0.13, "sine", 0.2));
+    noten.forEach((f, i) => ton(ctx, f, t + i * 0.09, 0.13, "sine", 0.8));
   } catch {
     /* Audio nicht verfügbar — bewusst ignorieren */
   }
@@ -151,7 +151,7 @@ export function playWagenLeer(): void {
     const ctx = getCtx();
     if (!ctx) return;
     const t = ctx.currentTime;
-    ton(ctx, 523.25, t, 0.18, "sine", 0.16); // C5, einzeln/neutral — „gesehen, weiter"
+    ton(ctx, 523.25, t, 0.18, "sine", 0.7); // C5, einzeln/neutral — „gesehen, weiter"
   } catch {
     /* Audio nicht verfügbar — bewusst ignorieren */
   }
@@ -163,13 +163,13 @@ export function playScanSound(result: ScanResult): void {
   if (result === "GEFUNDEN") { playScanErfolg(); return; }        // grün / benötigt
   if (result === "FREMD")    { playScanNichtBenoetigt(); return; } // rot / nicht benötigt
   // SCHON / gelb — mittlerer, kurzer Doppel-Blip (gleiche Tonhöhe → klar als
-  // „Warnung" erkennbar, weder auf- noch absteigend). Hörbar lauter als zuvor.
+  // „Warnung" erkennbar, weder auf- noch absteigend). Laut für gute Hörbarkeit.
   try {
     const ctx = getCtx();
     if (!ctx) return;
     const t = ctx.currentTime;
-    ton(ctx, 620, t,        0.10, "triangle", 0.6);
-    ton(ctx, 620, t + 0.15, 0.10, "triangle", 0.6);
+    ton(ctx, 620, t,        0.10, "triangle", 0.85);
+    ton(ctx, 620, t + 0.15, 0.10, "triangle", 0.85);
   } catch {
     /* Audio nicht verfügbar — bewusst ignorieren */
   }

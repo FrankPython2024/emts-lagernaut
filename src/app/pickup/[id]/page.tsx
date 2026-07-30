@@ -59,7 +59,7 @@ function ErgebnisBanner({ fb, istColli }: { fb: Feedback | null; istColli: boole
             <span className="text-5xl" aria-hidden>📦</span>
             <div className="min-w-0">
               <div className="text-2xl font-black" style={{ color: "#04713f" }}>Diesen Colli durchscannen</div>
-              <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">Colli {formatLogId(fb.colliNummer)}</div>
+              <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">{formatLogId(fb.colliNummer)}</div>
               <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
                 {fb.anzahlTreffer} {fb.anzahlTreffer === 1 ? "gesuchtes Gerät" : "gesuchte Geräte"} hier drin:
               </div>
@@ -86,7 +86,7 @@ function ErgebnisBanner({ fb, istColli }: { fb: Feedback | null; istColli: boole
             <div className="text-2xl font-black" style={{ color: "#b3261e" }}>Nichts Gesuchtes hier</div>
             <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb]">Weiter zum nächsten Colli.</div>
             <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] font-mono">
-              Colli {fb.colliNummer ? formatLogId(fb.colliNummer) : "—"}
+              {fb.colliNummer ? formatLogId(fb.colliNummer) : "—"}
               <span className="font-sans"> · {fb.colliBekannt ? "kein gesuchtes Gerät drin" : "unbekannt"}</span>
             </div>
           </div>
