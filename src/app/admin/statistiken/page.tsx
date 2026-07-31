@@ -153,6 +153,12 @@ function ErntePanel({ tage, standortId }: { tage: number; standortId: number | n
                 ℹ️ {q.data.erfassung.ohneHerkunft.toLocaleString("de-DE")} Einlagerungen ohne Spender-LogID (nicht enthalten)
               </div>
             )}
+            {q.data.erfassung.druckTeile > 0 && (
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
+                🖨️ {q.data.erfassung.druckTeile.toLocaleString("de-DE")} Teile selbst gedruckt
+                <span className="text-[#90939a]"> — eigene Fertigung, zählt nicht als Ernte</span>
+              </div>
+            )}
           </div>
 
           {q.data.mengeGesamt === 0 && (

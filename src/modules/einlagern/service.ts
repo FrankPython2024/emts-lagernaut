@@ -7,6 +7,7 @@ import { STANDARD_TEILE }      from "./constants";
 import { VERSCHIEDENES_TEILTYP, verschiedenesKompatTeiltyp } from "@/lib/constants/teiltypen";
 import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
 import { getOrCreateModell }   from "@/lib/geraete/getOrCreateModell";
+import { type HerkunftArt }    from "@/lib/einlagern/herkunft";
 
 /**
  * Effektiver teiltyp-Schlüssel für Bezeichnung + Kompatibilitaet.
@@ -221,6 +222,9 @@ export type ExecuteInput = {
   items:                   ExecuteItem[];
   gewaehlterLagerplatzId?: number;
   standortId?:             number;
+  // SPENDER = aus Altgerät geerntet · DRUCK = selbst gedruckt.
+  // Fehlt der Wert, gilt SPENDER (der Regelfall im Assistenten).
+  herkunftArt?:            HerkunftArt;
 };
 
 export type ExecuteResult = {
@@ -392,11 +396,19 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
 
     // 4. EINGANG-Buchung
     const neuerBestand = artikel.bestand + item.menge;
+    // 3D-Druck auch im Klartext vermerken — die Notiz ist das, was im Beleg und
+    // im Aktivitäts-Feed gelesen wird; dort soll nicht „geerntet" suggeriert werden.
     const notiz = [
       `Grading: ${item.grading}`,
       `Gerät: ${input.geraetName}`,
+      input.herkunftArt === "DRUCK" ? "3D-gedruckt" : null,
       item.notiz,
     ].filter(Boolean).join(" | ");
+
+    // Selbst gedruckte Teile stammen aus keinem Altgerät — auch wenn zur
+    // Zuordnung ein Gerätemodell gewählt wurde. Die LogID darf dort NICHT als
+    // Spender gespeichert werden, sonst zählt die Ernte-Auswertung sie mit.
+    const istDruck = input.herkunftArt === "DRUCK";
 
     const buchung = await bucheLager({
       artikelId:   artikel.id,
@@ -406,7 +418,8 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
       notiz,
       // Herkunft festhalten: aus WELCHEM Spender-Altgerät stammt dieses Teil.
       // Die LogID wurde bisher nur ins Server-Log geschrieben und war danach weg.
-      herkunftLogId: input.logId?.trim() || null,
+      herkunftLogId: istDruck ? null : (input.logId?.trim() || null),
+      herkunftArt:   input.herkunftArt ?? "SPENDER",
     });
 
     // 5. Beleg-Nummer

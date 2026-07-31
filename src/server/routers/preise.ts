@@ -223,6 +223,7 @@ export const preiseRouter = createTRPCRouter({
         JOIN Artikel a              ON a.id = b.artikelId
         LEFT JOIN KategoriePreis kp ON kp.kategorie = a.kategorie
         WHERE b.typ = 'EINGANG' AND b.herkunftLogId IS NOT NULL
+          AND (b.herkunftArt IS NULL OR b.herkunftArt <> 'DRUCK')
           ${datumFilter} ${standortFilter}
         GROUP BY a.kategorie, kp.preis
         ORDER BY a.kategorie
@@ -231,11 +232,13 @@ export const preiseRouter = createTRPCRouter({
       // 2) Kennzahlen: wie viele verschiedene Spendergeräte, wie viele Einlagerungen
       //    ohne Herkunft (Alt-Daten bzw. Einlagern ohne LogID-Scan).
       const [kopf] = await ctx.prisma.$queryRaw<
-        { geraete: unknown; mitHerkunft: unknown; ohneHerkunft: unknown }[]
+        { geraete: unknown; mitHerkunft: unknown; ohneHerkunft: unknown; druckTeile: unknown }[]
       >(Prisma.sql`
         SELECT COUNT(DISTINCT b.herkunftLogId)                        AS geraete,
                SUM(CASE WHEN b.herkunftLogId IS NOT NULL THEN 1 ELSE 0 END) AS mitHerkunft,
-               SUM(CASE WHEN b.herkunftLogId IS NULL     THEN 1 ELSE 0 END) AS ohneHerkunft
+               SUM(CASE WHEN b.herkunftLogId IS NULL     THEN 1 ELSE 0 END) AS ohneHerkunft,
+               -- Selbst gedruckte Teile: eigene Zahl, zählt NICHT als Ernte
+               COALESCE(SUM(CASE WHEN b.herkunftArt = 'DRUCK' THEN b.menge ELSE 0 END), 0) AS druckTeile
         FROM Buchung b
         JOIN Artikel a ON a.id = b.artikelId
         WHERE b.typ = 'EINGANG' ${datumFilter} ${standortFilter}
@@ -252,6 +255,7 @@ export const preiseRouter = createTRPCRouter({
         JOIN Artikel a          ON a.id = b.artikelId
         LEFT JOIN GeraeteLookup g ON g.logId = b.herkunftLogId
         WHERE b.typ = 'EINGANG' AND b.herkunftLogId IS NOT NULL
+          AND (b.herkunftArt IS NULL OR b.herkunftArt <> 'DRUCK')
           ${datumFilter} ${standortFilter}
         GROUP BY modell
         ORDER BY teile DESC
@@ -316,6 +320,8 @@ export const preiseRouter = createTRPCRouter({
         erfassung: {
           mitHerkunft:  num(kopf?.mitHerkunft),
           ohneHerkunft: num(kopf?.ohneHerkunft),
+          // Eigenfertigung getrennt ausgewiesen — bewusst NICHT Teil der Ernte.
+          druckTeile:   num(kopf?.druckTeile),
         },
         // Altdaten aus der Notiz — NUR Modell-Ebene, bewusst ohne „je Gerät".
         altModelle: altModelle

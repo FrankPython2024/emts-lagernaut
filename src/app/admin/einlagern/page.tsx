@@ -7,6 +7,10 @@ import { useToast }     from "@/components/ui/Toast";
 import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
 import { useStandortFilter } from "@/lib/standort/standortContext";
 import {
+  HERKUNFT_ARTEN, HERKUNFT_LABEL, HERKUNFT_ICON, HERKUNFT_HILFE,
+  type HerkunftArt,
+} from "@/lib/einlagern/herkunft";
+import {
   printAlleEinlagerBelege,
   printEinlagerBeleg,
   EinlagerBelegPreview,
@@ -1451,9 +1455,11 @@ function StepBestaetigung({
   standortId:  number;
   items:       AusgewaehltItem[];
   onBack:      () => void;
-  onEinbuchen: (itemsWithLager: AusgewaehltItem[]) => void;
+  onEinbuchen: (itemsWithLager: AusgewaehltItem[], herkunft: HerkunftArt) => void;
 }) {
   const [localItems, setLocalItems] = useState<AusgewaehltItem[]>(items);
+  // Standard ist der Regelfall: Teile aus einem Altgerät ausbauen.
+  const [herkunft, setHerkunft] = useState<HerkunftArt>("SPENDER");
 
   const previewQuery = api.einlagern.preview.useQuery(
     { geraetName: geraet.name, standortId, items: localItems.map((i) => ({ teiltyp: i.teiltyp, menge: i.menge, grading: i.grading, verschiedenesText: i.verschiedenesText })) },
@@ -1509,6 +1515,44 @@ function StepBestaetigung({
           {geraet.logId && (
             <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", marginTop: 2 }}>LogID: {geraet.logId}</div>
           )}
+        </div>
+
+        {/* Herkunft — trennt echte Ernte aus Altgeräten von selbst gedruckten
+            Teilen. Ohne das landen 3D-Druck-Chargen (mehrere hundert Stück aus
+            EINER Buchung) in der Ernte-Auswertung und verzerren sie. */}
+        <div style={{ marginBottom: "1.2rem" }}>
+          <div style={{ fontSize: "0.9rem", fontWeight: 700, marginBottom: 8, color: "var(--text)" }}>
+            Woher kommen die Teile?
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {HERKUNFT_ARTEN.map((art) => {
+              const aktiv = herkunft === art;
+              return (
+                <button
+                  key={art}
+                  type="button"
+                  onClick={() => setHerkunft(art)}
+                  aria-pressed={aktiv}
+                  style={{
+                    flex: "1 1 220px", minHeight: 56, cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "0.7rem 0.9rem", borderRadius: 10, textAlign: "left",
+                    border: aktiv ? "2px solid var(--afb-navy)" : "1px solid var(--border)",
+                    background: aktiv ? "rgba(32,47,97,0.06)" : "var(--card)",
+                    color: "var(--text)",
+                  }}
+                >
+                  <span style={{ fontSize: "1.4rem", lineHeight: 1 }} aria-hidden="true">{HERKUNFT_ICON[art]}</span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: "block", fontWeight: 800, fontSize: "0.95rem" }}>{HERKUNFT_LABEL[art]}</span>
+                    <span style={{ display: "block", fontSize: "0.78rem", color: "var(--text-dim)", marginTop: 2 }}>
+                      {HERKUNFT_HILFE[art]}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div style={{ fontSize: "0.9rem", fontWeight: 700, marginBottom: 10, color: "var(--text)" }}>
@@ -1604,7 +1648,7 @@ function StepBestaetigung({
             </div>
 
             <button
-              onClick={() => onEinbuchen(localItems)}
+              onClick={() => onEinbuchen(localItems, herkunft)}
               disabled={!canSubmit}
               style={{ ...S.bigBtn("var(--afb-green)", !canSubmit), fontSize: "1.15rem", marginBottom: 10 }}
             >
@@ -1877,13 +1921,14 @@ export default function EinlagernPage() {
     },
   });
 
-  function handleEinbuchen(finalItems: AusgewaehltItem[]) {
+  function handleEinbuchen(finalItems: AusgewaehltItem[], herkunft: HerkunftArt) {
     if (!geraet || finalItems.length === 0) return;
     executeMutation.mutate({
       geraetName:             geraet.name,
       logId:                  geraet.logId ?? undefined,
       gewaehlterLagerplatzId: selectedLagerplatzId ?? undefined,
       standortId:             einlagerStandortId,
+      herkunftArt:            herkunft,
       items:                  finalItems.map((i) => ({
         teiltyp:           i.teiltyp,
         menge:             i.menge,

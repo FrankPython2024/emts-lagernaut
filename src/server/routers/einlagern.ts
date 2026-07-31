@@ -12,6 +12,7 @@ import {
   lagerplatzVorschlaegeMulti,
 } from "@/modules/einlagern/service";
 import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
+import { HERKUNFT_ARTEN } from "@/lib/einlagern/herkunft";
 import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
 
 const EinlagerItemSchema = z.object({
@@ -63,6 +64,9 @@ export const einlagernRouter = createTRPCRouter({
       items:                  z.array(EinlagerItemSchema).min(1).max(13),
       gewaehlterLagerplatzId: z.number().int().positive().optional(),
       standortId:             z.number().int().positive().optional(),
+      // Trennt echte Bauteil-Ernte von selbst gedruckten Teilen — sonst
+      // verfälschen 3D-Druck-Chargen die Ernte-Kennzahlen.
+      herkunftArt:            z.enum(HERKUNFT_ARTEN).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const user = ctx.session!.user as SessionUser;

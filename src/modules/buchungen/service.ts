@@ -22,6 +22,8 @@ export type BucheLagerData = {
   notiz?:      string;
   // Bauteil-Ernte: LogID des Spender-Altgeräts (nur beim Einlagern gesetzt).
   herkunftLogId?: string | null;
+  // "SPENDER" (aus Altgerät geerntet) oder "DRUCK" (selbst gedruckt).
+  herkunftArt?:   string | null;
 };
 
 /**
@@ -95,6 +97,7 @@ export async function bucheLager(data: BucheLagerData): Promise<Buchung> {
         mitarbeiter: data.mitarbeiter,
         notiz:       data.notiz,
         herkunftLogId: data.herkunftLogId ?? null,
+        herkunftArt:   data.herkunftArt   ?? null,
       },
     });
 

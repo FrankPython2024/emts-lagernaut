@@ -188,6 +188,14 @@ model Buchung {
   // Grundlage für: Ernte-Auswertung (Teile je Gerät), Rückverfolgung bei
   // Reklamation und die Bewertung des gewonnenen Materialwerts.
   herkunftLogId String?   @db.VarChar(100)
+  // Woher stammt das eingelagerte Teil? Genau zwei Fälle:
+  //   "SPENDER" = aus einem Altgerät ausgebaut (Bauteil-Ernte)
+  //   "DRUCK"   = selbst hergestellt (3D-Drucker)
+  // WICHTIG für die Auswertung: Nur SPENDER ist Gewinnung aus Altgeräten.
+  // 3D-Druck läuft in großen Chargen (z. B. 280 Füße in EINER Buchung) und würde
+  // die Ernte-Kennzahlen (Teile je Gerät, Materialwert) sonst massiv verfälschen.
+  // NULL = Altdaten vor Einführung — dort sind beide Fälle nicht trennbar.
+  herkunftArt   String?   @db.VarChar(20)
   artikel     Artikel     @relation(fields: [artikelId], references: [id])
   createdAt   DateTime    @default(now())
 
@@ -195,6 +203,7 @@ model Buchung {
   @@index([typ])
   @@index([datum])
   @@index([herkunftLogId])
+  @@index([herkunftArt])
 }
 
 enum BuchungsTyp {
