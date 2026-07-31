@@ -28,6 +28,8 @@ export type ErstelleAnfrageData = {
   geraet:           string;
   artikelId:        number | null;
   teil:             string;
+  // Stückzahl — nur bei den Füßen > 1 (max 2), sonst immer 1.
+  menge?:           number;
   grading?:         string;
   kommentar?:       string;
   gruppenNr?:       string;
@@ -46,6 +48,7 @@ export type ErstelleAnfrageData = {
  */
 export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrage> {
   let status: AnfrageStatus = AnfrageStatus.BEDARF;
+  const menge = data.menge && data.menge > 0 ? data.menge : 1;
 
   if (data.artikelId) {
     const artikel = await prisma.artikel.findUnique({
@@ -53,7 +56,9 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
       select: { id: true, kategorie: true, bestand: true },
     });
     if (!artikel) throw new TRPCError({ code: "NOT_FOUND", message: `Artikel ${data.artikelId} nicht gefunden.` });
-    status = artikel.bestand > 0 ? AnfrageStatus.NEU : AnfrageStatus.BEDARF;
+    // Reicht der Bestand für die GEWÜNSCHTE Stückzahl? Bei menge=1 ist das
+    // identisch zur bisherigen Regel (bestand > 0) — nur eben verallgemeinert.
+    status = artikel.bestand >= menge ? AnfrageStatus.NEU : AnfrageStatus.BEDARF;
   }
 
   // Sonderanfragen sind immer BEDARF (kein Lagerartikel verknüpft)
@@ -67,7 +72,7 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
       geraet:           data.geraet.toUpperCase().trim(),
       artikelId:        data.artikelId,
       teil:             data.teil,
-      menge:            1,
+      menge,
       grading:          data.grading,
       kommentar:        data.kommentar,
       gruppenNr:        data.gruppenNr,

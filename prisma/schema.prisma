@@ -387,6 +387,9 @@ model WarenkorbItem {
   korbId           Int
   artikelId        Int?
   teiltyp          String?
+  // Stückzahl — nur bei den Gummifüßen > 1 möglich (max 2 vorne / 2 hinten),
+  // siehe TEILTYPEN_MIT_MENGE. Wird beim Absenden in Anfrage.menge übernommen.
+  menge            Int       @default(1)
   grading          String?
   zusatzinfo       String?
   istSonderAnfrage Boolean   @default(false)

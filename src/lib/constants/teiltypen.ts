@@ -48,6 +48,19 @@ export const STANDARD_TEILNAMEN = STANDARD_TEILTYPEN.map((t) => t.name);
 // gebacken (kein eigenes DB-Feld). Die Kompatibilitaet-Verknüpfung nutzt einen
 // pro-Variante eindeutigen teiltyp-String, damit das unique(geraet, teiltyp)
 // nicht kollidiert.
+// ── Teiltypen mit Stückzahl ──────────────────────────────────────────────────
+// Nur bei den Gummifüßen darf der Techniker eine Anzahl angeben. Ein Notebook
+// hat vorne wie hinten je zwei Füße — deshalb ist bei 2 Schluss. Alle anderen
+// Teile gibt es genau einmal pro Gerät; dort wäre ein Mengenfeld nur Ballast
+// und eine zusätzliche Fehlerquelle.
+export const TEILTYPEN_MIT_MENGE: readonly string[] = ["Füße vorne", "Füße hinten"];
+export const MAX_MENGE_PRO_TEILTYP = 2;
+
+/** Erlaubte Höchstmenge für einen Teiltyp (alles außer Füßen: genau 1). */
+export function maxMengeFuer(teiltyp: string): number {
+  return TEILTYPEN_MIT_MENGE.includes(teiltyp) ? MAX_MENGE_PRO_TEILTYP : 1;
+}
+
 export const VERSCHIEDENES_TEILTYP = "Verschiedenes";
 
 /** Eindeutiger Kompatibilitaet-/Bezeichnungs-Suffix-Teiltyp pro Freitext-Variante. */

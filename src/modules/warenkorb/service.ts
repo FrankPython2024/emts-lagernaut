@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { normalizeLogId } from "@/lib/format/logId";
 import { erstelleAnfrage } from "@/modules/anfragen/service";
+import { maxMengeFuer } from "@/lib/constants/teiltypen";
 
 // ── Shared include ──────────────────────────────────────────────────────────
 
@@ -121,12 +122,27 @@ export async function addItemsBulk(data: {
     logId:      string;
     artikelId:  number | null;
     teiltyp?:   string;
+    menge?:     number;
     grading?:   string;
     zusatzinfo?: string;
   }>;
 }) {
   if (data.items.length === 0) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Keine Items zum Hinzufügen." });
+  }
+
+  // Menge serverseitig auf das erlaubte Maß begrenzen — der Client darf hier
+  // nicht das letzte Wort haben (Füße max 2, alles andere genau 1).
+  for (const i of data.items) {
+    const max = maxMengeFuer(i.teiltyp ?? "");
+    if ((i.menge ?? 1) > max) {
+      throw new TRPCError({
+        code:    "BAD_REQUEST",
+        message: max === 1
+          ? `„${i.teiltyp}" kann nur einmal angefragt werden.`
+          : `Von „${i.teiltyp}" sind höchstens ${max} Stück möglich.`,
+      });
+    }
   }
 
   const techniker = data.techniker.toUpperCase().trim();
@@ -194,6 +210,7 @@ export async function addItemsBulk(data: {
           korbId:     korb!.id,
           artikelId:  i.artikelId,
           teiltyp:    i.teiltyp,
+          menge:      i.menge ?? 1,
           grading:    i.grading ?? null,
           zusatzinfo: i.zusatzinfo,
         })),
@@ -361,6 +378,7 @@ export async function submit(data: {
         teil:             item.istSonderAnfrage && item.beschreibung
           ? item.beschreibung.slice(0, 50)
           : (item.teiltyp ?? item.artikel?.kategorie ?? "Unbekannt"),
+        menge:            item.menge,
         grading:          item.grading ?? undefined,
         kommentar:        item.zusatzinfo ?? data.zusatzinfo,
         gruppenNr,

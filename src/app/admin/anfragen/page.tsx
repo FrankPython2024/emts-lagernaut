@@ -1018,6 +1018,14 @@ function AnfragenPageInner() {
                         <span className="font-semibold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
                           {a.beschreibung ?? a.teil}
                         </span>
+                        {/* Stückzahl deutlich hervorheben — wer packt, muss sofort
+                            sehen, dass 2 Stück gebraucht werden (nur bei den Füßen
+                            möglich). Ohne das würde stillschweigend 1 ausgegeben. */}
+                        {(a.menge ?? 1) > 1 && (
+                          <span className="ml-1.5 text-xs font-black px-2 py-0.5 rounded bg-[#f7b928]/15 text-[#a67908] dark:text-[#f7b928] border border-[#f7b928]/40">
+                            {a.menge}× Stück
+                          </span>
+                        )}
                         {!a.istSonderAnfrage && (a.grading ? (
                           <span className="ml-1 text-xs font-bold px-1.5 py-0.5 rounded bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]">
                             {a.grading} erwünscht

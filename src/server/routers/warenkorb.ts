@@ -78,6 +78,9 @@ export const warenkorbRouter = createTRPCRouter({
         logId:      z.string().min(1).max(100),
         artikelId:  z.number().int().positive().nullable(),
         teiltyp:    z.string().max(100).optional(),
+        // Obergrenze hier bewusst großzügig — die teiltyp-genaue Prüfung
+        // (Füße max 2, alles andere 1) macht der Service, siehe maxMengeFuer().
+        menge:      z.number().int().min(1).max(2).optional(),
         grading:    z.string().max(10).optional(),
         zusatzinfo: z.string().max(500).optional(),
       })).min(1).max(50),

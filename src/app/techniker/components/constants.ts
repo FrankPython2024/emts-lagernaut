@@ -30,6 +30,8 @@ export type AnfrageRow = {
   geraet:           string;
   geraeteName:      string | null;
   teil:             string;
+  // Stückzahl der Anfrage — nur bei den Füßen > 1 (max 2), sonst 1.
+  menge?:           number;
   status:           string;
   datum:            Date;
   grading?:         string | null;

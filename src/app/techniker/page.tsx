@@ -8,6 +8,7 @@ import { useSocket }      from "@/hooks/useSocket";
 import { EVENTS }         from "@/modules/realtime/events";
 import GruppenNachrichten from "./components/GruppenNachrichten";
 import { type AnfrageRow, type GruppeData } from "./components/constants";
+import { maxMengeFuer } from "@/lib/constants/teiltypen";
 import { Loader2, MessageCircle } from "lucide-react";
 import { getLucideIcon } from "@/lib/icons/getLucideIcon";
 import { useTestModus, darfTestModus } from "@/lib/testModus/testModus";
@@ -504,6 +505,9 @@ function AnfrageFlow({
   const [selectedGeraet,     setSelectedGeraet]     = useState<GeraetInfo | null>(null);
   const [selectedTeile,      setSelectedTeile]      = useState<Set<string>>(new Set());
   const [anmerkungen,        setAnmerkungen]        = useState<Record<string, string>>({});
+  // Stückzahl je Teiltyp — nur bei den Füßen wählbar (max 2). Fehlt ein Eintrag,
+  // gilt 1; deshalb muss hier nichts vorbelegt werden.
+  const [mengen,             setMengen]             = useState<Record<string, number>>({});
   const [sonderBeschr,       setSonderBeschr]       = useState("");
   const [tastaturModalOffen, setTastaturModalOffen] = useState(false);
   const [tastaturBeschr,     setTastaturBeschr]     = useState("");
@@ -660,6 +664,7 @@ function AnfrageFlow({
           logId,
           artikelId: info?.artikelId ?? null,
           teiltyp,
+          menge: mengen[teiltyp] ?? 1,
           zusatzinfo,
         };
       });
@@ -912,6 +917,41 @@ function AnfrageFlow({
                             </span>
                           )}
                         </label>
+                        {/* Stückzahl — nur bei den Füßen. Ein Notebook hat vorne
+                            wie hinten je zwei; mehr ergibt keinen Sinn. Bewusst
+                            große Flächen statt Zahlenfeld (leichter zu treffen). */}
+                        {maxMengeFuer(teiltyp) > 1 && (
+                          <div style={{ marginBottom: "0.6rem" }}>
+                            <div style={{ fontSize: "0.82rem", fontWeight: 600, marginBottom: 6, color: "var(--text-dim)" }}>
+                              Wie viele brauchst du?
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              {Array.from({ length: maxMengeFuer(teiltyp) }, (_, i) => i + 1).map(n => {
+                                const aktiv = (mengen[teiltyp] ?? 1) === n;
+                                return (
+                                  <button
+                                    key={n}
+                                    type="button"
+                                    onClick={() => setMengen(m => ({ ...m, [teiltyp]: n }))}
+                                    aria-pressed={aktiv}
+                                    style={{
+                                      minWidth: 64, minHeight: 56, borderRadius: 12, cursor: "pointer",
+                                      fontSize: "1.15rem", fontWeight: 800,
+                                      border: aktiv ? "2px solid var(--afb-navy, #202F61)" : "1.5px solid var(--border)",
+                                      background: aktiv ? "rgba(32,47,97,0.08)" : "var(--card-bg, #fff)",
+                                      color: "var(--text)",
+                                    }}
+                                  >
+                                    {n}
+                                  </button>
+                                );
+                              })}
+                              <span style={{ alignSelf: "center", fontSize: "0.82rem", color: "var(--text-dim)" }}>
+                                Stück
+                              </span>
+                            </div>
+                          </div>
+                        )}
                         <input
                           type="text"
                           value={anmerkungen[teiltyp] ?? ""}
@@ -1551,6 +1591,11 @@ function AnfrageDetailModal({
                 return (
                   <li key={a.id} style={{ fontSize: "1rem" }}>
                     {a.teil}
+                    {/* Stückzahl nur zeigen, wenn mehr als eins angefragt wurde —
+                        sonst stünde bei jedem Teil ein überflüssiges „1×". */}
+                    {(a.menge ?? 1) > 1 && (
+                      <strong style={{ marginLeft: 6, fontWeight: 800 }}>{a.menge}×</strong>
+                    )}
                     {" "}
                     <span style={{
                       background:   aCfg.bg,
