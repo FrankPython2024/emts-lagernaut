@@ -935,7 +935,8 @@ function LagerplatzBrowser({
   onSchliessen,
   standortId,
 }: {
-  onWaehlen:    (id: number, code: string) => void;
+  // id === null bedeutet: manuell angelegter Platz (kein ETL-Fach, siehe unten).
+  onWaehlen:    (id: number | null, code: string) => void;
   onSchliessen: () => void;
   standortId:   number;
 }) {
@@ -944,9 +945,22 @@ function LagerplatzBrowser({
 
   const freieQ = api.lagerplatz.free.useQuery({ standortId }, { staleTime: 30_000 });
 
+  // Manuell angelegte Lagerplätze liegen in einer ANDEREN Tabelle als die
+  // ETL-Fächer (LagerplatzConfig vs. lagerplatz) und tauchten hier deshalb nie
+  // auf. Sie haben kein Regal/Ebene/Fach und damit keine Fach-Belegung — der
+  // Code wird stattdessen direkt am Artikel hinterlegt.
+  const manuelleQ = api.lagerplaetze.getAll.useQuery(undefined, { staleTime: 60_000 });
+
   const gefiltert = (freieQ.data ?? []).filter((p) =>
     !suche || p.code.toUpperCase().includes(suche.toUpperCase()),
   );
+
+  // `ausConfig` markiert echte Handanlagen. NICHT über die ETL-Frei-Liste filtern:
+  // ein volles Fach (4/4) steht dort nicht drin und würde sonst hier auftauchen.
+  const etlCodes = new Set((freieQ.data ?? []).map((p) => p.code));
+  const manuelle = (manuelleQ.data ?? [])
+    .filter((l) => l.ausConfig && !etlCodes.has(l.lagerplatz))
+    .filter((l) => !suche || l.lagerplatz.toUpperCase().includes(suche.toUpperCase()));
 
   const byReihe: Record<number, typeof gefiltert[number][]> = {};
   for (const p of gefiltert) {
@@ -997,10 +1011,39 @@ function LagerplatzBrowser({
         </div>
 
         <div style={{ overflowY: "auto", flex: 1, padding: "0.5rem 1rem 1rem" }}>
+          {/* Manuell angelegte Plätze zuerst — die werden gezielt angelegt und
+              sind deshalb meist das, was gesucht wird. */}
+          {manuelle.length > 0 && (
+            <div style={{ marginBottom: "1rem" }}>
+              <div style={{ fontSize: "0.78rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--text-dim)", margin: "0.3rem 0 0.5rem" }}>
+                Eigene Lagerplätze
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {manuelle.map((l) => (
+                  <button
+                    key={l.lagerplatz}
+                    onClick={() => onWaehlen(null, l.lagerplatz)}
+                    style={{ padding: "0.7rem 1rem", borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontFamily: "'Ubuntu', sans-serif", fontSize: "0.9rem", fontWeight: 700, minHeight: 62, minWidth: 90, textAlign: "center" }}
+                    aria-label={`Eigener Lagerplatz ${l.lagerplatz}, ${l.artikelAnzahl} Artikel`}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--afb-navy)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+                  >
+                    {l.lagerplatz}
+                    <div style={{ fontSize: "0.72rem", fontWeight: 400, color: "var(--text-dim)", marginTop: 2 }}>
+                      {l.bereich} · {l.artikelAnzahl} Artikel
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {freieQ.isLoading ? (
             <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>Lädt…</div>
           ) : reihen.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>Keine freien Plätze gefunden.</div>
+            manuelle.length === 0 && (
+              <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>Keine freien Plätze gefunden.</div>
+            )
           ) : reihen.map((reihe) => {
             const plaetze    = byReihe[reihe] ?? [];
             const herst      = plaetze[0]?.hersteller ?? "—";
@@ -1051,7 +1094,9 @@ function StepLagerplatz({
 }: {
   geraet:     GeraetState;
   standortId: number;
-  onWeiter:   (lagerplatzId: number | null) => void;
+  // freierCode = manuell angelegter Platz (kein ETL-Fach). Der bekommt keine
+  // Fach-Belegung, sondern wird direkt als Lagerplatz an den Artikeln gesetzt.
+  onWeiter:   (lagerplatzId: number | null, freierCode?: string) => void;
   onBack:     () => void;
 }) {
   const [browserAuf, setBrowserAuf] = useState(false);
@@ -1217,7 +1262,7 @@ function StepLagerplatz({
       {browserAuf && (
         <LagerplatzBrowser
           standortId={standortId}
-          onWaehlen={(id) => { onWeiter(id); setBrowserAuf(false); }}
+          onWaehlen={(id, code) => { onWeiter(id, id === null ? code : undefined); setBrowserAuf(false); }}
           onSchliessen={() => setBrowserAuf(false)}
         />
       )}
@@ -1448,12 +1493,15 @@ function StepBestaetigung({
   geraet,
   items,
   standortId,
+  freierLagerplatzCode,
   onBack,
   onEinbuchen,
 }: {
   geraet:      GeraetState;
   standortId:  number;
   items:       AusgewaehltItem[];
+  // Im Lagerplatz-Schritt gewählter manueller Platz — belegt hier die Felder vor.
+  freierLagerplatzCode?: string | null;
   onBack:      () => void;
   onEinbuchen: (itemsWithLager: AusgewaehltItem[], herkunft: HerkunftArt) => void;
 }) {
@@ -1479,6 +1527,16 @@ function StepBestaetigung({
     { kategorien: neueKateg, standortId },
     { enabled: neueKateg.length > 0, staleTime: 0 },
   );
+
+  // Wurde im Lagerplatz-Schritt ein manueller Platz gewählt, gilt er für alle
+  // Teile dieses Vorgangs — er hat kein ETL-Fach, also ist der Code am Artikel
+  // der einzige Weg, ihn festzuhalten. Änderbar bleibt er pro Teil trotzdem.
+  useEffect(() => {
+    if (!freierLagerplatzCode) return;
+    setLocalItems((prev) =>
+      prev.map((item) => (item.lagerplatz ? item : { ...item, lagerplatz: freierLagerplatzCode })),
+    );
+  }, [freierLagerplatzCode]);
 
   // Pre-fill Lagerplatz-Felder sobald Vorschläge geladen sind
   useEffect(() => {
@@ -1907,6 +1965,9 @@ export default function EinlagernPage() {
   const [items,             setItems]             = useState<AusgewaehltItem[]>([]);
   const [ergebnisse,        setErgebnisse]        = useState<ErgebnisItem[]>([]);
   const [selectedLagerplatzId, setSelectedLagerplatzId] = useState<number | null>(null);
+  // Manuell angelegter Platz: hat kein ETL-Fach und damit keine Belegung — der
+  // Code wird stattdessen als Lagerplatz an den einzelnen Artikeln gesetzt.
+  const [freierLagerplatzCode, setFreierLagerplatzCode] = useState<string | null>(null);
 
   const kuerzel = (session?.user as { kuerzel?: string } | undefined)?.kuerzel ?? "";
 
@@ -1969,6 +2030,7 @@ export default function EinlagernPage() {
     setItems([]);
     setErgebnisse([]);
     setSelectedLagerplatzId(null);
+    setFreierLagerplatzCode(null); // sonst wirkt der Platz im nächsten Vorgang weiter
     setStep(1);
   }
 
@@ -2021,7 +2083,11 @@ export default function EinlagernPage() {
           geraet={geraet}
           standortId={einlagerStandortId}
           onBack={() => setStep(1)}
-          onWeiter={(id) => { setSelectedLagerplatzId(id); setStep(3); }}
+          onWeiter={(id, freierCode) => {
+            setSelectedLagerplatzId(id);
+            setFreierLagerplatzCode(freierCode ?? null);
+            setStep(3);
+          }}
         />
       )}
 
@@ -2040,6 +2106,7 @@ export default function EinlagernPage() {
           geraet={geraet}
           items={items}
           standortId={einlagerStandortId}
+          freierLagerplatzCode={freierLagerplatzCode}
           onBack={() => setStep(3)}
           onEinbuchen={handleEinbuchen}
         />
