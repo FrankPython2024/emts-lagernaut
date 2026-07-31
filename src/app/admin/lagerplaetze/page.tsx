@@ -323,6 +323,12 @@ export default function LagerplaetzePage() {
   const [debouncedSuche]      = useDebounce(suche, 300);
   const [neuerCode, setNeuerCode] = useState("");
   const [verschiebeVon,  setVerschiebeVon]  = useState<string | null>(null);
+  // Bearbeiten-Dialog: hält den Ursprungs-Code fest, damit auch das Umbenennen
+  // weiß, welcher Datensatz gemeint war.
+  const [bearbeite, setBearbeite] = useState<{
+    code: string; neuerCode: string; beschreibung: string; bereich: string; artikelAnzahl: number;
+  } | null>(null);
+  const [loesche, setLoesche] = useState<string | null>(null);
   const [verschiebeNach, setVerschiebeNach] = useState("");
   const [neuLagerplatz,  setNeuLagerplatz]  = useState("");
   const [confirmOpen,    setConfirmOpen]    = useState(false);
@@ -353,6 +359,26 @@ export default function LagerplaetzePage() {
   const verschiebeAlle = api.lagerplaetze.verschiebeAlle.useMutation({
     onSuccess: (r) => { show(`✅ ${r.verschoben} Artikel: ${r.von} → ${r.nach}`, "success"); setVerschiebeVon(null); setVerschiebeNach(""); setConfirmOpen(false); refetch(); },
     onError:   (e)  => show(e.message, "error"),
+  });
+
+  const bearbeiten = api.lagerplaetze.update.useMutation({
+    onSuccess: (r) => {
+      show(
+        r.umbenannt
+          ? `✅ Umbenannt in ${r.code}${r.artikelVerschoben > 0 ? ` — ${r.artikelVerschoben} Artikel mitgezogen` : ""}`
+          : `✅ ${r.code} gespeichert`,
+        "success",
+      );
+      setBearbeite(null);
+      refetch();
+      void bereiche.refetch();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
+  const loeschen = api.lagerplaetze.loeschen.useMutation({
+    onSuccess: (r) => { show(`✅ Lagerplatz ${r.code} gelöscht`, "success"); setLoesche(null); refetch(); },
+    onError:   (e)  => { show(e.message, "error"); setLoesche(null); },
   });
 
   // ── ETL-Grid Filter ────────────────────────────────────────────────────────
@@ -560,15 +586,37 @@ export default function LagerplaetzePage() {
                       {l.artikelAnzahl}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    {l.artikelAnzahl > 0 && (
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2 justify-end flex-wrap">
+                      {l.artikelAnzahl > 0 && (
+                        <button
+                          onClick={() => { setVerschiebeVon(l.lagerplatz); setVerschiebeNach(""); }}
+                          className="px-3 py-1 text-xs font-bold rounded-lg bg-[#f7b928]/10 text-[#f7b928] border border-[#f7b928]/30 hover:bg-[#f7b928]/20"
+                        >
+                          📦 Alle verschieben
+                        </button>
+                      )}
                       <button
-                        onClick={() => { setVerschiebeVon(l.lagerplatz); setVerschiebeNach(""); }}
-                        className="px-3 py-1 text-xs font-bold rounded-lg bg-[#f7b928]/10 text-[#f7b928] border border-[#f7b928]/30 hover:bg-[#f7b928]/20"
+                        onClick={() => setBearbeite({
+                          code: l.lagerplatz, neuerCode: l.lagerplatz,
+                          beschreibung: l.beschreibung ?? "", bereich: l.bereich ?? "",
+                          artikelAnzahl: l.artikelAnzahl,
+                        })}
+                        className="px-3 py-1 text-xs font-bold rounded-lg bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] border border-[#0064d2]/30 hover:bg-[#0064d2]/20"
                       >
-                        📦 Alle verschieben
+                        ✏️ Bearbeiten
                       </button>
-                    )}
+                      {/* Löschen nur anbieten, wenn der Platz leer ist — sonst
+                          verlören die Artikel ihren Bezug. Server prüft das nochmal. */}
+                      {l.artikelAnzahl === 0 && (
+                        <button
+                          onClick={() => setLoesche(l.lagerplatz)}
+                          className="px-3 py-1 text-xs font-bold rounded-lg bg-[#fa3e3e]/10 text-[#fa3e3e] border border-[#fa3e3e]/30 hover:bg-[#fa3e3e]/20"
+                        >
+                          🗑️ Löschen
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -584,6 +632,86 @@ export default function LagerplaetzePage() {
       {selectedPlatz && (
         <EtlDetailModal platz={selectedPlatz} onClose={() => setSelectedPlatz(null)} onChanged={() => etlQ.refetch()} />
       )}
+
+      {/* ── Bearbeiten-Modal ── */}
+      <Modal open={!!bearbeite} onClose={() => setBearbeite(null)} title="Lagerplatz bearbeiten">
+        {bearbeite && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-[#1a1a1a] dark:text-[#e4e6eb]">Code</label>
+              <input
+                type="text" value={bearbeite.neuerCode}
+                onChange={(e) => setBearbeite({ ...bearbeite, neuerCode: e.target.value.toUpperCase() })}
+                className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] font-mono"
+              />
+              {bearbeite.neuerCode !== bearbeite.code && bearbeite.artikelAnzahl > 0 && (
+                <p className="text-xs text-[#f7b928] mt-1.5">
+                  ⚠️ {bearbeite.artikelAnzahl} Artikel stehen auf {bearbeite.code} — sie werden beim
+                  Umbenennen automatisch auf {bearbeite.neuerCode || "…"} umgezogen.
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-[#1a1a1a] dark:text-[#e4e6eb]">Bereich</label>
+              <input
+                type="text" value={bearbeite.bereich} placeholder="z.B. Regal 1"
+                onChange={(e) => setBearbeite({ ...bearbeite, bereich: e.target.value })}
+                className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-[#1a1a1a] dark:text-[#e4e6eb]">Beschreibung</label>
+              <input
+                type="text" value={bearbeite.beschreibung} placeholder="optional"
+                onChange={(e) => setBearbeite({ ...bearbeite, beschreibung: e.target.value })}
+                className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setBearbeite(null)}
+                className="flex-1 py-2.5 rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-semibold">
+                Abbrechen
+              </button>
+              <button
+                disabled={!bearbeite.neuerCode.trim() || bearbeiten.isPending}
+                onClick={() => bearbeiten.mutate({
+                  code:         bearbeite.code,
+                  neuerCode:    bearbeite.neuerCode.trim(),
+                  beschreibung: bearbeite.beschreibung.trim() || null,
+                  bereich:      bearbeite.bereich.trim() || null,
+                })}
+                className="flex-1 py-2.5 rounded-xl bg-[#0064d2] text-white font-bold hover:bg-[#0057b8] disabled:opacity-50">
+                {bearbeiten.isPending ? "Speichert…" : "Speichern"}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Löschen-Bestätigung ── */}
+      <Modal open={!!loesche} onClose={() => setLoesche(null)} title="Lagerplatz löschen">
+        <div className="space-y-4">
+          <p className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+            Lagerplatz <span className="font-mono font-bold">{loesche}</span> wirklich löschen?
+          </p>
+          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+            Der Platz ist leer — es gehen keine Artikel oder Buchungen verloren.
+            Nur der Eintrag selbst verschwindet aus der Liste.
+          </p>
+          <div className="flex gap-3">
+            <button onClick={() => setLoesche(null)}
+              className="flex-1 py-2.5 rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-semibold">
+              Abbrechen
+            </button>
+            <button
+              disabled={loeschen.isPending}
+              onClick={() => loesche && loeschen.mutate({ code: loesche })}
+              className="flex-1 py-2.5 rounded-xl bg-[#fa3e3e] text-white font-bold hover:bg-red-600 disabled:opacity-50">
+              {loeschen.isPending ? "Löscht…" : "Ja, löschen"}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ── Legacy Verschieben-Modal ── */}
       <Modal open={!!verschiebeVon} onClose={() => setVerschiebeVon(null)} title="Alle Artikel verschieben">

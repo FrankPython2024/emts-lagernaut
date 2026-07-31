@@ -87,6 +87,93 @@ export async function createLagerplatz(input: {
 }
 
 /**
+ * Lagerplatz bearbeiten — Beschreibung/Bereich und optional den Code selbst.
+ *
+ * Beim Umbenennen ziehen die Artikel MIT: `Artikel.lagerplatz` ist ein reiner
+ * String ohne Fremdschlüssel — bliebe er stehen, zeigten die Artikel auf einen
+ * Code, den es nicht mehr gibt, und würden aus jeder Lagerplatz-Ansicht fallen.
+ * Deshalb beides in EINER Transaktion.
+ *
+ * Codes, die es nur über Artikel gibt (noch kein Config-Eintrag), bekommen beim
+ * Bearbeiten einen angelegt — sonst ließe sich an ihnen nichts speichern.
+ */
+export async function updateLagerplatz(input: {
+  code:          string;
+  neuerCode?:    string;
+  beschreibung?: string | null;
+  bereich?:      string | null;
+}) {
+  const alt = input.code.toUpperCase().trim();
+  const neu = input.neuerCode?.toUpperCase().trim() || alt;
+
+  if (!alt) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Code darf nicht leer sein." });
+  }
+
+  if (neu !== alt) {
+    // Zielcode darf noch nicht existieren — weder als Eintrag noch an Artikeln.
+    const [inConfig, inArtikeln] = await Promise.all([
+      prisma.lagerplatzConfig.findUnique({ where: { code: neu } }),
+      prisma.artikel.findFirst({ where: { lagerplatz: neu }, select: { id: true } }),
+    ]);
+    if (inConfig || inArtikeln) {
+      throw new TRPCError({
+        code:    "CONFLICT",
+        message: `Lagerplatz '${neu}' existiert bereits. Zum Zusammenlegen bitte „Alle verschieben" nutzen.`,
+      });
+    }
+  }
+
+  const daten = {
+    code:         neu,
+    beschreibung: input.beschreibung?.trim() || null,
+    bereich:      input.bereich?.trim() || erkenneBereiche(neu),
+  };
+
+  const [, verschobene] = await prisma.$transaction([
+    // upsert deckt beide Fälle ab: bestehenden Eintrag ändern (dabei ggf. den Code
+    // umschreiben) ODER einen anlegen für Codes, die es bisher nur an Artikeln gab.
+    prisma.lagerplatzConfig.upsert({
+      where:  { code: alt },
+      update: daten,
+      create: daten,
+    }),
+    prisma.artikel.updateMany({ where: { lagerplatz: alt }, data: { lagerplatz: neu } }),
+  ]);
+
+  return { code: neu, umbenannt: neu !== alt, artikelVerschoben: verschobene.count };
+}
+
+/**
+ * Lagerplatz löschen.
+ *
+ * Nur möglich, wenn KEINE Artikel mehr darauf stehen — sonst hätten die Artikel
+ * einen Lagerplatz-String ohne Eintrag und wären faktisch unauffindbar.
+ * Der Bestand selbst wird nie angetastet (historische Daten sind heilig).
+ */
+export async function loescheLagerplatz(code: string) {
+  const c = code.toUpperCase().trim();
+
+  const artikelAnzahl = await prisma.artikel.count({ where: { lagerplatz: c } });
+  if (artikelAnzahl > 0) {
+    throw new TRPCError({
+      code:    "BAD_REQUEST",
+      message: `Auf '${c}' stehen noch ${artikelAnzahl} Artikel. Bitte zuerst alle verschieben, dann löschen.`,
+    });
+  }
+
+  const geloescht = await prisma.lagerplatzConfig.deleteMany({ where: { code: c } });
+  if (geloescht.count === 0) {
+    throw new TRPCError({
+      code:    "NOT_FOUND",
+      message: `Lagerplatz '${c}' ist kein manuell angelegter Eintrag — es gibt nichts zu löschen.`,
+    });
+  }
+
+  return { code: c };
+}
+
+/**
  * Alle einzigartigen Bereiche (für Filter-Dropdown).
  */
 export async function getBereiche(): Promise<string[]> {

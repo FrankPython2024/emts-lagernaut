@@ -1461,6 +1461,12 @@ function StepBestaetigung({
   // Standard ist der Regelfall: Teile aus einem Altgerät ausbauen.
   const [herkunft, setHerkunft] = useState<HerkunftArt>("SPENDER");
 
+  // Bekannte Lagerplätze zur Auswahl anbieten. `lagerplaetze.getAll` führt beides
+  // zusammen: manuell angelegte Plätze UND Codes, die real an Artikeln hängen —
+  // genau die fehlten hier bisher komplett.
+  const lagerplaetzeQ = api.lagerplaetze.getAll.useQuery(undefined, { staleTime: 60_000 });
+  const bekannteLagerplaetze = (lagerplaetzeQ.data ?? []).map((l) => l.lagerplatz);
+
   const previewQuery = api.einlagern.preview.useQuery(
     { geraetName: geraet.name, standortId, items: localItems.map((i) => ({ teiltyp: i.teiltyp, menge: i.menge, grading: i.grading, verschiedenesText: i.verschiedenesText })) },
     { staleTime: 0 },
@@ -1614,11 +1620,29 @@ function StepBestaetigung({
                                 💡 Vorschlag: <strong>{vorschlaegeQuery.data[p.teiltyp]}</strong> (neben ähnlichen Teilen)
                               </div>
                             )}
+                            {/* Bekannte Lagerplätze zur Auswahl — vorher war hier nur
+                                ein leeres Textfeld, man musste den Code auswendig
+                                kennen. Bewusst ein <select> und KEIN <input list>:
+                                Datalist filtert bei vorbelegtem Wert auf genau
+                                diesen Text und sieht dann aus wie „nur 1 Option". */}
+                            {bekannteLagerplaetze.length > 0 && (
+                              <select
+                                value={bekannteLagerplaetze.includes(item?.lagerplatz ?? "") ? item!.lagerplatz : ""}
+                                onChange={(e) => setLagerplatz(p.teiltyp, e.target.value)}
+                                style={{ ...S.input, minHeight: 44, fontSize: "1rem", marginBottom: 8 }}
+                                aria-label={`Lagerplatz auswählen für ${teilInfo?.label ?? p.teiltyp}`}
+                              >
+                                <option value="">— Lagerplatz wählen —</option>
+                                {bekannteLagerplaetze.map((c) => (
+                                  <option key={c} value={c}>{c}</option>
+                                ))}
+                              </select>
+                            )}
                             <input
                               type="text"
                               value={item?.lagerplatz ?? ""}
                               onChange={(e) => setLagerplatz(p.teiltyp, e.target.value)}
-                              placeholder="z.B. L-1-3-2"
+                              placeholder="oder eigenen Code eingeben, z.B. L-1-3-2"
                               style={{ ...S.input, minHeight: 44, fontSize: "1rem" }}
                               onFocus={(e)  => (e.currentTarget.style.borderColor = "var(--afb-navy)")}
                               onBlur={(e)   => (e.currentTarget.style.borderColor = "var(--border)")}

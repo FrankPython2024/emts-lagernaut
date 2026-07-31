@@ -5,6 +5,8 @@ import {
   getBereiche,
   getLagerplatzDetails,
   createLagerplatz,
+  updateLagerplatz,
+  loescheLagerplatz,
   verschiebeArtikel,
   verschiebeAlle,
 } from "@/modules/lagerplaetze/service";
@@ -34,6 +36,22 @@ export const lagerplaetzeRouter = createTRPCRouter({
       bereich:      z.string().max(100).optional(),
     }))
     .mutation(({ input }) => createLagerplatz(input)),
+
+  // Lagerplatz bearbeiten — Beschreibung/Bereich, optional Umbenennen.
+  // Beim Umbenennen ziehen die Artikel mit (siehe Service).
+  update: adminProcedure
+    .input(z.object({
+      code:         z.string().min(1).max(50),
+      neuerCode:    z.string().min(1).max(50).optional(),
+      beschreibung: z.string().max(255).nullish(),
+      bereich:      z.string().max(100).nullish(),
+    }))
+    .mutation(({ input }) => updateLagerplatz(input)),
+
+  // Lagerplatz löschen — nur wenn keine Artikel mehr darauf stehen.
+  loeschen: adminProcedure
+    .input(z.object({ code: z.string().min(1).max(50) }))
+    .mutation(({ input }) => loescheLagerplatz(input.code)),
 
   // Lagerplatz-Details: alle Artikel mit diesem Code
   getByCode: lagerplatzView
