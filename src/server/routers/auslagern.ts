@@ -16,6 +16,7 @@ import type { SessionUser } from "@/core/types";
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
 import { assertKeinBestandEffekt } from "@/lib/buchungen/typeGuards";
 import { getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
+import { poolBestaendeFuer } from "@/lib/artikel/pool";
 import { emitToBackoffice, emitToUser, emitToAll } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
 
@@ -59,6 +60,14 @@ export const auslagernRouter = createTRPCRouter({
       orderBy: { datum: "desc" },
     });
 
+    // ── Pool-Bestände einmalig für alle beteiligten Artikel ─────────────────
+    // Baugleiche Teile (Füße vorne ↔ hinten) teilen sich einen Bestand. Ohne das
+    // stünde ein Teil als „Bedarf" da und ließe sich nicht auslagern, obwohl es
+    // unter dem Partnernamen im Regal liegt. Gesammelt statt pro Zeile (N+1).
+    const poolBestaende = await poolBestaendeFuer(
+      Array.from(new Set(anfragen.map((a) => a.artikelId).filter((id): id is number => id !== null))),
+    );
+
     // ── Gruppen aufbauen ─────────────────────────────────────────────────────
     const groupMap = new Map<string, typeof anfragen>();
     for (const a of anfragen) {
@@ -96,7 +105,10 @@ export const auslagernRouter = createTRPCRouter({
             select:  { notiz: true },
           });
 
-          const verfuegbar  = a.artikel.bestand >= a.menge;
+          // Verfügbar = eigener Bestand ODER der des baugleichen Pool-Partners.
+          // Ohne Verknüpfung entspricht der Pool-Wert dem eigenen Bestand.
+          const verfuegbareMenge = poolBestaende.get(a.artikel.id) ?? a.artikel.bestand;
+          const verfuegbar  = verfuegbareMenge >= a.menge;
           const lagerStatus = verfuegbar ? "verfuegbar" : "bedarf";
 
           return {
@@ -160,6 +172,12 @@ export const auslagernRouter = createTRPCRouter({
         },
       });
 
+      // Pool-Bestände gesammelt — wie in listAnfragen, damit die Detailansicht
+      // dieselbe Verfügbarkeit zeigt und nicht widersprüchlich wirkt.
+      const poolBestaende = await poolBestaendeFuer(
+        Array.from(new Set(anfragen.map((a) => a.artikelId).filter((id): id is number => id !== null))),
+      );
+
       const teile = await Promise.all(
         anfragen.map(async (a) => {
           // Sonderanfrage → DIREKT-Übergabe (kein Lager-Bestand)
@@ -184,7 +202,8 @@ export const auslagernRouter = createTRPCRouter({
             orderBy: { datum: "desc" },
             select:  { notiz: true },
           });
-          const verfuegbar  = a.artikel.bestand >= a.menge;
+          const verfuegbareMenge = poolBestaende.get(a.artikel.id) ?? a.artikel.bestand;
+          const verfuegbar  = verfuegbareMenge >= a.menge;
           const lagerStatus = verfuegbar ? "verfuegbar" : "bedarf";
           return {
             teilId:         a.id,
