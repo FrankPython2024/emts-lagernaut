@@ -28,7 +28,24 @@ export default function ArtikelDetailPage() {
   const [neuerLp,  setNeuerLp]        = useState("");
   const [neuCode,  setNeuCode]        = useState("");
   const [labelOpen, setLabelOpen]     = useState(false);
+  const [partnerWahl, setPartnerWahl] = useState("");
   const printFnRef                    = useRef<(() => void) | null>(null);
+
+  // Mögliche Pool-Partner nur laden, solange noch keiner gesetzt ist.
+  const poolKandidaten = api.lager.poolKandidaten.useQuery(
+    { artikelId },
+    { enabled: !!artikel && !artikel.poolPartnerId, staleTime: 60_000 },
+  );
+
+  const poolVerknuepfen = api.lager.poolVerknuepfen.useMutation({
+    onSuccess: (r) => { show(`🔗 Verknüpft: ${r.a} ↔ ${r.b}`, "success"); setPartnerWahl(""); refetch(); },
+    onError:   (e) => show(e.message, "error"),
+  });
+
+  const poolLoesen = api.lager.poolLoesen.useMutation({
+    onSuccess: () => { show("Verknüpfung gelöst", "success"); refetch(); },
+    onError:   (e) => show(e.message, "error"),
+  });
 
   useEffect(() => {
     if (artikel) setForm({ bezeichnung: artikel.bezeichnung, kategorie: artikel.kategorie, lagerplatz: artikel.lagerplatz ?? "" });
@@ -120,6 +137,73 @@ export default function ArtikelDetailPage() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* ── Ersatzteil-Pool ──────────────────────────────────────────────────
+          Zwei baugleiche Artikel unter verschiedenen Namen (typisch: Füße vorne
+          und hinten) teilen sich einen Bestand. Wer den einen anfragt, bekommt
+          das Teil auch dann, wenn es unter dem anderen Namen im Regal liegt. */}
+      <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-6 shadow-sm">
+        <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] border-b border-[#ced4da] dark:border-[#3e4042] pb-3 mb-4">
+          🔗 Ersatzteil-Pool
+        </h2>
+
+        {artikel.poolPartner ? (
+          <div className="space-y-3">
+            <p className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+              Verknüpft mit{" "}
+              <a href={`/admin/artikel/${artikel.poolPartner.id}`} className="font-bold text-[#0064d2] dark:text-[#45bdff] underline">
+                {artikel.poolPartner.bezeichnung}
+              </a>
+            </p>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <span className="text-[#65676b] dark:text-[#b0b3b8]">
+                Hier: <strong className="text-[#1a1a1a] dark:text-[#e4e6eb]">{artikel.bestand}</strong>
+              </span>
+              <span className="text-[#65676b] dark:text-[#b0b3b8]">
+                Partner: <strong className="text-[#1a1a1a] dark:text-[#e4e6eb]">{artikel.poolPartner.bestand}</strong>
+              </span>
+              <span className="text-[#04B475] font-bold">
+                Gemeinsam verfügbar: {artikel.poolBestand}
+              </span>
+            </div>
+            <button
+              onClick={() => poolLoesen.mutate({ artikelId })}
+              disabled={poolLoesen.isPending}
+              className="px-4 py-2.5 bg-[#fa3e3e]/10 text-[#fa3e3e] font-bold rounded-xl hover:bg-[#fa3e3e]/20 border border-[#fa3e3e]/30 disabled:opacity-50"
+            >
+              {poolLoesen.isPending ? "…" : "Verknüpfung lösen"}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+              Nicht verknüpft. Wähle das baugleiche Gegenstück — beide teilen sich danach einen Bestand.
+              Zur Auswahl stehen Artikel derselben Kategorie am selben Standort.
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <select
+                value={partnerWahl}
+                onChange={(e) => setPartnerWahl(e.target.value)}
+                className="flex-1 min-w-[240px] px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]"
+              >
+                <option value="">— Gegenstück wählen —</option>
+                {(poolKandidaten.data ?? []).map((k) => (
+                  <option key={k.id} value={k.id} disabled={!!k.poolPartnerId}>
+                    {k.bezeichnung} ({k.bestand} St.){k.poolPartnerId ? " — bereits verknüpft" : ""}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => partnerWahl && poolVerknuepfen.mutate({ artikelId, partnerId: Number(partnerWahl) })}
+                disabled={!partnerWahl || poolVerknuepfen.isPending}
+                className="px-6 py-2.5 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50"
+              >
+                {poolVerknuepfen.isPending ? "…" : "Verknüpfen"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Buchungshistorie */}

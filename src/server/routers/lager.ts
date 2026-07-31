@@ -4,6 +4,7 @@ import { createTRPCRouter, protectedProcedure, adminProcedure, permissionProcedu
 // Read-Procedure für Artikel (BETRACHTER bekommt ARTIKEL_VIEW).
 const artikelReadProcedure = permissionProcedure("ARTIKEL_VIEW");
 import { standortWhere, resolveStandortId } from "@/lib/auth/standortFilter";
+import { verknuepfePool, loesePool } from "@/lib/artikel/pool";
 import type { SessionUser } from "@/core/types";
 import {
   sucheArtikel,
@@ -76,6 +77,40 @@ export const lagerRouter = createTRPCRouter({
     .query(({ input }) =>
       getArtikelMitLagerplatz(input.id),
     ),
+
+  // ── Ersatzteil-Pool ────────────────────────────────────────────────────────
+  // Zwei baugleiche Artikel (typisch: Füße vorne ↔ hinten) teilen sich einen
+  // Bestand. Details siehe lib/artikel/pool.ts.
+
+  // Mögliche Partner: gleicher Standort, gleiche Kategorie, nicht der Artikel
+  // selbst. Auf die Kategorie eingegrenzt, damit nicht versehentlich ein
+  // Mainboard mit Füßen gepoolt wird.
+  poolKandidaten: artikelReadProcedure
+    .input(z.object({ artikelId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const artikel = await ctx.prisma.artikel.findUnique({
+        where:  { id: input.artikelId },
+        select: { id: true, kategorie: true, standortId: true },
+      });
+      if (!artikel) return [];
+      return ctx.prisma.artikel.findMany({
+        where:   { id: { not: artikel.id }, kategorie: artikel.kategorie, standortId: artikel.standortId },
+        select:  { id: true, bezeichnung: true, bestand: true, poolPartnerId: true },
+        orderBy: { bezeichnung: "asc" },
+        take:    200,
+      });
+    }),
+
+  poolVerknuepfen: adminProcedure
+    .input(z.object({
+      artikelId: z.number().int().positive(),
+      partnerId: z.number().int().positive(),
+    }))
+    .mutation(({ input }) => verknuepfePool(input.artikelId, input.partnerId)),
+
+  poolLoesen: adminProcedure
+    .input(z.object({ artikelId: z.number().int().positive() }))
+    .mutation(({ input }) => loesePool(input.artikelId)),
 
   // Alle Kategorien
   getKategorien: protectedProcedure

@@ -321,7 +321,27 @@ export const auslagernRouter = createTRPCRouter({
             continue;
           }
 
-          const aktuellerBestand = anfrage.artikel.bestand;
+          // ── Ersatzteil-Pool auflösen ─────────────────────────────────────
+          // Baugleiches Teil unter anderem Namen (Füße vorne ↔ hinten): reicht der
+          // eigene Bestand nicht, wird vom Partner entnommen. Der Lookup läuft
+          // bewusst über `tx` — außerhalb der Transaktion gelesen wäre der Wert
+          // nicht mit dem folgenden Dekrement konsistent.
+          let quelleId    = anfrage.artikelId;
+          let quelleName  = anfrage.artikel.bezeichnung;
+          let quelleStand = anfrage.artikel.bestand;
+
+          if (anfrage.artikel.bestand < anfrage.menge && anfrage.artikel.poolPartnerId) {
+            const partner = await tx.artikel.findUnique({
+              where:  { id: anfrage.artikel.poolPartnerId },
+              select: { id: true, bezeichnung: true, bestand: true },
+            });
+            if (partner && partner.bestand >= anfrage.menge) {
+              quelleId = partner.id; quelleName = partner.bezeichnung; quelleStand = partner.bestand;
+            }
+          }
+
+          const ausPool          = quelleId !== anfrage.artikelId;
+          const aktuellerBestand = quelleStand;
           let   neuerBestand     = aktuellerBestand;
 
           const notizTeile = [
@@ -336,7 +356,7 @@ export const auslagernRouter = createTRPCRouter({
             if (aktuellerBestand < anfrage.menge) {
               throw new TRPCError({
                 code:    "CONFLICT",
-                message: `Nicht genug Bestand für „${anfrage.artikel.bezeichnung}": vorhanden ${aktuellerBestand}, benötigt ${anfrage.menge}`,
+                message: `Nicht genug Bestand für „${quelleName}": vorhanden ${aktuellerBestand}, benötigt ${anfrage.menge}`,
               });
             }
 
@@ -350,13 +370,13 @@ export const auslagernRouter = createTRPCRouter({
             // Row-Lock, zwei parallele Auslagerungen desselben Artikels wuerden sonst
             // beide vom selben Ausgangsbestand rechnen (Lost Update → Bestand zu hoch).
             const dek = await tx.artikel.updateMany({
-              where: { id: anfrage.artikelId, bestand: { gte: anfrage.menge } },
+              where: { id: quelleId, bestand: { gte: anfrage.menge } },
               data:  { bestand: { decrement: anfrage.menge } },
             });
             if (dek.count === 0) {
               throw new TRPCError({
                 code:    "CONFLICT",
-                message: `Nicht genug Bestand für „${anfrage.artikel.bezeichnung}" — inzwischen vergriffen. Bitte erneut prüfen.`,
+                message: `Nicht genug Bestand für „${quelleName}" — inzwischen vergriffen. Bitte erneut prüfen.`,
               });
             }
           }
@@ -364,14 +384,18 @@ export const auslagernRouter = createTRPCRouter({
           // assertKeinBestandEffekt(DIREKT) würde hier feuern — das IST die Sicherung.
 
           // ── Buchung anlegen (AUSGANG oder DIREKT) ─────────────────────────
+          // Die Buchung läuft auf den Artikel, aus dem tatsächlich entnommen wurde —
+          // sonst stimmt dessen Bestandshistorie nicht mehr mit dem Lager überein.
           const buchung = await tx.buchung.create({
             data: {
-              artikelId:   anfrage.artikelId,
-              bezeichnung: anfrage.artikel.bezeichnung,
+              artikelId:   quelleId,
+              bezeichnung: quelleName,
               typ:         buchungsTyp,
               menge:       anfrage.menge,
               mitarbeiter: user.kuerzel,
-              notiz:       notizTeile,
+              notiz:       ausPool
+                ? `${notizTeile} | aus Pool-Partner für „${anfrage.artikel.bezeichnung}"`
+                : notizTeile,
             },
           });
 
@@ -386,8 +410,10 @@ export const auslagernRouter = createTRPCRouter({
           });
 
           // ── Grading aus letzter EINGANG-Buchung (für Beleg) ───────────────
+          // Vom Artikel, aus dem entnommen wurde — dessen Zustand ist der, den
+          // der Techniker in die Hand bekommt.
           const letzteBuchung = await tx.buchung.findFirst({
-            where:   { artikelId: anfrage.artikelId, typ: BuchungsTyp.EINGANG },
+            where:   { artikelId: quelleId, typ: BuchungsTyp.EINGANG },
             orderBy: { datum: "desc" },
             select:  { notiz: true },
           });
@@ -397,7 +423,11 @@ export const auslagernRouter = createTRPCRouter({
             artikelId:   anfrage.artikelId,
             buchungId:   buchung.id,
             buchungsTyp: buchungsTyp as "AUSGANG" | "DIREKT",
-            artikel:     anfrage.artikel.bezeichnung,
+            // Kam das Teil aus dem Pool-Partner, steht das auf dem Beleg — sonst
+            // passt der ausgewiesene Restbestand nicht zum genannten Artikel.
+            artikel:     ausPool
+              ? `${anfrage.artikel.bezeichnung} (entnommen aus „${quelleName}")`
+              : anfrage.artikel.bezeichnung,
             kategorie:   anfrage.artikel.kategorie,
             lagerplatz:  anfrage.artikel.lagerplatz ?? null,
             menge:       anfrage.menge,

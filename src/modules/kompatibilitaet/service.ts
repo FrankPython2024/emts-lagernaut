@@ -447,7 +447,7 @@ export async function getByGeraetMitStandard(args: {
           geraet: { in: matchingGeraete },
           ...(artikelFilter && { artikel: artikelFilter }),
         },
-        include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true } } },
+        include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true, poolPartnerId: true } } },
       })
     : [];
 
@@ -461,7 +461,7 @@ export async function getByGeraetMitStandard(args: {
 
   // Pool je Teiltyp: ALLE verknüpften Artikel sammeln (dedupliziert nach Artikel-ID,
   // da derselbe Artikel über mehrere geraet-Strings auftauchen kann).
-  type ArtikelLite = { id: number; bezeichnung: string; kategorie: string; bestand: number };
+  type ArtikelLite = { id: number; bezeichnung: string; kategorie: string; bestand: number; poolPartnerId: number | null };
   const poolMap = new Map<string, ArtikelLite[]>();
   for (const k of treffer) {
     const arr = poolMap.get(k.teiltyp) ?? [];
@@ -469,12 +469,39 @@ export async function getByGeraetMitStandard(args: {
     poolMap.set(k.teiltyp, arr);
   }
 
+  // ── Ersatzteil-Pool über Teiltyp-Grenzen hinweg ───────────────────────────
+  // Baugleiche Teile mit verschiedenem Namen (Füße vorne ↔ hinten) teilen sich
+  // einen Bestand. Deren Partner-Bestände hier einmalig nachladen, damit unten
+  // je Teiltyp korrekt „verfügbar" statt „Bedarf" herauskommt.
+  const bekannteBestaende = new Map<number, number>(
+    treffer.map((k) => [k.artikel.id, k.artikel.bestand]),
+  );
+  const fehlendePartner = treffer
+    .map((k) => k.artikel.poolPartnerId)
+    .filter((id): id is number => !!id && !bekannteBestaende.has(id));
+  if (fehlendePartner.length > 0) {
+    const partner = await prisma.artikel.findMany({
+      where:  { id: { in: Array.from(new Set(fehlendePartner)) } },
+      select: { id: true, bestand: true },
+    });
+    for (const p of partner) bekannteBestaende.set(p.id, p.bestand);
+  }
+
   // Pool aggregieren: Bestand = Summe über alle Artikel; primärer Artikel =
   // höchster Bestand (>0 bevorzugt). artikelId zeigt auf den primären Artikel,
   // der bei einer Anfrage tatsächlich ausgeliefert wird.
   function aggregiere(teiltyp: string, artikel: ArtikelLite[]): TeilMitBestand {
     const sortiert    = [...artikel].sort((a, b) => b.bestand - a.bestand);
-    const poolBestand = sortiert.reduce((s, a) => s + a.bestand, 0);
+    const eigeneIds   = new Set(sortiert.map((a) => a.id));
+
+    // Bestand des baugleichen Partners dazurechnen — aber nur, wenn er nicht
+    // ohnehin schon in diesem Teiltyp-Pool steckt (sonst doppelt gezählt).
+    const partnerBestand = sortiert.reduce((s, a) => {
+      const pid = a.poolPartnerId;
+      return pid && !eigeneIds.has(pid) ? s + (bekannteBestaende.get(pid) ?? 0) : s;
+    }, 0);
+
+    const poolBestand = sortiert.reduce((s, a) => s + a.bestand, 0) + partnerBestand;
     const primaer     = sortiert.find((a) => a.bestand > 0) ?? sortiert[0]!;
     return {
       teiltyp,

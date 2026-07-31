@@ -107,10 +107,21 @@ export async function getArtikelMitLagerplatz(id: number) {
     throw new TRPCError({ code: "NOT_FOUND", message: `Artikel ${id} nicht gefunden.` });
   }
 
+  // Pool-Partner (baugleiches Teil unter anderem Namen) mitliefern — die
+  // Detailseite zeigt damit den gemeinsamen Bestand statt nur den eigenen.
+  const poolPartner = artikel.poolPartnerId
+    ? await prisma.artikel.findUnique({
+        where:  { id: artikel.poolPartnerId },
+        select: { id: true, bezeichnung: true, bestand: true },
+      })
+    : null;
+
   return {
     ...artikel,
     verfuegbar:         artikel.bestand > 0,
     kompatibileGeraete: artikel.kompatibel.map((k) => k.geraet),
+    poolPartner,
+    poolBestand:        artikel.bestand + (poolPartner?.bestand ?? 0),
   };
 }
 

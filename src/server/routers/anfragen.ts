@@ -21,6 +21,7 @@ import {
   markiereNichtVerfuegbar,
 } from "@/modules/anfragen/service";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
+import { waehleQuelle } from "@/lib/artikel/pool";
 import { naechsteBelegNr } from "@/core/infra/belegnr";
 import { emitToAdmins, emitToUser, emitToAll, emitToBackoffice } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
@@ -305,16 +306,32 @@ export const anfragenRouter = createTRPCRouter({
         ] as AnfrageStatus[]).includes(anfrage.status);
 
         if (anfrage && !anfrage.testModus && buchbar) {
+          // Auf welchem Artikel wurde tatsächlich gebucht? Bei Pool-Entnahme ist
+          // das der Partner — dessen Bestand muss unten ebenfalls nachgezogen
+          // werden, sonst bleibt er veraltet stehen.
+          let gebuchtAuf: number | null = null;
+
           // AUSGANG-Buchung erstellen — nur wenn Artikel verknüpft
           if (anfrage.artikelId) {
             try {
+              // Pool VOR der Buchung auflösen: Liegt der Bestand beim baugleichen
+              // Partner (z. B. Füße hinten statt vorne), wird von dort abgebucht.
+              // Ohne Partner bzw. ohne ausreichenden Bestand bleibt es beim eigenen
+              // Artikel — dann greift wie bisher die Bestandsprüfung in bucheLager
+              // und der Fall wird unten als „ohne Teil erledigt" behandelt.
+              const quelleId = await waehleQuelle(anfrage.artikelId, anfrage.menge);
+              const buchenAuf = quelleId ?? anfrage.artikelId;
+
               await bucheLager({
-                artikelId:   anfrage.artikelId,
+                artikelId:   buchenAuf,
                 menge:       anfrage.menge,
                 typ:         BuchungsTyp.AUSGANG,
                 mitarbeiter: user.kuerzel,
-                notiz:       `Anfrage #${input.id}`,
+                notiz:       buchenAuf === anfrage.artikelId
+                  ? `Anfrage #${input.id}`
+                  : `Anfrage #${input.id} | aus Pool-Partner entnommen`,
               });
+              gebuchtAuf = buchenAuf;
             } catch (e) {
               // "Kein Bestand" / "Nicht genug Bestand" sind erwartete Fälle (BEDARF-Anfragen)
               // und duerfen als "ohne Teil erledigt" durchgehen. ALLE anderen Fehler
@@ -337,6 +354,14 @@ export const anfragenRouter = createTRPCRouter({
             restBestand = await syncBestandAusHistorie(anfrage.artikelId);
             // Explizites Socket-Event damit Frontend den Bestand sofort aktualisiert
             emitToAll(EVENTS.BESTAND_UPDATED, { artikelId: anfrage.artikelId, bestand: restBestand });
+
+            // Wurde aus dem Pool-Partner entnommen, muss auch DESSEN Bestand
+            // nachgezogen und gemeldet werden — sonst zeigt jede Ansicht dort
+            // weiter den alten Wert, bis zufällig etwas anderes ihn berührt.
+            if (gebuchtAuf && gebuchtAuf !== anfrage.artikelId) {
+              const partnerBestand = await syncBestandAusHistorie(gebuchtAuf);
+              emitToAll(EVENTS.BESTAND_UPDATED, { artikelId: gebuchtAuf, bestand: partnerBestand });
+            }
           }
 
           if (anfrage.artikel) {

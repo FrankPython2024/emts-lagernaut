@@ -2,6 +2,7 @@ import { AnfrageStatus, BuchungsTyp, type Anfrage } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { normalizeLogId } from "@/lib/format/logId";
+import { poolBestand } from "@/lib/artikel/pool";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { sendeSystemNachricht } from "@/modules/nachrichten/service";
 import { senden as sendeChatNachricht } from "@/modules/chat/service";
@@ -58,7 +59,11 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
     if (!artikel) throw new TRPCError({ code: "NOT_FOUND", message: `Artikel ${data.artikelId} nicht gefunden.` });
     // Reicht der Bestand für die GEWÜNSCHTE Stückzahl? Bei menge=1 ist das
     // identisch zur bisherigen Regel (bestand > 0) — nur eben verallgemeinert.
-    status = artikel.bestand >= menge ? AnfrageStatus.NEU : AnfrageStatus.BEDARF;
+    // Ist der Artikel mit einem Pool-Partner verknüpft (baugleiches Teil, z. B.
+    // Füße vorne/hinten), zählt dessen Bestand mit — sonst stünde „Bedarf",
+    // obwohl das Teil im Regal liegt, nur unter dem anderen Namen.
+    const verfuegbar = await poolBestand(artikel.id);
+    status = verfuegbar >= menge ? AnfrageStatus.NEU : AnfrageStatus.BEDARF;
   }
 
   // Sonderanfragen sind immer BEDARF (kein Lagerartikel verknüpft)

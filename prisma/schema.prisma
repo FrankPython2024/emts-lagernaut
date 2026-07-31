@@ -161,6 +161,19 @@ model Artikel {
   anfragen    Anfrage[]
   kompatibel  Kompatibilitaet[]
   korbItems   WarenkorbItem[]
+  // ── Ersatzteil-Pool (aktuell nur für Gummifüße gedacht) ──────────────────
+  // Zwei Artikel, die dasselbe physische Teil sind (z. B. beim U711 sind vordere
+  // und hintere Füße baugleich), teilen sich rechnerisch EINEN Bestand: Ist der
+  // eine leer und der andere voll, gilt die Anfrage trotzdem als lieferbar und
+  // wird vom Partner abgebucht.
+  //
+  // Bewusst ein einfaches Int-Feld OHNE Fremdschlüssel: Die Verknüpfung ist
+  // eine symmetrische Partnerschaft (A↔B, beide Seiten zeigen aufeinander) und
+  // keine Besitz-Beziehung — als Prisma-Selbstrelation wäre das umständlicher
+  // zu setzen und zu lösen. Der Code prüft die Gegenseite null-sicher.
+  // Wird ein Artikel gelöscht, bleibt beim Partner eine tote Id zurück; das
+  // fällt nicht auf, weil jede Abfrage den Partner ohnehin nachschlägt.
+  poolPartnerId Int?
   standortId  Int               @default(1)
   standort    Standort          @relation(fields: [standortId], references: [id])
   createdAt   DateTime          @default(now())
@@ -168,6 +181,7 @@ model Artikel {
 
   @@unique([bezeichnung, kategorie, standortId])
   @@index([standortId])
+  @@index([poolPartnerId])
 }
 
 model Buchung {
