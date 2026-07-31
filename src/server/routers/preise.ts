@@ -258,6 +258,26 @@ export const preiseRouter = createTRPCRouter({
         LIMIT 10
       `);
 
+      // 4) ALTDATEN (vor Einführung der Herkunfts-Erfassung): Der Gerätename steht
+      //    in der Buchungs-Notiz („… | Gerät: HP EliteBook 840 G5 | …"). Damit ist
+      //    rückwirkend nur die MODELL-Ebene rekonstruierbar — NICHT, aus wie vielen
+      //    einzelnen Geräten die Teile stammen. Deshalb bewusst getrennt gehalten
+      //    und ohne „Teile je Gerät": Eine Buchung kann eine Sammel-Einlagerung sein.
+      const altModelle = await ctx.prisma.$queryRaw<
+        { modell: string | null; buchungen: unknown; teile: unknown }[]
+      >(Prisma.sql`
+        SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(b.notiz, 'Gerät: ', -1), ' | ', 1) AS modell,
+               COUNT(*)     AS buchungen,
+               SUM(b.menge) AS teile
+        FROM Buchung b
+        JOIN Artikel a ON a.id = b.artikelId
+        WHERE b.typ = 'EINGANG' AND b.herkunftLogId IS NULL AND b.notiz LIKE '%Gerät: %'
+          ${datumFilter} ${standortFilter}
+        GROUP BY modell
+        ORDER BY teile DESC
+        LIMIT 10
+      `);
+
       const proKategorie: { kategorie: string; menge: number; preis: number; wert: number }[] = [];
       const ohnePreis:    { kategorie: string; menge: number }[] = [];
       let wert = 0, mengeGesamt = 0;
@@ -297,6 +317,14 @@ export const preiseRouter = createTRPCRouter({
           mitHerkunft:  num(kopf?.mitHerkunft),
           ohneHerkunft: num(kopf?.ohneHerkunft),
         },
+        // Altdaten aus der Notiz — NUR Modell-Ebene, bewusst ohne „je Gerät".
+        altModelle: altModelle
+          .map((t) => ({
+            modell:    (t.modell ?? "").trim() || "(unbekannt)",
+            buchungen: num(t.buchungen),
+            teile:     num(t.teile),
+          }))
+          .filter((t) => t.modell !== "(unbekannt)"),
       };
     }),
 });

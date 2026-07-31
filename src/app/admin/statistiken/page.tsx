@@ -6,6 +6,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { useStandortFilter } from "@/lib/standort/standortContext";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS } from "@/modules/realtime/events";
+import { DashboardAnsicht } from "./DashboardAnsicht";
 
 // ── Typen & Konstanten ────────────────────────────────────────────────────────
 
@@ -154,12 +155,14 @@ function ErntePanel({ tage, standortId }: { tage: number; standortId: number | n
             )}
           </div>
 
-          {q.data.mengeGesamt === 0 ? (
+          {q.data.mengeGesamt === 0 && (
             <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
               Noch keine Ernte mit Spender-LogID erfasst. Beim Einlagern die LogID des Altgeräts scannen —
               dann erscheint hier, was aus welchem Gerät gewonnen wurde.
             </div>
-          ) : (
+          )}
+
+          {q.data.mengeGesamt > 0 && (
             <>
               {q.data.proKategorie.length > 0 && (
                 <div className="overflow-x-auto">
@@ -212,6 +215,32 @@ function ErntePanel({ tage, standortId }: { tage: number; standortId: number | n
                 </div>
               )}
             </>
+          )}
+
+          {/* Altdaten: vor Einführung der Herkunfts-Erfassung. Aus der Buchungs-Notiz
+              ist nur das MODELL rekonstruierbar — bewusst getrennt und ohne „je Gerät",
+              weil eine Buchung auch eine Sammel-Einlagerung sein kann. */}
+          {q.data.altModelle.length > 0 && (
+            <div className="mt-5 pt-4 border-t border-dashed border-[#ced4da] dark:border-[#3e4042]">
+              <div className="text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8]">
+                Früher bearbeitete Modelle <span className="font-medium normal-case">(vor der Herkunfts-Erfassung)</span>
+              </div>
+              <div className="text-xs text-[#90939a] mb-1.5">
+                Aus der Buchungs-Notiz rekonstruiert — nur Modell, nicht das einzelne Gerät.
+                <strong className="font-semibold"> Enthält auch selbst gefertigte Teile (3D-Druck)</strong>,
+                die sich in Altdaten nicht von echter Ernte trennen lassen — hohe Stückzahlen kommen meist daher.
+              </div>
+              <ul className="space-y-1">
+                {q.data.altModelle.map((m) => (
+                  <li key={m.modell} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="text-[#65676b] dark:text-[#b0b3b8] truncate">{m.modell}</span>
+                    <span className="tabular-nums text-[#90939a] shrink-0">
+                      {m.teile.toLocaleString("de-DE")} Teile · {m.buchungen} Einlagerung{m.buchungen === 1 ? "" : "en"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </>
       )}
@@ -783,6 +812,25 @@ export default function StatistikenPage() {
   const [letzteOff,  setLetzteOff] = useState(0);
   const [uebersichtTab, setUebersichtTab] = useState<"overview" | "jahresarchiv">("overview");
 
+  // ── Ansicht: klassisch (Standard) ODER neues Dashboard ────────────────────
+  // Bewusst „klassisch" als Startwert — die gewohnte Seite bleibt das, was ohne
+  // Zutun erscheint. Die Wahl wird lokal gemerkt, damit sie einen Reload übersteht.
+  // Erst NACH dem Mount aus dem Speicher lesen, sonst weicht der Server-HTML vom
+  // Client ab (Hydration-Fehler).
+  const [ansicht, setAnsicht] = useState<"klassisch" | "dashboard">("klassisch");
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("statistik-ansicht") === "dashboard") setAnsicht("dashboard");
+    } catch { /* privater Modus o.ä. — dann bleibt es bei klassisch */ }
+  }, []);
+  function wechsleAnsicht(neu: "klassisch" | "dashboard") {
+    setAnsicht(neu);
+    try { localStorage.setItem("statistik-ansicht", neu); } catch { /* egal */ }
+  }
+  // Das Dashboard zeigt die Team-Übersicht. Für die Einzel-Auswertung eines
+  // Technikers gibt es dort (noch) kein Gegenstück → dann klassisch rendern.
+  const zeigeDashboard = ansicht === "dashboard" && kuerzel === "";
+
   const { activeStandortId } = useStandortFilter();
   const sId = activeStandortId;
 
@@ -838,6 +886,23 @@ export default function StatistikenPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Statistiken</h1>
         <div className="flex gap-3 flex-wrap items-center">
+          {/* Ansicht umschalten — klassisch bleibt Standard */}
+          <div className="flex bg-white dark:bg-[#242526] border border-[#ced4da] dark:border-[#3e4042] rounded-xl overflow-hidden">
+            {([
+              { key: "klassisch", label: "📋 Klassisch" },
+              { key: "dashboard", label: "📊 Dashboard" },
+            ] as const).map(({ key, label }) => (
+              <button key={key} onClick={() => wechsleAnsicht(key)}
+                aria-pressed={ansicht === key}
+                className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                  ansicht === key
+                    ? "bg-[#202F61] text-white"
+                    : "text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"
+                }`}>
+                {label}
+              </button>
+            ))}
+          </div>
           {/* Zeitfilter */}
           <div className="flex bg-white dark:bg-[#242526] border border-[#ced4da] dark:border-[#3e4042] rounded-xl overflow-hidden">
             {FILTER_OPTS.map(({ key, label }) => (
@@ -866,9 +931,28 @@ export default function StatistikenPage() {
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════
+          DASHBOARD-ANSICHT (optional, per Umschalter)
+          Deckt die Team-Übersicht ab. Team-Vergleich, Jahresarchiv und die
+          Einzel-Auswertung je Techniker liegen weiterhin in der klassischen
+          Ansicht — darauf wird unten hingewiesen statt es zu verstecken.
+          ══════════════════════════════════════════════════════════════════ */}
+      {zeigeDashboard && (
+        <>
+          <DashboardAnsicht tage={tage} standortId={sId} />
+          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] text-center pt-1">
+            Team-Vergleich, Jahresarchiv, Wert-Auswertung und die Einzel-Auswertung je Techniker
+            findest du in der{" "}
+            <button onClick={() => wechsleAnsicht("klassisch")} className="underline font-semibold">
+              klassischen Ansicht
+            </button>.
+          </p>
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════
           ANSICHT A — ALLE TECHNIKER (Übersicht)
           ══════════════════════════════════════════════════════════════════ */}
-      {!hatTech && (
+      {!zeigeDashboard && !hatTech && (
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
