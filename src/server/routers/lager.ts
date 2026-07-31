@@ -82,19 +82,42 @@ export const lagerRouter = createTRPCRouter({
   // Zwei baugleiche Artikel (typisch: Füße vorne ↔ hinten) teilen sich einen
   // Bestand. Details siehe lib/artikel/pool.ts.
 
-  // Mögliche Partner: gleicher Standort, gleiche Kategorie, nicht der Artikel
-  // selbst. Auf die Kategorie eingegrenzt, damit nicht versehentlich ein
-  // Mainboard mit Füßen gepoolt wird.
+  // Mögliche Partner für einen Pool.
+  //
+  // ACHTUNG — hier lag ein Denkfehler: `Artikel.kategorie` IST der Teiltyp
+  // („Füße vorne" / „Füße hinten"). Auf gleiche Kategorie zu filtern schließt
+  // also genau das Gegenstück aus, das man verknüpfen will.
+  // Richtig ist der Filter über das GERÄT: `bezeichnung` = "<Gerät> <Teiltyp>",
+  // also Teiltyp hinten abschneiden und nach dem Rest suchen.
+  // `suche` überschreibt das, falls die Bezeichnung mal vom Muster abweicht.
   poolKandidaten: artikelReadProcedure
-    .input(z.object({ artikelId: z.number().int().positive() }))
+    .input(z.object({
+      artikelId: z.number().int().positive(),
+      suche:     z.string().max(100).optional(),
+    }))
     .query(async ({ ctx, input }) => {
       const artikel = await ctx.prisma.artikel.findUnique({
         where:  { id: input.artikelId },
-        select: { id: true, kategorie: true, standortId: true },
+        select: { id: true, bezeichnung: true, kategorie: true, standortId: true },
       });
       if (!artikel) return [];
+
+      const suche = input.suche?.trim();
+      // Gerätename = Bezeichnung ohne den angehängten Teiltyp
+      const geraet = artikel.bezeichnung.endsWith(artikel.kategorie)
+        ? artikel.bezeichnung.slice(0, -artikel.kategorie.length).trim()
+        : "";
+
       return ctx.prisma.artikel.findMany({
-        where:   { id: { not: artikel.id }, kategorie: artikel.kategorie, standortId: artikel.standortId },
+        where: {
+          id:         { not: artikel.id },
+          standortId: artikel.standortId,
+          ...(suche
+            ? { bezeichnung: { contains: suche } }
+            : geraet
+              ? { bezeichnung: { startsWith: geraet } }
+              : {}),
+        },
         select:  { id: true, bezeichnung: true, bestand: true, poolPartnerId: true },
         orderBy: { bezeichnung: "asc" },
         take:    200,

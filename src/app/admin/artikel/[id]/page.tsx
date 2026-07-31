@@ -32,9 +32,11 @@ export default function ArtikelDetailPage() {
   const printFnRef                    = useRef<(() => void) | null>(null);
 
   // Mögliche Pool-Partner nur laden, solange noch keiner gesetzt ist.
+  // Ohne Suchbegriff zeigt der Server die Artikel desselben Geräts.
+  const [partnerSuche, setPartnerSuche] = useState("");
   const poolKandidaten = api.lager.poolKandidaten.useQuery(
-    { artikelId },
-    { enabled: !!artikel && !artikel.poolPartnerId, staleTime: 60_000 },
+    { artikelId, suche: partnerSuche.trim() || undefined },
+    { enabled: !!artikel && !artikel.poolPartnerId, staleTime: 30_000 },
   );
 
   const poolVerknuepfen = api.lager.poolVerknuepfen.useMutation({
@@ -179,8 +181,15 @@ export default function ArtikelDetailPage() {
           <div className="space-y-3">
             <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
               Nicht verknüpft. Wähle das baugleiche Gegenstück — beide teilen sich danach einen Bestand.
-              Zur Auswahl stehen Artikel derselben Kategorie am selben Standort.
+              Vorgeschlagen werden die Teile <strong>desselben Geräts</strong>; über die Suche findest du alle anderen.
             </p>
+            <input
+              type="text"
+              value={partnerSuche}
+              onChange={(e) => setPartnerSuche(e.target.value)}
+              placeholder="Suche (z.B. 7411 oder Füße)"
+              className="w-full px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]"
+            />
             <div className="flex gap-3 flex-wrap">
               <select
                 value={partnerWahl}
