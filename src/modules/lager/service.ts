@@ -204,9 +204,10 @@ export async function createArtikel(data: {
   kategorie:   string;
   lagerplatz?: string;
   standortId?: number;
+  preis?:      number | null;
 }) {
   const artikel = await prisma.artikel.create({
-    data: { ...data, bestand: 0, standortId: data.standortId ?? 1 },
+    data: { ...data, preis: data.preis ?? null, bestand: 0, standortId: data.standortId ?? 1 },
   });
   meilisearchSync.artikel(artikel.id);
   return artikel;

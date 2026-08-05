@@ -150,6 +150,9 @@ export const lagerRouter = createTRPCRouter({
       kategorie:   z.string().min(1).max(100),
       lagerplatz:  z.string().max(50).optional(),
       standortId:  z.number().int().positive().optional(),
+      // Einzelpreis gleich beim Anlegen — spart den zweiten Weg über die
+      // Detailseite, wenn viele Varianten erfasst werden (Festplatten, RAM).
+      preis:       z.number().min(0).max(1_000_000).nullable().optional(),
     }))
     .mutation(({ input, ctx }) => {
       const standortId = resolveStandortId(ctx, input.standortId);

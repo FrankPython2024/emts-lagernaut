@@ -8,7 +8,7 @@ export default function ArtikelNeuPage() {
   const router = useRouter();
   const { show } = useToast();
   const utils = api.useUtils();
-  const [form, setForm] = useState({ bezeichnung: "", kategorie: "", lagerplatz: "" });
+  const [form, setForm] = useState({ bezeichnung: "", kategorie: "", lagerplatz: "", preis: "" });
 
   const kategorien = api.lager.getKategorien.useQuery();
   const [neueKat, setNeueKat] = useState(false);
@@ -26,7 +26,18 @@ export default function ArtikelNeuPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.bezeichnung || !form.kategorie) return;
-    erstellen.mutate({ bezeichnung: form.bezeichnung, kategorie: form.kategorie, lagerplatz: form.lagerplatz || undefined });
+
+    // Deutsches Komma zulassen; leer = kein Einzelpreis (Kategoriepreis gilt).
+    const roh   = form.preis.trim().replace(",", ".");
+    const preis = roh === "" ? null : Number(roh);
+    if (preis !== null && !Number.isFinite(preis)) { show("Preis ist keine gültige Zahl", "error"); return; }
+
+    erstellen.mutate({
+      bezeichnung: form.bezeichnung,
+      kategorie:   form.kategorie,
+      lagerplatz:  form.lagerplatz || undefined,
+      preis,
+    });
   }
 
   return (
@@ -67,6 +78,22 @@ export default function ArtikelNeuPage() {
             className="text-xs text-[#0064d2] dark:text-[#45bdff] mt-1 hover:underline">
             {neueKat ? "← Vorhandene wählen" : "+ Neue Kategorie"}
           </button>
+        </div>
+
+        {/* Einzelpreis gleich hier — bei Festplatten/RAM sagt die Kategorie
+            nichts über den Wert, und beim Anlegen vieler Varianten spart es
+            den zweiten Weg über die Detailseite. */}
+        <div>
+          <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">Einzelpreis € (optional)</label>
+          <input
+            type="text" inputMode="decimal"
+            value={form.preis} onChange={(e) => setForm((f) => ({ ...f, preis: e.target.value }))}
+            placeholder="leer = Kategoriepreis verwenden"
+            className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]"
+          />
+          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+            Nötig, wo die Kategorie den Wert nicht trifft — z. B. 256-GB-SSD gegen 2-TB-NVMe.
+          </p>
         </div>
 
         <div>
