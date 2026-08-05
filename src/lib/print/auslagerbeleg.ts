@@ -1,7 +1,12 @@
 // ── Auslagerbeleg für Abgaben an andere Niederlassungen ─────────────────────
-// A4-Dokument, das der Sendung beiliegt: Absender, Empfänger, Positionen mit
-// Einzelpreis und Summe. Gleiche bewährte Mechanik wie die übrigen Drucke
-// (window.open SYNCHRON → Popup-Blocker-sicher, @page + Auto-Print).
+// A4-Dokument, das der Sendung beiliegt: Absender, Empfänger, Positionen.
+// Gleiche bewährte Mechanik wie die übrigen Drucke (window.open SYNCHRON →
+// Popup-Blocker-sicher, @page + Auto-Print).
+//
+// WERTANGABEN sind ausdrücklich eine interne, STATISTISCHE Bewertung zu
+// ungefähren Marktwerten — keine Rechnung, keine Zahlungsaufforderung. Der
+// Beleg sagt das auch selbst; wer die Beschriftungen ändert, muss den Hinweis
+// mitpflegen, sonst könnte der Empfänger das Dokument für eine Forderung halten.
 //
 // Beleg-Nummer: bewusst NICHT über `naechsteBelegNr` (Redis-Zähler). Dort käme
 // bei jedem Nachdruck eine neue Nummer heraus — ein Lieferschein muss aber
@@ -35,6 +40,30 @@ const euro = (n: number) => n.toLocaleString("de-DE", { style: "currency", curre
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Wandelt alle Nicht-ASCII-Zeichen in HTML-Entities (ö → &#246;).
+ *
+ * Warum: Das Druckfenster entsteht über `window.open("")` und wird per
+ * `document.write` befüllt. Das Dokument existiert dann bereits, bevor das
+ * `<meta charset>` ankommt — je nach Browser wird der Zeichensatz deshalb
+ * geraten und Umlaute erscheinen zerlegt („Sömmerda"). Als Entities ist der
+ * Text unabhängig von jeder Zeichensatz-Erkennung.
+ *
+ * Läuft ZULETZT über das fertige Dokument. Bereits erzeugte Entities aus
+ * `escapeHtml` bleiben unberührt, weil nur Zeichen oberhalb von ASCII ersetzt
+ * werden — das „&" von „&amp;" ist ASCII.
+ */
+function nurAscii(html: string): string {
+  // Bewusst ohne Regex-Zeichenklasse: Der Bereich oberhalb ASCII laesst sich in
+  // dieser Datei nicht zuverlaessig als Literal schreiben.
+  let out = "";
+  for (const c of html) {
+    const code = c.codePointAt(0)!;
+    out += code > 127 ? `&#${code};` : c;
+  }
+  return out;
 }
 
 const PRINT_SCRIPT = `<script>(function(){
@@ -104,9 +133,8 @@ export function belegHtml(d: AuslagerbelegDaten): string {
     .hinweis { margin-top: 10px; font-size: 11px; color: #a06800; }
     .notiz { margin-top: 18px; font-size: 12px; }
     .notiz h3 { font-size: 10px; text-transform: uppercase; color: #666; margin: 0 0 3px; }
-    .unterschriften { display: flex; gap: 40px; margin-top: 48px; }
-    .unterschrift { flex: 1; border-top: 1px solid #999; padding-top: 5px;
-                    font-size: 11px; color: #555; }
+    .bewertung { margin-top: 18px; font-size: 11px; color: #444; line-height: 1.5;
+                 border: 1px solid #ccc; border-radius: 6px; padding: 8px 10px; background: #fafafa; }
     .fuss { margin-top: 26px; font-size: 10px; color: #888; text-align: center;
             border-top: 1px solid #e3e3e3; padding-top: 8px; }
   `;
@@ -141,8 +169,8 @@ export function belegHtml(d: AuslagerbelegDaten): string {
         <tr>
           <th>Artikel</th>
           <th class="num">Stück</th>
-          <th class="num">Einzelpreis</th>
-          <th class="num">Summe</th>
+          <th class="num">ca. Stückwert</th>
+          <th class="num">ca. Wert</th>
         </tr>
       </thead>
       <tbody>${zeilen}</tbody>
@@ -152,27 +180,32 @@ export function belegHtml(d: AuslagerbelegDaten): string {
       <table>
         <tr><td>Positionen</td><td class="num">${d.positionen.length}</td></tr>
         <tr><td>Stück gesamt</td><td class="num">${stueckGesamt.toLocaleString("de-DE")}</td></tr>
-        <tr class="gesamt"><td>Warenwert</td><td class="num">${euro(gesamt)}</td></tr>
+        <tr class="gesamt"><td>ca. Warenwert</td><td class="num">${euro(gesamt)}</td></tr>
       </table>
     </div>
 
+    <div class="bewertung">
+      <strong>Hinweis zur Wertangabe:</strong> Es handelt sich um eine interne, statistische
+      Bewertung zu ungefähren Marktwerten. <strong>Dies ist keine Rechnung und keine
+      Zahlungsaufforderung</strong> — der Empfänger schuldet dafür nichts.
+    </div>
+
     ${ohnePreis > 0 ? `<div class="hinweis">
-      Hinweis: ${ohnePreis.toLocaleString("de-DE")} Stück ohne hinterlegten Preis —
+      Hinweis: ${ohnePreis.toLocaleString("de-DE")} Stück ohne hinterlegten Wert —
       im ausgewiesenen Warenwert nicht enthalten.
     </div>` : ""}
 
     ${d.notiz ? `<div class="notiz"><h3>Notiz</h3>${escapeHtml(d.notiz)}</div>` : ""}
 
-    <div class="unterschriften">
-      <div class="unterschrift">Datum, Unterschrift ausgebende Stelle</div>
-      <div class="unterschrift">Datum, Unterschrift Empfänger</div>
-    </div>
-
     <div class="fuss">EMTS Lagernaut · erstellt am ${new Date().toLocaleString("de-DE")}</div>
   `;
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(d.belegNr)}</title>`
-    + `<style>${css}</style></head><body>${body}${PRINT_SCRIPT}</body></html>`;
+  // nurAscii ZULETZT: macht Umlaute unabhängig davon, ob das Druckfenster den
+  // Zeichensatz erkennt. Das Skript bleibt unberührt (reines ASCII).
+  return nurAscii(
+    `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(d.belegNr)}</title>`
+    + `<style>${css}</style></head><body>${body}</body></html>`,
+  ).replace("</body>", `${PRINT_SCRIPT}</body>`);
 }
 
 export function printAuslagerbeleg(d: AuslagerbelegDaten): void {

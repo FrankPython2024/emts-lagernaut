@@ -222,7 +222,7 @@ export default function AbgabenPage() {
             <div className="mb-4">
               <div className="text-3xl font-black text-[#04B475]">{euro(auswertung.data.gesamtWert)}</div>
               <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                {nf(auswertung.data.gesamtMenge)} Stück abgegeben
+                {nf(auswertung.data.gesamtMenge)} Stück abgegeben · statistischer Wert, keine Forderung
                 {auswertung.data.ohnePreis > 0 && (
                   <span className="text-[#f7b928]">
                     {" · "}⚠️ {nf(auswertung.data.ohnePreis)} davon ohne hinterlegten Preis (nicht im Wert)
@@ -239,7 +239,7 @@ export default function AbgabenPage() {
                   <tr className="text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
                     <th className="text-left py-2 pr-3">Niederlassung</th>
                     <th className="text-right py-2 px-3">Stück</th>
-                    <th className="text-right py-2 pl-3">Wert</th>
+                    <th className="text-right py-2 pl-3">ca. Wert</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">

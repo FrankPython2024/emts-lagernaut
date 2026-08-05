@@ -138,7 +138,7 @@ function WertAusgegebenPanel({ tage, standortId }: { tage: number; standortId: n
 function AbgabenPanel({ tage, standortId }: { tage: number; standortId: number | null | undefined }) {
   const q = api.abgaben.auswertung.useQuery({ tage, standortId: standortId ?? null });
   return (
-    <Panel title="🚚 Abgaben an Niederlassungen" sub={`Material an andere Standorte der Gruppe · letzte ${tage} Tage`}>
+    <Panel title="🚚 Abgaben an Niederlassungen" sub={`Material an andere Standorte der Gruppe · statistischer Wert · letzte ${tage} Tage`}>
       {q.isLoading && <Skeleton h="h-32" />}
       {q.data && (
         <>
@@ -164,7 +164,7 @@ function AbgabenPanel({ tage, standortId }: { tage: number; standortId: number |
                   <tr className="text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
                     <th className="text-left py-2 pr-3">Niederlassung</th>
                     <th className="text-right py-2 px-3">Stück</th>
-                    <th className="text-right py-2 pl-3">Wert</th>
+                    <th className="text-right py-2 pl-3">ca. Wert</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
