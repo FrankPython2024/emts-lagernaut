@@ -130,6 +130,68 @@ function WertAusgegebenPanel({ tage, standortId }: { tage: number; standortId: n
   );
 }
 
+// ── Abgaben an andere Niederlassungen ────────────────────────────────────────
+// Bewusst ein eigenes Panel und NICHT in „Wert ausgegeben" eingerechnet: Das ist
+// kein Verbrauch durch die eigene Technik, sondern Material, das das Haus
+// verlässt. Zusammengezählt wären beide Zahlen nicht mehr interpretierbar.
+
+function AbgabenPanel({ tage, standortId }: { tage: number; standortId: number | null | undefined }) {
+  const q = api.abgaben.auswertung.useQuery({ tage, standortId: standortId ?? null });
+  return (
+    <Panel title="🚚 Abgaben an Niederlassungen" sub={`Material an andere Standorte der Gruppe · letzte ${tage} Tage`}>
+      {q.isLoading && <Skeleton h="h-32" />}
+      {q.data && (
+        <>
+          <div className="mb-4">
+            <div className="text-3xl font-black tabular-nums text-[#008BD2]">{euro(q.data.gesamtWert)}</div>
+            <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+              📦 {q.data.gesamtMenge.toLocaleString("de-DE")} Stück abgegeben
+              {q.data.proNiederlassung.length > 0 && <> · {q.data.proNiederlassung.length} Niederlassungen</>}
+            </div>
+            {q.data.ohnePreis > 0 && (
+              <div className="text-xs text-[#f7b928] mt-0.5">
+                ⚠️ {q.data.ohnePreis.toLocaleString("de-DE")} Stück ohne hinterlegten Preis — nicht im Wert enthalten
+              </div>
+            )}
+          </div>
+
+          {q.data.proNiederlassung.length === 0 ? (
+            <Empty />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
+                    <th className="text-left py-2 pr-3">Niederlassung</th>
+                    <th className="text-right py-2 px-3">Stück</th>
+                    <th className="text-right py-2 pl-3">Wert</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+                  {q.data.proNiederlassung.map((z) => (
+                    <tr key={z.id}>
+                      <td className="py-2 pr-3 font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">{z.name}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-[#65676b] dark:text-[#b0b3b8]">
+                        {z.menge.toLocaleString("de-DE")}
+                      </td>
+                      <td className="py-2 pl-3 text-right tabular-nums font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{euro(z.wert)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="mt-3 text-xs text-[#65676b] dark:text-[#b0b3b8]">
+            Einzeln erfassen und verwalten unter{" "}
+            <a href="/admin/abgaben" className="underline font-semibold">Abgaben an Niederlassungen</a>.
+          </div>
+        </>
+      )}
+    </Panel>
+  );
+}
+
 // ── Bauteil-Ernte: was wurde aus Spender-Altgeräten gewonnen ─────────────────
 // Zeigt nur Einlagerungen MIT gescannter Spender-LogID. Ältere Einlagerungen
 // haben keine Herkunft (die LogID wurde früher nicht gespeichert) — die Anzahl
@@ -1018,6 +1080,9 @@ export default function StatistikenPage() {
 
           {/* Bauteil-Ernte: was kam aus den Spender-Altgeräten rein */}
           <ErntePanel tage={tage} standortId={sId} />
+
+          {/* Abgaben: was ging an andere Niederlassungen raus */}
+          <AbgabenPanel tage={tage} standortId={sId} />
 
           {/* Team-Vergleich + Jahresarchiv Tab */}
           <Panel title="Techniker-Analyse">

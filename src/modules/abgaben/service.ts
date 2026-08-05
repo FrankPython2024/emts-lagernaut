@@ -41,7 +41,10 @@ export async function abgeben(data: {
   const [artikel, niederlassung] = await Promise.all([
     prisma.artikel.findUnique({
       where:  { id: data.artikelId },
-      select: { id: true, bezeichnung: true, bestand: true },
+      select: {
+        id: true, bezeichnung: true, bestand: true, kategorie: true, preis: true,
+        standort: { select: { name: true, adresse: true } },
+      },
     }),
     prisma.niederlassung.findUnique({
       where:  { id: data.niederlassungId },
@@ -83,11 +86,24 @@ export async function abgeben(data: {
     where: { id: data.artikelId }, select: { bestand: true },
   });
 
+  // Preis für den Beleg: Einzelpreis, sonst Kategoriepreis, sonst nichts.
+  const stueckpreis = artikel.preis != null
+    ? Number(artikel.preis)
+    : (await prisma.kategoriePreis.findUnique({
+        where: { kategorie: artikel.kategorie }, select: { preis: true },
+      }))?.preis ?? null;
+
   return {
     buchungId:    buchung.id,
+    datum:        buchung.datum,
     artikel:      artikel.bezeichnung,
+    kategorie:    artikel.kategorie,
+    preis:        stueckpreis == null ? null : Number(stueckpreis),
     menge:        data.menge,
     niederlassung: niederlassung.name,
+    absender:     { name: artikel.standort?.name ?? "Lager", adresse: artikel.standort?.adresse ?? null },
+    mitarbeiter:  data.mitarbeiter,
+    notiz:        data.notiz ?? null,
     neuerBestand: neuerBestand?.bestand ?? 0,
   };
 }
@@ -97,7 +113,7 @@ export async function abgeben(data: {
  * Wert = Menge × (Einzelpreis des Artikels ?? Kategoriepreis). Artikel ohne
  * jeden Preis werden separat ausgewiesen, damit die Summe nicht still zu klein wird.
  */
-export async function auswertung(opts?: { tage?: number | null }) {
+export async function auswertung(opts?: { tage?: number | null; standortId?: number | null }) {
   const cutoff = opts?.tage ? new Date(Date.now() - opts.tage * 86_400_000) : null;
 
   const buchungen = await prisma.buchung.findMany({
@@ -105,6 +121,9 @@ export async function auswertung(opts?: { tage?: number | null }) {
       niederlassungId: { not: null },
       typ:             BuchungsTyp.AUSGANG,
       ...(cutoff ? { datum: { gte: cutoff } } : {}),
+      // Standort des ABGEBENDEN Lagers (nicht der Empfänger) — folgt damit
+      // demselben Filter wie die übrigen Panels der Statistik-Seite.
+      ...(opts?.standortId ? { artikel: { standortId: opts.standortId } } : {}),
     },
     select: {
       menge: true, datum: true,

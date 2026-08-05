@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
+import { printAuslagerbeleg, belegNrFuerAbgabe } from "@/lib/print/auslagerbeleg";
 
 // ── Material-Abgaben an andere Niederlassungen ───────────────────────────────
 // Festplatten und Arbeitsspeicher werden hier erfasst und an andere
@@ -50,6 +51,16 @@ export default function AbgabenPage() {
       show(`✅ ${r.menge}× ${r.artikel} → ${r.niederlassung} (Rest: ${r.neuerBestand})`, "success");
       setMenge("1"); setNotiz(""); setArtikelId("");
       neuLaden();
+      // Beleg direkt anbieten — im Alltag geht die Sendung sofort raus.
+      printAuslagerbeleg({
+        belegNr:     belegNrFuerAbgabe(r.buchungId, r.datum),
+        datum:       r.datum,
+        mitarbeiter: r.mitarbeiter,
+        absender:    r.absender,
+        empfaenger:  r.niederlassung,
+        notiz:       r.notiz,
+        positionen:  [{ bezeichnung: r.artikel, kategorie: r.kategorie, menge: r.menge, preis: r.preis }],
+      });
     },
     onError: (e) => show(e.message, "error"),
   });
@@ -63,6 +74,48 @@ export default function AbgabenPage() {
     onSuccess: () => { show("Gespeichert", "success"); neuLaden(); },
     onError:   (e) => show(e.message, "error"),
   });
+
+  // Sammelbeleg: mehrere Abgaben derselben Niederlassung auf EIN Dokument.
+  // Im Alltag geht oft mehreres in einer Sendung raus.
+  const [markiert, setMarkiert] = useState<Set<number>>(new Set());
+
+  function markierungUmschalten(id: number) {
+    setMarkiert((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+
+  function sammelbelegDrucken() {
+    const zeilen = (letzte.data ?? []).filter((b) => markiert.has(b.id));
+    if (zeilen.length === 0) return;
+
+    const ziele = new Set(zeilen.map((b) => b.niederlassung?.id));
+    if (ziele.size > 1) {
+      show("Bitte nur Abgaben an dieselbe Niederlassung markieren — ein Beleg hat einen Empfänger.", "warning");
+      return;
+    }
+
+    const erste = zeilen[0]!;
+    printAuslagerbeleg({
+      // Nummer der ältesten markierten Buchung — bleibt beim Nachdruck gleich.
+      belegNr:     belegNrFuerAbgabe(Math.min(...zeilen.map((z) => z.id)), erste.datum),
+      datum:       erste.datum,
+      mitarbeiter: erste.mitarbeiter,
+      absender:    {
+        name:    erste.artikel.standort?.name ?? "Lager",
+        adresse: erste.artikel.standort?.adresse ?? null,
+      },
+      empfaenger:  erste.niederlassung?.name ?? "—",
+      positionen:  zeilen.map((b) => ({
+        bezeichnung: b.artikel.bezeichnung,
+        kategorie:   b.artikel.kategorie,
+        menge:       b.menge,
+        preis:       b.artikel.preis,
+      })),
+    });
+  }
 
   const artikel = artikelListe.data?.artikel ?? [];
   const gewaehlt = artikel.find((a) => String(a.id) === artikelId);
@@ -208,7 +261,15 @@ export default function AbgabenPage() {
 
       {/* ── Letzte Abgaben ────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-6 shadow-sm">
-        <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-4">Letzte Abgaben</h2>
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+          <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Letzte Abgaben</h2>
+          {markiert.size > 0 && (
+            <button onClick={sammelbelegDrucken}
+              className="px-4 py-2 text-sm font-bold rounded-xl bg-[#202F61] text-white hover:bg-[#18244a]">
+              📄 Sammelbeleg für {markiert.size} Position{markiert.size === 1 ? "" : "en"}
+            </button>
+          )}
+        </div>
         {(letzte.data ?? []).length === 0 ? (
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] py-4 text-center">Noch nichts abgegeben</p>
         ) : (
@@ -216,23 +277,58 @@ export default function AbgabenPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
+                  <th className="w-8 py-2"><span className="sr-only">Für Sammelbeleg markieren</span></th>
                   <th className="text-left py-2 pr-3">Datum</th>
                   <th className="text-left py-2 px-3">Artikel</th>
                   <th className="text-right py-2 px-3">Stück</th>
                   <th className="text-left py-2 px-3">Ziel</th>
-                  <th className="text-left py-2 pl-3">Von</th>
+                  <th className="text-left py-2 px-3">Von</th>
+                  <th className="text-right py-2 pl-3">Beleg</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
                 {(letzte.data ?? []).map((b) => (
                   <tr key={b.id}>
+                    <td className="py-2">
+                      <input
+                        type="checkbox" checked={markiert.has(b.id)}
+                        onChange={() => markierungUmschalten(b.id)}
+                        className="w-4 h-4 cursor-pointer"
+                        aria-label={`${b.artikel.bezeichnung} für Sammelbeleg markieren`}
+                      />
+                    </td>
                     <td className="py-2 pr-3 tabular-nums text-[#65676b] dark:text-[#b0b3b8]">
                       {new Date(b.datum).toLocaleDateString("de-DE")}
                     </td>
                     <td className="py-2 px-3 text-[#1a1a1a] dark:text-[#e4e6eb]">{b.artikel.bezeichnung}</td>
                     <td className="py-2 px-3 text-right tabular-nums font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{b.menge}</td>
                     <td className="py-2 px-3 text-[#1a1a1a] dark:text-[#e4e6eb]">{b.niederlassung?.name ?? "—"}</td>
-                    <td className="py-2 pl-3 text-[#65676b] dark:text-[#b0b3b8]">{b.mitarbeiter}</td>
+                    <td className="py-2 px-3 text-[#65676b] dark:text-[#b0b3b8]">{b.mitarbeiter}</td>
+                    <td className="py-2 pl-3 text-right">
+                      <button
+                        onClick={() => printAuslagerbeleg({
+                          belegNr:     belegNrFuerAbgabe(b.id, b.datum),
+                          datum:       b.datum,
+                          mitarbeiter: b.mitarbeiter,
+                          absender:    {
+                            name:    b.artikel.standort?.name ?? "Lager",
+                            adresse: b.artikel.standort?.adresse ?? null,
+                          },
+                          empfaenger:  b.niederlassung?.name ?? "—",
+                          notiz:       b.notiz,
+                          positionen:  [{
+                            bezeichnung: b.artikel.bezeichnung,
+                            kategorie:   b.artikel.kategorie,
+                            menge:       b.menge,
+                            preis:       b.artikel.preis,
+                          }],
+                        })}
+                        className="text-xs font-bold px-2.5 py-1 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"
+                        title={`Beleg ${belegNrFuerAbgabe(b.id, b.datum)} drucken`}
+                      >
+                        📄
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

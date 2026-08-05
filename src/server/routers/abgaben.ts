@@ -92,15 +92,44 @@ export const abgabenRouter = createTRPCRouter({
         where:   { niederlassungId: { not: null }, typ: BuchungsTyp.AUSGANG },
         select: {
           id: true, datum: true, menge: true, mitarbeiter: true, notiz: true,
-          artikel:       { select: { id: true, bezeichnung: true, kategorie: true } },
+          artikel: {
+            select: {
+              id: true, bezeichnung: true, kategorie: true, preis: true,
+              standort: { select: { name: true, adresse: true } },
+            },
+          },
           niederlassung: { select: { id: true, name: true } },
         },
         orderBy: { datum: "desc" },
         take:    input?.limit ?? 50,
+      }).then(async (rows) => {
+        // Kategoriepreise als Rückfall, damit der Nachdruck denselben Wert zeigt
+        // wie beim Buchen. Decimal → Zahl, weil superjson Decimal nicht überträgt.
+        const kategorien = Array.from(new Set(rows.map((r) => r.artikel.kategorie)));
+        const katPreise = new Map(
+          (await ctx.prisma.kategoriePreis.findMany({
+            where: { kategorie: { in: kategorien } }, select: { kategorie: true, preis: true },
+          })).map((k) => [k.kategorie, Number(k.preis)]),
+        );
+        return rows.map((r) => ({
+          ...r,
+          artikel: {
+            ...r.artikel,
+            preis: r.artikel.preis != null
+              ? Number(r.artikel.preis)
+              : katPreise.get(r.artikel.kategorie) ?? null,
+          },
+        }));
       }),
     ),
 
   auswertung: leseProcedure
-    .input(z.object({ tage: z.number().int().positive().nullable().optional() }).optional())
-    .query(({ input }) => auswertung({ tage: input?.tage ?? null })),
+    .input(z.object({
+      tage:       z.number().int().positive().nullable().optional(),
+      standortId: z.number().int().positive().nullable().optional(),
+    }).optional())
+    .query(({ input }) => auswertung({
+      tage:       input?.tage ?? null,
+      standortId: input?.standortId ?? null,
+    })),
 });
