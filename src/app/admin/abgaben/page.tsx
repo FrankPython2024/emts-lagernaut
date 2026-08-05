@@ -32,6 +32,8 @@ export default function AbgabenPage() {
   const [notiz, setNotiz]             = useState("");
   const [neueNL, setNeueNL]           = useState("");
   const [nlOffen, setNlOffen]         = useState(false);
+  const [bearbeiteNl, setBearbeiteNl] = useState<number | null>(null);
+  const [nlForm, setNlForm]           = useState({ name: "", adresse: "" });
 
   const niederlassungen = api.abgaben.niederlassungen.useQuery();
   const auswertung      = api.abgaben.auswertung.useQuery({ tage });
@@ -58,6 +60,7 @@ export default function AbgabenPage() {
         mitarbeiter: r.mitarbeiter,
         absender:    r.absender,
         empfaenger:  r.niederlassung,
+        empfaengerAdresse: r.empfaengerAdresse,
         notiz:       r.notiz,
         positionen:  [{ bezeichnung: r.artikel, kategorie: r.kategorie, menge: r.menge, preis: r.preis }],
       });
@@ -71,7 +74,7 @@ export default function AbgabenPage() {
   });
 
   const nlAendern = api.abgaben.niederlassungAendern.useMutation({
-    onSuccess: () => { show("Gespeichert", "success"); neuLaden(); },
+    onSuccess: () => { show("Gespeichert", "success"); setBearbeiteNl(null); neuLaden(); },
     onError:   (e) => show(e.message, "error"),
   });
 
@@ -108,6 +111,7 @@ export default function AbgabenPage() {
         adresse: erste.artikel.standort?.adresse ?? null,
       },
       empfaenger:  erste.niederlassung?.name ?? "—",
+      empfaengerAdresse: erste.niederlassung?.adresse ?? null,
       positionen:  zeilen.map((b) => ({
         bezeichnung: b.artikel.bezeichnung,
         kategorie:   b.artikel.kategorie,
@@ -315,6 +319,7 @@ export default function AbgabenPage() {
                             adresse: b.artikel.standort?.adresse ?? null,
                           },
                           empfaenger:  b.niederlassung?.name ?? "—",
+                          empfaengerAdresse: b.niederlassung?.adresse ?? null,
                           notiz:       b.notiz,
                           positionen:  [{
                             bezeichnung: b.artikel.bezeichnung,
@@ -362,16 +367,67 @@ export default function AbgabenPage() {
 
             <ul className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
               {(niederlassungen.data ?? []).map((n) => (
-                <li key={n.id} className="flex items-center justify-between gap-3 py-2">
-                  <span className={n.aktiv ? "text-[#1a1a1a] dark:text-[#e4e6eb]" : "text-[#90939a] line-through"}>
-                    {n.name}
-                  </span>
-                  <button
-                    onClick={() => nlAendern.mutate({ id: n.id, aktiv: !n.aktiv })}
-                    className="text-xs font-bold px-3 py-1 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"
-                  >
-                    {n.aktiv ? "Deaktivieren" : "Aktivieren"}
-                  </button>
+                <li key={n.id} className="py-3">
+                  {bearbeiteNl === n.id ? (
+                    // Bearbeiten: Name und Anschrift. Die Anschrift landet auf dem
+                    // Auslagerbeleg unter dem Empfängernamen.
+                    <div className="space-y-2">
+                      <input
+                        type="text" value={nlForm.name}
+                        onChange={(e) => setNlForm({ ...nlForm, name: e.target.value })}
+                        placeholder="Name"
+                        className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] font-semibold"
+                      />
+                      <input
+                        type="text" value={nlForm.adresse}
+                        onChange={(e) => setNlForm({ ...nlForm, adresse: e.target.value })}
+                        placeholder="Anschrift — erscheint auf dem Beleg, z. B. Musterweg 3, 12345 Musterstadt"
+                        className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => nlAendern.mutate({
+                            id: n.id,
+                            name:    nlForm.name.trim() || undefined,
+                            adresse: nlForm.adresse.trim() || null,
+                          })}
+                          disabled={nlAendern.isPending}
+                          className="px-4 py-2 text-sm font-bold rounded-lg bg-[#0064d2] text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {nlAendern.isPending ? "…" : "Speichern"}
+                        </button>
+                        <button onClick={() => setBearbeiteNl(null)}
+                          className="px-4 py-2 text-sm font-semibold rounded-lg bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]">
+                          Abbrechen
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className={n.aktiv ? "text-[#1a1a1a] dark:text-[#e4e6eb] font-semibold" : "text-[#90939a] line-through"}>
+                          {n.name}
+                        </div>
+                        <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                          {n.adresse || <span className="text-[#f7b928]">Keine Anschrift hinterlegt</span>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          onClick={() => { setBearbeiteNl(n.id); setNlForm({ name: n.name, adresse: n.adresse ?? "" }); }}
+                          className="text-xs font-bold px-3 py-1 rounded-lg border border-[#0064d2]/30 text-[#0064d2] dark:text-[#45bdff] hover:bg-[#0064d2]/10"
+                        >
+                          ✏️ Bearbeiten
+                        </button>
+                        <button
+                          onClick={() => nlAendern.mutate({ id: n.id, aktiv: !n.aktiv })}
+                          className="text-xs font-bold px-3 py-1 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"
+                        >
+                          {n.aktiv ? "Deaktivieren" : "Aktivieren"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

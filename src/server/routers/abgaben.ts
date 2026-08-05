@@ -27,6 +27,7 @@ export const abgabenRouter = createTRPCRouter({
     .input(z.object({
       name:     z.string().min(1).max(120).trim(),
       kurzname: z.string().max(20).trim().optional(),
+      adresse:  z.string().max(500).trim().optional(),
       notiz:    z.string().max(500).trim().optional(),
     }))
     .mutation(({ ctx, input }) =>
@@ -34,7 +35,8 @@ export const abgabenRouter = createTRPCRouter({
         data: {
           name:     input.name,
           kurzname: input.kurzname || null,
-          notiz:    input.notiz || null,
+          adresse:  input.adresse  || null,
+          notiz:    input.notiz    || null,
         },
       }),
     ),
@@ -44,6 +46,7 @@ export const abgabenRouter = createTRPCRouter({
       id:       z.number().int().positive(),
       name:     z.string().min(1).max(120).trim().optional(),
       kurzname: z.string().max(20).trim().nullish(),
+      adresse:  z.string().max(500).trim().nullish(),
       notiz:    z.string().max(500).trim().nullish(),
       aktiv:    z.boolean().optional(),
     }))
@@ -98,7 +101,7 @@ export const abgabenRouter = createTRPCRouter({
               standort: { select: { name: true, adresse: true } },
             },
           },
-          niederlassung: { select: { id: true, name: true } },
+          niederlassung: { select: { id: true, name: true, adresse: true } },
         },
         orderBy: { datum: "desc" },
         take:    input?.limit ?? 50,

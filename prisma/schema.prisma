@@ -242,6 +242,9 @@ model Niederlassung {
   id        Int       @id @default(autoincrement())
   name      String    @unique @db.VarChar(120)
   kurzname  String?   @db.VarChar(20)
+  // Empfängeranschrift — erscheint auf dem Auslagerbeleg unter dem Namen und
+  // macht daraus erst einen vollwertigen Lieferschein.
+  adresse   String?   @db.VarChar(500)
   aktiv     Boolean   @default(true)
   notiz     String?   @db.VarChar(500)
   buchungen Buchung[]

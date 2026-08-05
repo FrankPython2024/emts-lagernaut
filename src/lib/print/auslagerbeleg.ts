@@ -26,6 +26,7 @@ export type AuslagerbelegDaten = {
   mitarbeiter: string;
   absender:    { name: string; adresse?: string | null };
   empfaenger:  string;
+  empfaengerAdresse?: string | null;
   positionen:  BelegPosition[];
   notiz?:      string | null;
 };
@@ -168,6 +169,7 @@ export function belegHtml(d: AuslagerbelegDaten): string {
       <div class="adresse">
         <h2>An</h2>
         <div class="wert">${escapeHtml(d.empfaenger)}</div>
+        ${d.empfaengerAdresse ? `<div class="zusatz">${escapeHtml(d.empfaengerAdresse)}</div>` : ""}
       </div>
     </div>
 

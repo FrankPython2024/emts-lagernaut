@@ -48,7 +48,7 @@ export async function abgeben(data: {
     }),
     prisma.niederlassung.findUnique({
       where:  { id: data.niederlassungId },
-      select: { id: true, name: true, aktiv: true },
+      select: { id: true, name: true, aktiv: true, adresse: true },
     }),
   ]);
 
@@ -101,6 +101,7 @@ export async function abgeben(data: {
     preis:        stueckpreis == null ? null : Number(stueckpreis),
     menge:        data.menge,
     niederlassung: niederlassung.name,
+    empfaengerAdresse: niederlassung.adresse,
     absender:     { name: artikel.standort?.name ?? "Lager", adresse: artikel.standort?.adresse ?? null },
     mitarbeiter:  data.mitarbeiter,
     notiz:        data.notiz ?? null,
