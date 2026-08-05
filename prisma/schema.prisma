@@ -161,6 +161,12 @@ model Artikel {
   anfragen    Anfrage[]
   kompatibel  Kompatibilitaet[]
   korbItems   WarenkorbItem[]
+  // Einzelpreis dieses Artikels. Schlägt den Kategoriepreis (KategoriePreis),
+  // wenn gesetzt. Nötig für Artikel, bei denen die Kategorie nichts über den
+  // Wert sagt: eine 256-GB-SSD und eine 2-TB-NVMe sind beide „Festplatte",
+  // unterscheiden sich im Wert aber um ein Vielfaches.
+  // null = wie bisher der Kategoriepreis.
+  preis       Decimal?          @db.Decimal(10, 2)
   // ── Ersatzteil-Pool (aktuell nur für Gummifüße gedacht) ──────────────────
   // Zwei Artikel, die dasselbe physische Teil sind (z. B. beim U711 sind vordere
   // und hintere Füße baugleich), teilen sich rechnerisch EINEN Bestand: Ist der
@@ -210,6 +216,12 @@ model Buchung {
   // die Ernte-Kennzahlen (Teile je Gerät, Materialwert) sonst massiv verfälschen.
   // NULL = Altdaten vor Einführung — dort sind beide Fälle nicht trennbar.
   herkunftArt   String?   @db.VarChar(20)
+  // Abgabe an eine andere Niederlassung: gesetzt bei AUSGANG-Buchungen, die das
+  // Material nicht an die eigene Technik, sondern an einen anderen Standort der
+  // Gruppe geben (typisch Festplatten und Arbeitsspeicher). Grundlage für die
+  // Auswertung „was ging wohin". null = normaler Vorgang im eigenen Haus.
+  niederlassungId Int?
+  niederlassung   Niederlassung? @relation(fields: [niederlassungId], references: [id])
   artikel     Artikel     @relation(fields: [artikelId], references: [id])
   createdAt   DateTime    @default(now())
 
@@ -218,6 +230,25 @@ model Buchung {
   @@index([datum])
   @@index([herkunftLogId])
   @@index([herkunftArt])
+  @@index([niederlassungId])
+}
+
+// ── Niederlassungen (Empfänger von Material-Abgaben) ─────────────────────────
+// Bewusst NICHT dasselbe wie `Standort`: Standorte sind Orte, an denen mit
+// Lagernaut gearbeitet wird (eigene Lagerplätze, Nutzer, Artikel). Eine
+// Niederlassung ist hier nur ein Empfänger — dorthin gehen z. B. Festplatten
+// und Arbeitsspeicher, ohne dass dort jemand das System benutzt.
+model Niederlassung {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique @db.VarChar(120)
+  kurzname  String?   @db.VarChar(20)
+  aktiv     Boolean   @default(true)
+  notiz     String?   @db.VarChar(500)
+  buchungen Buchung[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([aktiv])
 }
 
 enum BuchungsTyp {

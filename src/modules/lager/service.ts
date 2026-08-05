@@ -118,6 +118,9 @@ export async function getArtikelMitLagerplatz(id: number) {
 
   return {
     ...artikel,
+    // Prisma-Decimal überträgt sich über superjson nicht sinnvoll → serverseitig
+    // in eine Zahl wandeln (gleiches Muster wie bei Anfrage.sonderWert).
+    preis:              artikel.preis == null ? null : Number(artikel.preis),
     verfuegbar:         artikel.bestand > 0,
     kompatibileGeraete: artikel.kompatibel.map((k) => k.geraet),
     poolPartner,
@@ -214,7 +217,7 @@ export async function createArtikel(data: {
  */
 export async function updateArtikel(
   id:   number,
-  data: Partial<{ bezeichnung: string; kategorie: string; lagerplatz: string | null }>,
+  data: Partial<{ bezeichnung: string; kategorie: string; lagerplatz: string | null; preis: number | null }>,
 ) {
   const artikel = await prisma.artikel.findUnique({ where: { id } });
   if (!artikel) {

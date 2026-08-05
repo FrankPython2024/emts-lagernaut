@@ -35,6 +35,7 @@ import { verbrauchsmaterialRouter }  from "./verbrauchsmaterial";
 import { mobilRouter }               from "./mobil";
 import { mobilAnfrageRouter }        from "./mobilAnfrage";
 import { preiseRouter }              from "./preise";
+import { abgabenRouter }             from "./abgaben";
 import { impactRouter }              from "./impact";
 import { erne }                      from "./ernte";
 
@@ -76,6 +77,7 @@ export const appRouter = createTRPCRouter({
   mobil:              mobilRouter,
   mobilAnfrage:       mobilAnfrageRouter,
   preise:             preiseRouter,
+  abgaben:            abgabenRouter,
   impact:             impactRouter,
 });
 

@@ -22,7 +22,7 @@ export default function ArtikelDetailPage() {
   const kategorien = api.lager.getKategorien.useQuery();
   const alleLPs    = api.lagerplaetze.getAll.useQuery();
 
-  const [form, setForm]               = useState({ bezeichnung: "", kategorie: "", lagerplatz: "" });
+  const [form, setForm]               = useState({ bezeichnung: "", kategorie: "", lagerplatz: "", preis: "" });
   const [delOpen, setDelOpen]         = useState(false);
   const [lpModalOpen, setLpModalOpen] = useState(false);
   const [neuerLp,  setNeuerLp]        = useState("");
@@ -50,7 +50,13 @@ export default function ArtikelDetailPage() {
   });
 
   useEffect(() => {
-    if (artikel) setForm({ bezeichnung: artikel.bezeichnung, kategorie: artikel.kategorie, lagerplatz: artikel.lagerplatz ?? "" });
+    if (artikel) setForm({
+      bezeichnung: artikel.bezeichnung,
+      kategorie:   artikel.kategorie,
+      lagerplatz:  artikel.lagerplatz ?? "",
+      // Decimal kommt als String/Zahl an — deutsches Komma für die Eingabe.
+      preis:       artikel.preis == null ? "" : String(artikel.preis).replace(".", ","),
+    });
   }, [artikel]);
 
   const update = api.lager.update.useMutation({
@@ -119,8 +125,41 @@ export default function ArtikelDetailPage() {
           </p>
         </div>
 
+        {/* Einzelpreis — nötig, wo die Kategorie nichts über den Wert sagt
+            (256-GB-SSD vs. 2-TB-NVMe sind beide „Festplatte"). Leer lassen =
+            es gilt weiterhin der Kategoriepreis. */}
+        <div>
+          <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase">
+            Einzelpreis (€)
+          </label>
+          <input
+            type="text" inputMode="decimal"
+            value={form.preis}
+            onChange={(e) => setForm({ ...form, preis: e.target.value })}
+            placeholder="leer = Kategoriepreis verwenden"
+            className={INPUT_CLS}
+          />
+          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+            Überschreibt den{" "}
+            <a href="/admin/preise" className="underline hover:text-[#0064d2]">Kategoriepreis</a>
+            {" "}— sinnvoll bei Festplatten, RAM und allem, wo die Kategorie den Wert nicht trifft.
+          </p>
+        </div>
+
         <div className="flex gap-3 pt-2 flex-wrap">
-          <button onClick={() => update.mutate({ id: artikelId, ...form, lagerplatz: form.lagerplatz || null })}
+          <button onClick={() => {
+            // Deutsches Komma zulassen; leeres Feld = zurück auf Kategoriepreis.
+            const roh = form.preis.trim().replace(",", ".");
+            const preis = roh === "" ? null : Number(roh);
+            if (preis !== null && !Number.isFinite(preis)) { show("Preis ist keine gültige Zahl", "error"); return; }
+            update.mutate({
+              id: artikelId,
+              bezeichnung: form.bezeichnung,
+              kategorie:   form.kategorie,
+              lagerplatz:  form.lagerplatz || null,
+              preis,
+            });
+          }}
             disabled={update.isPending}
             className="px-6 py-2.5 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50">
             {update.isPending ? "..." : "Speichern"}

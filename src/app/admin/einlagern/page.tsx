@@ -1145,6 +1145,27 @@ function StepLagerplatz({
           </div>
         )}
 
+        {/* Kein Standort zugewiesen — sah vorher aus wie „Lager ist voll", weil
+            der Standort-Filter dann nichts findet. Eigene, handlungsfähige
+            Meldung statt einer falschen Diagnose. */}
+        {d && "keinStandort" in d && d.keinStandort && (
+          <div style={{ textAlign: "center", padding: "1rem 0" }}>
+            <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🔒</div>
+            <div style={{ fontSize: "1.1rem", fontWeight: 800, marginBottom: 8 }}>Kein Standort zugewiesen</div>
+            <div style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: 24, lineHeight: 1.5 }}>
+              Deinem Konto ist noch kein Standort zugeordnet.<br />
+              Deshalb sind für dich keine Lagerplätze sichtbar.<br />
+              <strong>Bitte melde dich bei der Lagerleitung.</strong><br />
+              <span style={{ fontSize: "0.85rem" }}>
+                Wurde der Standort gerade erst gesetzt: einmal abmelden und neu anmelden.
+              </span>
+            </div>
+            <button onClick={() => onWeiter(null)} style={{ ...S.bigBtn("var(--afb-blue)") }}>
+              Ohne Lagerplatz weiter →
+            </button>
+          </div>
+        )}
+
         {d && d.voll && (
           <div style={{ textAlign: "center", padding: "1rem 0" }}>
             <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>⚠️</div>

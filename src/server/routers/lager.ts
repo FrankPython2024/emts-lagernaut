@@ -163,6 +163,9 @@ export const lagerRouter = createTRPCRouter({
       bezeichnung: z.string().min(1).max(255).optional(),
       kategorie:   z.string().min(1).max(100).optional(),
       lagerplatz:  z.string().max(50).nullable().optional(),
+      // Einzelpreis — schlägt den Kategoriepreis. null setzt ihn wieder zurück
+      // auf „Kategoriepreis verwenden".
+      preis:       z.number().min(0).max(1_000_000).nullable().optional(),
     }))
     .mutation(({ input }) => {
       const { id, ...data } = input;

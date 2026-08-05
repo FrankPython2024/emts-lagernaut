@@ -8,7 +8,7 @@ import type { SessionUser } from "@/core/types";
 const lagerplatzReadProcedure = permissionProcedure("LAGERPLATZ_VIEW");
 import { extractSerie } from "@/lib/lager/serien";
 import { prisma as _prisma } from "@/core/db/prisma";
-import { standortWhere } from "@/lib/auth/standortFilter";
+import { standortWhere, getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 import { STANDARD_TEILTYPEN, VERSCHIEDENES_TEILTYP } from "@/lib/constants/teiltypen";
 
 type PrismaInstance = typeof _prisma;
@@ -461,6 +461,22 @@ export const lagerplatzRouter = createTRPCRouter({
       standortId: z.number().int().positive().nullish(),
     }))
     .query(async ({ ctx, input }) => {
+      // Hat der Nutzer überhaupt einen Standort? Ohne Zuordnung liefert die
+      // Zugriffsprüfung eine LEERE Liste, daraus wird der Filter `standortId IN ()`
+      // — der trifft nichts, und das sah bisher aus wie „Lager ist voll".
+      // Neu angelegte Konten haben standardmäßig keinen Standort, deshalb wird
+      // dieser Fall hier eigens gemeldet statt als volles Lager verkleidet.
+      const zugriff = getZugaenglicheStandortIds(ctx, input.standortId);
+      if (zugriff !== null && zugriff.length === 0) {
+        return {
+          bereitsZugewiesen: false as const,
+          modellId:          null,
+          vorschlaege:       [] as (ScoredPlatz & { istEmpfehlung: boolean })[],
+          voll:              false,
+          keinStandort:      true as const,
+        };
+      }
+
       const sId        = standortWhere(ctx, input.standortId);
       const sIdN       = (sId.standortId as number | undefined) ?? null;
       const hersteller = input.geraetName.split(" ")[0] ?? "";
