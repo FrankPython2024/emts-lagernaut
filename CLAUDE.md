@@ -45,10 +45,14 @@ Produktion. Inklusiv by design: **WCAG 2.1 AA, leichte Sprache, 56px Touch-Targe
 member" ab. **Reflex: vor JEDEM Push `git status` prüfen**, ob wirklich alle geänderten
 Dateien gestaged sind.
 
-**Build erfordert Swap** (4GB-VPS, OOM-Schutz):
+**Build erfordert Swap** (4GB-VPS, OOM-Schutz) **und vorher Cache aufräumen** — der Docker-
+Build-Cache wuchs in wenigen Deploys auf ~8 GB und hat am 2026-08-05 die Platte gefüllt
+(Details unten). `builder prune` kostet nichts, weil `--build` den Cache ohnehin verwirft:
 ```bash
-swapon /swap_build_4g 2>/dev/null; cd /var/www/lagernaut/emts-lagernaut && git pull && docker compose up -d --build
+swapon /swap_build_4g 2>/dev/null; docker builder prune -af; cd /var/www/lagernaut/emts-lagernaut && git pull && docker compose up -d --build
 ```
+`docker builder prune -af` (Build-Cache) und `docker image prune -af` (ungenutzte Images)
+sind gefahrlos. **NIEMALS `docker system prune --volumes`** — dort liegt die MySQL-Datenbank.
 
 **Bei Schema-Änderung** verkettet anhängen (minimiert Fenster, in dem Code eine fehlende
 Spalte liest):
@@ -62,6 +66,31 @@ melden. Nur additive Änderungen ohne Bestätigung durchziehen.
 
 **Prisma 7 bricht** `url = env("DATABASE_URL")` in schema.prisma → Build-Fehler.
 Falls v7 im Build auftaucht: `rm -rf node_modules` auf VPS + `docker compose build --no-cache`.
+
+### ⚠️ „PrismaClient is not a constructor" — ZUERST Paket gegen Bundle prüfen
+
+Dieses Fehlerbild (500 auf allen Seiten, Log wiederholt
+`TypeError: d.PrismaClient is not a constructor` aus `.next/server/…/route.js`) sieht nach der
+Prisma-Falle oben aus, war am **2026-08-05 aber ein kaputter Build**. Erst dieser Test:
+```bash
+docker compose exec -T app sh -c '
+node -e "console.log(require(\"@prisma/client/package.json\").version)"
+node -e "console.log(typeof require(\"@prisma/client\").PrismaClient)"
+ls node_modules/.prisma/client'
+```
+**Steht dort `5.22.0` und `function`, ist die Prisma-Spur tot** — das Paket ist gesund, nur das
+*kompilierte Bundle* ist es nicht. Ursache war: Build-Cache füllte die Platte → Build brach beim
+Schreiben ab (`no space left on device`) → halbfertiges `.next` blieb liegen.
+Behebung: `docker builder prune -af` + `docker image prune -af`, dann
+`docker compose build --no-cache app && docker compose up -d app`, danach `prisma db push`.
+
+Zwei Fallstricke bei der Suche:
+- **`df -h` kann lügen** — es zeigte 16 GB frei, während es schon knallte. Immer auch **`df -i`**
+  prüfen (Inodes); `node_modules` bringt Hunderttausende Kleinstdateien mit.
+- **HTTP 307 auf `/` ist KORREKT** (Weiterleitung auf `/start`). Mit `curl -skL … -w "%{http_code}"`
+  prüfen, sonst hält man die gesunde Weiterleitung für den Fehler.
+- Nach `docker image prune -af` wird `node:20-alpine` neu geladen; `apk add` scheiterte dabei einmal
+  mit **Exit-Code 3** (Spiegelserver). Kein echtes Problem — einfach nochmal bauen.
 
 ---
 
