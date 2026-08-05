@@ -104,6 +104,8 @@ export function belegHtml(d: AuslagerbelegDaten): string {
     * { box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #111; margin: 0;
            -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .marke { font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
+             color: #202F61; margin-bottom: 8px; }
     .kopf { display: flex; justify-content: space-between; align-items: flex-start;
             border-bottom: 3px solid #202F61; padding-bottom: 10px; margin-bottom: 18px; }
     .titel { font-size: 24px; font-weight: 800; color: #202F61; margin: 0; }
@@ -140,6 +142,11 @@ export function belegHtml(d: AuslagerbelegDaten): string {
   `;
 
   const body = `
+    <!-- Herkunftszeile ganz oben: auf einen Blick erkennbar, aus welchem Haus
+         die Sendung stammt. Standort kommt aus dem Absender, damit die Zeile
+         auch stimmt, wenn der Beleg mal nicht aus Sömmerda kommt. -->
+    <div class="marke">EMTS Lagernaut | ${escapeHtml(d.absender.name)}</div>
+
     <div class="kopf">
       <div>
         <h1 class="titel">Auslagerbeleg</h1>
