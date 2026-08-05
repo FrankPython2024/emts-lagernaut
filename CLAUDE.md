@@ -145,7 +145,73 @@ EOF
 
 ---
 
-## Modul-Stand (zuletzt: Impact/Nachhaltigkeits-Dashboard + Sonderanfragen-Bewertung; davor Verbrauchsmaterial Foto-Galerie/A5-Schild/Info-Popup)
+## Modul-Stand (zuletzt: Abgaben an Niederlassungen + Einzelpreis am Artikel; davor Ersatzteil-Pool, Stückzahl bei den Füßen, Bauteil-Ernte, Dashboard-Ansicht)
+
+### Bauteil-Ernte, Ersatzteil-Pool, Stückzahl & Abgaben (Aug 2026)
+
+**Bauteil-Ernte — `Buchung.herkunftLogId` + `herkunftArt`.** Die im Einlager-Assistenten gescannte
+Spender-LogID wurde vorher nur ins Server-Log geschrieben und war danach weg. Jetzt gespeichert →
+Panel „🔧 Bauteil-Ernte" in `/admin/statistiken` (Materialwert, Spendergeräte, Ø Teile je Gerät,
+Top-Spendermodelle via `GeraeteLookup`). `herkunftArt` trennt **`SPENDER`** (geerntet) von
+**`DRUCK`** (3D-gedruckt) — Auswahl im Bestätigungs-Schritt des Assistenten, zentral in
+`src/lib/einlagern/herkunft.ts`. **Bei DRUCK wird `herkunftLogId` bewusst auf null gesetzt**, sonst
+zählen 3D-Chargen (280 Füße in EINER Buchung sind real) als Ernte und ruinieren die Kennzahl.
+
+**Ersatzteil-Pool — `Artikel.poolPartnerId`.** Zwei baugleiche Artikel (Füße vorne ↔ hinten) teilen
+rechnerisch EINEN Bestand. Logik in `src/lib/artikel/pool.ts`.
+⚠️ **Der Pool wird IMMER vor der Buchung aufgelöst, NIE in `bucheLager`** — sonst hebelt man
+bedingtes Dekrement, Bestandsprüfung in der TX und die DIREKT-Regel aus. Es wird **nicht reserviert**
+(gleiches Verhalten wie ohne Pool). Berührt: `erstelleAnfrage`, `anfragen.setStatus` (Partner-Bestand
+zusätzlich per `syncBestandAusHistorie` nachziehen!), `auslagern.teile`/`listAnfragen`/`gruppeDetails`,
+`kompatibilitaet.getByGeraetMitStandard`. Verknüpfen auf der Artikel-Detailseite.
+⚠️ **Kandidaten-Filter NICHT über `kategorie`** — die IST der Teiltyp, das schließt das Gegenstück aus.
+Richtig: über den Gerätenamen (`bezeichnung` minus Teiltyp, `startsWith`).
+
+**Stückzahl bei den Füßen — `WarenkorbItem.menge` → `Anfrage.menge`.** Nur `TEILTYPEN_MIT_MENGE`
+(Füße vorne/hinten), max 2, serverseitig geprüft. Verfügbarkeit prüft jetzt `bestand >= menge`
+(bei menge=1 identisch zur alten Regel). Sichtbar im Techniker-Portal („2×") und im Admin
+(gelbes „2× Stück" — sonst packt die Ausgabe stillschweigend eines).
+
+**Abgaben an Niederlassungen — `Niederlassung` + `Buchung.niederlassungId` + `Artikel.preis`.**
+Festplatten/RAM sind normale `Artikel` **je Variante** („SSD 512 GB M.2 NVMe", Kategorie
+„Festplatte"); `Artikel.preis` (Einzelpreis) schlägt `KategoriePreis`, weil die Kategorie bei
+Datenträgern nichts über den Wert sagt. **Rat: Kategoriepreis für Festplatte/RAM LEER lassen** —
+sonst bekommt ein vergessener Einzelpreis still einen falschen Pauschalwert; ohne ihn erscheint
+ehrlich „⚠️ N ohne hinterlegten Preis".
+`Niederlassung` ist **bewusst NICHT `Standort`** (dort arbeitet niemand mit Lagernaut) und hat eine
+`adresse` für den Beleg. Abgabe = **normale AUSGANG-Buchung mit Ziel**; `bucheLager` kennt keine
+Niederlassungen, das Ziel wird danach nachgetragen. Seite `/admin/abgaben`, Rechte `ARTIKEL_VIEW` /
+ADMIN — **kein neues Recht, kein seed-rbac**.
+**Auslagerbeleg** (`src/lib/print/auslagerbeleg.ts`): A4, Absender/Empfänger mit Anschrift,
+Positionen, Sammelbeleg über Mehrfachauswahl. Wertangaben durchgängig als **statistischer,
+ungefährer Marktwert** gekennzeichnet („keine Rechnung, keine Zahlungsaufforderung") — wer die
+Beschriftungen ändert, muss den Hinweis mitpflegen.
+⚠️ **Beleg-Nr aus der Buchungs-Id** (`AN-<Jahr>-<Id>`), NICHT über `naechsteBelegNr` (Redis-Zähler
+→ Nachdruck bekäme eine neue Nummer). ⚠️ **Alle Nicht-ASCII-Zeichen werden zu HTML-Entities**
+(`nurAscii`) — das Druckfenster (`window.open` + `document.write`) erkennt den Zeichensatz nicht
+zuverlässig, sonst steht „Sömmerda" auf dem Papier.
+
+**Statistik-Seite:** Panels „💰 Gesamt ausgegeben" (Technik + Niederlassungen; **Ernte bewusst NICHT
+enthalten** — das ist Zufluss, der im Lager liegt), „💸 Wert ausgegeben", „🔧 Bauteil-Ernte",
+„🚚 Abgaben an Niederlassungen". Alle folgen dem tage-/standortId-Filter.
+Zusätzlich eine **umschaltbare Dashboard-Ansicht** (`DashboardAnsicht.tsx`, Umschalter oben,
+**klassisch bleibt Standard**, Wahl in `localStorage["statistik-ansicht"]`). Deren Farbpalette ist
+mit dem dataviz-Validator gegen beide Kartenflächen geprüft — **Reihenfolge ist Teil der Prüfung**
+(Violett trennt Grün und Gelb, sonst ΔE 7.8 bei Rot-Grün-Schwäche). Wer Farben ändert, muss den
+Validator erneut laufen lassen.
+
+**Lagerplätze:** ⚠️ **ZWEI getrennte Systeme.** `Lagerplatz` (Tabelle `lagerplatz`) = strukturierte
+ETL-Fächer (Regal/Ebene/Fach, Belegung, Router `lagerplatz`). `LagerplatzConfig` = frei angelegte
+Codes (nur code/beschreibung/bereich, Router `lagerplaetze` — Mehrzahl!); Artikel hängen daran nur
+über den **String** `Artikel.lagerplatz`, ohne Fremdschlüssel. Der Einlager-Assistent liest beide
+(Platz-Browser zeigt „Eigene Lagerplätze", gefiltert auf `ausConfig`). Bearbeiten/Löschen in
+`/admin/lagerplaetze`; **beim Umbenennen ziehen die Artikel in EINER Transaktion mit**, Löschen nur
+bei 0 Artikeln.
+
+**⚠️ Standort-Zuordnung steckt im JWT.** Ohne Standort liefert die Zugriffsprüfung `[]` → Filter
+`standortId IN ()` → trifft **nichts**, still. Sah im Einlager-Assistenten aus wie „Lager ist voll"
+(meldet jetzt „Kein Standort zugewiesen"). Neue Konten bekommen beim Anlegen **keinen** Standort.
+**Nach dem Setzen: ab- und wieder anmelden**, sonst wirkt es nicht.
 
 ### Mobil-Ersatzteile (Smartphone/Tablet-Teile via LogID aus ReForm-CSV) — KOMPLETT & AUDITIERT
 - **Quelle:** ReForm-CSV-Export (";"-getrennt, UTF-8, Werte in Quotes, 44 Spalten; alle Infos

@@ -130,6 +130,90 @@ function WertAusgegebenPanel({ tage, standortId }: { tage: number; standortId: n
   );
 }
 
+// ── Gesamt ausgegeben (Techniker + Niederlassungen) ──────────────────────────
+// Summe dessen, was das Lager VERLASSEN hat. Die Bauteil-Ernte gehört bewusst
+// NICHT dazu: Sie beziffert Wert, der ins Lager KAM und dort liegt — mit
+// eingerechnet würde Zufluss gegen Abfluss verrechnet und die Zahl wäre wertlos.
+//
+// Beide Teilwerte kommen aus den Queries, die die Panels unten ohnehin laden;
+// React Query liefert sie bei gleichen Parametern aus dem Cache (kein Mehraufwand).
+
+function GesamtwertPanel({ tage, standortId }: { tage: number; standortId: number | null | undefined }) {
+  const technik = api.preise.wertAusgegeben.useQuery({ tage, standortId: standortId ?? null });
+  const abgaben = api.abgaben.auswertung.useQuery({ tage, standortId: standortId ?? null });
+
+  const laedt = technik.isLoading || abgaben.isLoading;
+  const wTechnik = technik.data?.gesamt ?? 0;
+  const wAbgaben = abgaben.data?.gesamtWert ?? 0;
+  const gesamt   = Math.round((wTechnik + wAbgaben) * 100) / 100;
+
+  // Ehrlichkeit: Positionen ohne hinterlegten Preis fehlen in der Summe.
+  const ohnePreisTeile   = technik.data?.ohnePreis?.reduce((s, o) => s + o.menge, 0) ?? 0;
+  const ohnePreisAbgaben = abgaben.data?.ohnePreis ?? 0;
+  const luecken = ohnePreisTeile + ohnePreisAbgaben;
+
+  const anteil = (w: number) => (gesamt > 0 ? Math.round((w / gesamt) * 100) : 0);
+
+  return (
+    <Panel
+      title="💰 Gesamt ausgegeben"
+      sub={`Alles, was das Lager verlassen hat · statistischer Wert · letzte ${tage} Tage`}
+    >
+      {laedt && <Skeleton h="h-32" />}
+      {!laedt && (
+        <>
+          <div className="text-4xl font-black tabular-nums text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">
+            {euro(gesamt)}
+          </div>
+          <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-4">
+            Bauteil-Ernte ist bewusst nicht enthalten — das ist Wert, der im Lager <em>liegt</em>, nicht ausgegeben wurde.
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-[#ced4da] dark:border-[#3e4042] p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-[#00a400]" aria-hidden="true" />
+                <span className="text-xs font-semibold text-[#65676b] dark:text-[#b0b3b8]">An die Technik</span>
+              </div>
+              <div className="text-xl font-bold tabular-nums text-[#1a1a1a] dark:text-[#e4e6eb]">{euro(wTechnik)}</div>
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                {anteil(wTechnik)} % · Ersatzteile über Anfragen inkl. Sonderanfragen
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-[#ced4da] dark:border-[#3e4042] p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-[#008BD2]" aria-hidden="true" />
+                <span className="text-xs font-semibold text-[#65676b] dark:text-[#b0b3b8]">An andere Niederlassungen</span>
+              </div>
+              <div className="text-xl font-bold tabular-nums text-[#1a1a1a] dark:text-[#e4e6eb]">{euro(wAbgaben)}</div>
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                {anteil(wAbgaben)} % · Festplatten, RAM und anderes Material
+              </div>
+            </div>
+          </div>
+
+          {/* Verhältnis als schmaler Balken — zeigt auf einen Blick, wohin das Meiste geht */}
+          {gesamt > 0 && (
+            <div className="mt-3 flex h-2 rounded-sm overflow-hidden bg-[#f0f2f5] dark:bg-[#3e4042]" aria-hidden="true">
+              <div style={{ width: `${anteil(wTechnik)}%`, background: "#00a400" }} />
+              <div style={{ width: `${anteil(wAbgaben)}%`, background: "#008BD2" }} />
+            </div>
+          )}
+
+          {luecken > 0 && (
+            <div className="mt-3 text-xs text-[#f7b928]">
+              ⚠️ {luecken.toLocaleString("de-DE")} Stück ohne hinterlegten Preis — in der Summe nicht enthalten.
+              Preise pflegen unter <a href="/admin/preise" className="underline font-semibold">Kategorie-Preise</a>
+              {" "}bzw. am Artikel selbst.
+            </div>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+}
+
 // ── Abgaben an andere Niederlassungen ────────────────────────────────────────
 // Bewusst ein eigenes Panel und NICHT in „Wert ausgegeben" eingerechnet: Das ist
 // kein Verbrauch durch die eigene Technik, sondern Material, das das Haus
@@ -1074,6 +1158,9 @@ export default function StatistikenPage() {
               )}
             </Panel>
           </div>
+
+          {/* Gesamtsumme zuerst — die Aufschlüsselungen stehen darunter */}
+          <GesamtwertPanel tage={tage} standortId={sId} />
 
           {/* Wert ausgegeben (Laptop-Teile über Anfragen) */}
           <WertAusgegebenPanel tage={tage} standortId={sId} />
