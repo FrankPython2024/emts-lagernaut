@@ -120,7 +120,12 @@ export const preiseRouter = createTRPCRouter({
         FROM Buchung b
         JOIN Artikel a       ON a.id = b.artikelId
         LEFT JOIN KategoriePreis kp ON kp.kategorie = a.kategorie
-        WHERE b.typ IN ('AUSGANG', 'DIREKT') ${nichtUmlagerungSql("b")} ${datumFilter} ${standortFilter}
+        -- Abgaben an andere Niederlassungen sind ebenfalls AUSGANG-Buchungen,
+        -- gehören hier aber NICHT hin: Sie haben ein eigenes Panel. Ohne diesen
+        -- Ausschluss erscheinen sie doppelt (hier und dort) und die Gesamtsumme
+        -- zählt sie zweimal. Gleiche Begründung wie beim Umlagerungs-Filter.
+        WHERE b.typ IN ('AUSGANG', 'DIREKT') AND b.niederlassungId IS NULL
+          ${nichtUmlagerungSql("b")} ${datumFilter} ${standortFilter}
         GROUP BY a.kategorie, kp.preis
         ORDER BY a.kategorie
       `);
