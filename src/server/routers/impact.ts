@@ -53,15 +53,32 @@ export const impactRouter = createTRPCRouter({
       const datum    = cutoff ? { gte: cutoff } : undefined;
       const artikel  = standortId ? { standortId } : undefined;
 
-      const [reused, geraeteRows, faktoren] = await Promise.all([
+      const [reused, abgaben, geraeteRows, faktoren] = await Promise.all([
         // Wiederverwendete Teile = Summe menge über Ausgabe-Buchungen.
         prisma.buchung.aggregate({
           _sum: { menge: true },
           // Umlagerungen (Fach-/Standortwechsel) sind KEINE Wiederverwendung —
           // sonst zählen CO2/E-Schrott/Teile Lager-interne Umzüge mit.
+          //
+          // Abgaben an andere Niederlassungen ebenfalls NICHT: Die Teile werden
+          // dort verbaut, nicht bei uns. Sie hier mitzuzählen würde unsere
+          // Wirkung überzeichnen und die Gruppe doppelt bilanzieren, sobald die
+          // empfangende Niederlassung sie ebenfalls ausweist. Sie erscheinen
+          // stattdessen als eigene Zahl (siehe `abgegeben` unten).
           where: {
             typ: { in: ["AUSGANG", "DIREKT"] },
+            niederlassungId: null,
             ...NICHT_UMLAGERUNG,
+            ...(datum ? { datum } : {}),
+            ...(artikel ? { artikel } : {}),
+          },
+        }),
+        // Was an andere Niederlassungen ging — nur nachrichtlich, ohne Wirkung.
+        prisma.buchung.aggregate({
+          _sum: { menge: true },
+          where: {
+            typ: { in: ["AUSGANG", "DIREKT"] },
+            niederlassungId: { not: null },
             ...(datum ? { datum } : {}),
             ...(artikel ? { artikel } : {}),
           },
@@ -86,6 +103,9 @@ export const impactRouter = createTRPCRouter({
         geraete:  geraeteRows.length,
         co2Kg:    round(reusedParts * faktoren.co2ProTeilKg),
         ewasteKg: round(reusedParts * faktoren.gewichtProTeilKg),
+        // Nachrichtlich: an andere Niederlassungen abgegeben. Fließt bewusst
+        // NICHT in CO2/E-Schrott ein, weil die Wirkung dort entsteht.
+        abgegeben: abgaben._sum.menge ?? 0,
         faktoren,
       };
     }),

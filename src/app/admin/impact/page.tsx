@@ -103,14 +103,22 @@ export default function ImpactPage() {
             <Kachel icon="💶" akzent="#00a400" wert={euro(materialwert)} label="Eingesparter Materialwert"
               sub={wertQ.isLoading ? "…" : "über Kategorie-Preise"} />
             <Kachel icon="🔧" akzent="#202F61" wert={fmt(k.reusedParts)} label="Wiederverwendete Teile"
-              sub="ausgegebene Ersatzteile (Ausgang + Direkt)" />
+              sub="im eigenen Haus verbaut" />
             <Kachel icon="💻" akzent="#f97316" wert={fmt(k.geraete)} label="Versorgte Geräte"
               sub="Geräte mit erledigter Anfrage" />
+            {/* Nachrichtlich, ohne Wirkungsrechnung: Die Teile werden in einer
+                anderen Niederlassung verbaut, die Wirkung entsteht dort. */}
+            <Kachel icon="🚚" akzent="#008BD2" wert={fmt(k.abgegeben)} label="An andere Filialen abgegeben"
+              sub="nicht in CO₂ und Elektroschrott enthalten" />
           </div>
 
           <p className="mt-4 text-xs text-[#90939a]">
             Grundlage: {fmt(k.reusedParts)} wiederverwendete Teile × Annahme {fmtDe(k.faktoren.co2ProTeilKg)} kg CO₂
             bzw. {fmtDe(k.faktoren.gewichtProTeilKg)} kg je Teil. Die km-Angabe dient nur der Veranschaulichung.
+            {k.abgegeben > 0 && (
+              <> Teile, die an andere Filialen gegangen sind, bleiben hier bewusst außen vor: Sie werden
+              dort verbaut, die Wirkung entsteht also nicht bei uns.</>
+            )}
           </p>
 
           {/* Annahmen bearbeiten (nur Admin) */}
