@@ -11,6 +11,11 @@ import {
   type HerkunftArt,
 } from "@/lib/einlagern/herkunft";
 import {
+  DT_ART, DT_GROESSE, DT_SCHNITTSTELLE, DT_BAUFORM,
+  RAM_GROESSE, RAM_GENERATION, RAM_BAUFORM,
+  bezeichnungDatentraeger, bezeichnungRam,
+} from "@/lib/einlagern/komponenten";
+import {
   printAlleEinlagerBelege,
   printEinlagerBeleg,
   EinlagerBelegPreview,
@@ -19,7 +24,8 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type WizardStep = 0 | 1 | 2 | 3 | 4 | 5;
+// 6 = Datentraeger/RAM erfassen (eigener Weg, nicht geraetegebunden)
+type WizardStep = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 type GeraetState = {
   name:  string;
@@ -422,7 +428,7 @@ function TeilKonfigurator({
 
 // ── Step 0: Willkommen ────────────────────────────────────────────────────────
 
-function StepWillkommen({ onStart }: { onStart: () => void }) {
+function StepWillkommen({ onStart, onKomponenten }: { onStart: () => void; onKomponenten: () => void }) {
   return (
     <div style={{ maxWidth: 560, margin: "0 auto" }}>
       <div style={{ ...S.card, textAlign: "center" }}>
@@ -471,6 +477,272 @@ function StepWillkommen({ onStart }: { onStart: () => void }) {
           onMouseLeave={(e) => (e.currentTarget.style.transform = "")}
         >
           Los geht&apos;s! →
+        </button>
+
+        {/* Zweiter Weg: Datenträger und Arbeitsspeicher sind nicht geräte-
+            gebunden, sie werden kartonweise gezählt. Deshalb ein eigener
+            Einstieg statt eines Umwegs über die Geräte-Erkennung. */}
+        <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border)" }}>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginBottom: "0.8rem" }}>
+            Du hast Festplatten oder Arbeitsspeicher zu erfassen, die nicht aus einem
+            bestimmten Gerät stammen?
+          </div>
+          <button
+            onClick={onKomponenten}
+            style={{ ...S.bigBtn("var(--afb-blue)"), fontSize: "1.05rem" }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = "")}
+          >
+            💾 Datenträger &amp; Arbeitsspeicher erfassen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Datenträger & Arbeitsspeicher erfassen ───────────────────────────────────
+// Eigener Weg neben dem Ernten aus einem Spendergerät. Merkmale werden gewählt,
+// nicht getippt: Die Bezeichnung entsteht daraus zentral und immer gleich, damit
+// nicht wieder Schreibvarianten desselben Artikels entstehen.
+
+type KompZeile = {
+  id:            number;
+  art:           "DATENTRAEGER" | "RAM";
+  typ:           string;   // SSD | HDD (nur Datenträger)
+  groesse:       string;
+  schnittstelle: string;   // nur Datenträger
+  generation:    string;   // nur RAM
+  bauform:       string;
+  menge:         string;
+  lagerplatz:    string;
+};
+
+function leereZeile(art: "DATENTRAEGER" | "RAM", id: number): KompZeile {
+  return art === "DATENTRAEGER"
+    ? { id, art, typ: "SSD", groesse: "512 GB", schnittstelle: "NVMe PCIe3", generation: "", bauform: "M.2 2280", menge: "", lagerplatz: "" }
+    : { id, art, typ: "",    groesse: "8 GB",   schnittstelle: "",           generation: "DDR4", bauform: "SO-DIMM", menge: "", lagerplatz: "" };
+}
+
+type KompErgebnis = {
+  bezeichnung: string; menge: number; neuerBestand: number;
+  neuAngelegt: boolean; lagerplatz: string | null;
+};
+
+function StepKomponenten({ standortId, onBack }: {
+  standortId: number;
+  onBack:     () => void;
+}) {
+  const { show } = useToast();
+  const [zeilen, setZeilen] = useState<KompZeile[]>([leereZeile("DATENTRAEGER", 1)]);
+  const [ergebnis, setErgebnis] = useState<KompErgebnis[] | null>(null);
+  const naechsteId = useRef(2);
+
+  const erfassen = api.einlagern.erfasseKomponenten.useMutation({
+    onSuccess: (r) => setErgebnis(r),
+    onError:   (e) => show(e.message, "error"),
+  });
+
+  // ── Ergebnis nach dem Buchen ───────────────────────────────────────────────
+  if (ergebnis) {
+    const neue = ergebnis.filter((e) => e.neuAngelegt).length;
+    return (
+      <div style={{ maxWidth: 700, margin: "0 auto" }}>
+        <div style={{ ...S.card, textAlign: "center" }}>
+          <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>✅</div>
+          <h2 style={{ fontSize: "1.5rem", fontWeight: 900, margin: "0 0 0.4rem", color: "var(--text)" }}>
+            Eingebucht
+          </h2>
+          <p style={{ color: "var(--text-dim)", fontSize: "0.9rem", margin: "0 0 1.5rem" }}>
+            {ergebnis.reduce((s, e) => s + e.menge, 0)} Stück in {ergebnis.length}{" "}
+            {ergebnis.length === 1 ? "Sorte" : "Sorten"}
+            {neue > 0 && <> · {neue} {neue === 1 ? "Artikel" : "Artikel"} neu angelegt</>}
+          </p>
+
+          <div style={{ textAlign: "left", marginBottom: "1.5rem" }}>
+            {ergebnis.map((e) => (
+              <div key={e.bezeichnung} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10,
+                padding: "0.7rem 0.9rem", marginBottom: 6, borderRadius: 10,
+                border: "1px solid var(--border)", background: "var(--bg)",
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text)" }}>
+                    {e.bezeichnung}
+                    {e.neuAngelegt && (
+                      <span style={{ marginLeft: 6, fontSize: "0.72rem", fontWeight: 700, color: "var(--afb-blue)" }}>NEU</span>
+                    )}
+                  </div>
+                  {e.lagerplatz && (
+                    <div style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>📍 {e.lagerplatz}</div>
+                  )}
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontWeight: 800, color: "var(--afb-green, #04B475)" }}>+{e.menge}</div>
+                  <div style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>Bestand {e.neuerBestand}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {ergebnis.some((e) => e.neuAngelegt) && (
+            <p style={{ fontSize: "0.82rem", color: "var(--text-dim)", marginBottom: "1.2rem" }}>
+              Neu angelegte Artikel haben noch keinen Preis. Den trägst du unter
+              Artikel ein, sonst fehlen sie später in der Wertauswertung.
+            </p>
+          )}
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={() => { setErgebnis(null); setZeilen([leereZeile("DATENTRAEGER", naechsteId.current++)]); }}
+              style={{ ...S.bigBtn("var(--afb-blue)"), flex: "1 1 200px" }}>
+              Weitere erfassen
+            </button>
+            <button onClick={onBack}
+              style={{ flex: "1 1 160px", minHeight: 56, borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text-dim)", cursor: "pointer", fontWeight: 700 }}>
+              Fertig
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function aendern(id: number, feld: keyof KompZeile, wert: string) {
+    setZeilen((z) => z.map((r) => (r.id === id ? { ...r, [feld]: wert } : r)));
+  }
+  function hinzufuegen(art: "DATENTRAEGER" | "RAM") {
+    setZeilen((z) => [...z, leereZeile(art, naechsteId.current++)]);
+  }
+  function entfernen(id: number) {
+    setZeilen((z) => (z.length > 1 ? z.filter((r) => r.id !== id) : z));
+  }
+
+  // Vorschau der Bezeichnung, damit vor dem Buchen sichtbar ist, was entsteht.
+  const vorschau = (r: KompZeile) => r.art === "DATENTRAEGER"
+    ? bezeichnungDatentraeger({ art: r.typ, groesse: r.groesse, schnittstelle: r.schnittstelle, bauform: r.bauform })
+    : bezeichnungRam({ groesse: r.groesse, generation: r.generation, bauform: r.bauform });
+
+  const gueltig = zeilen.filter((r) => Number(r.menge) > 0);
+  const gesamtStueck = gueltig.reduce((s, r) => s + Number(r.menge), 0);
+
+  const feld: React.CSSProperties = {
+    ...S.input, minHeight: 48, fontSize: "0.95rem", padding: "0.5rem 0.6rem",
+  };
+
+  return (
+    <div style={{ maxWidth: 900, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1.5rem" }}>
+        <button onClick={onBack} style={S.backBtn}>← Zurück</button>
+      </div>
+
+      <div style={S.card}>
+        <h2 style={{ fontSize: "1.5rem", fontWeight: 900, margin: "0 0 0.4rem", color: "var(--text)" }}>
+          💾 Datenträger &amp; Arbeitsspeicher erfassen
+        </h2>
+        <p style={{ color: "var(--text-dim)", fontSize: "0.9rem", margin: "0 0 1.5rem" }}>
+          Eine Zeile je Sorte. Die Bezeichnung entsteht automatisch aus den Merkmalen,
+          damit nicht zweimal derselbe Artikel unter verschiedenen Namen angelegt wird.
+          Preise werden separat am Artikel gepflegt.
+        </p>
+
+        {zeilen.map((r) => (
+          <div key={r.id} style={{
+            border: "1px solid var(--border)", borderRadius: 12,
+            padding: "0.9rem 1rem", marginBottom: 10, background: "var(--bg)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+              <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "var(--afb-navy, #202F61)" }}>
+                {vorschau(r) || "…"}
+              </div>
+              {zeilen.length > 1 && (
+                <button onClick={() => entfernen(r.id)}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem", color: "var(--text-dim)" }}
+                  aria-label="Zeile entfernen">✕</button>
+              )}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 }}>
+              {r.art === "DATENTRAEGER" ? (
+                <>
+                  <label style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>Art
+                    <select value={r.typ} onChange={(e) => aendern(r.id, "typ", e.target.value)} style={feld}>
+                      {DT_ART.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>Größe
+                    <select value={r.groesse} onChange={(e) => aendern(r.id, "groesse", e.target.value)} style={feld}>
+                      {DT_GROESSE.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>Schnittstelle
+                    <select value={r.schnittstelle} onChange={(e) => aendern(r.id, "schnittstelle", e.target.value)} style={feld}>
+                      {DT_SCHNITTSTELLE.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>Bauform
+                    <select value={r.bauform} onChange={(e) => aendern(r.id, "bauform", e.target.value)} style={feld}>
+                      {DT_BAUFORM.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>Größe
+                    <select value={r.groesse} onChange={(e) => aendern(r.id, "groesse", e.target.value)} style={feld}>
+                      {RAM_GROESSE.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>Generation
+                    <select value={r.generation} onChange={(e) => aendern(r.id, "generation", e.target.value)} style={feld}>
+                      {RAM_GENERATION.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>Bauform
+                    <select value={r.bauform} onChange={(e) => aendern(r.id, "bauform", e.target.value)} style={feld}>
+                      {RAM_BAUFORM.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </label>
+                </>
+              )}
+
+              <label style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>Anzahl *
+                <input type="number" min={1} inputMode="numeric" value={r.menge}
+                  onChange={(e) => aendern(r.id, "menge", e.target.value)}
+                  placeholder="z.B. 240" style={{ ...feld, fontWeight: 800 }} />
+              </label>
+              <label style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>Lagerplatz
+                <input type="text" value={r.lagerplatz}
+                  onChange={(e) => aendern(r.id, "lagerplatz", e.target.value)}
+                  placeholder="optional" style={feld} />
+              </label>
+            </div>
+          </div>
+        ))}
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: "1.2rem" }}>
+          <button onClick={() => hinzufuegen("DATENTRAEGER")}
+            style={{ flex: "1 1 200px", minHeight: 52, borderRadius: 10, border: "1px dashed var(--border)", background: "var(--card-bg)", color: "var(--text)", cursor: "pointer", fontWeight: 700 }}>
+            + Datenträger
+          </button>
+          <button onClick={() => hinzufuegen("RAM")}
+            style={{ flex: "1 1 200px", minHeight: 52, borderRadius: 10, border: "1px dashed var(--border)", background: "var(--card-bg)", color: "var(--text)", cursor: "pointer", fontWeight: 700 }}>
+            + Arbeitsspeicher
+          </button>
+        </div>
+
+        <button
+          onClick={() => erfassen.mutate({
+            standortId,
+            zeilen: gueltig.map((r) => r.art === "DATENTRAEGER"
+              ? { art: "DATENTRAEGER" as const, typ: r.typ, groesse: r.groesse, schnittstelle: r.schnittstelle, bauform: r.bauform, menge: Number(r.menge), lagerplatz: r.lagerplatz.trim() || null }
+              : { art: "RAM" as const, groesse: r.groesse, generation: r.generation, bauform: r.bauform, menge: Number(r.menge), lagerplatz: r.lagerplatz.trim() || null }),
+          })}
+          disabled={gueltig.length === 0 || erfassen.isPending}
+          style={{ ...S.bigBtn("var(--afb-green)"), opacity: gueltig.length === 0 || erfassen.isPending ? 0.5 : 1 }}
+        >
+          {erfassen.isPending
+            ? "Wird gebucht…"
+            : `${gueltig.length} ${gueltig.length === 1 ? "Sorte" : "Sorten"} einbuchen (${gesamtStueck} Stück)`}
         </button>
       </div>
     </div>
@@ -2087,7 +2359,11 @@ export default function EinlagernPage() {
       )}
 
       {step === 0 && (
-        <StepWillkommen onStart={() => setStep(1)} />
+        <StepWillkommen onStart={() => setStep(1)} onKomponenten={() => setStep(6)} />
+      )}
+
+      {step === 6 && (
+        <StepKomponenten standortId={einlagerStandortId} onBack={() => setStep(0)} />
       )}
 
       {step === 1 && (

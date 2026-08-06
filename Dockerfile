@@ -1,5 +1,17 @@
 FROM node:20-alpine AS base
-RUN apk add --no-cache openssl openssl-dev libc6-compat
+# apk scheitert auf dem VPS gelegentlich an einem DNS-Aussetzer beim Spiegel-
+# server ("DNS: transient error"). Ohne Paketindex meldet apk dann "no such
+# package" und der ganze Build bricht ab, obwohl es beim naechsten Anlauf sofort
+# klappt. Deshalb bis zu drei Versuche mit Pause.
+# Die Pruefung am Ende laesst den Build trotzdem scheitern, wenn wirklich nichts
+# installiert wurde -- ein stiller Weiterlauf ohne openssl waere schlimmer.
+RUN set -eu; \
+    for i in 1 2 3; do \
+      if apk add --no-cache openssl openssl-dev libc6-compat; then break; fi; \
+      echo ">>> apk-Versuch $i fehlgeschlagen, neuer Versuch in 5 Sekunden"; \
+      sleep 5; \
+    done; \
+    apk info -e openssl >/dev/null
 
 FROM base AS deps
 WORKDIR /app

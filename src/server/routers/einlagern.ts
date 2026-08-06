@@ -13,6 +13,7 @@ import {
 } from "@/modules/einlagern/service";
 import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
 import { HERKUNFT_ARTEN } from "@/lib/einlagern/herkunft";
+import { erfasseKomponenten } from "@/modules/einlagern/komponenten";
 import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
 
 const EinlagerItemSchema = z.object({
@@ -55,6 +56,44 @@ export const einlagernRouter = createTRPCRouter({
       standortId: z.number().int().positive().optional(),
     }))
     .query(({ input }) => preview(input.items, input.geraetName, input.standortId ?? 1)),
+
+  // ── Datenträger & Arbeitsspeicher erfassen ────────────────────────────────
+  // Eigener Weg neben dem Ernten aus einem Spendergerät: Diese Teile sind nicht
+  // gerätegebunden, sie werden kartonweise gezählt. Mehrere Zeilen auf einmal,
+  // damit eine Sortier-Sitzung in einem Rutsch gebucht werden kann.
+  erfasseKomponenten: adminProcedure
+    .input(z.object({
+      standortId: z.number().int().positive().optional(),
+      zeilen: z.array(z.union([
+        z.object({
+          art:           z.literal("DATENTRAEGER"),
+          typ:           z.string().min(1).max(20),   // SSD | HDD
+          groesse:       z.string().min(1).max(20),
+          schnittstelle: z.string().min(1).max(30),
+          bauform:       z.string().min(1).max(20),
+          menge:         z.number().int().min(1).max(10_000),
+          preis:         z.number().min(0).max(100_000).nullable().optional(),
+          lagerplatz:    z.string().max(50).nullable().optional(),
+        }),
+        z.object({
+          art:        z.literal("RAM"),
+          groesse:    z.string().min(1).max(20),
+          generation: z.string().min(1).max(20),
+          bauform:    z.string().min(1).max(20),
+          menge:      z.number().int().min(1).max(10_000),
+          preis:      z.number().min(0).max(100_000).nullable().optional(),
+          lagerplatz: z.string().max(50).nullable().optional(),
+        }),
+      ])).min(1).max(50),
+    }))
+    .mutation(({ input, ctx }) => {
+      const user = ctx.session!.user as SessionUser;
+      return erfasseKomponenten({
+        zeilen:      input.zeilen,
+        mitarbeiter: user.kuerzel || user.name || "?",
+        standortId:  resolveStandortId(ctx, input.standortId),
+      });
+    }),
 
   // Einbuchen: Artikel anlegen/finden, EINGANG-Buchung, Kompatibilitaet setzen, Lagerplatz zuweisen
   execute: adminProcedure
