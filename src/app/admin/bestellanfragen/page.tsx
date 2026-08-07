@@ -13,14 +13,29 @@ import { Modal } from "@/components/ui/Modal";
 // echte Tabelle ankommt. Als Rückfall liegt derselbe Inhalt zusätzlich als
 // Text mit Tabulatoren drin — den nimmt jedes Programm an.
 
+// Reihenfolge = üblicher Verlauf einer Position, damit die Auswahl unten
+// nicht erklärt werden muss.
+const STATUS_REIHE = ["OFFEN", "BESTELLT", "GELIEFERT", "NICHT_GENEHMIGT", "STORNIERT"] as const;
+type Status = (typeof STATUS_REIHE)[number];
+
 const STATUS_LABEL: Record<string, string> = {
-  OFFEN: "Offen", BESTELLT: "Bestellt", GELIEFERT: "Geliefert", STORNIERT: "Storniert",
+  OFFEN:           "Erfasst für nächste Bestellung",
+  BESTELLT:        "Bestellt",
+  GELIEFERT:       "Geliefert",
+  NICHT_GENEHMIGT: "Nicht genehmigt",
+  STORNIERT:       "Storniert",
+};
+// Kurzform für die schmalen Zähler-Knöpfe oben
+const STATUS_KURZ: Record<string, string> = {
+  OFFEN: "Erfasst", BESTELLT: "Bestellt", GELIEFERT: "Geliefert",
+  NICHT_GENEHMIGT: "Nicht genehmigt", STORNIERT: "Storniert",
 };
 const STATUS_STIL: Record<string, string> = {
-  OFFEN:     "bg-[#f7b928]/15 text-[#a67908] dark:text-[#f7b928] border-[#f7b928]/40",
-  BESTELLT:  "bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] border-[#0064d2]/30",
-  GELIEFERT: "bg-[#04B475]/10 text-[#038F5C] dark:text-[#04B475] border-[#04B475]/30",
-  STORNIERT: "bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] border-[#ced4da] dark:border-[#3e4042]",
+  OFFEN:           "bg-[#f7b928]/15 text-[#a67908] dark:text-[#f7b928] border-[#f7b928]/40",
+  BESTELLT:        "bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] border-[#0064d2]/30",
+  GELIEFERT:       "bg-[#04B475]/10 text-[#038F5C] dark:text-[#04B475] border-[#04B475]/30",
+  NICHT_GENEHMIGT: "bg-[#fa3e3e]/10 text-[#c62828] dark:text-[#ff8a80] border-[#fa3e3e]/30",
+  STORNIERT:       "bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] border-[#ced4da] dark:border-[#3e4042]",
 };
 
 const SPALTEN = ["Anzahl", "Hersteller", "Artikelbeschreibung", "Link zum Artikel", "Datum", "Verwendungsort / Person"];
@@ -32,7 +47,7 @@ export default function BestellanfragenPage() {
   const { show } = useToast();
   const utils = api.useUtils();
 
-  const [filter, setFilter] = useState<"OFFEN" | "BESTELLT" | "GELIEFERT" | "STORNIERT" | null>(null);
+  const [filter, setFilter] = useState<Status | null>(null);
   const [suche, setSuche]   = useState("");
   const [form, setForm]     = useState({ anzahl: "1", hersteller: "", beschreibung: "", link: "", verwendungsort: "" });
   const [vorschau, setVorschau] = useState(false);
@@ -140,12 +155,18 @@ export default function BestellanfragenPage() {
         </div>
         {zaehler.data && (
           <div className="flex gap-2 flex-wrap">
-            {(["OFFEN", "BESTELLT", "GELIEFERT"] as const).map((s) => (
-              <button key={s} onClick={() => setFilter(filter === s ? null : s)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg border ${STATUS_STIL[s]} ${filter === s ? "ring-2 ring-offset-1 ring-[#0064d2]" : ""}`}>
-                {STATUS_LABEL[s]}: {s === "OFFEN" ? zaehler.data.offen : s === "BESTELLT" ? zaehler.data.bestellt : zaehler.data.geliefert}
-              </button>
-            ))}
+            {STATUS_REIHE.map((s) => {
+              const n = zaehler.data[s] ?? 0;
+              // Abgeschlossene Zustände nur zeigen, wenn es sie gibt — sonst
+              // stehen dauerhaft zwei Nullen in der Kopfzeile.
+              if (n === 0 && (s === "NICHT_GENEHMIGT" || s === "STORNIERT")) return null;
+              return (
+                <button key={s} onClick={() => setFilter(filter === s ? null : s)}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg border ${STATUS_STIL[s]} ${filter === s ? "ring-2 ring-offset-1 ring-[#0064d2]" : ""}`}>
+                  {STATUS_KURZ[s]}: {n}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -307,9 +328,18 @@ export default function BestellanfragenPage() {
                     <span className="text-[#90939a]">{b.angefordertVon}</span>
                   </td>
                   <td className="px-3 py-2">
-                    <span className={`px-2 py-0.5 text-xs font-bold rounded border whitespace-nowrap ${STATUS_STIL[b.status]}`}>
-                      {STATUS_LABEL[b.status]}
-                    </span>
+                    {/* Auswahlfeld statt wechselnder Knöpfe: Jeder Zustand ist
+                        jederzeit erreichbar, auch Korrekturen zurück. */}
+                    <select
+                      value={b.status}
+                      onChange={(e) => aendern.mutate({ id: b.id, status: e.target.value as Status })}
+                      className={`px-2 py-1 text-xs font-bold rounded border cursor-pointer outline-none ${STATUS_STIL[b.status]}`}
+                      aria-label={`Status von ${b.beschreibung.slice(0, 40)}`}
+                    >
+                      {STATUS_REIHE.map((s) => (
+                        <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+                      ))}
+                    </select>
                     {b.versendetAm && (
                       <div className="text-[10px] text-[#90939a] mt-0.5">raus: {datumDe(b.versendetAm)}</div>
                     )}
@@ -326,22 +356,12 @@ export default function BestellanfragenPage() {
                         className="px-2.5 py-1 text-xs font-bold rounded-lg border border-[#0064d2]/30 text-[#0064d2] dark:text-[#45bdff] hover:bg-[#0064d2]/10">
                         ✏️
                       </button>
+                      {/* Schnellzugriff für den häufigsten Schritt; alles Weitere
+                          läuft über die Status-Auswahl links. */}
                       {b.status === "BESTELLT" && (
                         <button onClick={() => aendern.mutate({ id: b.id, status: "GELIEFERT" })}
                           className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#04B475]/10 text-[#038F5C] dark:text-[#04B475] border border-[#04B475]/30 hover:bg-[#04B475]/20">
                           ✓ Geliefert
-                        </button>
-                      )}
-                      {b.status === "OFFEN" && (
-                        <button onClick={() => aendern.mutate({ id: b.id, status: "STORNIERT" })}
-                          className="px-2.5 py-1 text-xs font-bold rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]">
-                          Storno
-                        </button>
-                      )}
-                      {b.status === "STORNIERT" && (
-                        <button onClick={() => aendern.mutate({ id: b.id, status: "OFFEN" })}
-                          className="px-2.5 py-1 text-xs font-bold rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]">
-                          Zurückholen
                         </button>
                       )}
                       <button onClick={() => { if (confirm(`„${b.beschreibung.slice(0, 60)}" wirklich löschen?`)) loeschen.mutate({ id: b.id }); }}

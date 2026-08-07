@@ -1164,8 +1164,12 @@ model Bestellanfrage {
 }
 
 enum BestellanfrageStatus {
-  OFFEN // erfasst, noch nicht rausgeschickt
-  BESTELLT // an den Standortleiter/Einkauf gegangen
+  OFFEN // erfasst, geht bei der nächsten Bestellung raus
+  BESTELLT // an Standortleitung/Einkauf gegangen
   GELIEFERT // angekommen
-  STORNIERT // doch nicht gebraucht
+  // Von der Standortleitung oder vom Einkauf abgelehnt. Bewusst getrennt von
+  // STORNIERT: Dort haben WIR die Position zurückgezogen, hier wurde sie uns
+  // abgelehnt. Für spätere Rückfragen ist der Unterschied wesentlich.
+  NICHT_GENEHMIGT
+  STORNIERT // von uns zurückgezogen
 }

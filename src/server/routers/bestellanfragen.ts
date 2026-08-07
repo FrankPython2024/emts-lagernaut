@@ -39,11 +39,13 @@ export const bestellanfragenRouter = createTRPCRouter({
       by: ["status"], _count: { _all: true },
     });
     const m = Object.fromEntries(rows.map((r) => [r.status, r._count._all]));
+    // Schlüssel = Enum-Werte, damit die Oberfläche direkt darüber laufen kann.
     return {
-      offen:     m.OFFEN     ?? 0,
-      bestellt:  m.BESTELLT  ?? 0,
-      geliefert: m.GELIEFERT ?? 0,
-      storniert: m.STORNIERT ?? 0,
+      OFFEN:           m.OFFEN           ?? 0,
+      BESTELLT:        m.BESTELLT        ?? 0,
+      GELIEFERT:       m.GELIEFERT       ?? 0,
+      NICHT_GENEHMIGT: m.NICHT_GENEHMIGT ?? 0,
+      STORNIERT:       m.STORNIERT       ?? 0,
     };
   }),
 
