@@ -38,7 +38,9 @@ const STATUS_STIL: Record<string, string> = {
   STORNIERT:       "bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] border-[#ced4da] dark:border-[#3e4042]",
 };
 
-const SPALTEN = ["Anzahl", "Hersteller", "Artikelbeschreibung", "Link zum Artikel", "Datum", "Verwendungsort / Person"];
+// „Pos." vorweg, damit man sich in der Mail auf eine Zeile beziehen kann
+// („Position 3 bitte streichen"). Die Nummer läuft je Sendung neu ab 1.
+const SPALTEN = ["Pos.", "Anzahl", "Hersteller", "Artikelbeschreibung", "Link zum Artikel", "Datum", "Verwendungsort / Person"];
 
 const datumDe = (d: Date | string | null) =>
   d ? new Date(d).toLocaleDateString("de-DE") : "";
@@ -92,7 +94,8 @@ export default function BestellanfragenPage() {
   async function kopieren() {
     if (zuVersenden.length === 0) return;
 
-    const zellen = zuVersenden.map((b) => [
+    const zellen = zuVersenden.map((b, i) => [
+      String(i + 1),
       String(b.anzahl),
       b.hersteller ?? "",
       b.beschreibung,
@@ -105,20 +108,26 @@ export default function BestellanfragenPage() {
       s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     const html =
-      `<p>Bestellanfrage Eigenbedarf &ndash; AfB S&ouml;mmerda &ndash; ${heute}</p>` +
-      `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11pt">` +
-      `<tr style="background:#202F61;color:#fff;font-weight:bold">` +
-      SPALTEN.map((s) => `<th align="left">${esc(s)}</th>`).join("") + `</tr>` +
-      // Spalte 3 ist der Link: In der HTML-Fassung nur „zum Artikel" als
+      `<p style="font-family:Arial,sans-serif;font-size:11pt">` +
+      `<b>Bestellanfrage Eigenbedarf</b> &ndash; AfB S&ouml;mmerda &ndash; ${heute}</p>` +
+      `<table cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:10.5pt;border:1px solid #cfe3f2">` +
+      `<tr style="background:#008BD2;color:#ffffff;font-weight:bold">` +
+      SPALTEN.map((s) => `<th align="left" style="border:1px solid #0079b8">${esc(s)}</th>`).join("") + `</tr>` +
+      // Spalte 4 ist der Link: In der HTML-Fassung nur „zum Artikel" als
       // Verweis, sonst sprengen die teils 200 Zeichen langen Adressen jede
       // Tabelle. Die Textfassung unten behält die volle Adresse — dort wäre
       // ein Wort ohne Verweis wertlos.
-      zellen.map((z) => `<tr>` + z.map((w, i) =>
-        i === 3 && w
-          ? `<td><a href="${esc(w)}">zum Artikel</a></td>`
-          : `<td>${esc(w)}</td>`).join("") + `</tr>`).join("") +
+      // Wechselnde Zeilenfarbe: Bei 15 Positionen verrutscht man sonst leicht.
+      zellen.map((z, zi) =>
+        `<tr style="background:${zi % 2 ? "#f4f9fd" : "#ffffff"}">` +
+        z.map((w, i) =>
+          i === 4 && w
+            ? `<td style="border:1px solid #cfe3f2"><a href="${esc(w)}" style="color:#0079b8">zum Artikel</a></td>`
+            : `<td style="border:1px solid #cfe3f2"${i <= 1 ? ' align="right"' : ""}>${esc(w)}</td>`,
+        ).join("") + `</tr>`).join("") +
       `</table>` +
-      `<p>${zuVersenden.length} Positionen, ${zuVersenden.reduce((s, b) => s + b.anzahl, 0)} St&uuml;ck gesamt</p>`;
+      `<p style="font-family:Arial,sans-serif;font-size:10.5pt;color:#555">` +
+      `${zuVersenden.length} Positionen, ${zuVersenden.reduce((s, b) => s + b.anzahl, 0)} St&uuml;ck gesamt</p>`;
 
     const text = [SPALTEN.join("\t"), ...zellen.map((z) => z.join("\t"))].join("\n");
 
@@ -200,14 +209,15 @@ export default function BestellanfragenPage() {
           <div className="overflow-x-auto border border-[#ced4da] dark:border-[#3e4042] rounded-lg mb-3">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-[#202F61] text-white">
+                <tr className="bg-[#008BD2] text-white">
                   {SPALTEN.map((s) => <th key={s} className="text-left px-2 py-1.5 font-bold">{s}</th>)}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
-                {zuVersenden.map((b) => (
-                  <tr key={b.id}>
-                    <td className="px-2 py-1.5 tabular-nums font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{b.anzahl}</td>
+              <tbody>
+                {zuVersenden.map((b, i) => (
+                  <tr key={b.id} className={i % 2 ? "bg-[#f4f9fd] dark:bg-[#1c2b33]" : "bg-white dark:bg-[#242526]"}>
+                    <td className="px-2 py-1.5 tabular-nums text-right text-[#65676b] dark:text-[#b0b3b8]">{i + 1}</td>
+                    <td className="px-2 py-1.5 tabular-nums text-right font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{b.anzahl}</td>
                     <td className="px-2 py-1.5 text-[#1a1a1a] dark:text-[#e4e6eb]">{b.hersteller ?? ""}</td>
                     <td className="px-2 py-1.5 text-[#1a1a1a] dark:text-[#e4e6eb]">{b.beschreibung}</td>
                     <td className="px-2 py-1.5">
@@ -297,18 +307,23 @@ export default function BestellanfragenPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-[#f0f2f5] dark:bg-[#18191a] text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8]">
-                <th className="px-3 py-2 text-right">Anz.</th>
-                <th className="px-3 py-2 text-left">Artikel</th>
-                <th className="px-3 py-2 text-left">Verwendung</th>
-                <th className="px-3 py-2 text-left">Angefordert</th>
-                <th className="px-3 py-2 text-left">Status</th>
-                <th className="px-3 py-2 text-right">Aktionen</th>
+              <tr className="bg-[#008BD2]/10 dark:bg-[#008BD2]/15 text-xs font-bold uppercase text-[#0079b8] dark:text-[#45bdff] border-b-2 border-[#008BD2]/30">
+                <th className="px-3 py-2.5 text-right">Pos.</th>
+                <th className="px-3 py-2.5 text-right">Anz.</th>
+                <th className="px-3 py-2.5 text-left">Artikel</th>
+                <th className="px-3 py-2.5 text-left">Verwendung</th>
+                <th className="px-3 py-2.5 text-left">Angefordert</th>
+                <th className="px-3 py-2.5 text-left">Status</th>
+                <th className="px-3 py-2.5 text-right">Aktionen</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#ced4da] dark:divide-[#3e4042]">
-              {(liste.data ?? []).map((b) => (
-                <tr key={b.id} className="hover:bg-[#f0f2f5] dark:hover:bg-[#18191a]">
+            <tbody>
+              {(liste.data ?? []).map((b, i) => (
+                // Zebrastreifen statt Trennlinien: ruhiger und bei langen Listen
+                // verrutscht das Auge nicht so leicht.
+                <tr key={b.id}
+                  className={`${i % 2 ? "bg-[#f4f9fd] dark:bg-[#1c2b33]" : ""} hover:bg-[#008BD2]/10 dark:hover:bg-[#008BD2]/20 transition-colors`}>
+                  <td className="px-3 py-2 text-right tabular-nums text-[#90939a]">{i + 1}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{b.anzahl}</td>
                   <td className="px-3 py-2">
                     <div className="text-[#1a1a1a] dark:text-[#e4e6eb]">
@@ -373,7 +388,7 @@ export default function BestellanfragenPage() {
                 </tr>
               ))}
               {(liste.data ?? []).length === 0 && (
-                <tr><td colSpan={6} className="text-center py-10 text-[#65676b] dark:text-[#b0b3b8]">
+                <tr><td colSpan={7} className="text-center py-10 text-[#65676b] dark:text-[#b0b3b8]">
                   Keine Positionen
                 </td></tr>
               )}
