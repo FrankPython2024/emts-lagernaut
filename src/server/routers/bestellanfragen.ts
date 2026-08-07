@@ -1,16 +1,23 @@
 import { z } from "zod";
 import { BestellanfrageStatus } from "@prisma/client";
-import { createTRPCRouter, adminProcedure } from "@/server/trpc";
+import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import type { SessionUser } from "@/core/types";
 
 // ── Bestellanfragen Eigenbedarf ──────────────────────────────────────────────
-// Löst die wöchentliche Excel-Liste ab. Nur ADMIN, so von Frank festgelegt:
-// Bedarfe werden zentral erfasst, nicht von jedem Techniker.
-// Bewusst KEIN neues Recht → kein seed-rbac nötig.
+// Löst die wöchentliche Excel-Liste ab. Drei getrennte Rechte, damit die
+// Bereichs-/Standortleitung mitlesen und Bedarf melden kann, ohne dass sie
+// Positionen verschickt oder Zustände ändert:
+//   BESTELLANFRAGE_VIEW   — Liste einsehen
+//   BESTELLANFRAGE_CREATE — Bedarf erfassen
+//   BESTELLANFRAGE_MANAGE — Status ändern, verschicken, löschen
+// ⚠️ Braucht einen seed-rbac-Lauf nach dem Deploy.
+const lesen     = permissionProcedure("BESTELLANFRAGE_VIEW");
+const erfassen  = permissionProcedure("BESTELLANFRAGE_CREATE");
+const verwalten = permissionProcedure("BESTELLANFRAGE_MANAGE");
 
 export const bestellanfragenRouter = createTRPCRouter({
 
-  liste: adminProcedure
+  liste: lesen
     .input(z.object({
       status: z.nativeEnum(BestellanfrageStatus).nullable().optional(),
       suche:  z.string().max(100).optional(),
@@ -34,7 +41,7 @@ export const bestellanfragenRouter = createTRPCRouter({
       });
     }),
 
-  zaehler: adminProcedure.query(async ({ ctx }) => {
+  zaehler: lesen.query(async ({ ctx }) => {
     const rows = await ctx.prisma.bestellanfrage.groupBy({
       by: ["status"], _count: { _all: true },
     });
@@ -49,7 +56,7 @@ export const bestellanfragenRouter = createTRPCRouter({
     };
   }),
 
-  anlegen: adminProcedure
+  anlegen: erfassen
     .input(z.object({
       anzahl:         z.number().int().min(1).max(10_000),
       hersteller:     z.string().max(191).optional(),
@@ -73,7 +80,7 @@ export const bestellanfragenRouter = createTRPCRouter({
       });
     }),
 
-  aendern: adminProcedure
+  aendern: verwalten
     .input(z.object({
       id:             z.number().int().positive(),
       anzahl:         z.number().int().min(1).max(10_000).optional(),
@@ -101,7 +108,7 @@ export const bestellanfragenRouter = createTRPCRouter({
       });
     }),
 
-  loeschen: adminProcedure
+  loeschen: verwalten
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ ctx, input }) =>
       ctx.prisma.bestellanfrage.delete({ where: { id: input.id } }),
@@ -112,7 +119,7 @@ export const bestellanfragenRouter = createTRPCRouter({
   // Bewusst ERST aufrufen, wenn die Mail wirklich raus ist: Der Kopiertext wird
   // vorher aus `liste` erzeugt. So verschiebt ein versehentlicher Klick nichts,
   // solange nichts verschickt wurde.
-  alsVersendetMarkieren: adminProcedure
+  alsVersendetMarkieren: verwalten
     .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(500) }))
     .mutation(async ({ ctx, input }) => {
       const r = await ctx.prisma.bestellanfrage.updateMany({

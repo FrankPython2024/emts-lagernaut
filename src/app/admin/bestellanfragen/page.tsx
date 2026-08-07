@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
+import { usePermissions } from "@/hooks/usePermissions";
 
 // ── Bestellanfragen Eigenbedarf ──────────────────────────────────────────────
 // Ersetzt die wöchentliche Excel-Liste. Montags werden alle offenen Positionen
@@ -48,6 +49,13 @@ const datumDe = (d: Date | string | null) =>
 export default function BestellanfragenPage() {
   const { show } = useToast();
   const utils = api.useUtils();
+
+  // Drei Stufen: Einsicht (Seite überhaupt), Bedarf melden, verwalten.
+  // Wer nur lesen darf, sieht die Liste und darf sie kopieren — das ändert
+  // nichts. Verschicken, Status und Löschen bleiben der Verwaltung.
+  const { has } = usePermissions();
+  const darfErfassen  = has("BESTELLANFRAGE_CREATE");
+  const darfVerwalten = has("BESTELLANFRAGE_MANAGE");
 
   const [filter, setFilter] = useState<Status | null>(null);
   const [suche, setSuche]   = useState("");
@@ -235,7 +243,7 @@ export default function BestellanfragenPage() {
           </div>
         )}
 
-        {zuVersenden.length > 0 && (
+        {zuVersenden.length > 0 && darfVerwalten && (
           <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-[#f0f2f5] dark:border-[#3e4042]">
             <button
               onClick={() => versendet.mutate({ ids: zuVersenden.map((b) => b.id) })}
@@ -251,6 +259,7 @@ export default function BestellanfragenPage() {
       </div>
 
       {/* ── Neue Position ───────────────────────────────────────────────── */}
+      {darfErfassen && (
       <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-6 shadow-sm">
         <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-4">Neue Position</h2>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
@@ -293,6 +302,7 @@ export default function BestellanfragenPage() {
           {anlegen.isPending ? "…" : "Hinzufügen"}
         </button>
       </div>
+      )}
 
       {/* ── Liste ───────────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm">
@@ -314,7 +324,7 @@ export default function BestellanfragenPage() {
                 <th className="px-3 py-2.5 text-left">Verwendung</th>
                 <th className="px-3 py-2.5 text-left">Angefordert</th>
                 <th className="px-3 py-2.5 text-left">Status</th>
-                <th className="px-3 py-2.5 text-right">Aktionen</th>
+                {darfVerwalten && <th className="px-3 py-2.5 text-right">Aktionen</th>}
               </tr>
             </thead>
             <tbody>
@@ -348,7 +358,8 @@ export default function BestellanfragenPage() {
                     <select
                       value={b.status}
                       onChange={(e) => aendern.mutate({ id: b.id, status: e.target.value as Status })}
-                      className={`px-2 py-1 text-xs font-bold rounded border cursor-pointer outline-none ${STATUS_STIL[b.status]}`}
+                      disabled={!darfVerwalten}
+                      className={`px-2 py-1 text-xs font-bold rounded border outline-none ${darfVerwalten ? "cursor-pointer" : "cursor-default appearance-none"} ${STATUS_STIL[b.status]}`}
                       aria-label={`Status von ${b.beschreibung.slice(0, 40)}`}
                     >
                       {STATUS_REIHE.map((s) => (
@@ -359,6 +370,7 @@ export default function BestellanfragenPage() {
                       <div className="text-[10px] text-[#90939a] mt-0.5">raus: {datumDe(b.versendetAm)}</div>
                     )}
                   </td>
+                  {darfVerwalten && (
                   <td className="px-3 py-2">
                     <div className="flex gap-1.5 justify-end flex-wrap">
                       <button
@@ -385,10 +397,11 @@ export default function BestellanfragenPage() {
                       </button>
                     </div>
                   </td>
+                  )}
                 </tr>
               ))}
               {(liste.data ?? []).length === 0 && (
-                <tr><td colSpan={7} className="text-center py-10 text-[#65676b] dark:text-[#b0b3b8]">
+                <tr><td colSpan={darfVerwalten ? 7 : 6} className="text-center py-10 text-[#65676b] dark:text-[#b0b3b8]">
                   Keine Positionen
                 </td></tr>
               )}

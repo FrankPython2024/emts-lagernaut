@@ -61,6 +61,11 @@ const PERMISSIONS = [
   { key: "USER_PASSWORT_RESET", kategorie: "Verwaltung",  bezeichnung: "Passwörter zurücksetzen" },
   { key: "ROLLE_EDIT",          kategorie: "Verwaltung",  bezeichnung: "Rollen + Rechte verwalten" },
 
+  // Bestellanfragen Eigenbedarf (wöchentliche Liste an die Standortleitung)
+  { key: "BESTELLANFRAGE_VIEW",   kategorie: "Bestellanfragen", bezeichnung: "Bestellanfragen einsehen" },
+  { key: "BESTELLANFRAGE_CREATE", kategorie: "Bestellanfragen", bezeichnung: "Bedarf erfassen (Positionen hinzufügen)" },
+  { key: "BESTELLANFRAGE_MANAGE", kategorie: "Bestellanfragen", bezeichnung: "Status ändern, verschicken, löschen" },
+
   // Auswertung
   { key: "GERAETE_REISE_VIEW",  kategorie: "Auswertung",  bezeichnung: "Geräte-Reise (LogID-Tracking) einsehen & importieren" },
   { key: "FEHLTEILE_VIEW",      kategorie: "Auswertung",  bezeichnung: "Fehlteile einsehen" },
@@ -96,6 +101,10 @@ const ROLLEN = [
       "MODELL_VIEW",
       // Colli-Etiketten: rein clientseitig (kein DB-Schreiben) → für Betrachter nutzbar
       "COLLI_ETIKETTEN_VIEW",
+      // Nur Einsicht. Wer auch Bedarf erfassen soll (z. B. Bereichsleitung),
+      // bekommt BESTELLANFRAGE_CREATE zusätzlich pro Person — die Rolle bleibt
+      // damit ihrem Namen treu.
+      "BESTELLANFRAGE_VIEW",
     ],
   },
   {
@@ -108,7 +117,7 @@ const ROLLEN = [
       "DASHBOARD_VIEW", "STATISTIK_VIEW", "AKTIVITAETSLOG_VIEW", "SUCHE_GLOBAL",
       "ANFRAGE_VIEW_ALL",
       "ARTIKEL_VIEW", "LAGERPLATZ_VIEW", "BUCHUNG_VIEW",
-      "MODELL_VIEW",
+      "MODELL_VIEW", "BESTELLANFRAGE_VIEW",
     ],
   },
   {
