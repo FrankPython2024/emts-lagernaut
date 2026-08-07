@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
+import { Modal } from "@/components/ui/Modal";
 
 // ── Bestellanfragen Eigenbedarf ──────────────────────────────────────────────
 // Ersetzt die wöchentliche Excel-Liste. Montags werden alle offenen Positionen
@@ -35,6 +36,12 @@ export default function BestellanfragenPage() {
   const [suche, setSuche]   = useState("");
   const [form, setForm]     = useState({ anzahl: "1", hersteller: "", beschreibung: "", link: "", verwendungsort: "" });
   const [vorschau, setVorschau] = useState(false);
+  // Bearbeiten läuft über einen Dialog statt in der Tabellenzeile — fünf Felder
+  // wären dort nicht bedienbar, schon gar nicht auf einem schmalen Bildschirm.
+  const [bearbeite, setBearbeite] = useState<{
+    id: number; anzahl: string; hersteller: string; beschreibung: string;
+    link: string; verwendungsort: string; notiz: string;
+  } | null>(null);
 
   const liste   = api.bestellanfragen.liste.useQuery({ status: filter, suche: suche.trim() || undefined });
   const zaehler = api.bestellanfragen.zaehler.useQuery();
@@ -52,7 +59,8 @@ export default function BestellanfragenPage() {
   });
 
   const aendern  = api.bestellanfragen.aendern.useMutation({
-    onSuccess: () => neuLaden(), onError: (e) => show(e.message, "error"),
+    onSuccess: () => { setBearbeite(null); neuLaden(); },
+    onError:   (e) => show(e.message, "error"),
   });
   const loeschen = api.bestellanfragen.loeschen.useMutation({
     onSuccess: () => { show("Position gelöscht", "success"); neuLaden(); },
@@ -86,9 +94,13 @@ export default function BestellanfragenPage() {
       `<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11pt">` +
       `<tr style="background:#202F61;color:#fff;font-weight:bold">` +
       SPALTEN.map((s) => `<th align="left">${esc(s)}</th>`).join("") + `</tr>` +
+      // Spalte 3 ist der Link: In der HTML-Fassung nur „zum Artikel" als
+      // Verweis, sonst sprengen die teils 200 Zeichen langen Adressen jede
+      // Tabelle. Die Textfassung unten behält die volle Adresse — dort wäre
+      // ein Wort ohne Verweis wertlos.
       zellen.map((z) => `<tr>` + z.map((w, i) =>
         i === 3 && w
-          ? `<td><a href="${esc(w)}">${esc(w)}</a></td>`
+          ? `<td><a href="${esc(w)}">zum Artikel</a></td>`
           : `<td>${esc(w)}</td>`).join("") + `</tr>`).join("") +
       `</table>` +
       `<p>${zuVersenden.length} Positionen, ${zuVersenden.reduce((s, b) => s + b.anzahl, 0)} St&uuml;ck gesamt</p>`;
@@ -177,7 +189,12 @@ export default function BestellanfragenPage() {
                     <td className="px-2 py-1.5 tabular-nums font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{b.anzahl}</td>
                     <td className="px-2 py-1.5 text-[#1a1a1a] dark:text-[#e4e6eb]">{b.hersteller ?? ""}</td>
                     <td className="px-2 py-1.5 text-[#1a1a1a] dark:text-[#e4e6eb]">{b.beschreibung}</td>
-                    <td className="px-2 py-1.5 text-[#0064d2] dark:text-[#45bdff] max-w-[220px] truncate">{b.link ?? ""}</td>
+                    <td className="px-2 py-1.5">
+                      {b.link
+                        ? <a href={b.link} target="_blank" rel="noopener noreferrer"
+                            className="text-[#0064d2] dark:text-[#45bdff] underline">zum Artikel</a>
+                        : <span className="text-[#90939a]">—</span>}
+                    </td>
                     <td className="px-2 py-1.5 tabular-nums text-[#65676b] dark:text-[#b0b3b8]">{heute}</td>
                     <td className="px-2 py-1.5 text-[#65676b] dark:text-[#b0b3b8]">{b.verwendungsort ?? ""}</td>
                   </tr>
@@ -279,8 +296,8 @@ export default function BestellanfragenPage() {
                     </div>
                     {b.link && (
                       <a href={b.link} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-[#0064d2] dark:text-[#45bdff] underline break-all">
-                        {b.link.length > 70 ? b.link.slice(0, 70) + "…" : b.link}
+                        className="text-xs text-[#0064d2] dark:text-[#45bdff] underline">
+                        zum Artikel ↗
                       </a>
                     )}
                   </td>
@@ -299,6 +316,16 @@ export default function BestellanfragenPage() {
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1.5 justify-end flex-wrap">
+                      <button
+                        onClick={() => setBearbeite({
+                          id: b.id, anzahl: String(b.anzahl),
+                          hersteller: b.hersteller ?? "", beschreibung: b.beschreibung,
+                          link: b.link ?? "", verwendungsort: b.verwendungsort ?? "",
+                          notiz: b.notiz ?? "",
+                        })}
+                        className="px-2.5 py-1 text-xs font-bold rounded-lg border border-[#0064d2]/30 text-[#0064d2] dark:text-[#45bdff] hover:bg-[#0064d2]/10">
+                        ✏️
+                      </button>
                       {b.status === "BESTELLT" && (
                         <button onClick={() => aendern.mutate({ id: b.id, status: "GELIEFERT" })}
                           className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#04B475]/10 text-[#038F5C] dark:text-[#04B475] border border-[#04B475]/30 hover:bg-[#04B475]/20">
@@ -334,6 +361,67 @@ export default function BestellanfragenPage() {
           </table>
         </div>
       </div>
+
+      {/* ── Bearbeiten ──────────────────────────────────────────────────── */}
+      <Modal open={!!bearbeite} onClose={() => setBearbeite(null)} title="Position bearbeiten" width="max-w-2xl">
+        {bearbeite && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] mb-1">Anzahl *</label>
+                <input type="number" min={1} value={bearbeite.anzahl}
+                  onChange={(e) => setBearbeite({ ...bearbeite, anzahl: e.target.value })} className={eingabe} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] mb-1">Hersteller</label>
+                <input type="text" value={bearbeite.hersteller}
+                  onChange={(e) => setBearbeite({ ...bearbeite, hersteller: e.target.value })} className={eingabe} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] mb-1">Artikelbeschreibung *</label>
+              <input type="text" value={bearbeite.beschreibung}
+                onChange={(e) => setBearbeite({ ...bearbeite, beschreibung: e.target.value })} className={eingabe} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] mb-1">Link zum Artikel</label>
+              <input type="text" value={bearbeite.link}
+                onChange={(e) => setBearbeite({ ...bearbeite, link: e.target.value })} className={eingabe} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] mb-1">Verwendungsort / Person</label>
+              <input type="text" value={bearbeite.verwendungsort}
+                onChange={(e) => setBearbeite({ ...bearbeite, verwendungsort: e.target.value })} className={eingabe} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] mb-1">Notiz (intern)</label>
+              <input type="text" value={bearbeite.notiz} placeholder="erscheint nicht in der Bestellliste"
+                onChange={(e) => setBearbeite({ ...bearbeite, notiz: e.target.value })} className={eingabe} />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setBearbeite(null)}
+                className="flex-1 py-2.5 rounded-xl bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-semibold">
+                Abbrechen
+              </button>
+              <button
+                onClick={() => aendern.mutate({
+                  id:             bearbeite.id,
+                  anzahl:         Number(bearbeite.anzahl) || 1,
+                  hersteller:     bearbeite.hersteller.trim()     || null,
+                  beschreibung:   bearbeite.beschreibung.trim(),
+                  link:           bearbeite.link.trim()           || null,
+                  verwendungsort: bearbeite.verwendungsort.trim() || null,
+                  notiz:          bearbeite.notiz.trim()          || null,
+                })}
+                disabled={bearbeite.beschreibung.trim().length < 2 || aendern.isPending}
+                className="flex-1 py-2.5 rounded-xl bg-[#0064d2] text-white font-bold hover:bg-blue-700 disabled:opacity-50">
+                {aendern.isPending ? "…" : "Speichern"}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
