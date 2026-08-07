@@ -9,31 +9,31 @@ datasource db {
 }
 
 model User {
-  id              Int       @id @default(autoincrement())
-  name            String
-  kuerzel         String    @unique
-  email           String    @unique
-  password        String
-  rolle           UserRolle @default(TECHNIKER)
-  aktiv           Boolean   @default(true)
-  lastLogin       DateTime?
+  id                  Int                  @id @default(autoincrement())
+  name                String
+  kuerzel             String               @unique
+  email               String               @unique
+  password            String
+  rolle               UserRolle            @default(TECHNIKER)
+  aktiv               Boolean              @default(true)
+  lastLogin           DateTime?
   // Dashboard-Konfiguration pro User: { layouts, visibility } | null = Default
-  dashboardConfig Json?
-  standortId      Int?
-  standort        Standort? @relation(fields: [standortId], references: [id])
+  dashboardConfig     Json?
+  standortId          Int?
+  standort            Standort?            @relation(fields: [standortId], references: [id])
   // Wildcard: true = Zugriff auf alle Standorte (gesetzt für ADMIN-User per Migration).
   // Bei false: Zugriff via standortId (Haupt) + UserStandortAccess (zusätzliche).
-  alleStandorte   Boolean   @default(false)
-  standortAccess  UserStandortAccess[]
+  alleStandorte       Boolean              @default(false)
+  standortAccess      UserStandortAccess[]
   externeBestellungen ExterneBestellung[]
-  colliDruckLogs  ColliDruckLog[]
-  pickupAuftraege PickupAuftrag[] @relation("PickupErsteller")
-  pickupAbgeschlossen PickupAuftrag[] @relation("PickupAbschliesser")
-  pickupGefunden  PickupPosition[]
-  extraPermissions UserPermission[]
-  permissionDenies UserPermissionDeny[]
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  colliDruckLogs      ColliDruckLog[]
+  pickupAuftraege     PickupAuftrag[]      @relation("PickupErsteller")
+  pickupAbgeschlossen PickupAuftrag[]      @relation("PickupAbschliesser")
+  pickupGefunden      PickupPosition[]
+  extraPermissions    UserPermission[]
+  permissionDenies    UserPermissionDeny[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   @@index([standortId])
 }
@@ -45,7 +45,7 @@ model UserStandortAccess {
   standortId Int
   erstelltAm DateTime @default(now())
 
-  user     User     @relation(fields: [userId],     references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   standort Standort @relation(fields: [standortId], references: [id], onDelete: Cascade)
 
   @@unique([userId, standortId])
@@ -58,7 +58,7 @@ enum UserRolle {
   TECHNIKER
   BETRACHTER
   ADMIN_READONLY // Audit-Sicht: voller Lesezugriff auf den Admin-Bereich, keine Schreibrechte
-  PICKUP         // Picker: arbeitet Pickup-Aufträge scannend ab (Recht PICKUP_PICK)
+  PICKUP // Picker: arbeitet Pickup-Aufträge scannend ab (Recht PICKUP_PICK)
 }
 
 // ── RBAC (Phase 1+2 — Fundament, noch keine User-Verknüpfung) ────────────────
@@ -125,7 +125,7 @@ model UserPermission {
 model UserPermissionDeny {
   id         Int      @id @default(autoincrement())
   userId     Int
-  permission String   // Recht-Key, z. B. "ARTIKEL_EDIT"
+  permission String // Recht-Key, z. B. "ARTIKEL_EDIT"
   createdAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -137,13 +137,13 @@ model UserPermissionDeny {
 // ── Multi-Standort ────────────────────────────────────────────────────────────
 
 model Standort {
-  id           Int          @id @default(autoincrement())
-  name         String       @db.VarChar(100)
-  kurzname     String       @unique @db.VarChar(10)
-  adresse      String?      @db.VarChar(500)
-  aktiv        Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  kurzname  String   @unique @db.VarChar(10)
+  adresse   String?  @db.VarChar(500)
+  aktiv     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   lagerplaetze Lagerplatz[]
   users        User[]
@@ -152,21 +152,21 @@ model Standort {
 }
 
 model Artikel {
-  id          Int               @id @default(autoincrement())
-  bezeichnung String            @db.VarChar(255) // TODO: 47 Drift-Artikel mit Marketing-Text bereinigen
-  lagerplatz  String?
-  kategorie   String
-  bestand     Int               @default(0)
-  buchungen   Buchung[]
-  anfragen    Anfrage[]
-  kompatibel  Kompatibilitaet[]
-  korbItems   WarenkorbItem[]
+  id            Int               @id @default(autoincrement())
+  bezeichnung   String            @db.VarChar(255) // TODO: 47 Drift-Artikel mit Marketing-Text bereinigen
+  lagerplatz    String?
+  kategorie     String
+  bestand       Int               @default(0)
+  buchungen     Buchung[]
+  anfragen      Anfrage[]
+  kompatibel    Kompatibilitaet[]
+  korbItems     WarenkorbItem[]
   // Einzelpreis dieses Artikels. Schlägt den Kategoriepreis (KategoriePreis),
   // wenn gesetzt. Nötig für Artikel, bei denen die Kategorie nichts über den
   // Wert sagt: eine 256-GB-SSD und eine 2-TB-NVMe sind beide „Festplatte",
   // unterscheiden sich im Wert aber um ein Vielfaches.
   // null = wie bisher der Kategoriepreis.
-  preis       Decimal?          @db.Decimal(10, 2)
+  preis         Decimal?          @db.Decimal(10, 2)
   // ── Ersatzteil-Pool (aktuell nur für Gummifüße gedacht) ──────────────────
   // Zwei Artikel, die dasselbe physische Teil sind (z. B. beim U711 sind vordere
   // und hintere Füße baugleich), teilen sich rechnerisch EINEN Bestand: Ist der
@@ -180,10 +180,10 @@ model Artikel {
   // Wird ein Artikel gelöscht, bleibt beim Partner eine tote Id zurück; das
   // fällt nicht auf, weil jede Abfrage den Partner ohnehin nachschlägt.
   poolPartnerId Int?
-  standortId  Int               @default(1)
-  standort    Standort          @relation(fields: [standortId], references: [id])
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  standortId    Int               @default(1)
+  standort      Standort          @relation(fields: [standortId], references: [id])
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@unique([bezeichnung, kategorie, standortId])
   @@index([standortId])
@@ -191,14 +191,14 @@ model Artikel {
 }
 
 model Buchung {
-  id          Int         @id @default(autoincrement())
-  datum       DateTime    @default(now())
-  mitarbeiter String
-  artikelId   Int
-  bezeichnung String
-  typ         BuchungsTyp
-  menge       Int
-  notiz       String?
+  id              Int            @id @default(autoincrement())
+  datum           DateTime       @default(now())
+  mitarbeiter     String
+  artikelId       Int
+  bezeichnung     String
+  typ             BuchungsTyp
+  menge           Int
+  notiz           String?
   // ── Bauteil-Ernte: Herkunft des eingelagerten Teils ────────────────────────
   // LogID des SPENDER-Altgeräts, aus dem dieses Teil ausgebaut wurde. Wird nur
   // beim Einlagern (EINGANG über den Einlager-Assistenten) gesetzt und nur, wenn
@@ -207,7 +207,7 @@ model Buchung {
   // nachvollziehbar, aus welchem Gerät ein Ersatzteil stammt.
   // Grundlage für: Ernte-Auswertung (Teile je Gerät), Rückverfolgung bei
   // Reklamation und die Bewertung des gewonnenen Materialwerts.
-  herkunftLogId String?   @db.VarChar(100)
+  herkunftLogId   String?        @db.VarChar(100)
   // Woher stammt das eingelagerte Teil? Genau zwei Fälle:
   //   "SPENDER" = aus einem Altgerät ausgebaut (Bauteil-Ernte)
   //   "DRUCK"   = selbst hergestellt (3D-Drucker)
@@ -215,15 +215,15 @@ model Buchung {
   // 3D-Druck läuft in großen Chargen (z. B. 280 Füße in EINER Buchung) und würde
   // die Ernte-Kennzahlen (Teile je Gerät, Materialwert) sonst massiv verfälschen.
   // NULL = Altdaten vor Einführung — dort sind beide Fälle nicht trennbar.
-  herkunftArt   String?   @db.VarChar(20)
+  herkunftArt     String?        @db.VarChar(20)
   // Abgabe an eine andere Niederlassung: gesetzt bei AUSGANG-Buchungen, die das
   // Material nicht an die eigene Technik, sondern an einen anderen Standort der
   // Gruppe geben (typisch Festplatten und Arbeitsspeicher). Grundlage für die
   // Auswertung „was ging wohin". null = normaler Vorgang im eigenen Haus.
   niederlassungId Int?
   niederlassung   Niederlassung? @relation(fields: [niederlassungId], references: [id])
-  artikel     Artikel     @relation(fields: [artikelId], references: [id])
-  createdAt   DateTime    @default(now())
+  artikel         Artikel        @relation(fields: [artikelId], references: [id])
+  createdAt       DateTime       @default(now())
 
   @@index([artikelId])
   @@index([typ])
@@ -324,13 +324,13 @@ model Kompatibilitaet {
 }
 
 model GeraeteModell {
-  id               Int             @id @default(autoincrement())
+  id               Int                 @id @default(autoincrement())
   hersteller       String
-  modell           String          @db.VarChar(500)
-  aktiv            Boolean         @default(true)
-  deaktiviertGrund String?         @db.VarChar(191)
+  modell           String              @db.VarChar(500)
+  aktiv            Boolean             @default(true)
+  deaktiviertGrund String?             @db.VarChar(191)
   deaktiviertAm    DateTime?
-  createdAt        DateTime        @default(now())
+  createdAt        DateTime            @default(now())
   belegung         LagerplatzBelegung?
   modellTeiltypen  ModellTeiltyp[]
 
@@ -339,18 +339,18 @@ model GeraeteModell {
 }
 
 model Lagerplatz {
-  id         Int            @id @default(autoincrement())
-  code       String         @unique // "ETL-1-6-5"
+  id         Int                  @id @default(autoincrement())
+  code       String               @unique // "ETL-1-6-5"
   regal      Int // logische Regal-Nr
   reihe      Int // physische Reihen-Nr (für Anzeige)
   ebene      Int
   fach       Int
   hersteller String? // "HP" | "Lenovo" | "Dell" | null — Region-Hinweis des Fachs
   belegungen LagerplatzBelegung[]
-  standortId Int            @default(1)
-  standort   Standort       @relation(fields: [standortId], references: [id])
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  standortId Int                  @default(1)
+  standort   Standort             @relation(fields: [standortId], references: [id])
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
 
   @@index([hersteller])
   @@index([reihe, ebene, fach])
@@ -485,7 +485,7 @@ model StressTestRun {
 
 model Nachricht {
   id         Int                @id @default(autoincrement())
-  betreff    String              @db.VarChar(255)
+  betreff    String             @db.VarChar(255)
   inhalt     String             @db.Text
   vonKuerzel String
   typ        NachrichtTyp       @default(DIREKT)
@@ -542,12 +542,12 @@ enum NachrichtTyp {
 model ExterneBestellung {
   id          Int      @id @default(autoincrement())
   modellName  String   @db.VarChar(500) // = Anfrage.geraeteName
-  hersteller  String?  // denormalisiert für Anzeige (best-effort aufgelöst)
-  teiltyp     String   // = Anfrage.teil
+  hersteller  String? // denormalisiert für Anzeige (best-effort aufgelöst)
+  teiltyp     String // = Anfrage.teil
   anzahl      Int
   bestelltAm  DateTime // wann extern bestellt
   notiz       String?  @db.Text
-  erstelltVon String   // User.kuerzel
+  erstelltVon String // User.kuerzel
   user        User     @relation(fields: [erstelltVon], references: [kuerzel])
   erstelltAm  DateTime @default(now())
 
@@ -561,7 +561,7 @@ model ExterneBestellung {
 model ColliDruckLog {
   id        Int      @id @default(autoincrement())
   userId    Int
-  modus     String   // 'colli' | 'text'
+  modus     String // 'colli' | 'text'
   anzahl    Int
   createdAt DateTime @default(now())
 
@@ -583,34 +583,34 @@ enum PickupTyp {
 }
 
 model PickupAuftrag {
-  id              Int       @id @default(autoincrement())
-  name            String    @db.VarChar(200) // passend zu Zod .max(200) / input maxLength=200
-  typ             PickupTyp @default(LOGID)
-  bemerkung       String?   @db.Text // optionaler Freitext (z.B. Verkäufer-Reservierungsnummer)
-  status          String    @default("offen") // 'offen' | 'abgeschlossen'
-  erstelltVon     Int
-  ersteller       User      @relation("PickupErsteller", fields: [erstelltVon], references: [id])
-  createdAt       DateTime  @default(now())
-  abgeschlossenAm DateTime?
+  id               Int              @id @default(autoincrement())
+  name             String           @db.VarChar(200) // passend zu Zod .max(200) / input maxLength=200
+  typ              PickupTyp        @default(LOGID)
+  bemerkung        String?          @db.Text // optionaler Freitext (z.B. Verkäufer-Reservierungsnummer)
+  status           String           @default("offen") // 'offen' | 'abgeschlossen'
+  erstelltVon      Int
+  ersteller        User             @relation("PickupErsteller", fields: [erstelltVon], references: [id])
+  createdAt        DateTime         @default(now())
+  abgeschlossenAm  DateTime?
   abgeschlossenVon Int?
-  abschliesser    User?     @relation("PickupAbschliesser", fields: [abgeschlossenVon], references: [id])
-  positionen      PickupPosition[]
+  abschliesser     User?            @relation("PickupAbschliesser", fields: [abgeschlossenVon], references: [id])
+  positionen       PickupPosition[]
 
   @@index([status])
   @@index([erstelltVon])
 }
 
 model PickupPosition {
-  id          Int       @id @default(autoincrement())
+  id          Int           @id @default(autoincrement())
   auftragId   Int
   auftrag     PickupAuftrag @relation(fields: [auftragId], references: [id], onDelete: Cascade)
-  logId       String    // normalisiert (reine Ziffern)
+  logId       String // normalisiert (reine Ziffern)
   colli       String?
   stellplatz  String?
-  bezeichnung String?   @db.Text // AfB-Bezeichnungen bis 514+ Zeichen — wie GeraeteLookup/LogIdStand
-  status      String    @default("OFFEN") // 'OFFEN' | 'GEFUNDEN'
+  bezeichnung String?       @db.Text // AfB-Bezeichnungen bis 514+ Zeichen — wie GeraeteLookup/LogIdStand
+  status      String        @default("OFFEN") // 'OFFEN' | 'GEFUNDEN'
   gefundenVon Int?
-  finder      User?     @relation(fields: [gefundenVon], references: [id])
+  finder      User?         @relation(fields: [gefundenVon], references: [id])
   gefundenAm  DateTime?
 
   @@index([auftragId, logId])
@@ -624,8 +624,8 @@ model PickupPosition {
 // VOLL ersetzt (die Datei ist der vollständige aktuelle Stand). Reine Zuordnung,
 // KEIN Bestandseffekt.
 model Lagerwagen {
-  untercolli     String   @id            // Segment-Colli, normalisiert (nurZiffern)
-  hauptcolli     String                  // vorderes Colli des Wagens, normalisiert
+  untercolli     String   @id // Segment-Colli, normalisiert (nurZiffern)
+  hauptcolli     String // vorderes Colli des Wagens, normalisiert
   stellplatz     String?
   lagernummer    String?
   aktualisiertAm DateTime @updatedAt
@@ -689,16 +689,16 @@ model SmartphoneBauteil {
 // Formate "schrank" und "text"; Colli bleibt ohne Vorlagen.
 model LabelVorlage {
   id           String   @id @default(cuid())
-  typ          String                      // "schrank" | "text"
+  typ          String // "schrank" | "text"
   name         String
-  html         String   @db.Text           // WYSIWYG-Inhalt (kann lang sein!)
-  orientierung String?                      // nur schrank: "quer" | "hoch"
-  qrAktiv      Boolean  @default(false)     // nur schrank
-  stellplatz   String?                      // nur schrank
+  html         String   @db.Text // WYSIWYG-Inhalt (kann lang sein!)
+  orientierung String? // nur schrank: "quer" | "hoch"
+  qrAktiv      Boolean  @default(false) // nur schrank
+  stellplatz   String? // nur schrank
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  @@unique([typ, name])                     // Name eindeutig je Typ
+  @@unique([typ, name]) // Name eindeutig je Typ
 }
 
 // ── Geräte-Reise (LogID-Tracking) ────────────────────────────────────────────
@@ -707,56 +707,56 @@ model LabelVorlage {
 
 // Aktueller Stand je LogID — 1 Zeile pro Gerät, je Import per Upsert aktualisiert.
 model LogIdStand {
-  logId             String    @id
+  logId String @id
 
-  hersteller        String?
-  bezeichnung       String?   @db.Text
-  geraeteart        String?
-  unterart          String?
-  seriennummer      String?
+  hersteller   String?
+  bezeichnung  String? @db.Text
+  geraeteart   String?
+  unterart     String?
+  seriennummer String?
 
-  stellplatz        String?
-  stellplatzStatus  String?
-  lager             String?
-  lagernummer       String?
-  filiale           String?
+  stellplatz       String?
+  stellplatzStatus String?
+  lager            String?
+  lagernummer      String?
+  filiale          String?
 
-  colli             String?
-  vorherigesColli   String?
-  statusColli       String?
+  colli           String?
+  vorherigesColli String?
+  statusColli     String?
 
-  verbleib          String?
-  inVerbleibSeit    DateTime?
-  inVerbleibDurch   String?
+  verbleib        String?
+  inVerbleibSeit  DateTime?
+  inVerbleibDurch String?
 
   aufLagerGebuchtAm DateTime?
   verweildauerTage  Int?
   letzteAenderungAm DateTime?
 
-  refurbished       Boolean   @default(false)
-  refurbishDatum    DateTime?
+  refurbished    Boolean   @default(false)
+  refurbishDatum DateTime?
 
-  grading           String?
-  initialesGrading  String?
-  aktuellerZustand  String?
+  grading          String?
+  initialesGrading String?
+  aktuellerZustand String?
 
-  blockiert         Boolean   @default(false)
-  begruendung       String?   @db.Text
-  blockiertVon      String?
-  blockiertAm       DateTime?
+  blockiert    Boolean   @default(false)
+  begruendung  String?   @db.Text
+  blockiertVon String?
+  blockiertAm  DateTime?
 
-  salestatus        String?
+  salestatus String?
 
   // Einkaufswert (CSV-Spalte "EK"), deutsches Zahlenformat → Decimal(12,2).
-  ek                Decimal?  @db.Decimal(12, 2)
+  ek Decimal? @db.Decimal(12, 2)
 
-  erstmalsGesehen   DateTime
-  zuletztGesehen    DateTime
-  zuletztImportId   Int
+  erstmalsGesehen DateTime
+  zuletztGesehen  DateTime
+  zuletztImportId Int
 
   // Abgang: LogID fehlt im neuesten Voll-Snapshot → hat das System verlassen.
-  ausgeschieden     Boolean   @default(false)
-  ausgeschiedenAm   DateTime?
+  ausgeschieden   Boolean   @default(false)
+  ausgeschiedenAm DateTime?
 
   @@index([verbleib])
   @@index([lager])
@@ -775,19 +775,19 @@ enum ImportTyp {
 
 // Ein Import-Lauf (eine hochgeladene Datei).
 model LogIdImport {
-  id                 Int      @id @default(autoincrement())
-  dateiname          String
-  importiertAm       DateTime @default(now())
-  status             String   @default("läuft")   // läuft | fertig | fehler
-  typ                ImportTyp @default(LAGERFUCHS) // automatisch erkannt
-  anzahlZeilen       Int      @default(0)
-  anzahlNeu          Int      @default(0)
-  anzahlAktualisiert Int      @default(0)
-  anzahlBewegungen   Int      @default(0)
-  anzahlAusgeschieden Int     @default(0)          // im Snapshot fehlende LogIDs
-  verarbeitet        Int      @default(0)          // Fortschritt
-  fehlerText         String?  @db.Text
-  erstelltVon        Int?
+  id                  Int       @id @default(autoincrement())
+  dateiname           String
+  importiertAm        DateTime  @default(now())
+  status              String    @default("läuft") // läuft | fertig | fehler
+  typ                 ImportTyp @default(LAGERFUCHS) // automatisch erkannt
+  anzahlZeilen        Int       @default(0)
+  anzahlNeu           Int       @default(0)
+  anzahlAktualisiert  Int       @default(0)
+  anzahlBewegungen    Int       @default(0)
+  anzahlAusgeschieden Int       @default(0) // im Snapshot fehlende LogIDs
+  verarbeitet         Int       @default(0) // Fortschritt
+  fehlerText          String?   @db.Text
+  erstelltVon         Int?
 }
 
 // Fehlteile (Verbleib = "Fehlteile") — eigene Tabelle, KEINE Diff-/Bewegungs-
@@ -851,22 +851,22 @@ model ImpactEinstellung {
 // Bestand; Code dient später als QR-/Etiketten-Code. Reine Materialwirtschaft,
 // getrennt vom Geräte-/Teile-Lager (KEIN Bestandseffekt dort).
 model VerbrauchsArtikel {
-  id               Int      @id @default(autoincrement())
-  code             String   @unique          // QR-/Etiketten-Code, z.B. "VM-0001"
-  name             String   @db.VarChar(255)
-  merkmale         String?  @db.VarChar(255)
-  kategorie        String?  @db.VarChar(100)
-  mindestbestand   Int      @default(0)
-  aktuellerBestand Int      @default(0)
-  aan              String?  @db.VarChar(100)
+  id               Int                     @id @default(autoincrement())
+  code             String                  @unique // QR-/Etiketten-Code, z.B. "VM-0001"
+  name             String                  @db.VarChar(255)
+  merkmale         String?                 @db.VarChar(255)
+  kategorie        String?                 @db.VarChar(100)
+  mindestbestand   Int                     @default(0)
+  aktuellerBestand Int                     @default(0)
+  aan              String?                 @db.VarChar(100)
   gebindegroesse   Int?
-  standort         String?  @db.VarChar(191)
-  bemerkung        String?  @db.Text
-  aktiv            Boolean  @default(true)
-  erstelltAm       DateTime @default(now())
-  aktualisiertAm   DateTime @updatedAt
+  standort         String?                 @db.VarChar(191)
+  bemerkung        String?                 @db.Text
+  aktiv            Boolean                 @default(true)
+  erstelltAm       DateTime                @default(now())
+  aktualisiertAm   DateTime                @updatedAt
   zaehlungen       VerbrauchsZaehlung[]
-  bild             VerbrauchsArtikelBild?   // ALT (1:1) — nur noch für Backfill, danach entfernbar
+  bild             VerbrauchsArtikelBild? // ALT (1:1) — nur noch für Backfill, danach entfernbar
   fotos            VerbrauchsArtikelFoto[]
 
   @@index([kategorie])
@@ -881,14 +881,14 @@ model VerbrauchsArtikel {
 // GET /api/verbrauchsmaterial/bild/[artikelId] (Titelbild) bzw.
 // GET /api/verbrauchsmaterial/foto/[fotoId] (einzelnes Galerie-Foto).
 model VerbrauchsArtikelFoto {
-  id             Int      @id @default(autoincrement())
+  id             Int               @id @default(autoincrement())
   artikelId      Int
   artikel        VerbrauchsArtikel @relation(fields: [artikelId], references: [id], onDelete: Cascade)
-  position       Int      @default(0)  // 0 = Titelbild; aufsteigend sortiert
-  mimeType       String   @db.VarChar(100)
-  daten          Bytes    @db.MediumBlob
-  erstelltAm     DateTime @default(now())
-  aktualisiertAm DateTime @updatedAt
+  position       Int               @default(0) // 0 = Titelbild; aufsteigend sortiert
+  mimeType       String            @db.VarChar(100)
+  daten          Bytes             @db.MediumBlob
+  erstelltAm     DateTime          @default(now())
+  aktualisiertAm DateTime          @updatedAt
 
   @@index([artikelId])
 }
@@ -898,26 +898,26 @@ model VerbrauchsArtikelFoto {
 // die neue Tabelle übernommen hat — danach kann Modell + Relation `bild` weg
 // (db push droppt dann die Tabelle).
 model VerbrauchsArtikelBild {
-  artikelId      Int      @id
+  artikelId      Int               @id
   artikel        VerbrauchsArtikel @relation(fields: [artikelId], references: [id], onDelete: Cascade)
-  mimeType       String   @db.VarChar(100)
-  daten          Bytes    @db.MediumBlob
-  erstelltAm     DateTime @default(now())
-  aktualisiertAm DateTime @updatedAt
+  mimeType       String            @db.VarChar(100)
+  daten          Bytes             @db.MediumBlob
+  erstelltAm     DateTime          @default(now())
+  aktualisiertAm DateTime          @updatedAt
 }
 
 // Zählungs-/Bestandshistorie (Grundlage für spätere Verbrauchsauswertung S4).
 model VerbrauchsZaehlung {
-  id         Int      @id @default(autoincrement())
+  id         Int               @id @default(autoincrement())
   artikelId  Int
   artikel    VerbrauchsArtikel @relation(fields: [artikelId], references: [id], onDelete: Cascade)
-  datum      DateTime @default(now())
+  datum      DateTime          @default(now())
   vorher     Int
   bestand    Int
-  verbrauch  Int      // max(0, vorher - bestand)
-  benutzer   String?  @db.VarChar(100)
-  bemerkung  String?  @db.VarChar(255)
-  erstelltAm DateTime @default(now())
+  verbrauch  Int // max(0, vorher - bestand)
+  benutzer   String?           @db.VarChar(100)
+  bemerkung  String?           @db.VarChar(255)
+  erstelltAm DateTime          @default(now())
 
   @@index([artikelId])
   @@index([datum])
@@ -937,15 +937,15 @@ enum MobilZuordnungStatus {
 }
 
 model MobilModell {
-  id            Int      @id @default(autoincrement())
-  hersteller    String                          // z. B. "Apple"
-  modell        String                          // z. B. "iPhone 14"
-  aktiv         Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  hersteller String // z. B. "Apple"
+  modell     String // z. B. "iPhone 14"
+  aktiv      Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  teile          MobilTeil[]                     // Teile mit diesem Modell als PRIMÄR-Modell
-  teilLinks      MobilTeilModell[]               // alle kompatiblen Teile (inkl. Mehrfach-Modell)
+  teile          MobilTeil[] // Teile mit diesem Modell als PRIMÄR-Modell
+  teilLinks      MobilTeilModell[] // alle kompatiblen Teile (inkl. Mehrfach-Modell)
   aliase         MobilAlias[]
   mindestbestand MobilMindestbestand[]
   anfragen       MobilAnfrage[]
@@ -954,9 +954,9 @@ model MobilModell {
 }
 
 model MobilTeiltyp {
-  id            Int      @id @default(autoincrement())
-  name          String   @unique               // z. B. "Akku","Display","Kameraglas","Backcover","Middle Frame","SIM-Tray"
-  createdAt     DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  name      String   @unique // z. B. "Akku","Display","Kameraglas","Backcover","Middle Frame","SIM-Tray"
+  createdAt DateTime @default(now())
 
   teile          MobilTeil[]
   aliase         MobilAlias[]
@@ -970,32 +970,32 @@ model MobilTeiltyp {
 // MobilTeil-Zeile. modellId = primäres/repräsentatives Modell (Schnellzugriff/UI;
 // null bei REVIEW). teiltypId ist immer einwertig (ein Teil hat genau einen Typ).
 model MobilTeil {
-  id                  Int                  @id @default(autoincrement())
-  logId               String               @unique
-  originalBezeichnung String               @db.Text
-  colli               String?
-  stellplatz          String?
-  ek                  Decimal?             @db.Decimal(10, 2)
-  aan                 String?                               // Artikelnummer (CSV "AAN")
-  lieferant           String?                               // CSV "Lieferant"
-  farbe               String?                               // aus Bezeichnung erkannt (DE-normalisiert)
-  status              String?
-  modellId            Int?                                  // primäres Modell (null = REVIEW/unbekannt)
-  modell              MobilModell?         @relation(fields: [modellId], references: [id])
-  modelle             MobilTeilModell[]                     // ALLE kompatiblen Modelle (inkl. Primär)
-  teiltypId           Int?
-  teiltyp             MobilTeiltyp?        @relation(fields: [teiltypId], references: [id])
-  zuordnungStatus     MobilZuordnungStatus @default(REVIEW)
+  id                   Int                  @id @default(autoincrement())
+  logId                String               @unique
+  originalBezeichnung  String               @db.Text
+  colli                String?
+  stellplatz           String?
+  ek                   Decimal?             @db.Decimal(10, 2)
+  aan                  String? // Artikelnummer (CSV "AAN")
+  lieferant            String? // CSV "Lieferant"
+  farbe                String? // aus Bezeichnung erkannt (DE-normalisiert)
+  status               String?
+  modellId             Int? // primäres Modell (null = REVIEW/unbekannt)
+  modell               MobilModell?         @relation(fields: [modellId], references: [id])
+  modelle              MobilTeilModell[] // ALLE kompatiblen Modelle (inkl. Primär)
+  teiltypId            Int?
+  teiltyp              MobilTeiltyp?        @relation(fields: [teiltypId], references: [id])
+  zuordnungStatus      MobilZuordnungStatus @default(REVIEW)
   // Kostenstelle/Bereich: trennt z. B. die regulären Mobil-Teile ("STANDARD") von
   // "DIGITAL_EDUCATION" (eigene Kostenstelle, eigener Reiter). Eigener Import-Scope:
   // ein DE-Import berührt NUR DE-Teile (Abgangs-Erkennung filtert nach bereich).
-  bereich             String               @default("STANDARD") @db.VarChar(32)
-  importiertAm        DateTime             @default(now())
+  bereich              String               @default("STANDARD") @db.VarChar(32)
+  importiertAm         DateTime             @default(now())
   // Abgangs-Erkennung (Lagerfuchs-Muster): ein Teil, das im aktuellen Voll-Export
   // fehlt, gilt als ausgeschieden (ausgeliefert) und zählt NICHT mehr zum Bestand,
   // bleibt aber für Statistik/Verlauf erhalten. zuletztGesehenImport = Zeitstempel
   // des letzten Imports, in dem die LogID vorkam (Marker für die Abgangs-Erkennung).
-  ausgeschieden        Boolean             @default(false)
+  ausgeschieden        Boolean              @default(false)
   ausgeschiedenAm      DateTime?
   zuletztGesehenImport DateTime?
 
@@ -1027,7 +1027,7 @@ model MobilTeilModell {
 // zugeordnet. Wird vom Parser (zuordnen()) vor dem Regelwerk geprüft.
 model MobilAlias {
   id              Int          @id @default(autoincrement())
-  bezeichnungNorm String       @unique          // normalisierter Wortlaut (lower, getrimmt)
+  bezeichnungNorm String       @unique // normalisierter Wortlaut (lower, getrimmt)
   modellId        Int
   modell          MobilModell  @relation(fields: [modellId], references: [id])
   teiltypId       Int
@@ -1088,12 +1088,12 @@ enum MobilAnfrageStatus {
 model MobilAnfrage {
   id            Int                @id @default(autoincrement())
   datum         DateTime           @default(now())
-  techniker     String                                   // Kürzel des Anfragenden
+  techniker     String // Kürzel des Anfragenden
   bereich       String             @default("STANDARD") @db.VarChar(32)
   modellId      Int
   modell        MobilModell        @relation(fields: [modellId], references: [id])
-  teiltyp       String                                   // Teiltyp-Name (MOBIL_TEILTYPEN)
-  farbe         String?            @db.VarChar(32)        // gewünschte Farbe (bei Farbvarianten, z.B. Backcover); null = egal
+  teiltyp       String // Teiltyp-Name (MOBIL_TEILTYPEN)
+  farbe         String?            @db.VarChar(32) // gewünschte Farbe (bei Farbvarianten, z.B. Backcover); null = egal
   menge         Int                @default(1)
   kommentar     String?            @db.Text
   // Sendungs-/Warenkorb-Gruppe: alle Teile, die der Techniker in EINER Sendung
@@ -1101,7 +1101,7 @@ model MobilAnfrage {
   gruppenNr     String?            @db.VarChar(64)
   status        MobilAnfrageStatus @default(NEU)
   bearbeitetVon String?
-  erledigtLogId String?                                  // beim Erledigen ausgegebene Teil-LogID (Etappe B)
+  erledigtLogId String? // beim Erledigen ausgegebene Teil-LogID (Etappe B)
   // Manuell „komplett" markiert (Tap-Fallback ohne Scan). Der eigentliche Pick-
   // Fortschritt kommt aus den erfassten LogIDs (picks): komplett = gefunden ODER
   // picks.count >= menge.
@@ -1131,4 +1131,41 @@ model MobilAnfragePick {
   @@unique([anfrageId, logId]) // dieselbe LogID nicht doppelt an derselben Anfrage
   @@index([anfrageId])
   @@index([logId])
+}
+
+// ── Bestellanfragen Eigenbedarf ──────────────────────────────────────────────
+// Löst die wöchentliche Excel-Liste ab: Was gebraucht wird, wird hier erfasst
+// und montags gesammelt an den Standortleiter geschickt, der sie an den Einkauf
+// weitergibt.
+//
+// Bewusst NICHT mit `Artikel` verknüpft: Hier steht überwiegend Material, das
+// Lagernaut gar nicht führt (Handschuhe, Kopierpapier, Bürostühle). Eine
+// Freitext-Beschreibung mit Link ist genau richtig, ein Fremdschlüssel wäre
+// eine Fessel ohne Nutzen.
+model Bestellanfrage {
+  id             Int                  @id @default(autoincrement())
+  anzahl         Int
+  hersteller     String?              @db.VarChar(191)
+  beschreibung   String               @db.Text
+  link           String?              @db.Text
+  verwendungsort String?              @db.VarChar(191)
+  status         BestellanfrageStatus @default(OFFEN)
+  angefordertVon String               @db.VarChar(50)
+  angefordertAm  DateTime             @default(now())
+  // Der Montag, an dem die Position tatsächlich rausgeschickt wurde.
+  versendetAm    DateTime?
+  geliefertAm    DateTime?
+  notiz          String?              @db.VarChar(500)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([status])
+  @@index([versendetAm])
+}
+
+enum BestellanfrageStatus {
+  OFFEN // erfasst, noch nicht rausgeschickt
+  BESTELLT // an den Standortleiter/Einkauf gegangen
+  GELIEFERT // angekommen
+  STORNIERT // doch nicht gebraucht
 }

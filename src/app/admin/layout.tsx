@@ -48,6 +48,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/admin/teiltypen",    label: "Teiltypen",    icon: "🧩", permission: "TEILTYP_EDIT" },
       { href: "/admin/lagerplaetze", label: "Lagerplätze",  icon: "🗄️", permission: "LAGERPLATZ_VIEW" },
       { href: "/admin/abgaben",      label: "Abgaben an Niederlassungen", icon: "🚚", permission: "ARTIKEL_VIEW" },
+      { href: "/admin/bestellanfragen", label: "Bestellanfragen", icon: "🛒", permission: "ARTIKEL_VIEW" },
       { href: "/admin/verbrauchsmaterial", label: "Verbrauchsmaterial", icon: "📦", permission: "MATERIAL_VIEW" },
       { href: "/admin/mobil",        label: "Mobil-Ersatzteile", icon: "📱", permission: "MOBIL_VIEW" },
       { href: "/admin/mobil/statistik", label: "Mobil-Statistik", icon: "📊", permission: "MOBIL_VIEW" },
