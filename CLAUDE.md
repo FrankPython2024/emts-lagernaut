@@ -67,6 +67,20 @@ melden. Nur additive Änderungen ohne Bestätigung durchziehen.
 **Prisma 7 bricht** `url = env("DATABASE_URL")` in schema.prisma → Build-Fehler.
 Falls v7 im Build auftaucht: `rm -rf node_modules` auf VPS + `docker compose build --no-cache`.
 
+### ⚠️ Server-Reboot: NIEMALS vorher `docker compose stop`
+
+Alle vier Dienste haben `restart: unless-stopped`. Das heißt wörtlich „starte neu, **außer** es
+wurde bewusst gestoppt" — ein per `stop` gestoppter Container bleibt nach dem Reboot **unten**.
+Am 2026-08-17 war Lagernaut deshalb nach einem Kernel-Update tot: `docker compose ps` lieferte
+eine **leere Tabelle** (nicht etwa Container im Status „Exited"), Startseite 502.
+- **Richtig:** einfach `reboot`. systemd stoppt die Container selbst, Docker startet sie beim
+  Hochfahren wieder — MySQL bekommt dabei 10 s zum Wegschreiben, was im Leerlauf reicht.
+- **Falls doch gestoppt wurde:** danach von Hand `docker compose up -d` (kein Rebuild nötig,
+  die Images sind noch da). Nach einem Reboot **~25 s warten**, bevor man die Startseite prüft —
+  der MySQL-Kaltstart dauert länger, bis dahin liefert die App 502.
+- Reboot-Bedarf steht in `/var/run/reboot-required.pkgs` (Kernel/libc → wirklich neu starten).
+- Der Build-Swap ist nach dem Reboot aus; der Deploy-Befehl schaltet ihn mit `swapon` selbst ein.
+
 ### ⚠️ „PrismaClient is not a constructor" — ZUERST Paket gegen Bundle prüfen
 
 Dieses Fehlerbild (500 auf allen Seiten, Log wiederholt
@@ -145,7 +159,49 @@ EOF
 
 ---
 
-## Modul-Stand (zuletzt: Abgaben an Niederlassungen + Einzelpreis am Artikel; davor Ersatzteil-Pool, Stückzahl bei den Füßen, Bauteil-Ernte, Dashboard-Ansicht)
+## Modul-Stand (zuletzt: Bestellanfragen Eigenbedarf + eigene Rechte; davor Datenträger/RAM-Erfassung, Abgaben an Niederlassungen, Ersatzteil-Pool, Bauteil-Ernte, Dashboard-Ansicht)
+
+### Bestellanfragen Eigenbedarf (Aug 2026)
+
+**Löst die wöchentliche Excel-Liste ab**, die montags an die Standortleitung ging (die sie zum
+Einkauf weiterreicht). Seite `/admin/bestellanfragen`, Nav „🛒 Bestellanfragen".
+- **Schema:** `Bestellanfrage` (anzahl, hersteller, beschreibung, link, verwendungsort, notiz,
+  angefordertVon/-Am, versendetAm, geliefertAm, status) + Enum `BestellanfrageStatus`
+  **OFFEN / BESTELLT / GELIEFERT / NICHT_GENEHMIGT / STORNIERT**. Status ist im UI **frei wählbar**
+  (`<select>` je Zeile) — auch Korrekturen zurück; zusätzlich Schnellknopf „✓ Geliefert".
+- **Kopieren für die Mail:** schreibt **beides** in die Zwischenablage — `text/html` (AfB-Cyan-
+  Kopfzeile, Zebrastreifen, Spalte „Pos.", Link gekürzt auf „zum Artikel") **und** `text/plain`
+  mit Tabulatoren als Rückfall. In der Textfassung stehen die **vollen URLs**, sonst wäre der Link
+  dort verloren. Layout folgt dem Blatt „Übertrag für Email" der alten Excel.
+- ⚠️ **Kopieren und „als bestellt markieren" sind bewusst getrennt.** Der Text entsteht aus `liste`;
+  erst der Knopf „✓ Ist raus" setzt OFFEN → BESTELLT und stempelt `versendetAm`. Ein Fehlklick auf
+  Kopieren verschiebt also nichts.
+- **Rechte** (erstes Feature der Reihe, das wirklich `seed-rbac` braucht):
+  `BESTELLANFRAGE_VIEW` (Liste + Kopieren) / `BESTELLANFRAGE_CREATE` (Bedarf erfassen) /
+  `BESTELLANFRAGE_MANAGE` (Status, bearbeiten, löschen, verschicken). Router nutzt
+  `permissionProcedure`, UI blendet über `usePermissions` aus (Aktionen-Spalte fällt ganz weg,
+  Status-Feld gesperrt). **VIEW ist an BETRACHTER und ADMIN_READONLY geseedet; CREATE bewusst
+  NICHT** — wer auch erfassen soll (Bereichsleitung), bekommt es pro Person, damit „Betrachter"
+  seinem Namen treu bleibt.
+
+### Datenträger & Arbeitsspeicher im Einlager-Assistenten (Aug 2026)
+
+Eigener Erfassungs-Zweig für **nicht gerätegebundene** Teile: Ein 512-GB-NVMe ist ein
+512-GB-NVMe, egal aus welchem Notebook er stammt. **Keine LogID** — die Riegel kommen kartonweise,
+die Herkunft des einzelnen Stücks ist weder bekannt noch relevant.
+- **Merkmale statt Freitext** (`src/lib/einlagern/komponenten.ts`): Datenträger = Art (SSD/HDD) ·
+  Größe · Schnittstelle (SATA / NVMe PCIe3 / NVMe PCIe4) · Bauform (M.2 2230/2242/2280, 2,5", 3,5");
+  RAM = Größe · Generation (DDR3/DDR3L/DDR4/DDR5) · Bauform (SO-DIMM/DIMM). Plus Menge, optional
+  Einzelpreis und Lagerplatz.
+- ⚠️ **Die Bezeichnung wird AUSSCHLIESSLICH in `bezeichnungDatentraeger()` / `bezeichnungRam()`
+  gebaut** („SSD 512 GB NVMe PCIe3 M.2 2280", „RAM 16 GB DDR4 SO-DIMM"). An zwei Stellen gebaut
+  entstünden Schreibvarianten desselben Artikels — genau der Fehler, durch den ein einziges
+  Touchpad 24-mal in der DB steht.
+- **Erfassung** (`src/modules/einlagern/komponenten.ts`): je Zeile Artikel über den Unique-Schlüssel
+  **(bezeichnung, kategorie, standortId)** suchen, sonst anlegen, dann EINGANG über `bucheLager`.
+  Kategorien fest: „Datenträger" / „Arbeitsspeicher".
+- **Wiegen zur Mengenschätzung verworfen:** Die Paketwaage hat 100-g-Stufen (verifiziert — 1-Liter-
+  Flasche zeigte 1,1 kg). Ein RAM-Riegel wiegt ~10 g, das ist nicht auflösbar. Nicht erneut anfangen.
 
 ### Bauteil-Ernte, Ersatzteil-Pool, Stückzahl & Abgaben (Aug 2026)
 
