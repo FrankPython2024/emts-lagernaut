@@ -1498,6 +1498,13 @@ function AnfrageDetailModal({
   const { show }             = useToast();
   const [confirmStorno, setConfirmStorno] = useState(false);
   const [stornoLoading, setStornoLoading] = useState(false);
+  // Einzelstorno: welche Zeile fragt gerade nach, und was ist schon weg.
+  // Die Gruppe im Modal ist ein Schnappschuss und lädt nicht nach, solange das
+  // Fenster offen ist — deshalb merken wir uns die stornierten Ids hier und
+  // zeigen sie sofort als „Storniert". Der Parent lädt beim Schließen neu.
+  const [frageTeil,   setFrageTeil]   = useState<number | null>(null);
+  const [teilLaeuft,  setTeilLaeuft]  = useState<number | null>(null);
+  const [storniert,   setStorniert]   = useState<Set<number>>(new Set());
 
   const storniereMutation = api.anfragen.storniere.useMutation();
 
@@ -1514,8 +1521,28 @@ function AnfrageDetailModal({
   const cfg           = STATUS_CFG[status] ?? STATUS_CFG.NEU!;
   // Stornierbar bis zur Ausgabe — inkl. IN_BEARBEITUNG (der Admin wird beim
   // Stornieren einer bereits bearbeiteten Position auffaellig gewarnt).
-  const stornoItems   = gruppe.anfragen.filter(a => a.status === "NEU" || a.status === "BEDARF" || a.status === "IN_BEARBEITUNG");
+  const istStornierbar = (a: { id: number; status: string }) =>
+    !storniert.has(a.id) &&
+    (a.status === "NEU" || a.status === "BEDARF" || a.status === "IN_BEARBEITUNG");
+  const stornoItems   = gruppe.anfragen.filter(istStornierbar);
   const kannStornieren = stornoItems.length > 0;
+  // Einzelne Teile nur anbieten, wenn es überhaupt mehrere gibt — bei einem
+  // Teil täte der Knopf unten dasselbe und zwei Wege wären nur verwirrend.
+  const einzelStorno  = stornoItems.length > 1;
+
+  async function handleTeilStorno(id: number, teil: string) {
+    setTeilLaeuft(id);
+    try {
+      await storniereMutation.mutateAsync({ id, techniker: kuerzel });
+      setStorniert(prev => new Set(prev).add(id));
+      setFrageTeil(null);
+      show(`${teil} storniert`, "success");
+    } catch (e) {
+      show(`Fehler: ${(e as { message?: string }).message ?? "Unbekannt"}`, "error");
+    } finally {
+      setTeilLaeuft(null);
+    }
+  }
 
   async function handleStornoConfirm() {
     setStornoLoading(true);
@@ -1587,10 +1614,16 @@ function AnfrageDetailModal({
             </h3>
             <ul style={{ margin: 0, padding: "0 0 0 1.2rem", lineHeight: 2 }}>
               {gruppe.anfragen.map(a => {
-                const aCfg = STATUS_CFG[a.status] ?? STATUS_CFG.NEU!;
+                const wegStorniert = storniert.has(a.id);
+                const aCfg = wegStorniert
+                  ? STATUS_CFG.STORNIERT!
+                  : (STATUS_CFG[a.status] ?? STATUS_CFG.NEU!);
+                const fragt = frageTeil === a.id;
                 return (
-                  <li key={a.id} style={{ fontSize: "1rem" }}>
-                    {a.teil}
+                  <li key={a.id} style={{ fontSize: "1rem", opacity: wegStorniert ? 0.55 : 1 }}>
+                    <span style={{ textDecoration: wegStorniert ? "line-through" : "none" }}>
+                      {a.teil}
+                    </span>
                     {/* Stückzahl nur zeigen, wenn mehr als eins angefragt wurde —
                         sonst stünde bei jedem Teil ein überflüssiges „1×". */}
                     {(a.menge ?? 1) > 1 && (
@@ -1607,6 +1640,33 @@ function AnfrageDetailModal({
                     }}>
                       {aCfg.text}
                     </span>
+                    {/* Einzelstorno direkt an der Zeile: erst fragen, dann tun. */}
+                    {einzelStorno && istStornierbar(a) && !fragt && (
+                      <button
+                        onClick={() => setFrageTeil(a.id)}
+                        aria-label={`${a.teil} stornieren`}
+                        style={teilStornoBtn}
+                      >
+                        ✕ Stornieren
+                      </button>
+                    )}
+                    {fragt && (
+                      <span style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center", marginLeft: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "0.85rem", color: "var(--text-dim)" }}>
+                          Nur dieses Teil?
+                        </span>
+                        <button
+                          onClick={() => handleTeilStorno(a.id, a.teil)}
+                          disabled={teilLaeuft === a.id}
+                          style={{ ...teilStornoBtn, background: "#ef4444", color: "white", borderColor: "#ef4444", opacity: teilLaeuft === a.id ? 0.6 : 1 }}
+                        >
+                          {teilLaeuft === a.id ? "…" : "Ja, stornieren"}
+                        </button>
+                        <button onClick={() => setFrageTeil(null)} style={teilStornoBtn}>
+                          Nein
+                        </button>
+                      </span>
+                    )}
                     {a.kommentar && (
                       <div style={{ fontSize: "0.82rem", color: "var(--text-dim)", fontStyle: "italic", lineHeight: 1.35 }}>
                         💬 {a.kommentar}
@@ -1616,6 +1676,11 @@ function AnfrageDetailModal({
                 );
               })}
             </ul>
+            {einzelStorno && (
+              <p style={{ margin: "0.6rem 0 0", fontSize: "0.85rem", color: "var(--text-dim)" }}>
+                Du kannst einzelne Teile stornieren — der Rest der Anfrage bleibt bestehen.
+              </p>
+            )}
           </div>
 
           {/* Nachrichten */}
@@ -1652,12 +1717,14 @@ function AnfrageDetailModal({
                     fontSize:     "0.95rem",
                   }}
                 >
-                  Anfrage stornieren
+                  {einzelStorno ? "Ganze Anfrage stornieren" : "Anfrage stornieren"}
                 </button>
               ) : (
                 <div style={{ background: "rgba(239,68,68,0.05)", border: "1.5px solid #ef4444", borderRadius: 12, padding: "1rem" }}>
                   <p style={{ margin: "0 0 0.5rem", fontWeight: 700, fontSize: "0.95rem" }}>
-                    Wirklich stornieren?
+                    {einzelStorno
+                      ? `Wirklich alle ${stornoItems.length} Teile stornieren?`
+                      : "Wirklich stornieren?"}
                   </p>
                   <p style={{ margin: "0 0 1rem", color: "var(--text-dim)", fontSize: "0.9rem" }}>
                     Diese Aktion kann nicht rückgängig gemacht werden.
@@ -1719,6 +1786,24 @@ function primaryBtn(enabled: boolean, bg = PRIMARY): React.CSSProperties {
     transition:   "background 0.15s",
   };
 }
+
+// Knopf direkt in der Teile-Zeile. Kleiner als die 56px der Hauptknöpfe, weil
+// er in den Zeilenfluss gehört — dafür mit Text statt reinem Symbol, damit
+// klar ist, was passiert.
+const teilStornoBtn: React.CSSProperties = {
+  marginLeft:   8,
+  padding:      "0 0.7rem",
+  minHeight:    36,
+  background:   "transparent",
+  border:       "1.5px solid var(--border)",
+  color:        "var(--text)",
+  borderRadius: 8,
+  cursor:       "pointer",
+  fontFamily:   "'Ubuntu', sans-serif",
+  fontWeight:   700,
+  fontSize:     "0.8rem",
+  verticalAlign: "middle",
+};
 
 const secondaryBtn: React.CSSProperties = {
   padding:      "0.8rem 1.2rem",
