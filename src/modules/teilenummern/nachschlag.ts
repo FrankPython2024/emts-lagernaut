@@ -26,6 +26,8 @@ export type Vorschlag = {
 export type NachschlagErgebnis = {
   ok:          boolean;
   grund?:      string;
+  /** Kaum eine Fundstelle enthielt die Nummer wirklich — Vorschläge mit Vorsicht. */
+  schwach?:    boolean;
   gesucht:     string[];
   fundstellen: Fundstelle[];
   vorschlaege: Vorschlag[];
@@ -52,17 +54,33 @@ export async function schlageAutomatischNach(teilenummerId: number): Promise<Nac
   }
 
   const begriffe = kandidaten(tn.nummer);
-  const fundstellen: Fundstelle[] = [];
+  const roh: Fundstelle[] = [];
   let letzterGrund: string | undefined;
 
-  // Von der vollständigen Nummer zu den Teilstücken. Sobald genug Fundstellen
-  // da sind, aufhören — jede weitere Abfrage kostet Kontingent ohne Nutzen.
+  // ⚠️ Nummer in Anführungszeichen suchen, sonst sucht die Suchmaschine
+  // „ungefähr so" und liefert bei langen Ziffernfolgen Paketverfolgungen und
+  // Rechnungsnummern. Der Zusatz „laptop" verankert das Umfeld zusätzlich.
   for (const begriff of begriffe) {
-    const r = await suche(begriff);
+    const r = await suche(`"${begriff}" laptop`);
     if (!r.ok) { letzterGrund = r.grund; break; }
-    fundstellen.push(...r.fundstellen);
-    if (fundstellen.length >= 6) break;
+    roh.push(...r.fundstellen);
+    if (roh.length >= 10) break;
   }
+
+  // ── Rauschen wegwerfen ──────────────────────────────────────────────────
+  // Eine Fundstelle, in der die Nummer nicht einmal vorkommt, sagt nichts über
+  // dieses Teil. Modellnamen darin wären reiner Zufall.
+  const passtZurNummer = (f: Fundstelle) => {
+    const text = normalisiere(`${f.titel} ${f.ausriss}`);
+    return begriffe.some((b) => text.includes(b));
+  };
+  const echte = roh.filter(passtZurNummer);
+
+  // Nur aussortieren, wenn danach noch etwas übrig bleibt. Bleibt nichts,
+  // arbeiten wir mit dem Rohmaterial weiter und sagen es dazu — lieber ein
+  // schwacher Vorschlag mit Warnung als gar keiner.
+  const fundstellen = echte.length >= 2 ? echte : roh;
+  const schwach     = echte.length < 2;
 
   if (fundstellen.length === 0) {
     return {
@@ -120,6 +138,7 @@ export async function schlageAutomatischNach(teilenummerId: number): Promise<Nac
 
   return {
     ok: true,
+    schwach,
     gesucht: begriffe,
     fundstellen: fundstellen.slice(0, 8),
     vorschlaege: vorschlaege.slice(0, 40),

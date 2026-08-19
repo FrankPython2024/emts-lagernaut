@@ -13,6 +13,7 @@ import { useState } from "react";
 export type AutoFund = {
   ok:          boolean;
   grund?:      string;
+  schwach?:    boolean;
   gesucht:     string[];
   fundstellen: { titel: string; ausriss: string; link: string }[];
   vorschlaege: { modellId: number; name: string; treffer: number; bereits: boolean }[];
@@ -67,6 +68,13 @@ export function AutoBereich({
           ⚠️ Das Spendergerät, aus dem dieses Teil stammt, kommt in keiner Fundstelle vor.
           Entweder wurde die Nummer falsch gelesen, oder die Funde gehören zu einem
           anderen Teil. Bitte nichts übernehmen, ohne es geprüft zu haben.
+        </p>
+      )}
+
+      {fund?.schwach && fund.ok && (
+        <p className="text-sm text-[#8A5A00] dark:text-[#f7b928]">
+          In den Fundstellen kam die Nummer kaum vor. Die Vorschläge sind deshalb
+          wackelig — bitte einzeln prüfen statt alles zu übernehmen.
         </p>
       )}
 
