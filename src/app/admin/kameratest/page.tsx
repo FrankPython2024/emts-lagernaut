@@ -38,10 +38,17 @@ type Messung = {
   quelle:      "Kamera-App" | "Live-Vorschau";
 };
 
-// Schwellen für die Ampel. Bewusst grob: die Zahl ist ein Anhaltspunkt,
-// das Urteil fällt am 1:1-Ausschnitt weiter unten mit eigenen Augen.
-const SCHAERFE_GUT    = 300;
-const SCHAERFE_MITTEL = 100;
+// Schwellen für die Ampel, kalibriert am 19.08.2026 an einem echten Foto:
+// USB-Board eines HP ProBook, Nummer DA0X8JTB8D0 einwandfrei lesbar, gemessen
+// mit 74. Dasselbe Bild künstlich verwischt fällt auf 3. Der Messwert trennt
+// also sehr deutlich, aber die absolute Zahl hängt am Skalierungsverfahren des
+// Browsers — deshalb liegen die Schwellen bewusst tief.
+//
+// ⚠️ Kalibriert an EINEM Bild. Wenn mehrere Aufnahmen vorliegen und die Ampel
+// erkennbar danebenliegt, gehören die Werte nachgezogen. Das letzte Wort hat
+// ohnehin der 1:1-Ausschnitt weiter unten.
+const SCHAERFE_GUT    = 40;
+const SCHAERFE_MITTEL = 15;
 
 export default function KameraTestPage() {
   const videoRef  = useRef<HTMLVideoElement>(null);
@@ -172,7 +179,10 @@ export default function KameraTestPage() {
     // reicht auch für die Erkennung nicht.
     const cc = cropRef.current;
     if (cc) {
-      const aw = Math.min(720, breite), ah = Math.min(280, hoehe);
+      // Großzügig geschnitten: Die Nummer sitzt selten exakt mittig, bei einer
+      // Platine steht sie z. B. am oberen Rand. Der Ausschnitt scrollt seitlich,
+      // lieber zu viel zeigen als die gesuchte Stelle knapp verfehlen.
+      const aw = Math.min(1400, breite), ah = Math.min(700, hoehe);
       cc.width = aw; cc.height = ah;
       const cx = cc.getContext("2d");
       cx?.drawImage(
@@ -219,9 +229,9 @@ export default function KameraTestPage() {
   }
 
   const urteil = !messung ? null
-    : messung.schaerfe >= SCHAERFE_GUT    ? { text: "scharf",   farbe: "#04B475" }
-    : messung.schaerfe >= SCHAERFE_MITTEL ? { text: "grenzwertig", farbe: "#f7b928" }
-    :                                       { text: "unscharf", farbe: "#fa3e3e" };
+    : messung.schaerfe >= SCHAERFE_GUT    ? { text: "scharf genug", farbe: "#04B475" }
+    : messung.schaerfe >= SCHAERFE_MITTEL ? { text: "grenzwertig",  farbe: "#f7b928" }
+    :                                       { text: "zu unscharf",  farbe: "#fa3e3e" };
 
   const knopf = "px-5 py-3 rounded-xl font-bold min-h-[56px] text-base";
 
@@ -242,6 +252,8 @@ export default function KameraTestPage() {
           <li>Teil mit der Nummer nach oben hinlegen, gutes Licht, <strong>kein Blitz</strong>.</li>
           <li>Teil leicht kippen, bis die Spiegelung neben der Schrift liegt.</li>
           <li>Etwa 15 bis 20 cm Abstand, auf die Nummer tippen zum Scharfstellen.</li>
+          <li><strong>Das Teil soll das Bild füllen.</strong> Viel weißer Tisch ringsherum heißt
+            wenige Bildpunkte auf der Nummer — genau die entscheiden.</li>
           <li>Die Nummer <strong>in die Bildmitte</strong> — der Ausschnitt unten kommt von dort.</li>
         </ol>
       </div>
