@@ -332,15 +332,46 @@ export async function liste(f: ListeFilter = {}) {
 }
 
 export async function aktualisiere(id: number, data: {
+  nummer?:          string;
   hersteller?:      string | null;
   teiltyp?:         string | null;
   notiz?:           string | null;
   istSeriennummer?: boolean;
   geprueft?:        boolean;
 }) {
+  // ── Nummer korrigieren ────────────────────────────────────────────────────
+  // Nötig, weil ein Scanner oft den Sammelbarcode liefert statt der reinen
+  // Teilenummer: Auf einer Lenovo-Tastatur steht „8SSN20V43652C3DG1AK01XR",
+  // die eigentliche Nummer darin ist „SN20V43652". Der lange Code steht im
+  // Netz nirgends, also findet auch keine Suche etwas dazu.
+  //
+  // Die Zerlegung im Code trifft nicht jedes Herstellerformat. Statt immer
+  // neue Sonderregeln zu bauen, darf ein Mensch die Nummer richtigstellen —
+  // einmal je Nummer, danach gilt sie für alle Stücke.
+  if (data.nummer !== undefined) {
+    const neu = normalisiere(data.nummer);
+    if (!istPlausibel(neu)) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `„${data.nummer}" sieht nicht wie eine Teilenummer aus.`,
+      });
+    }
+    const belegt = await prisma.teilenummer.findFirst({
+      where:  { nummer: neu, NOT: { id } },
+      select: { id: true },
+    });
+    if (belegt) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: `„${neu}" gibt es schon als eigenen Eintrag (#${belegt.id}). Bitte dort weiterpflegen.`,
+      });
+    }
+  }
+
   return prisma.teilenummer.update({
     where: { id },
     data: {
+      ...(data.nummer !== undefined && { nummer: normalisiere(data.nummer) }),
       ...(data.hersteller      !== undefined && { hersteller: data.hersteller?.trim() || null }),
       ...(data.teiltyp         !== undefined && { teiltyp:    data.teiltyp?.trim()    || null }),
       ...(data.notiz           !== undefined && { notiz:      data.notiz?.trim()      || null }),

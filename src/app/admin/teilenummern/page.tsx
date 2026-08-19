@@ -206,6 +206,22 @@ export default function TeilenummernPage() {
                         laeuft={namenZuordnen.isPending}
                       />
 
+                      {/* Nummer korrigierbar: Scanner liefern oft den
+                          Sammelbarcode statt der reinen Teilenummer, und der
+                          steht im Netz nirgends. */}
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8] mb-1">
+                          Teilenummer korrigieren
+                        </label>
+                        <input type="text" defaultValue={t.nummer}
+                          onBlur={(e) => e.target.value.trim().toUpperCase() !== t.nummer && aendern.mutate({ id: t.id, nummer: e.target.value })}
+                          className={`${feld} w-full font-mono max-w-md`} />
+                        <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+                          Steht auf dem Etikett mehr als eine Nummer, nimm die kurze
+                          Teilenummer. Ein langer Sammelbarcode lässt sich nicht nachschlagen.
+                        </p>
+                      </div>
+
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <input type="text" defaultValue={t.hersteller ?? ""} placeholder="Hersteller"
                           onBlur={(e) => e.target.value !== (t.hersteller ?? "") && aendern.mutate({ id: t.id, hersteller: e.target.value })}

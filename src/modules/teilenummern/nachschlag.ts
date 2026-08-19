@@ -57,13 +57,26 @@ export async function schlageAutomatischNach(teilenummerId: number): Promise<Nac
   const roh: Fundstelle[] = [];
   let letzterGrund: string | undefined;
 
-  // ⚠️ Nummer in Anführungszeichen suchen, sonst sucht die Suchmaschine
-  // „ungefähr so" und liefert bei langen Ziffernfolgen Paketverfolgungen und
-  // Rechnungsnummern. Der Zusatz „laptop" verankert das Umfeld zusätzlich.
-  for (const begriff of begriffe) {
-    const r = await suche(`"${begriff}" laptop`);
+  // ⚠️ Gestaffelt suchen, und zwar in dieser Reihenfolge:
+  //
+  //   1. Nummer in Anführungszeichen — exakt. Liefert nur echte Treffer,
+  //      aber eben auch keine, wenn die Nummer so nirgends steht.
+  //   2. Dieselbe Nummer ohne Anführungszeichen. Bringt mehr, auch Rauschen;
+  //      das fängt der Filter unten wieder ein.
+  //
+  // Bewusst OHNE Zusatzwort wie „laptop": Das schließt Seiten aus, die
+  // „Notebook" schreiben oder auf Deutsch sind. Genau daran ist der erste
+  // Versuch gescheitert.
+  const versuche: string[] = [];
+  for (const b of begriffe) versuche.push(`"${b}"`);
+  for (const b of begriffe) versuche.push(b);
+
+  for (const begriff of versuche) {
+    const r = await suche(begriff);
     if (!r.ok) { letzterGrund = r.grund; break; }
     roh.push(...r.fundstellen);
+    // Genug Material: aufhören. Jede weitere Abfrage belastet die
+    // Suchmaschinen ohne Erkenntnisgewinn.
     if (roh.length >= 10) break;
   }
 

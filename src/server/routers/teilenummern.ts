@@ -39,6 +39,7 @@ export const teilenummernRouter = createTRPCRouter({
   aktualisieren: pflegen
     .input(z.object({
       id:              z.number().int().positive(),
+      nummer:          z.string().min(3).max(120).optional(),
       hersteller:      z.string().max(100).nullish(),
       teiltyp:         z.string().max(100).nullish(),
       notiz:           z.string().max(500).nullish(),
