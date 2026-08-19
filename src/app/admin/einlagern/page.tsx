@@ -4,6 +4,8 @@ import { useRouter }    from "next/navigation";
 import { useSession }   from "next-auth/react";
 import { api }          from "@/trpc/react";
 import { useToast }     from "@/components/ui/Toast";
+import { TeilenummerFeld } from "@/components/TeilenummerFeld";
+import { StepLosesTeil }   from "./StepLosesTeil";
 import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
 import { useStandortFilter } from "@/lib/standort/standortContext";
 import {
@@ -25,7 +27,10 @@ import {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 // 6 = Datentraeger/RAM erfassen (eigener Weg, nicht geraetegebunden)
-type WizardStep = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+// 0 Willkommen · 1–5 der Weg über das Spendergerät · 6 Datenträger/RAM ·
+// 7 einzelnes Teil ohne Gerät. 6 und 7 sind eigenständige Zweige, keine
+// Zwischenschritte — deshalb hinten angehängt statt einsortiert.
+type WizardStep = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 type GeraetState = {
   name:  string;
@@ -42,6 +47,9 @@ type AusgewaehltItem = {
   notiz:      string;
   lagerplatz: string;
   verschiedenesText?: string;
+  // Aufgedruckte Teilenummer. Optional — wer nichts scannen kann, lagert wie
+  // bisher ein. Ist sie gesetzt, bestimmt sie serverseitig den Artikel.
+  teilenummer?: string;
 };
 
 type ErgebnisItem = {
@@ -188,6 +196,7 @@ function TeilKonfigurator({
   const [notiz,   setNotiz]   = useState(initial.notiz   ?? "");
   const [warn,    setWarn]    = useState(false);
   const [freitext, setFreitext] = useState(initial.verschiedenesText ?? "");
+  const [teilenummer, setTeilenummer] = useState(initial.teilenummer ?? "");
   const freitextRef = useRef<HTMLInputElement>(null);
 
   const istVerschiedenes = teil.istVerschiedenes;
@@ -233,6 +242,7 @@ function TeilKonfigurator({
       grading,
       notiz,
       lagerplatz: initial.lagerplatz ?? "",
+      ...(teilenummer.trim() ? { teilenummer: teilenummer.trim() } : {}),
       ...(istVerschiedenes ? { verschiedenesText: ft } : {}),
     });
   }
@@ -289,6 +299,12 @@ function TeilKonfigurator({
               )}
             </div>
           )}
+
+          {/* Teilenummer — steht bewusst ganz oben: Das Teil ist gerade in der
+              Hand, da wird gescannt, bevor irgendetwas ausgewählt wird. */}
+          <div style={{ marginBottom: "1.5rem" }}>
+            <TeilenummerFeld wert={teilenummer} onChange={setTeilenummer} />
+          </div>
 
           {/* Grading */}
           <div style={{ marginBottom: "1.5rem" }}>
@@ -428,7 +444,7 @@ function TeilKonfigurator({
 
 // ── Step 0: Willkommen ────────────────────────────────────────────────────────
 
-function StepWillkommen({ onStart, onKomponenten }: { onStart: () => void; onKomponenten: () => void }) {
+function StepWillkommen({ onStart, onKomponenten, onLosesTeil }: { onStart: () => void; onKomponenten: () => void; onLosesTeil: () => void }) {
   return (
     <div style={{ maxWidth: 560, margin: "0 auto" }}>
       <div style={{ ...S.card, textAlign: "center" }}>
@@ -494,6 +510,23 @@ function StepWillkommen({ onStart, onKomponenten }: { onStart: () => void; onKom
             onMouseLeave={(e) => (e.currentTarget.style.transform = "")}
           >
             💾 Datenträger &amp; Arbeitsspeicher erfassen
+          </button>
+        </div>
+
+        {/* Weg B: Es liegt nur das Teil da, keine LogID. Kommt bei Teilen aus
+            Kisten und Lieferungen vor und war bisher gar nicht vorgesehen —
+            der Assistent verlangte immer ein Gerät. */}
+        <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border)" }}>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginBottom: "0.8rem" }}>
+            Du hast nur das Ersatzteil, ohne Gerät und ohne LogID?
+          </div>
+          <button
+            onClick={onLosesTeil}
+            style={{ ...S.bigBtn("var(--afb-green)"), fontSize: "1.05rem" }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = "")}
+          >
+            🔩 Einzelnes Teil ohne Gerät
           </button>
         </div>
       </div>
@@ -2314,6 +2347,7 @@ export default function EinlagernPage() {
         notiz:             i.notiz || undefined,
         lagerplatz:        i.lagerplatz || undefined,
         verschiedenesText: i.verschiedenesText || undefined,
+        teilenummer:       i.teilenummer || undefined,
       })),
     });
   }
@@ -2359,11 +2393,23 @@ export default function EinlagernPage() {
       )}
 
       {step === 0 && (
-        <StepWillkommen onStart={() => setStep(1)} onKomponenten={() => setStep(6)} />
+        <StepWillkommen
+          onStart={() => setStep(1)}
+          onKomponenten={() => setStep(6)}
+          onLosesTeil={() => setStep(7)}
+        />
       )}
 
       {step === 6 && (
         <StepKomponenten standortId={einlagerStandortId} onBack={() => setStep(0)} />
+      )}
+
+      {step === 7 && (
+        <StepLosesTeil
+          standortId={einlagerStandortId}
+          teiltypen={STANDARD_TEILE.map((t) => ({ id: t.id, label: t.label }))}
+          onBack={() => setStep(0)}
+        />
       )}
 
       {step === 1 && (

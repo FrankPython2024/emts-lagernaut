@@ -8,6 +8,9 @@ import { VERSCHIEDENES_TEILTYP, verschiedenesKompatTeiltyp } from "@/lib/constan
 import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
 import { getOrCreateModell }   from "@/lib/geraete/getOrCreateModell";
 import { type HerkunftArt }    from "@/lib/einlagern/herkunft";
+import {
+  findeOderLegeAn, artikelZuNummer, verknuepfeArtikel, merkeSpendermodell,
+} from "@/modules/teilenummern/service";
 
 /**
  * Effektiver teiltyp-Schlüssel für Bezeichnung + Kompatibilitaet.
@@ -213,6 +216,9 @@ export type ExecuteItem = {
   notiz?:            string;
   lagerplatz?:       string;
   verschiedenesText?: string;
+  // Aufgedruckte bzw. aufgeklebte Teilenummer. Wenn gesetzt, bestimmt SIE den
+  // Artikel — nicht die aus Geraetename und Teiltyp gebaute Bezeichnung.
+  teilenummer?:      string | null;
 };
 
 export type ExecuteInput = {
@@ -352,10 +358,38 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
       : null;
     console.log(`[Einlagern] Artikel: "${artikelBezeichnung}"`);
 
+    // ── 0. Teilenummer: schlägt ALLES andere ─────────────────────────────
+    // Die aufgedruckte Nummer ist die Identität des Teils. Nur so landet
+    // dasselbe Board, einmal über die LogID und einmal lose erfasst, auf
+    // demselben Artikel. Über die gebaute Bezeichnung geht das nicht, weil die
+    // lose Erfassung gar keinen Gerätenamen hat.
+    let teilenummerId: number | null = null;
+    let artikel: Awaited<ReturnType<typeof prisma.artikel.findFirst>> = null;
+
+    if (item.teilenummer?.trim()) {
+      const tn = await findeOderLegeAn(prisma, item.teilenummer, {
+        hersteller,
+        teiltyp: item.teiltyp,
+      });
+      // Als Seriennummer erkannte Codes sind pro Stück einmalig und taugen
+      // NICHT als Identität — sie würden für jedes Stück einen eigenen Artikel
+      // erzeugen. Die Einlagerung läuft dann einfach wie bisher weiter.
+      if (!tn.istSeriennummer) {
+        teilenummerId = tn.id;
+        const perNummer = await artikelZuNummer(prisma, tn.id, sId);
+        if (perNummer) {
+          artikel = await prisma.artikel.findUnique({ where: { id: perNummer.id } });
+          console.log(`[Einlagern] Artikel über Teilenummer ${tn.nummer} gefunden: #${perNummer.id}`);
+        }
+      }
+    }
+
     // 1. Exakter Artikel via Kompatibilitaet (canonical + alt für Backward-Compat)
-    let artikel = await prisma.artikel.findFirst({
-      where: { kompatibel: { some: { geraet: { in: geraetNamen }, teiltyp: teiltypKey } } },
-    });
+    if (!artikel) {
+      artikel = await prisma.artikel.findFirst({
+        where: { kompatibel: { some: { geraet: { in: geraetNamen }, teiltyp: teiltypKey } } },
+      });
+    }
 
     // 2. Artikel per kanonischer Bezeichnung — KEIN Kategorie-Fallback!
     if (!artikel) {
@@ -392,6 +426,22 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
         where: { id: artikel.id },
         data:  { lagerplatz: lagerplatzFuerArtikel },
       });
+    }
+
+    // 3c. Nummer an den Artikel heften und das Spendermodell festhalten.
+    // Beides absichtlich NACH der Artikel-Auflösung: Scheitert das Verknüpfen
+    // (z. B. weil die Nummer am Standort schon an einem anderen Artikel hängt),
+    // ist das kein Grund, die Einlagerung abzubrechen — der Bestand stimmt
+    // trotzdem, der Fall taucht in der Pflegeliste auf.
+    if (teilenummerId != null) {
+      const v = await verknuepfeArtikel(prisma, artikel.id, teilenummerId);
+      if (!v.gesetzt) console.warn(`[Einlagern] Teilenummer nicht verknüpft: ${v.grund}`);
+      // Der Spender ist die einzige hundertprozentig sichere Aussage darüber,
+      // wo dieses Teil hineinpasst. 3D-Druck zählt nicht: Da gab es kein
+      // Spendergerät, das Modell wurde nur zur Zuordnung gewählt.
+      if (modellId != null && input.herkunftArt !== "DRUCK") {
+        await merkeSpendermodell(prisma, teilenummerId, modellId);
+      }
     }
 
     // 4. EINGANG-Buchung

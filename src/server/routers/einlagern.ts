@@ -14,6 +14,7 @@ import {
 import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
 import { HERKUNFT_ARTEN } from "@/lib/einlagern/herkunft";
 import { erfasseKomponenten } from "@/modules/einlagern/komponenten";
+import { erfasseLosesTeil }   from "@/modules/einlagern/loseTeile";
 import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
 
 const EinlagerItemSchema = z.object({
@@ -24,6 +25,9 @@ const EinlagerItemSchema = z.object({
   lagerplatz:       z.string().max(50).optional(),
   // Nur für Teiltyp "Verschiedenes": Freitext (z.B. "Schraubenset").
   verschiedenesText: z.string().max(100).optional(),
+  // Aufgedruckte Teilenummer, gescannt oder getippt. Bestimmt, wenn gesetzt,
+  // die Identität des Artikels.
+  teilenummer:      z.string().max(120).optional(),
 });
 
 export const einlagernRouter = createTRPCRouter({
@@ -56,6 +60,29 @@ export const einlagernRouter = createTRPCRouter({
       standortId: z.number().int().positive().optional(),
     }))
     .query(({ input }) => preview(input.items, input.geraetName, input.standortId ?? 1)),
+
+  // ── Weg B: nur das Teil, kein Spendergeraet ─────────────────────────────
+  // Anker ist die Teilenummer statt der LogID. Eins von beidem, Nummer oder
+  // Bezeichnung, muss da sein — der Service lehnt sonst ab.
+  erfasseLosesTeil: adminProcedure
+    .input(z.object({
+      standortId:  z.number().int().positive().optional(),
+      teilenummer: z.string().max(120).nullish(),
+      bezeichnung: z.string().max(191).nullish(),
+      teiltyp:     z.string().min(1).max(100),
+      menge:       z.number().int().min(1).max(9999),
+      grading:     z.string().max(5).nullish(),
+      lagerplatz:  z.string().max(50).nullish(),
+      notiz:       z.string().max(500).nullish(),
+    }))
+    .mutation(({ input, ctx }) => {
+      const user = ctx.session!.user as SessionUser;
+      return erfasseLosesTeil({
+        ...input,
+        mitarbeiter: user.kuerzel || user.name || "?",
+        standortId:  resolveStandortId(ctx, input.standortId),
+      });
+    }),
 
   // ── Datenträger & Arbeitsspeicher erfassen ────────────────────────────────
   // Eigener Weg neben dem Ernten aus einem Spendergerät: Diese Teile sind nicht

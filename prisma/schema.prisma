@@ -180,14 +180,78 @@ model Artikel {
   // Wird ein Artikel gelöscht, bleibt beim Partner eine tote Id zurück; das
   // fällt nicht auf, weil jede Abfrage den Partner ohnehin nachschlägt.
   poolPartnerId Int?
+  // ── Teilenummer als Identitaet ──────────────────────────────────────────
+  // Die vom Hersteller aufgedruckte bzw. aufgeklebte Nummer. Ist sie gesetzt,
+  // ist SIE der Schluessel des Artikels, nicht die Bezeichnung: Dasselbe Teil
+  // ueber die LogID eines Spendergeraets und lose eingelagert muss auf
+  // denselben Artikel laufen, sonst entstehen wieder Dubletten.
+  // null = wie bisher, Identitaet ueber (bezeichnung, kategorie, standortId).
+  teilenummerId Int?
+  teilenummer   Teilenummer?      @relation(fields: [teilenummerId], references: [id])
   standortId    Int               @default(1)
   standort      Standort          @relation(fields: [standortId], references: [id])
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
   @@unique([bezeichnung, kategorie, standortId])
+  // Eine Teilenummer ergibt je Standort genau EINEN Artikel. NULL bleibt in
+  // MySQL mehrfach erlaubt, Altbestand ohne Nummer stoert also nicht.
+  @@unique([teilenummerId, standortId])
   @@index([standortId])
   @@index([poolPartnerId])
+}
+
+// ── Teilenummern-Wissen ───────────────────────────────────────────────────────
+//
+// Eine Zeile je physisch aufgedruckter Nummer, standortuebergreifend. Das ist
+// die Wissensbasis: Was ist das fuer ein Teil, von wem, und in welche Modelle
+// passt es. Sie startet leer und fuellt sich beim Einlagern.
+//
+// ⚠️ Auch eine Nummer, ueber die noch NICHTS bekannt ist, hat schon Wert: Sie
+// sagt „dieses Teil ist dasselbe wie jenes" und verhindert damit Dubletten.
+model Teilenummer {
+  id            Int      @id @default(autoincrement())
+  nummer        String   @unique @db.VarChar(120)
+  hersteller    String?  @db.VarChar(100)
+  teiltyp       String?  @db.VarChar(100)
+  // Seriennummern sind pro Stueck einmalig und taugen NICHT als Teilenummer.
+  // Erkennungshilfe: eine Nummer, die nur ein einziges Mal vorkommt, ist
+  // verdaechtig. Entschieden wird das auf der Pflegeseite, nicht an der Werkbank.
+  istSeriennummer Boolean @default(false)
+  // true = ein Mensch hat die Modellliste bestaetigt. Erst dann gilt sie als
+  // gesichert im Sinne der Zusage, Kompatibilitaeten nur sicher zu pflegen.
+  geprueft      Boolean  @default(false)
+  notiz         String?  @db.VarChar(500)
+  // Wie oft wurde diese Nummer bisher gescannt/erfasst — Grundlage fuer den
+  // Seriennummern-Verdacht und fuer die Sortierung der Pflegeliste.
+  sichtungen    Int      @default(0)
+  erstelltAm    DateTime @default(now())
+  aktualisiertAm DateTime @updatedAt
+
+  artikel  Artikel[]
+  modelle  TeilenummerModell[]
+
+  @@index([geprueft])
+  @@index([istSeriennummer])
+}
+
+// Welche Geraetemodelle passen zu dieser Nummer, und woher wissen wir das.
+model TeilenummerModell {
+  id            Int      @id @default(autoincrement())
+  teilenummerId Int
+  modellId      Int
+  // SPENDER   = aus der LogID des Altgeraets, aus dem das Teil kam. Sicher.
+  // MANUELL   = jemand hat es nachgeschlagen und eingetragen.
+  // AUTOMATISCH = maschinell gefunden, noch nicht bestaetigt (Stufe 2).
+  quelle        String   @default("SPENDER") @db.VarChar(20)
+  bestaetigt    Boolean  @default(false)
+  erstelltAm    DateTime @default(now())
+
+  teilenummer Teilenummer   @relation(fields: [teilenummerId], references: [id], onDelete: Cascade)
+  modell      GeraeteModell @relation(fields: [modellId], references: [id], onDelete: Cascade)
+
+  @@unique([teilenummerId, modellId])
+  @@index([modellId])
 }
 
 model Buchung {
@@ -333,6 +397,7 @@ model GeraeteModell {
   createdAt        DateTime            @default(now())
   belegung         LagerplatzBelegung?
   modellTeiltypen  ModellTeiltyp[]
+  teilenummern     TeilenummerModell[]
 
   @@unique([hersteller, modell])
   @@index([aktiv])
