@@ -65,6 +65,40 @@ export function kandidaten(roh: string): string[] {
 }
 
 /**
+ * Vorschläge zum Kürzen eines Sammelbarcodes.
+ *
+ * Anders als `kandidaten` ist das NICHT zum automatischen Suchen gedacht —
+ * jeder Vorschlag würde eine eigene Suchabfrage kosten und die meisten wären
+ * falsch. Stattdessen bekommt der Mensch auf der Pflegeseite ein paar
+ * anklickbare Stücke, statt tippen zu müssen.
+ *
+ * Hintergrund: Ein Scan wie „8SSN20V43652C3DG1AK01XR" enthält Werk, Datum und
+ * Stücknummer. Er gehört zu genau EINEM Exemplar und steht nirgends im Netz.
+ * Die suchbare Nummer darin ist „SN20V43652" — die ersten zehn Zeichen nach
+ * dem Vorsatz.
+ */
+export function kuerzungsVorschlaege(roh: string): string[] {
+  const n = normalisiere(roh);
+  // Kurze Codes brauchen das nicht, die sind schon die Teilenummer.
+  if (n.length <= 14) return [];
+
+  const liste = new Set<string>();
+  // Reihenfolge ist Absicht: Der wahrscheinlichste Vorschlag steht vorn.
+  // Zwei Zeichen Vorsatz und zehn Zeichen Länge treffen die verbreiteten
+  // Etiketten am häufigsten — bei „8SSN20V43652…" kommt damit direkt
+  // „SN20V43652" heraus, also genau das, was auf dem Etikett steht.
+  for (const vorsatz of [2, 0, 3, 1]) {
+    for (const laenge of [10, 11, 9, 12, 8]) {
+      const stueck = n.slice(vorsatz, vorsatz + laenge);
+      if (stueck.length === laenge && /\d/.test(stueck)) liste.add(stueck);
+    }
+  }
+  // Zwölf reichen. Wer hier nichts Passendes findet, tippt die Nummer
+  // schneller ab, als er sich durch dreißig Knöpfe liest.
+  return Array.from(liste).slice(0, 12);
+}
+
+/**
  * Den passenden Eintrag zu einem rohen Scan finden — in BEIDE Richtungen.
  *
  * Fall 1: Gespeichert ist die kurze Nummer, gescannt wird der lange Barcode.
@@ -321,6 +355,8 @@ export async function liste(f: ListeFilter = {}) {
       // Genau EIN Vorkommen bei mehreren Einlagerungen spricht für eine
       // Seriennummer. Als Hinweis, nicht als Automatik — entscheiden soll ein Mensch.
       seriennummerVerdacht: t.sichtungen === 1 && t.modelle.length <= 1,
+      // Anklickbare Kürzungen, wenn die Nummer nach Sammelbarcode aussieht.
+      kuerzungen: kuerzungsVorschlaege(t.nummer),
       modelle: t.modelle.map((m) => ({
         modellId: m.modell.id, name: `${m.modell.hersteller} ${m.modell.modell}`,
         quelle: m.quelle, bestaetigt: m.bestaetigt,

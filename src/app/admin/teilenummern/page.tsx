@@ -220,6 +220,26 @@ export default function TeilenummernPage() {
                           Steht auf dem Etikett mehr als eine Nummer, nimm die kurze
                           Teilenummer. Ein langer Sammelbarcode lässt sich nicht nachschlagen.
                         </p>
+
+                        {/* Anklickbare Kürzungen. Der Scan enthält Werk, Datum und
+                            Stücknummer; die suchbare Nummer steckt vorne drin. Statt
+                            tippen zu lassen, hier zum Antippen. */}
+                        {t.kuerzungen.length > 0 && (
+                          <div className="mt-2">
+                            <div className="text-xs font-bold text-[#8A5A00] dark:text-[#f7b928] mb-1">
+                              Sieht nach Sammelbarcode aus. Passt eines davon zum Etikett?
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {t.kuerzungen.map((k) => (
+                                <button key={k}
+                                  onClick={() => aendern.mutate({ id: t.id, nummer: k })}
+                                  className="text-xs font-mono px-2 py-1 rounded border border-[#0064d2]/40 text-[#0064d2] dark:text-[#45bdff] hover:bg-[#0064d2]/10">
+                                  {k}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
