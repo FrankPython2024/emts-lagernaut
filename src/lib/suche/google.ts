@@ -1,4 +1,5 @@
 import { redis } from "@/core/infra/redis";
+import type { Fundstelle, SucheErgebnis } from "./typen";
 
 // ── Google Custom Search ─────────────────────────────────────────────────────
 //
@@ -18,16 +19,6 @@ import { redis } from "@/core/infra/redis";
 // anderes vielleicht noch braucht.
 
 const TAGESLIMIT = 90;
-
-export type Fundstelle = {
-  titel:   string;
-  ausriss: string;
-  link:    string;
-};
-
-export type SucheErgebnis =
-  | { ok: true;  fundstellen: Fundstelle[]; verbraucht: number }
-  | { ok: false; grund: string };
 
 export function istEingerichtet(): boolean {
   return !!(process.env.GOOGLE_CSE_KEY && process.env.GOOGLE_CSE_ID);

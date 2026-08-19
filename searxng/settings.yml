@@ -1,0 +1,52 @@
+# ── SearXNG für Lagernaut ────────────────────────────────────────────────────
+#
+# Metasuchmaschine im eigenen Haus. Sie hat keinen eigenen Index, sondern fragt
+# Google, Bing, DuckDuckGo und andere und fasst die Antworten zusammen.
+#
+# Zweck hier: zu einer Teilenummer Fundstellen holen, in denen dann gegen die
+# EIGENE Gerätemodell-Tabelle abgeglichen wird. Es wird also nichts „verstanden",
+# nur gesucht.
+#
+# ⚠️ Erreichbar ist der Dienst NUR im Docker-Netz, nicht von außen. In der
+# docker-compose.yml ist bewusst kein Port nach draußen gelegt. Eine offene
+# SearXNG-Instanz im Netz wäre eine Einladung für fremden Suchverkehr über
+# eure Leitung.
+
+use_default_settings: true
+
+general:
+  instance_name: "Lagernaut Teilesuche"
+  # Keine Statistik, keine Metriken — wir sind der einzige Nutzer.
+  enable_metrics: false
+
+server:
+  # Kommt aus der Umgebungsvariable SEARXNG_SECRET.
+  secret_key: "bitte-per-umgebungsvariable-setzen"
+  # Der Ratenbegrenzer ist für öffentliche Instanzen gedacht und würde hier
+  # nur die eigenen Abfragen ausbremsen. Der Dienst ist ohnehin nicht von
+  # außen erreichbar.
+  limiter: false
+  image_proxy: false
+  method: "GET"
+
+search:
+  # json ist der Grund, warum diese Datei überhaupt existiert: Ohne diesen
+  # Eintrag liefert SearXNG ausschließlich HTML und ist für ein Programm
+  # nicht nutzbar.
+  formats:
+    - html
+    - json
+  safe_search: 0
+  autocomplete: ""
+  default_lang: ""
+
+ui:
+  infinite_scroll: false
+
+outgoing:
+  # Höflich bleiben: wenige gleichzeitige Verbindungen, großzügige Zeitgrenze.
+  # Wir stellen am Tag ein paar Dutzend Anfragen, nicht Tausende.
+  request_timeout: 8.0
+  max_request_timeout: 12.0
+  pool_connections: 10
+  pool_maxsize: 10

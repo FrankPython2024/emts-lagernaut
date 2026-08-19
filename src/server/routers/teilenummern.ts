@@ -4,7 +4,7 @@ import {
   schlageNach, liste, aktualisiere, setzeModelle, ordneNamenZu, istPlausibel, normalisiere,
 } from "@/modules/teilenummern/service";
 import { schlageAutomatischNach } from "@/modules/teilenummern/nachschlag";
-import { istEingerichtet, verbrauchHeute } from "@/lib/suche/google";
+import { istEingerichtet, verbrauchHeute, tageslimit, aktiveQuelle } from "@/lib/suche";
 
 // ── Teilenummern ─────────────────────────────────────────────────────────────
 // Lesen darf, wer Artikel sehen darf; pflegen, wer Artikel bearbeiten darf.
@@ -81,7 +81,8 @@ export const teilenummernRouter = createTRPCRouter({
 
   sucheStatus: pflegen.query(async () => ({
     eingerichtet: istEingerichtet(),
+    quelle:       aktiveQuelle(),
     verbraucht:   await verbrauchHeute(),
-    tageslimit:   90,
+    tageslimit:   tageslimit(),
   })),
 });

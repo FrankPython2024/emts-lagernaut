@@ -21,6 +21,9 @@ services:
       # Fehler statt mit einer Rechnung.
       - GOOGLE_CSE_KEY=${GOOGLE_CSE_KEY}
       - GOOGLE_CSE_ID=${GOOGLE_CSE_ID}
+      # Eigene Metasuche im Docker-Netz. Ist sie gesetzt, hat sie Vorrang vor
+      # Google — sie sucht im ganzen Web statt nur in gelisteten Domains.
+      - SEARXNG_URL=http://searxng:8080
     volumes:
       # Gemeinsamer Ordner mit dem ReForm-Sync (Trigger + Status). Der Host-Wächter
       # liest den Trigger; die App schreibt Trigger/Status. Bind-Mount vom Host.
@@ -40,6 +43,19 @@ services:
       MYSQL_PASSWORD: lagernaut
     volumes:
       - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+
+  # ── Eigene Metasuche ──────────────────────────────────────────────────────
+  # Holt Fundstellen zu Teilenummern. Bewusst OHNE Portfreigabe nach aussen:
+  # nur die App im selben Docker-Netz darf zugreifen. Eine offene Instanz waere
+  # eine Einladung fuer fremden Suchverkehr ueber eure Leitung.
+  searxng:
+    image: searxng/searxng:latest
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+      - SEARXNG_SECRET=${SEARXNG_SECRET}
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
     restart: unless-stopped
 
   redis:

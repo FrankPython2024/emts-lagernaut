@@ -64,6 +64,47 @@ export function kandidaten(roh: string): string[] {
   return Array.from(liste).slice(0, 4);
 }
 
+/**
+ * Den passenden Eintrag zu einem rohen Scan finden — in BEIDE Richtungen.
+ *
+ * Fall 1: Gespeichert ist die kurze Nummer, gescannt wird der lange Barcode.
+ *         Das decken die Teilstücke oben ab.
+ * Fall 2: Gespeichert ist der lange Barcode (weil jemand ihn zuerst gescannt
+ *         hat), getippt wird die kurze Nummer vom Etikett. Dann hilft die
+ *         Zerlegung nicht — hier muss geprüft werden, ob eine gespeicherte
+ *         Nummer IN der Eingabe steckt oder die Eingabe in einer gespeicherten.
+ *
+ * Ohne Fall 2 entstünden für dasselbe Teil zwei Einträge, je nachdem wer was
+ * gescannt hat. Genau das soll die Teilenummer ja verhindern.
+ */
+export async function findeEintrag(
+  client: Prisma.TransactionClient,
+  roh: string,
+): Promise<{ id: number } | null> {
+  const nummer = normalisiere(roh);
+  if (!nummer) return null;
+
+  // Schnellweg: exakte Nummer oder eines ihrer Teilstücke.
+  const direkt = await client.teilenummer.findFirst({
+    where:   { nummer: { in: kandidaten(nummer) } },
+    // Kürzeste zuerst — die reine Teilenummer ist das kürzere Teilstück.
+    orderBy: { nummer: "asc" },
+    select:  { id: true },
+  });
+  if (direkt) return direkt;
+
+  // Langsamweg, nur wenn nötig: steckt eine gespeicherte Nummer in der Eingabe,
+  // oder die Eingabe in einer gespeicherten? Volltabellensuche, aber die
+  // Tabelle ist klein und dieser Fall tritt selten ein.
+  const treffer = await client.$queryRaw<{ id: number }[]>`
+    SELECT id FROM Teilenummer
+    WHERE CHAR_LENGTH(nummer) >= 6
+      AND (${nummer} LIKE CONCAT('%', nummer, '%') OR nummer LIKE CONCAT('%', ${nummer}, '%'))
+    ORDER BY CHAR_LENGTH(nummer) ASC
+    LIMIT 1`;
+  return treffer[0] ?? null;
+}
+
 export type TeilenummerInfo = {
   id:              number;
   nummer:          string;
@@ -86,16 +127,13 @@ export async function schlageNach(roh: string): Promise<TeilenummerInfo | null> 
   const nummer = normalisiere(roh);
   if (!nummer) return null;
 
-  // Erst die Nummer selbst, dann die Teilstücke: Wer den langen Barcode
-  // scannt, soll denselben Treffer sehen wie jemand, der die kurze Nummer
-  // vom Etikett abtippt.
-  const gesucht = kandidaten(nummer);
+  // Beidseitig suchen: Wer den langen Barcode scannt, soll denselben Treffer
+  // sehen wie jemand, der die kurze Nummer vom Etikett abtippt — und umgekehrt.
+  const gefunden = await findeEintrag(prisma, nummer);
+  if (!gefunden) return null;
 
-  const t = await prisma.teilenummer.findFirst({
-    where:   { nummer: { in: gesucht } },
-    // Kürzere Nummern zuerst: Die reine Teilenummer ist immer das kürzere
-    // Teilstück des zusammengesetzten Barcodes.
-    orderBy: { nummer: "asc" },
+  const t = await prisma.teilenummer.findUnique({
+    where:   { id: gefunden.id },
     include: {
       modelle: { include: { modell: { select: { id: true, hersteller: true, modell: true } } } },
       artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true, standortId: true } },
@@ -134,14 +172,16 @@ export async function findeOderLegeAn(
     });
   }
 
-  // Auch hier über die Teilstücke suchen: Sonst entstünden für dasselbe Teil
-  // zwei Einträge, je nachdem ob jemand den Barcode gescannt oder die Nummer
-  // vom Etikett abgetippt hat.
-  const vorhanden = await tx.teilenummer.findFirst({
-    where:   { nummer: { in: kandidaten(nummer) } },
-    orderBy: { nummer: "asc" },
-    select:  { id: true, nummer: true, istSeriennummer: true, hersteller: true, teiltyp: true },
-  });
+  // Beidseitig suchen: Sonst entstünden für dasselbe Teil zwei Einträge, je
+  // nachdem ob jemand den Barcode gescannt oder die Nummer vom Etikett
+  // abgetippt hat.
+  const gefunden = await findeEintrag(tx, nummer);
+  const vorhanden = gefunden
+    ? await tx.teilenummer.findUnique({
+        where:  { id: gefunden.id },
+        select: { id: true, nummer: true, istSeriennummer: true, hersteller: true, teiltyp: true },
+      })
+    : null;
 
   if (vorhanden) {
     await tx.teilenummer.update({

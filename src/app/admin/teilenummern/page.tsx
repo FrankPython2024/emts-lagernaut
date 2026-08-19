@@ -100,7 +100,7 @@ export default function TeilenummernPage() {
         {status.data && (
           <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
             {status.data.eingerichtet
-              ? `Automatische Suche: ${status.data.verbraucht} von ${status.data.tageslimit} Abfragen heute`
+              ? `Automatische Suche über ${status.data.quelle === "searxng" ? "die eigene Metasuche" : "Google"}: ${status.data.verbraucht} von ${status.data.tageslimit} Abfragen heute`
               : "Automatische Suche nicht eingerichtet — Modelle von Hand eintragen"}
           </span>
         )}

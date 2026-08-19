@@ -1,5 +1,5 @@
 import { prisma } from "@/core/db/prisma";
-import { suche, istEingerichtet, verbrauchHeute, type Fundstelle } from "@/lib/suche/google";
+import { suche, istEingerichtet, verbrauchHeute, type Fundstelle } from "@/lib/suche";
 import { normalisiere, kandidaten } from "./service";
 
 // ── Automatisches Nachschlagen einer Teilenummer ─────────────────────────────
@@ -46,7 +46,7 @@ export async function schlageAutomatischNach(teilenummerId: number): Promise<Nac
   if (!istEingerichtet()) {
     return {
       ok: false, ...leer,
-      grund: "Google-Suche ist nicht eingerichtet. Modelle lassen sich weiterhin von Hand eintragen.",
+      grund: "Keine Suchquelle eingerichtet. Modelle lassen sich weiterhin von Hand eintragen.",
       verbrauchHeute: 0,
     };
   }
