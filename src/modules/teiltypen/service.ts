@@ -111,3 +111,97 @@ export async function setzeModellTeiltypen(modellId: number, teiltypIds: number[
     return { gespeichert: 0 };
   });
 }
+
+// ── Massenzuordnung: ein Custom-Teiltyp für ALLE Gerätemodelle ────────────────
+//
+// Hintergrund: Ein Teiltyp wie „Thermalmodul" steckt in praktisch jedem Laptop.
+// Ihn einzeln an ~200 Modellen anzuhaken ist nicht zumutbar. Diese Funktionen
+// setzen bzw. entfernen die Verknüpfung für alle aktiven Modelle auf einmal.
+//
+// ⚠️ Das ist eine MOMENTAUFNAHME: Modelle, die später neu angelegt werden,
+// bekommen den Teiltyp NICHT automatisch. Wer das braucht, hätte einen echten
+// Standard-Teiltyp (istStandard=true) — der gilt implizit immer und für alle,
+// auch für Geräte, die gar kein Modell in der Tabelle haben.
+//
+// Standards sind hier bewusst gesperrt: Für sie wären ModellTeiltyp-Zeilen
+// wirkungslose Karteileichen, weil sie ohnehin global gelten.
+
+async function ladeCustomTeiltyp(teiltypId: number) {
+  const teiltyp = await prisma.teiltyp.findUnique({
+    where:  { id: teiltypId },
+    select: { id: true, name: true, istStandard: true, aktiv: true },
+  });
+  if (!teiltyp) throw new Error("Teiltyp nicht gefunden.");
+  if (teiltyp.istStandard) {
+    throw new Error(`„${teiltyp.name}" ist ein Standard-Teiltyp und gilt bereits für alle Modelle.`);
+  }
+  return teiltyp;
+}
+
+/**
+ * Trockenlauf: wie viele aktive Modelle gibt es, wie viele haben den Teiltyp
+ * schon? Damit steht vor dem Klick fest, was die Aktion bewirkt.
+ */
+export async function zuordnungsStand(teiltypId: number): Promise<{
+  name:            string;
+  aktiv:           boolean;
+  modelleGesamt:   number;
+  bereitsZugeordnet: number;
+  fehlend:         number;
+}> {
+  const teiltyp = await ladeCustomTeiltyp(teiltypId);
+
+  const [modelleGesamt, bereitsZugeordnet] = await Promise.all([
+    prisma.geraeteModell.count({ where: { aktiv: true } }),
+    prisma.modellTeiltyp.count({
+      where: { teiltypId, modell: { aktiv: true } },
+    }),
+  ]);
+
+  return {
+    name:              teiltyp.name,
+    aktiv:             teiltyp.aktiv,
+    modelleGesamt,
+    bereitsZugeordnet,
+    fehlend:           modelleGesamt - bereitsZugeordnet,
+  };
+}
+
+/**
+ * Teiltyp allen AKTIVEN Modellen zuordnen. Idempotent (skipDuplicates), kann
+ * also gefahrlos erneut laufen, wenn später Modelle dazugekommen sind.
+ * Deaktivierte Modelle bleiben außen vor — sie tauchen im Techniker-Portal
+ * ohnehin nicht auf.
+ */
+export async function ordneTeiltypAllenModellenZu(teiltypId: number): Promise<{
+  name: string; zugeordnet: number; modelleGesamt: number;
+}> {
+  const teiltyp = await ladeCustomTeiltyp(teiltypId);
+
+  const modelle = await prisma.geraeteModell.findMany({
+    where:  { aktiv: true },
+    select: { id: true },
+  });
+
+  if (modelle.length === 0) return { name: teiltyp.name, zugeordnet: 0, modelleGesamt: 0 };
+
+  const r = await prisma.modellTeiltyp.createMany({
+    data:           modelle.map((m) => ({ modellId: m.id, teiltypId })),
+    skipDuplicates: true,
+  });
+
+  return { name: teiltyp.name, zugeordnet: r.count, modelleGesamt: modelle.length };
+}
+
+/**
+ * Gegenstück: Verknüpfung von allen Modellen lösen. Trifft bewusst AUCH
+ * deaktivierte Modelle — sonst blieben unsichtbare Reste zurück, die beim
+ * Reaktivieren eines Modells wieder auftauchen.
+ */
+export async function entferneTeiltypVonAllenModellen(teiltypId: number): Promise<{
+  name: string; entfernt: number;
+}> {
+  const teiltyp = await ladeCustomTeiltyp(teiltypId);
+  const r = await prisma.modellTeiltyp.deleteMany({ where: { teiltypId } });
+  return { name: teiltyp.name, entfernt: r.count };
+}

@@ -4,7 +4,7 @@ import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { getLucideIcon } from "@/lib/icons/getLucideIcon";
-import { Plus, Eye, EyeOff, ChevronUp, ChevronDown, Save, X, Edit2 } from "lucide-react";
+import { Plus, Eye, EyeOff, ChevronUp, ChevronDown, Save, X, Edit2, Layers } from "lucide-react";
 
 const CYAN = "#008BD2";
 
@@ -36,6 +36,37 @@ export default function TeiltypenAdminPage() {
   const [neuIcon, setNeuIcon] = useState("Box");
   function resetNeu() { setNeuName(""); setNeuIcon("Box"); setNeuOpen(false); }
 
+  // ── Massenzuordnung ────────────────────────────────────────────────────────
+  // Ein Teiltyp wie „Thermalmodul" steckt in praktisch jedem Laptop. Ihn an
+  // jedem Modell einzeln anzuhaken ist nicht zumutbar, deshalb hier in einem
+  // Rutsch — mit Trockenlauf davor, damit vorher klar ist, was passiert.
+  const [massenId,      setMassenId]      = useState<number | null>(null);
+  const [confirmWeg,    setConfirmWeg]    = useState(false);
+
+  const stand = api.teiltypen.zuordnungsStand.useQuery(
+    { teiltypId: massenId ?? 0 },
+    { enabled: massenId !== null },
+  );
+
+  const zuordnen = api.teiltypen.allenModellenZuordnen.useMutation({
+    onSuccess: (r) => {
+      show(r.zugeordnet === 0
+        ? `„${r.name}" war bereits allen ${r.modelleGesamt} Modellen zugeordnet`
+        : `„${r.name}" ${r.zugeordnet} Modellen neu zugeordnet`, "success");
+      stand.refetch();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
+  const entfernen = api.teiltypen.vonAllenModellenEntfernen.useMutation({
+    onSuccess: (r) => {
+      show(`„${r.name}" von ${r.entfernt} Modellen entfernt`, "success");
+      setConfirmWeg(false);
+      stand.refetch();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
   // Inline-Edit
   const [editId,   setEditId]   = useState<number | null>(null);
   const [editName, setEditName] = useState("");
@@ -56,6 +87,9 @@ export default function TeiltypenAdminPage() {
   const alle    = (teiltypenQuery.data ?? []) as Teiltyp[];
   const aktive  = alle.filter(t => t.aktiv);
   const inaktiv = alle.filter(t => !t.aktiv);
+  // Nur eigene Teiltypen sind modell-gebunden. Standards gelten ohnehin global,
+  // eine Massenzuordnung waere fuer sie wirkungslos.
+  const custom  = alle.filter(t => !t.istStandard);
 
   return (
     <div className="space-y-6">
@@ -130,6 +164,105 @@ export default function TeiltypenAdminPage() {
             </a>{" "}
             — z. B. Cpu, Monitor, Wifi, Battery, Box, Plug.
           </p>
+        </div>
+      )}
+
+      {/* ── Massenzuordnung ──────────────────────────────────────────────── */}
+      {custom.length > 0 && (
+        <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm">
+          <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] flex items-center gap-2">
+            <Layers size={18} /> Teiltyp allen Gerätemodellen zuordnen
+          </h2>
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1 mb-4">
+            Für Teile, die es in praktisch jedem Laptop gibt — der Teiltyp erscheint danach
+            bei jedem Modell in der Ersatzteil-Auswahl der Techniker.
+          </p>
+
+          <div className="flex flex-wrap gap-3 items-end">
+            <label className="block flex-1 min-w-[240px]">
+              <span className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase tracking-wider">
+                Teiltyp
+              </span>
+              <select
+                value={massenId ?? ""}
+                onChange={(e) => { setMassenId(e.target.value ? Number(e.target.value) : null); setConfirmWeg(false); }}
+                className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] min-h-[44px]"
+              >
+                <option value="">— auswählen —</option>
+                {custom.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}{t.aktiv ? "" : " (inaktiv)"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {massenId !== null && stand.data && (
+            <div className="mt-4 rounded-lg border border-[#008bd2]/30 bg-[#008bd2]/5 p-4">
+              <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                <strong>{stand.data.modelleGesamt}</strong> aktive Gerätemodelle ·{" "}
+                <strong>{stand.data.bereitsZugeordnet}</strong> haben „{stand.data.name}" bereits ·{" "}
+                <strong>{stand.data.fehlend}</strong> fehlen noch
+              </div>
+              {!stand.data.aktiv && (
+                <div className="text-sm text-[#c62828] dark:text-[#ff8a80] font-bold mt-2">
+                  ⚠️ Dieser Teiltyp ist inaktiv — er erscheint bei den Technikern erst,
+                  wenn du ihn unten wieder aktiv schaltest.
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 mt-4">
+                <button
+                  onClick={() => zuordnen.mutate({ teiltypId: massenId })}
+                  disabled={zuordnen.isPending || stand.data.fehlend === 0}
+                  className="px-5 py-2.5 rounded-xl text-white font-bold disabled:opacity-50 min-h-[44px]"
+                  style={{ background: CYAN }}
+                >
+                  {zuordnen.isPending
+                    ? "…"
+                    : stand.data.fehlend === 0
+                      ? "Schon überall zugeordnet"
+                      : `Allen ${stand.data.modelleGesamt} Modellen zuordnen`}
+                </button>
+
+                {stand.data.bereitsZugeordnet > 0 && !confirmWeg && (
+                  <button
+                    onClick={() => setConfirmWeg(true)}
+                    className="px-4 py-2.5 rounded-xl border border-[#fa3e3e]/40 text-[#c62828] dark:text-[#ff8a80] font-bold hover:bg-[#fa3e3e]/10 min-h-[44px]"
+                  >
+                    Von allen Modellen entfernen
+                  </button>
+                )}
+                {confirmWeg && (
+                  <div className="flex gap-2 items-center flex-wrap">
+                    <span className="text-sm font-bold text-[#c62828] dark:text-[#ff8a80]">
+                      Wirklich von allen Modellen entfernen?
+                    </span>
+                    <button
+                      onClick={() => entfernen.mutate({ teiltypId: massenId })}
+                      disabled={entfernen.isPending}
+                      className="px-4 py-2.5 rounded-xl bg-[#fa3e3e] text-white font-bold disabled:opacity-50 min-h-[44px]"
+                    >
+                      {entfernen.isPending ? "…" : "Ja, entfernen"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmWeg(false)}
+                      className="px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-bold min-h-[44px]"
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-3">
+                Die Zuordnung ist eine Momentaufnahme: Modelle, die später neu angelegt werden,
+                bekommen den Teiltyp nicht von selbst. Dann diesen Knopf einfach erneut drücken —
+                schon zugeordnete Modelle bleiben unberührt.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

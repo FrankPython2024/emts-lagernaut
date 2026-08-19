@@ -8,6 +8,9 @@ import {
   getTeiltypenForModell,
   getModellTeiltypIds,
   setzeModellTeiltypen,
+  zuordnungsStand,
+  ordneTeiltypAllenModellenZu,
+  entferneTeiltypVonAllenModellen,
 } from "@/modules/teiltypen/service";
 
 export const teiltypenRouter = createTRPCRouter({
@@ -65,4 +68,19 @@ export const teiltypenRouter = createTRPCRouter({
       teiltypIds: z.array(z.number().int().positive()).max(50),
     }))
     .mutation(({ input }) => setzeModellTeiltypen(input.modellId, input.teiltypIds)),
+
+  // ── Massenzuordnung ────────────────────────────────────────────────────────
+  // Trockenlauf zuerst: die Oberflaeche zeigt an, wie viele Modelle betroffen
+  // waeren, bevor irgendetwas geschrieben wird.
+  zuordnungsStand: adminProcedure
+    .input(z.object({ teiltypId: z.number().int().positive() }))
+    .query(({ input }) => zuordnungsStand(input.teiltypId)),
+
+  allenModellenZuordnen: adminProcedure
+    .input(z.object({ teiltypId: z.number().int().positive() }))
+    .mutation(({ input }) => ordneTeiltypAllenModellenZu(input.teiltypId)),
+
+  vonAllenModellenEntfernen: adminProcedure
+    .input(z.object({ teiltypId: z.number().int().positive() }))
+    .mutation(({ input }) => entferneTeiltypVonAllenModellen(input.teiltypId)),
 });
