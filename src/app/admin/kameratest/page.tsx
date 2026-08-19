@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { api } from "@/trpc/react";
+import { useToast } from "@/components/ui/Toast";
 
 // ── Kamera-Test für die Teile-Erkennung ──────────────────────────────────────
 //
@@ -8,9 +10,15 @@ import { useEffect, useRef, useState } from "react";
 // offene Frage, an der die ganze Erkennung hängt — vor dem Bauen messen statt
 // hinterher feststellen.
 //
-// Bewusst OHNE Server: keine tRPC-Aufrufe, keine Datenbank, nichts wird
-// gespeichert. Die Seite rechnet im Browser und ist damit auch dann brauchbar,
-// wenn später gar nichts davon übrig bleibt.
+// Gemessen wird im Browser, gespeichert auf dem Server: Ein Foto vom Handgerät
+// nützt nichts, wenn es auf dem Handgerät liegen bleibt. „An Server senden"
+// legt es in einem Ordner ab, der als Bind-Mount am Container hängt und einen
+// Rebuild überlebt. Keine Datenbank — das sind Wegwerf-Aufnahmen für eine
+// Messreihe, keine Stammdaten.
+//
+// ⚠️ Hochgeladen wird die ORIGINALDATEI, nicht das Canvas-Bild. Über Canvas
+// würde das Foto neu kodiert und verlöre genau die Schärfe, die hier geprüft
+// werden soll.
 //
 // ⚠️ Zwei Aufnahmewege, und der Unterschied ist der Kern des Tests:
 //   • Kamera-App (Dateiauswahl mit `capture`): liefert die VOLLE Fotoauflösung
@@ -43,6 +51,33 @@ export default function KameraTestPage() {
   const [messung, setMessung] = useState<Messung | null>(null);
   const [fehler,  setFehler]  = useState<string | null>(null);
   const [dateiInfo, setDateiInfo] = useState<string | null>(null);
+  const [notiz, setNotiz] = useState("");
+  // Rohdaten des Bildes getrennt vom Anzeige-URL halten: zum Hochladen braucht
+  // es base64, fuer die Vorschau reicht eine Objekt-URL.
+  const [roh, setRoh] = useState<{ base64: string; mimeType: string } | null>(null);
+
+  const { show } = useToast();
+  const utils = api.useUtils();
+  const gespeicherte = api.kameratest.liste.useQuery();
+
+  const senden = api.kameratest.speichern.useMutation({
+    onSuccess: (r) => {
+      show(`Auf Server gespeichert (${(r.groesse / 1048576).toFixed(1)} MB)`, "success");
+      setNotiz("");
+      void utils.kameratest.liste.invalidate();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
+  const loeschen = api.kameratest.loeschen.useMutation({
+    onSuccess: () => void utils.kameratest.liste.invalidate(),
+    onError:   (e) => show(e.message, "error"),
+  });
+
+  const alleLoeschen = api.kameratest.alleLoeschen.useMutation({
+    onSuccess: (r) => { show(`${r.geloescht} Bilder geloescht`, "success"); void utils.kameratest.liste.invalidate(); },
+    onError:   (e) => show(e.message, "error"),
+  });
 
   // Kamera beim Verlassen der Seite freigeben — sonst leuchtet sie weiter.
   useEffect(() => () => { stream?.getTracks().forEach((t) => t.stop()); }, [stream]);
@@ -154,7 +189,9 @@ export default function KameraTestPage() {
     const c = document.createElement("canvas");
     c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext("2d")?.drawImage(v, 0, 0);
-    setBild(c.toDataURL("image/jpeg", 0.92));
+    const dataUrl = c.toDataURL("image/jpeg", 0.92);
+    setBild(dataUrl);
+    setRoh({ base64: dataUrl, mimeType: "image/jpeg" });
     setDateiInfo(null);
     analysiere(v, "Live-Vorschau");
   }
@@ -169,6 +206,16 @@ export default function KameraTestPage() {
     img.onload = () => { setBild(url); analysiere(img, "Kamera-App"); };
     img.onerror = () => setFehler("Datei konnte nicht als Bild gelesen werden.");
     img.src = url;
+
+    // Parallel das Original als base64 vorhalten — NICHT ueber Canvas, sonst
+    // wuerde das Bild neu kodiert und verloere genau die Schaerfe, um die es geht.
+    const leser = new FileReader();
+    leser.onload = () => {
+      const mime = ["image/jpeg", "image/png", "image/webp"].includes(datei.type)
+        ? datei.type : "image/jpeg";
+      setRoh({ base64: String(leser.result), mimeType: mime });
+    };
+    leser.readAsDataURL(datei);
   }
 
   const urteil = !messung ? null
@@ -291,6 +338,42 @@ export default function KameraTestPage() {
             </div>
           </div>
 
+          {/* ── An Server senden ─────────────────────────────────────── */}
+          <div className="rounded-lg border-2 border-[#008BD2]/40 bg-[#008BD2]/8 p-4 space-y-3">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8] mb-1">
+                Notiz zum Bild (optional)
+              </label>
+              <input
+                type="text" value={notiz} onChange={(e) => setNotiz(e.target.value)}
+                placeholder="z. B. Touchpad HP, Aufkleber halb abgerieben"
+                className="w-full px-3 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] min-h-[48px]"
+              />
+            </div>
+            <button
+              onClick={() => roh && senden.mutate({
+                base64:   roh.base64,
+                mimeType: roh.mimeType as "image/jpeg" | "image/png" | "image/webp",
+                notiz:    notiz.trim() || undefined,
+                messung: {
+                  breite: messung.breite, hoehe: messung.hoehe,
+                  schaerfe: Math.round(messung.schaerfe),
+                  helligkeit: Math.round(messung.helligkeit),
+                  ueberstrahlt: Number(messung.ueberstrahlt.toFixed(2)),
+                  quelle: messung.quelle,
+                },
+              })}
+              disabled={!roh || senden.isPending}
+              className={`${knopf} w-full bg-[#202F61] text-white disabled:opacity-50`}
+            >
+              {senden.isPending ? "Wird hochgeladen…" : "An Server senden"}
+            </button>
+            <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+              Die Messwerte werden mitgespeichert. Bilder bleiben liegen, bis sie
+              gelöscht werden; ab 40 Stück fallen die ältesten automatisch raus.
+            </p>
+          </div>
+
           {bild && (
             <details>
               <summary className="cursor-pointer text-sm font-semibold text-[#0064d2] dark:text-[#45bdff]">
@@ -305,6 +388,69 @@ export default function KameraTestPage() {
               </a>
             </details>
           )}
+        </div>
+      )}
+
+      {/* ── Auf dem Server ────────────────────────────────────────────── */}
+      {gespeicherte.data && gespeicherte.data.fotos.length > 0 && (
+        <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm space-y-4">
+          <div className="flex items-baseline justify-between gap-3 flex-wrap">
+            <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+              Auf dem Server ({gespeicherte.data.fotos.length})
+            </h2>
+            <button
+              onClick={() => { if (confirm("Wirklich ALLE Testbilder vom Server löschen?")) alleLoeschen.mutate(); }}
+              className="text-xs font-bold text-[#c62828] dark:text-[#ff8a80] underline"
+            >
+              alle löschen
+            </button>
+          </div>
+
+          <p className="text-xs font-mono text-[#65676b] dark:text-[#b0b3b8] break-all">
+            {gespeicherte.data.ort}
+          </p>
+
+          <ul className="divide-y divide-[#ced4da] dark:divide-[#3e4042]">
+            {gespeicherte.data.fotos.map((f) => (
+              <li key={f.name} className="flex items-center gap-3 py-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/kameratest/bild?name=${encodeURIComponent(f.name)}`}
+                  alt={f.notiz ?? f.name}
+                  className="w-16 h-16 object-cover rounded-lg border border-[#ced4da] dark:border-[#3e4042] flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] truncate">
+                    {f.notiz ?? "ohne Notiz"}
+                  </div>
+                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                    {new Date(f.zeit).toLocaleString("de-DE")}
+                    {f.benutzer ? ` · ${f.benutzer}` : ""}
+                    {` · ${(f.groesse / 1048576).toFixed(1)} MB`}
+                  </div>
+                  {f.messung && (
+                    <div className="text-xs font-mono text-[#90939a] truncate">
+                      {f.messung.breite}×{f.messung.hoehe} · Schärfe {f.messung.schaerfe} · {f.messung.quelle}
+                    </div>
+                  )}
+                </div>
+                <a
+                  href={`/api/kameratest/bild?name=${encodeURIComponent(f.name)}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-2 text-xs font-bold rounded-lg border border-[#0064d2]/40 text-[#0064d2] dark:text-[#45bdff]"
+                >
+                  öffnen
+                </a>
+                <button
+                  onClick={() => loeschen.mutate({ name: f.name })}
+                  aria-label={`${f.name} löschen`}
+                  className="px-3 py-2 text-xs font-bold rounded-lg text-[#fa3e3e]"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
