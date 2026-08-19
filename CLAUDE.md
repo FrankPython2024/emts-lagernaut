@@ -159,7 +159,34 @@ EOF
 
 ---
 
-## Modul-Stand (zuletzt: Bestellanfragen Eigenbedarf + eigene Rechte; davor Datenträger/RAM-Erfassung, Abgaben an Niederlassungen, Ersatzteil-Pool, Bauteil-Ernte, Dashboard-Ansicht)
+## Modul-Stand (zuletzt: Teiltyp-Massenzuordnung; davor Bestellanfragen Eigenbedarf + eigene Rechte, Datenträger/RAM-Erfassung, Abgaben an Niederlassungen, Ersatzteil-Pool, Bauteil-Ernte)
+
+### Teiltypen: Standard vs. modellgebunden + Massenzuordnung (Aug 2026)
+
+**Die Teileauswahl des Technikers speist sich aus ZWEI Quellen** — das erklärt, warum ein frisch
+angelegter Teiltyp erst mal nirgends auftaucht:
+- **`Teiltyp.istStandard = true`** → gilt implizit für **jedes** Gerät, ohne jede Verknüpfung.
+  Auch für Geräte, die gar keinen `GeraeteModell`-Eintrag haben. Das sind die 17 Standard-Teiltypen.
+  Über den Router **absichtlich nicht änderbar** (`teiltypen.aktualisieren` lässt das Feld weg).
+- **Eigene Teiltypen** (`istStandard = false`) hängen an einzelnen Modellen über **`ModellTeiltyp`**.
+  Ohne Zeile dort ist der Teiltyp für Techniker unsichtbar.
+
+`getByGeraetMitStandard` löst das Modell auf, indem es `"<hersteller> <modell>"` (lowercase) gegen
+den übergebenen Gerätenamen vergleicht — im Techniker-Portal ist das `selectedGeraet.bereinigt`,
+also **MIT** Hersteller-Präfix. Trifft nichts, fällt es auf „nur Standards" zurück.
+⚠️ Vor einer Massenzuordnung deshalb prüfen, ob `GeraeteModell.modell` den Hersteller **nicht**
+nochmal enthält (sonst „HP HP EliteBook …" → nie ein Treffer). Stand 2026-08-19: 143 von 143
+vorkommenden Gerätenamen treffen, 3 von 1160 Modellen haben den Hersteller doppelt (irrelevant,
+kommen in keiner LogID vor).
+
+**Massenzuordnung** in `/admin/teiltypen` (Panel „Teiltyp allen Gerätemodellen zuordnen"):
+Auswahl → **Trockenlauf** (`teiltypen.zuordnungsStand`: gesamt / bereits / fehlend) → Knopf.
+`ordneTeiltypAllenModellenZu` schreibt per `createMany` + `skipDuplicates` (idempotent, beliebig
+wiederholbar), `entferneTeiltypVonAllenModellen` ist das Gegenstück mit Rückfrage. Standards sind
+serverseitig gesperrt — für sie wären die Zeilen wirkungslose Karteileichen.
+⚠️ **Momentaufnahme:** Später neu angelegte Modelle bekommen den Teiltyp NICHT automatisch →
+Knopf erneut drücken. Wer echtes „gilt immer und überall" braucht, will einen Standard-Teiltyp.
+Erster Einsatz: **Thermalmodul**, 1160 Modelle (2026-08-19).
 
 ### Bestellanfragen Eigenbedarf (Aug 2026)
 
