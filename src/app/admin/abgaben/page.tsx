@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { printAuslagerbeleg, belegNrFuerAbgabe } from "@/lib/print/auslagerbeleg";
+import { istLithiumAkku, enthaeltLithiumAkku, UN_NUMMER, GEFAHRGUT_HINWEIS } from "@/lib/gefahrgut/lithium";
 
 // ── Material-Abgaben an andere Niederlassungen ───────────────────────────────
 // Festplatten und Arbeitsspeicher werden hier erfasst und an andere
@@ -124,6 +125,13 @@ export default function AbgabenPage() {
   const artikel = artikelListe.data?.artikel ?? [];
   const gewaehlt = artikel.find((a) => String(a.id) === artikelId);
   const kannBuchen = !!artikelId && !!zielId && Number(menge) > 0 && !abgeben.isPending;
+  // Gefahrgut: lose Akkus brauchen den UN-3480-Aufkleber am Paket. Der Hinweis
+  // erscheint schon bei der Auswahl, nicht erst auf dem Beleg — wer packt, soll
+  // ihn sehen, bevor der Karton zu ist.
+  const istAkku = !!gewaehlt && istLithiumAkku(gewaehlt);
+  const markiertMitAkku = enthaeltLithiumAkku(
+    (letzte.data ?? []).filter((b) => markiert.has(b.id)).map((b) => b.artikel),
+  );
 
   return (
     <div className="space-y-5">
@@ -167,7 +175,7 @@ export default function AbgabenPage() {
               <option value="">— Artikel wählen —</option>
               {artikel.map((a) => (
                 <option key={a.id} value={a.id} disabled={a.bestand <= 0}>
-                  {a.bezeichnung} · {a.kategorie} · Bestand {a.bestand}{a.bestand <= 0 ? " (leer)" : ""}
+                  {a.bezeichnung} · {a.kategorie} · Bestand {a.bestand}{a.bestand <= 0 ? " (leer)" : ""}{istLithiumAkku(a) ? ` · Gefahrgut ${UN_NUMMER}` : ""}
                 </option>
               ))}
             </select>
@@ -204,6 +212,23 @@ export default function AbgabenPage() {
               className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]" />
           </div>
         </div>
+
+        {istAkku && (
+          <div
+            role="note"
+            className="mt-4 flex items-start gap-3 rounded-xl border-2 border-[#fa3e3e] bg-[#fa3e3e]/8 p-4"
+          >
+            <span className="font-black text-[#c62828] dark:text-[#ff8a80] text-lg tracking-tight border-2 border-[#c62828] dark:border-[#ff8a80] rounded-lg px-2.5 py-1 whitespace-nowrap">
+              {UN_NUMMER}
+            </span>
+            <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+              <strong className="text-[#c62828] dark:text-[#ff8a80]">Gefahrgut. Aufkleber nicht vergessen.</strong>
+              <div className="mt-0.5 text-[#65676b] dark:text-[#b0b3b8]">
+                {GEFAHRGUT_HINWEIS} Der Hinweis steht auch oben auf dem Auslagerbeleg.
+              </div>
+            </div>
+          </div>
+        )}
 
         <button
           onClick={() => abgeben.mutate({
@@ -274,6 +299,18 @@ export default function AbgabenPage() {
             </button>
           )}
         </div>
+
+        {/* Auch beim Sammelbeleg warnen: dort wird die Sendung endgültig gepackt. */}
+        {markiertMitAkku && (
+          <div role="note" className="mb-4 flex items-center gap-3 rounded-xl border-2 border-[#fa3e3e] bg-[#fa3e3e]/8 px-4 py-3">
+            <span className="font-black text-[#c62828] dark:text-[#ff8a80] border-2 border-[#c62828] dark:border-[#ff8a80] rounded-lg px-2 py-0.5 whitespace-nowrap">
+              {UN_NUMMER}
+            </span>
+            <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+              Unter den markierten Positionen sind Akkus. {GEFAHRGUT_HINWEIS}
+            </span>
+          </div>
+        )}
         {(letzte.data ?? []).length === 0 ? (
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] py-4 text-center">Noch nichts abgegeben</p>
         ) : (

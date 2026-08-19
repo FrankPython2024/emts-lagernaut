@@ -13,6 +13,8 @@
 // nachdruckbar bleiben, ohne dass sich die Nummer ändert. Deshalb wird sie fest
 // aus der Buchungs-Id abgeleitet: AN-<Jahr>-<Id>.
 
+import { enthaeltLithiumAkku, UN_NUMMER } from "@/lib/gefahrgut/lithium";
+
 export type BelegPosition = {
   bezeichnung: string;
   kategorie:   string;
@@ -89,6 +91,11 @@ export function belegHtml(d: AuslagerbelegDaten): string {
   const ohnePreis = d.positionen.reduce((s, p) => s + (p.preis == null ? p.menge : 0), 0);
   const stueckGesamt = d.positionen.reduce((s, p) => s + p.menge, 0);
 
+  // Gefahrgut: lose Lithium-Akkus brauchen den UN-3480-Aufkleber auf dem Paket.
+  // Der Hinweis steht bewusst GANZ OBEN auf dem Beleg — wer ihn packt, liest den
+  // Kopf, nicht die Fußzeile.
+  const mitAkku = enthaeltLithiumAkku(d.positionen);
+
   const zeilen = d.positionen.map((p) => `
     <tr>
       <td>
@@ -113,6 +120,13 @@ export function belegHtml(d: AuslagerbelegDaten): string {
     .untertitel { font-size: 12px; color: #555; margin-top: 2px; }
     .meta { text-align: right; font-size: 12px; line-height: 1.6; }
     .meta .nr { font-size: 16px; font-weight: 800; color: #202F61; }
+    .gefahrgut { border: 3px solid #B3321F; border-radius: 6px; padding: 10px 12px;
+                 margin-bottom: 18px; display: flex; gap: 12px; align-items: center; }
+    .gefahrgut .un { font-size: 22px; font-weight: 800; color: #B3321F; letter-spacing: .02em;
+                     white-space: nowrap; border: 2px solid #B3321F; padding: 4px 10px;
+                     border-radius: 4px; }
+    .gefahrgut .txt { font-size: 12px; line-height: 1.45; }
+    .gefahrgut .txt b { color: #B3321F; }
     .adressen { display: flex; gap: 24px; margin-bottom: 22px; }
     .adresse { flex: 1; border: 1px solid #ccc; border-radius: 6px; padding: 10px 12px; }
     .adresse h2 { font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
@@ -159,6 +173,15 @@ export function belegHtml(d: AuslagerbelegDaten): string {
         <div>Erfasst von: ${escapeHtml(d.mitarbeiter)}</div>
       </div>
     </div>
+
+    ${mitAkku ? `<div class="gefahrgut">
+      <div class="un">${UN_NUMMER}</div>
+      <div class="txt">
+        <b>Gefahrgut &mdash; Aufkleber nicht vergessen.</b> Diese Sendung enth&auml;lt
+        Lithium-Ionen-Akkus. Der Kennzeichnungsaufkleber ${UN_NUMMER} muss dem Paket beiliegen
+        und au&szlig;en gut sichtbar angebracht werden.
+      </div>
+    </div>` : ""}
 
     <div class="adressen">
       <div class="adresse">
