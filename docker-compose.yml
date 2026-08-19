@@ -19,8 +19,11 @@ services:
       # WICHTIG: Im Google-Konto KEIN Zahlungskonto hinterlegen. Dann sind die
       # 100 Abfragen pro Tag gratis und Google antwortet danach mit einem
       # Fehler statt mit einer Rechnung.
-      - GOOGLE_CSE_KEY=${GOOGLE_CSE_KEY}
-      - GOOGLE_CSE_ID=${GOOGLE_CSE_ID}
+      # Nur noch Rueckfall; leer, seit Google die Schnittstelle fuer neue
+      # Kunden geschlossen hat. Die :- sorgen dafuer, dass compose nicht bei
+      # jedem Deploy warnt.
+      - GOOGLE_CSE_KEY=${GOOGLE_CSE_KEY:-}
+      - GOOGLE_CSE_ID=${GOOGLE_CSE_ID:-}
       # Eigene Metasuche im Docker-Netz. Ist sie gesetzt, hat sie Vorrang vor
       # Google — sie sucht im ganzen Web statt nur in gelisteten Domains.
       - SEARXNG_URL=http://searxng:8080
