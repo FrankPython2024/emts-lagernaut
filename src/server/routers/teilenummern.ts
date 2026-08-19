@@ -3,6 +3,8 @@ import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import {
   schlageNach, liste, aktualisiere, setzeModelle, ordneNamenZu, istPlausibel, normalisiere,
 } from "@/modules/teilenummern/service";
+import { schlageAutomatischNach } from "@/modules/teilenummern/nachschlag";
+import { istEingerichtet, verbrauchHeute } from "@/lib/suche/google";
 
 // ── Teilenummern ─────────────────────────────────────────────────────────────
 // Lesen darf, wer Artikel sehen darf; pflegen, wer Artikel bearbeiten darf.
@@ -64,4 +66,22 @@ export const teilenummernRouter = createTRPCRouter({
       namen: z.array(z.string().max(200)).max(500),
     }))
     .mutation(({ input }) => ordneNamenZu(input.id, input.namen)),
+
+  // ── Automatisches Nachschlagen ──────────────────────────────────────────
+  // Sucht Fundstellen zur Nummer und gleicht sie gegen die EIGENE
+  // Modelltabelle ab. Schreibt nichts — die Uebernahme laeuft ueber
+  // setzeModelle, also erst nach Bestaetigung durch einen Menschen.
+  //
+  // Bewusst eine Mutation, obwohl nur gelesen wird: Der Aufruf verbraucht
+  // Tageskontingent und darf deshalb nicht von React automatisch wiederholt
+  // werden, wie es bei einer Query passieren wuerde.
+  automatischSuchen: pflegen
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => schlageAutomatischNach(input.id)),
+
+  sucheStatus: pflegen.query(async () => ({
+    eingerichtet: istEingerichtet(),
+    verbraucht:   await verbrauchHeute(),
+    tageslimit:   90,
+  })),
 });

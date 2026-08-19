@@ -35,6 +35,35 @@ export function istPlausibel(nummer: string): boolean {
   return /^[A-Z0-9]{5,40}$/.test(n) && /[0-9]/.test(n);
 }
 
+/**
+ * Zusammengesetzte Barcodes in plausible Teilstücke zerlegen.
+ *
+ * Ein Handscanner liefert oft mehr als die reine Teilenummer. Auf einer
+ * Lenovo-Tastatur steht als Barcode „8SSN20V43652C3DG1AK01XR", die eigentliche
+ * Teilenummer darin ist „SN20V43652". Ohne diese Zerlegung wären das zwei
+ * verschiedene Teile, je nachdem was jemand gescannt hat.
+ *
+ * ⚠️ Bewusst OHNE Herstellerwissen. Statt Formate zu kennen (was bedeutet
+ * „8S"?), werden plausible Teilstücke gebildet. Das trägt auch bei Herstellern,
+ * deren Aufbau wir nicht kennen, und altert nicht.
+ */
+export function kandidaten(roh: string): string[] {
+  const n = normalisiere(roh);
+  const liste = new Set<string>([n]);
+
+  // Kurze führende Präfixe abschneiden.
+  for (const laenge of [2, 3]) {
+    if (n.length > laenge + 6) liste.add(n.slice(laenge));
+  }
+
+  // Blöcke in typischer Teilenummernlänge herausziehen.
+  for (const t of n.match(/[A-Z]{0,3}\d[A-Z0-9]{5,14}/g) ?? []) {
+    if (t.length >= 7 && t.length <= 16) liste.add(t);
+  }
+
+  return Array.from(liste).slice(0, 4);
+}
+
 export type TeilenummerInfo = {
   id:              number;
   nummer:          string;
@@ -57,8 +86,16 @@ export async function schlageNach(roh: string): Promise<TeilenummerInfo | null> 
   const nummer = normalisiere(roh);
   if (!nummer) return null;
 
-  const t = await prisma.teilenummer.findUnique({
-    where:   { nummer },
+  // Erst die Nummer selbst, dann die Teilstücke: Wer den langen Barcode
+  // scannt, soll denselben Treffer sehen wie jemand, der die kurze Nummer
+  // vom Etikett abtippt.
+  const gesucht = kandidaten(nummer);
+
+  const t = await prisma.teilenummer.findFirst({
+    where:   { nummer: { in: gesucht } },
+    // Kürzere Nummern zuerst: Die reine Teilenummer ist immer das kürzere
+    // Teilstück des zusammengesetzten Barcodes.
+    orderBy: { nummer: "asc" },
     include: {
       modelle: { include: { modell: { select: { id: true, hersteller: true, modell: true } } } },
       artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true, standortId: true } },
@@ -97,9 +134,13 @@ export async function findeOderLegeAn(
     });
   }
 
-  const vorhanden = await tx.teilenummer.findUnique({
-    where:  { nummer },
-    select: { id: true, nummer: true, istSeriennummer: true, hersteller: true, teiltyp: true },
+  // Auch hier über die Teilstücke suchen: Sonst entstünden für dasselbe Teil
+  // zwei Einträge, je nachdem ob jemand den Barcode gescannt oder die Nummer
+  // vom Etikett abgetippt hat.
+  const vorhanden = await tx.teilenummer.findFirst({
+    where:   { nummer: { in: kandidaten(nummer) } },
+    orderBy: { nummer: "asc" },
+    select:  { id: true, nummer: true, istSeriennummer: true, hersteller: true, teiltyp: true },
   });
 
   if (vorhanden) {

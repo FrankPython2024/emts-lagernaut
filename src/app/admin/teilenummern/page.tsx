@@ -4,6 +4,7 @@ import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { usePermissions } from "@/hooks/usePermissions";
+import { AutoBereich, type AutoFund } from "./AutoBereich";
 
 // ── Pflegeseite für Teilenummern ─────────────────────────────────────────────
 //
@@ -21,6 +22,10 @@ export default function TeilenummernPage() {
   const darfPflegen = has("ARTIKEL_EDIT");
 
   const [nurOffen, setNurOffen] = useState(true);
+  // Vorschläge je Nummer, nur im Fenster gehalten. Bewusst nicht gespeichert:
+  // Was nicht bestätigt ist, soll nirgends aussehen wie ein Fakt.
+  const [funde, setFunde] = useState<Record<number, AutoFund>>({});
+  const status = api.teilenummern.sucheStatus.useQuery();
   const [suche,    setSuche]    = useState("");
   const [offen,    setOffen]    = useState<number | null>(null);
 
@@ -29,6 +34,21 @@ export default function TeilenummernPage() {
 
   const aendern = api.teilenummern.aktualisieren.useMutation({
     onSuccess: () => { show("Gespeichert", "success"); neuLaden(); },
+    onError:   (e) => show(e.message, "error"),
+  });
+
+  const automatisch = api.teilenummern.automatischSuchen.useMutation({
+    onSuccess: (r, v) => {
+      setFunde((f) => ({ ...f, [v.id]: r }));
+      if (!r.ok) show(r.grund ?? "Nichts gefunden", "info");
+      else if (r.vorschlaege.length === 0) show("Fundstellen da, aber kein bekanntes Modell darin", "info");
+      else show(`${r.vorschlaege.length} Modelle vorgeschlagen`, "success");
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+
+  const modelleSetzen = api.teilenummern.setzeModelle.useMutation({
+    onSuccess: () => { show("Übernommen", "success"); neuLaden(); },
     onError:   (e) => show(e.message, "error"),
   });
 
@@ -74,8 +94,17 @@ export default function TeilenummernPage() {
         )}
       </div>
 
-      <input type="text" value={suche} onChange={(e) => setSuche(e.target.value)}
-        placeholder="Nummer, Hersteller oder Teiltyp suchen…" className={`${feld} w-full max-w-md`} />
+      <div className="flex items-center gap-3 flex-wrap">
+        <input type="text" value={suche} onChange={(e) => setSuche(e.target.value)}
+          placeholder="Nummer, Hersteller oder Teiltyp suchen…" className={`${feld} w-full max-w-md`} />
+        {status.data && (
+          <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+            {status.data.eingerichtet
+              ? `Automatische Suche: ${status.data.verbraucht} von ${status.data.tageslimit} Abfragen heute`
+              : "Automatische Suche nicht eingerichtet — Modelle von Hand eintragen"}
+          </span>
+        )}
+      </div>
 
       {d && d.zeilen.length === 0 && (
         <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-10 text-center text-[#65676b] dark:text-[#b0b3b8]">
@@ -159,6 +188,16 @@ export default function TeilenummernPage() {
                       </ul>
                     )}
                   </div>
+
+                  {darfPflegen && status.data?.eingerichtet && (
+                    <AutoBereich
+                      fund={funde[t.id]}
+                      laeuft={automatisch.isPending && automatisch.variables?.id === t.id}
+                      onSuchen={() => automatisch.mutate({ id: t.id })}
+                      onUebernehmen={(ids) => modelleSetzen.mutate({ id: t.id, modellIds: ids })}
+                      uebernahmeLaeuft={modelleSetzen.isPending}
+                    />
+                  )}
 
                   {darfPflegen && (
                     <>

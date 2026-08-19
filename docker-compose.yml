@@ -13,6 +13,14 @@ services:
       - NEXTAUTH_URL=http://49.13.162.158:3000
       - DB_EXPLORER_PASSWORD=kräutertee
       - REFORM_DIR=/data/reform
+      # Google Custom Search fuer das automatische Nachschlagen von
+      # Teilenummern. Ohne diese beiden Werte laeuft alles wie bisher, nur der
+      # Knopf "Automatisch nachschlagen" erscheint nicht.
+      # WICHTIG: Im Google-Konto KEIN Zahlungskonto hinterlegen. Dann sind die
+      # 100 Abfragen pro Tag gratis und Google antwortet danach mit einem
+      # Fehler statt mit einer Rechnung.
+      - GOOGLE_CSE_KEY=${GOOGLE_CSE_KEY}
+      - GOOGLE_CSE_ID=${GOOGLE_CSE_ID}
     volumes:
       # Gemeinsamer Ordner mit dem ReForm-Sync (Trigger + Status). Der Host-Wächter
       # liest den Trigger; die App schreibt Trigger/Status. Bind-Mount vom Host.
