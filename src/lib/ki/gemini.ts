@@ -57,10 +57,14 @@ export async function frage(
 
   // ⚠️ Der Gratis-Zugang antwortet zeitweise mit 503 „high demand". Das ist
   // kein Fehler, den jemand beheben könnte, sondern Googles Auslastung — und
-  // die Meldung sagt selbst „try again later". Also versuchen wir es zwei Mal
-  // nach, statt dem Mitarbeiter an der Werkbank eine Fehlermeldung hinzuwerfen.
-  // Kurze Wartezeiten, damit niemand ewig davorsteht.
-  const WARTEN = [1200, 2500];
+  // die Meldung sagt selbst „try again later". Also versuchen wir es nach,
+  // statt dem Mitarbeiter an der Werkbank eine Fehlermeldung hinzuwerfen.
+  //
+  // ⚠️ Wiederholt wird NUR bei schnellen Fehlern (5xx). Nach einer
+  // Zeitüberschreitung nochmal 60 Sekunden zu warten hieße, jemanden drei
+  // Minuten vor dem Bildschirm stehen zu lassen — dann lieber ehrlich abbrechen
+  // und von Hand erfassen.
+  const WARTEN = [1500];
   let letzterGrund = "Gemini nicht erreichbar.";
 
   for (let versuch = 0; versuch <= WARTEN.length; versuch++) {
@@ -91,8 +95,11 @@ export async function frage(
             responseMimeType: "application/json",
           },
         }),
-        // Wer an der Werkbank steht, wartet nicht ewig.
-        signal: AbortSignal.timeout(15_000),
+        // Großzügig: Mit mehreren Bildern und einem denkenden Modell sind
+        // 15 Sekunden zu knapp — daran ist es am 19.08.2026 gescheitert.
+        // Eine Minute ist an der Werkbank lang, aber immer noch besser als
+        // eine Fehlermeldung nach 45 Sekunden.
+        signal: AbortSignal.timeout(60_000),
       });
 
       if (!antwort.ok) {
@@ -151,10 +158,17 @@ export async function frage(
 
       return { ok: true, nochmal: false, antwort: { ok: true, text } };
     } catch (e) {
-      // Zeitüberschreitung oder Netzproblem: einmal nachfassen lohnt sich.
+      const meldung = (e as Error).message;
+      // Nach einer Zeitüberschreitung NICHT wiederholen — siehe oben.
+      const zeitAus = /timeout|abort/i.test(meldung);
       return {
-        ok: false, nochmal: true,
-        antwort: { ok: false, grund: `Gemini nicht erreichbar: ${(e as Error).message}` },
+        ok: false, nochmal: !zeitAus,
+        antwort: {
+          ok: false,
+          grund: zeitAus
+            ? "Die Erkennung hat zu lange gedauert. Bitte von Hand erfassen oder es gleich nochmal versuchen."
+            : `Gemini nicht erreichbar: ${meldung}`,
+        },
       };
     }
   }

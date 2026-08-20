@@ -113,8 +113,9 @@ export function StepFotoErkennen({
               <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] flex-1 min-w-[180px]">
                 {aufbereitet.breite}×{aufbereitet.hoehe} Bildpunkte.
                 {aufbereitet.ausschnitte.length > 0
-                  ? ` ${aufbereitet.ausschnitte.length} beschriftete Stelle${aufbereitet.ausschnitte.length === 1 ? "" : "n"} gefunden und in voller Auflösung mitgeschickt.`
+                  ? ` ${aufbereitet.ausschnitte.length} beschriftete Stelle${aufbereitet.ausschnitte.length === 1 ? "" : "n"} gefunden und vergrößert mitgeschickt.`
                   : " Keine auffällig beschriftete Stelle gefunden — es wurde nur das Gesamtbild geschickt."}
+                {` Verschickt: ${aufbereitet.groesseKb} kB.`}
               </p>
             )}
           </div>

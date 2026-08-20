@@ -26,13 +26,21 @@ export type Aufbereitet = {
   ausschnitte: Bilddaten[];
   breite:      number;
   hoehe:       number;
+  /** Was tatsaechlich verschickt wird, in Kilobyte — fuer die Anzeige. */
+  groesseKb:   number;
   /** Für die Anzeige: wo die Ausschnitte im Bild lagen. */
   bereiche:    { x: number; y: number; w: number; h: number }[];
 };
 
-const UEBERSICHT_KANTE = 1024;
+const UEBERSICHT_KANTE = 768;
 const GITTER           = 12;   // 12×12 Zellen über das Bild
-const MAX_AUSSCHNITTE  = 3;
+const MAX_AUSSCHNITTE  = 2;
+// ⚠️ Obergrenze für die Ausschnitte. „Originalauflösung" heißt hier: nicht
+// kleiner als nötig — nicht: beliebig groß. Ein Ausschnitt von 900×1200 aus
+// einem 13-Megapixel-Foto war zusammen mit den anderen so schwer, dass die
+// Erkennung in die Zeitüberschreitung lief. Bei 1000 Bildpunkten längster
+// Kante bleibt Kleingedrucktes lesbar und die Übertragung erträglich.
+const AUSSCHNITT_KANTE = 1000;
 
 function alsBase64(canvas: HTMLCanvasElement, guete = 0.9): string {
   // Ohne data-URL-Präfix — die Schnittstelle will die nackten Daten.
@@ -125,22 +133,32 @@ export async function bereiteFotoAuf(datei: File): Promise<Aufbereitet> {
     const ax = Math.max(0, Math.min(bw - aw, Math.round(mitteX - aw / 2)));
     const ay = Math.max(0, Math.min(bh - ah, Math.round(mitteY - ah / 2)));
 
-    const ac = document.createElement("canvas");
-    ac.width = aw; ac.height = ah;
-    // Kein Verkleinern: Punkt für Punkt aus dem Original. Genau darum geht es.
-    ac.getContext("2d")!.drawImage(bild, ax, ay, aw, ah, 0, 0, aw, ah);
+    // Nur so weit verkleinern, wie die Obergrenze es verlangt — und keinen
+    // Deut mehr. Ist der Bereich ohnehin kleiner, bleibt er Punkt für Punkt.
+    const af = Math.min(1, AUSSCHNITT_KANTE / Math.max(aw, ah));
+    const zw = Math.max(1, Math.round(aw * af)), zh = Math.max(1, Math.round(ah * af));
 
-    ausschnitte.push({ base64: alsBase64(ac, 0.92), mimeType: "image/jpeg" as const });
+    const ac = document.createElement("canvas");
+    ac.width = zw; ac.height = zh;
+    ac.getContext("2d")!.drawImage(bild, ax, ay, aw, ah, 0, 0, zw, zh);
+
+    ausschnitte.push({ base64: alsBase64(ac, 0.85), mimeType: "image/jpeg" as const });
     bereiche.push({ x: ax, y: ay, w: aw, h: ah });
   }
 
   URL.revokeObjectURL(bild.src);
 
+  const uebersicht = { base64: alsBase64(uc, 0.8), mimeType: "image/jpeg" as const };
+  // base64 blaeht die Daten um ein Drittel auf; das ist die Menge, die
+  // tatsaechlich ueber die Leitung geht.
+  const zeichen = uebersicht.base64.length + ausschnitte.reduce((s2, a) => s2 + a.base64.length, 0);
+
   return {
-    uebersicht: { base64: alsBase64(uc, 0.85), mimeType: "image/jpeg" as const },
+    uebersicht,
     ausschnitte,
     bereiche,
     breite: bw, hoehe: bh,
+    groesseKb: Math.round(zeichen * 0.75 / 1024),
   };
 }
 
