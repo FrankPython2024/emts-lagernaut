@@ -36,12 +36,21 @@ export type NachschlagErgebnis = {
   verbrauchHeute: number;
 };
 
-export async function schlageAutomatischNach(teilenummerId: number): Promise<NachschlagErgebnis> {
-  const tn = await prisma.teilenummer.findUnique({
-    where:   { id: teilenummerId },
-    include: { modelle: { select: { modellId: true, quelle: true } } },
-  });
-  if (!tn) throw new Error("Teilenummer nicht gefunden.");
+/**
+ * Kern der Suche — arbeitet auf einer ROHEN Nummer.
+ *
+ * Bewusst ohne Datenbank-Id: Beim Fotoweg gibt es die Teilenummer noch gar
+ * nicht, sie entsteht erst beim Buchen. Trotzdem soll schon vorher stehen, in
+ * welche Geräte das Teil passt — sonst müsste man erst einlagern und dann
+ * nachschlagen, und das ist die falsche Reihenfolge.
+ */
+export async function sucheModelleZuNummer(
+  nummer: string,
+  bekannt: number[] = [],
+  spender: number[] = [],
+): Promise<NachschlagErgebnis> {
+  const tn = { nummer, modelle: [] as { modellId: number; quelle: string }[] };
+  const bekanntSet = new Set(bekannt);
 
   const leer = { gesucht: [], fundstellen: [], vorschlaege: [], ankerFehlt: false };
 
@@ -115,9 +124,6 @@ export async function schlageAutomatischNach(teilenummerId: number): Promise<Nac
     select: { id: true, hersteller: true, modell: true },
   });
 
-  const bekannt = new Set(tn.modelle.map((m) => m.modellId));
-  const spender = tn.modelle.filter((m) => m.quelle === "SPENDER").map((m) => m.modellId);
-
   const vorschlaege: Vorschlag[] = [];
   for (const m of modelle) {
     // Ohne Hersteller-Präfix suchen: In Anzeigen steht meist „ProBook 440 G6",
@@ -135,7 +141,7 @@ export async function schlageAutomatischNach(teilenummerId: number): Promise<Nac
         modellId: m.id,
         name:     `${m.hersteller} ${m.modell}`.trim(),
         treffer,
-        bereits:  bekannt.has(m.id),
+        bereits:  bekanntSet.has(m.id),
       });
     }
   }
@@ -158,4 +164,19 @@ export async function schlageAutomatischNach(teilenummerId: number): Promise<Nac
     ankerFehlt,
     verbrauchHeute: await verbrauchHeute(),
   };
+}
+
+/** Für die Pflegeseite: dieselbe Suche, aber zu einer gespeicherten Nummer. */
+export async function schlageAutomatischNach(teilenummerId: number): Promise<NachschlagErgebnis> {
+  const tn = await prisma.teilenummer.findUnique({
+    where:   { id: teilenummerId },
+    include: { modelle: { select: { modellId: true, quelle: true } } },
+  });
+  if (!tn) throw new Error("Teilenummer nicht gefunden.");
+
+  return sucheModelleZuNummer(
+    tn.nummer,
+    tn.modelle.map((m) => m.modellId),
+    tn.modelle.filter((m) => m.quelle === "SPENDER").map((m) => m.modellId),
+  );
 }

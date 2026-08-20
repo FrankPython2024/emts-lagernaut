@@ -23,6 +23,8 @@ export type ErkanntesTeil = {
   teilenummer: string | null;
   /** Uebersichtsbild, das als Vergleichsfoto an der Nummer haengen bleibt. */
   fotoBase64:  string | null;
+  /** Vorgeschlagener Lagerplatz, aus dem vorhandenen Bestand abgeleitet. */
+  lagerplatz:  string | null;
 };
 
 export function StepFotoErkennen({
@@ -36,6 +38,15 @@ export function StepFotoErkennen({
   const [aufbereitet, setAufbereitet] = useState<Aufbereitet | null>(null);
   const [laeuft,    setLaeuft]    = useState(false);
   const [gewaehlteNummer, setGewaehlteNummer] = useState<string | null>(null);
+  const [platz, setPlatz] = useState<string | null>(null);
+
+  // ── Schritt 2 nach der Erkennung ─────────────────────────────────────────
+  // Die Geräteliste kommt aus der Suche nach der gelesenen NUMMER, nicht aus
+  // dem Bildmodell. Ein Foto einer nackten Platine enthält diese Angabe nicht;
+  // die Nummer dagegen steht in Ersatzteil-Katalogen und Verkaufsanzeigen.
+  const zuNummer = api.teilenummern.zuNummer.useMutation({
+    onError: (e) => show(e.message, "error"),
+  });
 
   const erkennen = api.teilenummern.erkenneFoto.useMutation({
     onError: (e) => show(e.message, "error"),
@@ -218,7 +229,13 @@ export function StepFotoErkennen({
                   <div className="flex flex-wrap gap-2">
                     {ergebnis.nummern.map((n) => (
                       <button key={n}
-                        onClick={() => setGewaehlteNummer(gewaehlteNummer === n ? null : n)}
+                        onClick={() => {
+                          const neu = gewaehlteNummer === n ? null : n;
+                          setGewaehlteNummer(neu);
+                          setPlatz(null);
+                          zuNummer.reset();
+                          if (neu) zuNummer.mutate({ nummer: neu, teiltyp: ergebnis.teiltyp ?? undefined });
+                        }}
                         className={`px-3 py-2 rounded-lg font-mono text-sm border-2 min-h-[48px] ${
                           gewaehlteNummer === n
                             ? "border-[#0064d2] bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] font-bold"
@@ -241,12 +258,112 @@ export function StepFotoErkennen({
             </>
           )}
 
+          {/* ── Geräte und Lagerplatz zur gewählten Nummer ───────────── */}
+          {gewaehlteNummer && (
+            <div className="rounded-lg border border-[#008BD2]/40 bg-[#008BD2]/5 p-3 space-y-3">
+              {zuNummer.isPending && (
+                <p className="text-sm text-[#0064d2] dark:text-[#45bdff] font-semibold">
+                  Suche, in welche Geräte {gewaehlteNummer} passt…
+                </p>
+              )}
+
+              {zuNummer.data && (
+                <>
+                  {zuNummer.data.bekannt && zuNummer.data.bekannt.gesichert.length > 0 && (
+                    <div>
+                      <div className="text-sm font-bold text-[#038F5C] dark:text-[#04B475]">
+                        Gesichert: passt in {zuNummer.data.bekannt.gesichert.length} Modelle
+                      </div>
+                      <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                        {zuNummer.data.bekannt.gesichert.join(", ")}
+                      </div>
+                    </div>
+                  )}
+
+                  {zuNummer.data.fund.vorschlaege.length > 0 ? (
+                    <div>
+                      <div className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                        Laut Fundstellen passt das Teil in:
+                      </div>
+                      <ul className="flex flex-wrap gap-1.5 mt-1.5">
+                        {zuNummer.data.fund.vorschlaege.slice(0, 20).map((m) => (
+                          <li key={m.modellId}
+                            className="text-xs px-2 py-1 rounded border border-[#0064d2]/30 text-[#0064d2] dark:text-[#45bdff]">
+                            {m.name}
+                          </li>
+                        ))}
+                      </ul>
+                      {zuNummer.data.fund.schwach && (
+                        <p className="text-xs text-[#8A5A00] dark:text-[#f7b928] mt-1.5">
+                          Die Nummer kam in den Fundstellen kaum vor — bitte prüfen.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                      {zuNummer.data.fund.grund ?? "Zu dieser Nummer wurde nichts gefunden."}
+                    </p>
+                  )}
+
+                  {zuNummer.data.fund.fundstellen.length > 0 && (
+                    <details>
+                      <summary className="cursor-pointer text-xs font-semibold text-[#0064d2] dark:text-[#45bdff]">
+                        {zuNummer.data.fund.fundstellen.length} Fundstellen ansehen
+                      </summary>
+                      <ul className="mt-1.5 space-y-1">
+                        {zuNummer.data.fund.fundstellen.map((f, i) => (
+                          <li key={i} className="text-xs">
+                            <a href={f.link} target="_blank" rel="noopener noreferrer"
+                              className="text-[#0064d2] dark:text-[#45bdff] underline">{f.titel}</a>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+
+                  {/* Lagerplatz: Wo liegen Teile für diese Geräte schon? */}
+                  {zuNummer.data.plaetze.length > 0 && (
+                    <div>
+                      <div className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                        Lagerplatz-Vorschlag
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-1.5">
+                        {zuNummer.data.plaetze.map((p) => (
+                          <button key={p.lagerplatz}
+                            onClick={() => setPlatz(platz === p.lagerplatz ? null : p.lagerplatz)}
+                            className={`px-3 py-2 rounded-lg border-2 text-sm min-h-[48px] text-left ${
+                              platz === p.lagerplatz
+                                ? "border-[#04B475] bg-[#04B475]/10 text-[#038F5C] dark:text-[#04B475] font-bold"
+                                : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"
+                            }`}>
+                            <div className="font-mono font-bold">
+                              {platz === p.lagerplatz ? "✓ " : ""}{p.lagerplatz}
+                            </div>
+                            <div className="text-xs">{p.grund}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {zuNummer.data.plaetze.length === 0 && zuNummer.data.fund.vorschlaege.length > 0 && (
+                    <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                      Für diese Geräte liegt noch nichts im Lager. Den Platz wählst
+                      du im nächsten Schritt.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           <button
             onClick={() => onWeiter({
               teiltyp:     ergebnis.teiltyp,
               hersteller:  ergebnis.hersteller,
               teilenummer: gewaehlteNummer ?? ergebnis.bekannt?.nummer ?? null,
               fotoBase64:  aufbereitet?.uebersicht.base64 ?? null,
+              lagerplatz:  platz,
             })}
             className={`${knopf} w-full bg-[#202F61] text-white`}
           >
@@ -257,7 +374,7 @@ export function StepFotoErkennen({
 
       {/* Nie eine Sackgasse: auch ohne Foto und ohne Erkennung weiterkommen. */}
       <button
-        onClick={() => onWeiter({ teiltyp: null, hersteller: null, teilenummer: null, fotoBase64: null })}
+        onClick={() => onWeiter({ teiltyp: null, hersteller: null, teilenummer: null, fotoBase64: null, lagerplatz: null })}
         className="text-sm font-semibold text-[#0064d2] dark:text-[#45bdff] underline">
         Überspringen und von Hand erfassen
       </button>

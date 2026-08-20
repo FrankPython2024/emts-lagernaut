@@ -3,7 +3,9 @@ import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import {
   schlageNach, liste, aktualisiere, setzeModelle, ordneNamenZu, istPlausibel, normalisiere,
 } from "@/modules/teilenummern/service";
-import { schlageAutomatischNach } from "@/modules/teilenummern/nachschlag";
+import { schlageAutomatischNach, sucheModelleZuNummer } from "@/modules/teilenummern/nachschlag";
+import { platzVorschlaege } from "@/modules/teilenummern/lagerplatz";
+import { resolveStandortId } from "@/lib/auth/standortFilter";
 import { erkenneTeil } from "@/modules/teilenummern/bilderkennung";
 import { istEingerichtet as kiEingerichtet } from "@/lib/ki/gemini";
 import { istEingerichtet, verbrauchHeute, tageslimit, aktiveQuelle } from "@/lib/suche";
@@ -99,6 +101,54 @@ export const teilenummernRouter = createTRPCRouter({
     .mutation(({ input }) => erkenneTeil(input)),
 
   kiStatus: scannen.query(() => ({ eingerichtet: kiEingerichtet() })),
+
+  /**
+   * Der Schritt nach der Foto-Erkennung: Zu einer gelesenen Nummer heraus-
+   * finden, in welche Geräte das Teil passt — und wo es hingehört.
+   *
+   * ⚠️ Hier liegt der Kern des Ablaufs. Die Geräteliste kommt NICHT aus dem
+   * Bildmodell (ein Foto einer nackten Platine enthält diese Angabe nicht),
+   * sondern aus der Suche nach der aufgedruckten Nummer, mit Fundstellen zum
+   * Nachlesen. Belegbar statt geraten.
+   */
+  zuNummer: scannen
+    .input(z.object({
+      nummer:     z.string().min(4).max(120),
+      teiltyp:    z.string().max(100).optional(),
+      standortId: z.number().int().positive().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const vorhanden = await schlageNach(input.nummer);
+      const bekannt = vorhanden?.modelle.map((m) => m.modellId) ?? [];
+
+      const fund = await sucheModelleZuNummer(input.nummer, bekannt);
+
+      // Bestätigte Modelle der Nummer immer mitnehmen: Was ein Mensch schon
+      // freigegeben hat, ist verlässlicher als jeder frische Fund.
+      const gesichert = (vorhanden?.modelle ?? [])
+        .filter((m) => m.bestaetigt)
+        .map((m) => `${m.hersteller} ${m.modell}`.trim());
+
+      const geraete = Array.from(new Set([
+        ...gesichert,
+        ...fund.vorschlaege.map((v) => v.name),
+      ]));
+
+      const plaetze = input.teiltyp
+        ? await platzVorschlaege({
+            teilenummerId: vorhanden?.id ?? null,
+            teiltyp:       input.teiltyp,
+            geraete,
+            standortId:    resolveStandortId(ctx, input.standortId),
+          })
+        : [];
+
+      return {
+        bekannt:   vorhanden ? { id: vorhanden.id, nummer: vorhanden.nummer, gesichert } : null,
+        fund,
+        plaetze,
+      };
+    }),
 
   sucheStatus: pflegen.query(async () => ({
     eingerichtet: istEingerichtet(),

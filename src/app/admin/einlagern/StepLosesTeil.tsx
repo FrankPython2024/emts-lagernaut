@@ -28,7 +28,10 @@ export function StepLosesTeil({
    * Vorbelegung aus der Foto-Erkennung. Nur Startwerte — alles bleibt
    * änderbar, denn bestätigt hat es noch niemand.
    */
-  initial?: { teiltyp: string | null; hersteller: string | null; teilenummer: string | null; fotoBase64?: string | null };
+  initial?: {
+    teiltyp: string | null; hersteller: string | null; teilenummer: string | null;
+    fotoBase64?: string | null; lagerplatz?: string | null;
+  };
 }) {
   const { show } = useToast();
   const utils = api.useUtils();
@@ -42,7 +45,7 @@ export function StepLosesTeil({
   const [teiltyp,     setTeiltyp]     = useState(initial?.teiltyp ?? "");
   const [menge,       setMenge]       = useState(1);
   const [grading,     setGrading]     = useState("");
-  const [lagerplatz,  setLagerplatz]  = useState("");
+  const [lagerplatz,  setLagerplatz]  = useState(initial?.lagerplatz ?? "");
   const [notiz,       setNotiz]       = useState("");
   const [erledigt,    setErledigt]    = useState<
     { text: string; modelle: string[]; hinweis: string | null }[]
