@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
 import { formatLogId } from "@/lib/pickup/logId";
+import { GeraetDetail, type PickupPos } from "../GeraetDetail";
 import { nurZiffern } from "@/lib/format/ziffern";
 import { playScanSound, playComplete, playColliKomplett, playNegativeSound, playWagenTreffer, playWagenLeer, type ScanResult } from "@/lib/pickup/scanSound";
 import { useScannerMode } from "@/lib/pickup/useScannerMode";
@@ -484,6 +485,9 @@ export default function PickupScanPage() {
   }
 
   // Lokales Negativ-Feedback ohne Server (z. B. falsche Länge, klar fremd).
+  // Gerätedetails: welche Position gerade angetippt wurde.
+  const [detail, setDetail] = useState<ScanPos | null>(null);
+
   function meldeUnbekannt(wert: string) {
     setFeedback({ kind: "unbekannt", wert });
     playNegativeSound();
@@ -813,11 +817,11 @@ export default function PickupScanPage() {
                     <span>Sortiere Liste…</span>
                   </div>
                 )}
-                <ColliListe order={colliOrder} groups={colliGruppen} istColli={!!istColli} leerText="Nichts zu picken." />
+                <ColliListe order={colliOrder} groups={colliGruppen} istColli={!!istColli} leerText="Nichts zu picken." onDetail={setDetail} />
               </>
             )}
             {ansicht === "gefunden" && (
-              <PositionsListe gruppen={gruppenGefunden} istColli={!!istColli} leerText="Noch nichts gefunden." zeigeReset
+              <PositionsListe gruppen={gruppenGefunden} istColli={!!istColli} leerText="Noch nichts gefunden." onDetail={setDetail} zeigeReset
                 onReset={(positionId) => zuruecksetzen.mutate({ positionId })} resetBusy={zuruecksetzen.isPending} />
             )}
             {ansicht === "fremd" && (
@@ -941,13 +945,18 @@ export default function PickupScanPage() {
           </div>
         );
       })()}
+
+      {/* Gerätedetails samt Bild — geöffnet durch Antippen einer Zeile. */}
+      {detail && (
+        <GeraetDetail pos={detail as PickupPos} onClose={() => setDetail(null)} />
+      )}
     </div>
   );
 }
 
 // ── Gruppierte Positions-Liste (für „Noch suchen" + „Gefunden") ────────────────
 function PositionsListe({
-  gruppen, istColli, leerText, zeigeReset, onReset, resetBusy,
+  gruppen, istColli, leerText, zeigeReset, onReset, resetBusy, onDetail,
 }: {
   gruppen: { key: string; items: ScanPos[] }[];
   istColli: boolean;
@@ -955,6 +964,8 @@ function PositionsListe({
   zeigeReset?: boolean;
   onReset?: (positionId: number) => void;
   resetBusy?: boolean;
+  /** Tippen auf eine Zeile öffnet die Gerätedetails samt Bild. */
+  onDetail?: (p: ScanPos) => void;
 }) {
   if (gruppen.length === 0) {
     return (
@@ -976,13 +987,25 @@ function PositionsListe({
             {g.items.map((p) => {
               const ok = p.status === "GEFUNDEN";
               return (
-                <div key={p.id} className={`flex items-center gap-3 px-4 py-3 flex-wrap gap-y-1 ${ok ? "bg-[#04B475]/5" : ""}`}>
-                  <span className="text-lg w-6 text-center" aria-hidden>{ok ? "✓" : "○"}</span>
-                  <div className="font-mono font-black text-base min-w-[120px]" style={{ color: ok ? "#04713f" : undefined }}>
-                    {formatLogId(p.logId)}
-                  </div>
-                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] min-w-[80px]">{p.stellplatz ?? "—"}</div>
-                  <div className="flex-1 min-w-0 text-sm truncate" title={p.bezeichnung ?? ""}>{p.bezeichnung ?? "—"}</div>
+                <div key={p.id} className={`flex items-start gap-3 px-4 py-3 ${ok ? "bg-[#04B475]/5" : ""}`}>
+                  <span className="text-lg w-6 text-center pt-0.5" aria-hidden>{ok ? "✓" : "○"}</span>
+                  {/* LogID oben, Gerät DARUNTER in voller Breite. Vorher stand
+                      die Bezeichnung daneben und war abgeschnitten — im Regal
+                      ist aber genau sie das, wonach gesucht wird. */}
+                  <button
+                    onClick={() => onDetail?.(p)}
+                    className="flex-1 min-w-0 text-left"
+                  >
+                    <div className="font-mono font-black text-base" style={{ color: ok ? "#04713f" : undefined }}>
+                      {formatLogId(p.logId)}
+                    </div>
+                    <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] break-words leading-snug">
+                      {p.bezeichnung ?? "—"}
+                    </div>
+                    <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                      {p.stellplatz ?? "ohne Stellplatz"} · Details ansehen ›
+                    </div>
+                  </button>
                   {ok && zeigeReset ? (
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] text-[#04713f] font-semibold whitespace-nowrap">
@@ -1015,12 +1038,13 @@ function PositionsListe({
 //    ALLE Geräte eines Collis (gescannte grün abgehakt). Vollständig gepickte
 //    Collis werden eingeklappt + abgedunkelt (Reihenfolge bleibt stabil). ──────
 function ColliListe({
-  order, groups, istColli, leerText,
+  order, groups, istColli, leerText, onDetail,
 }: {
   order: string[];
   groups: Map<string, ScanPos[]>;
   istColli: boolean;
   leerText: string;
+  onDetail?: (p: ScanPos) => void;
 }) {
   if (groups.size === 0) {
     return (
@@ -1037,13 +1061,13 @@ function ColliListe({
       {keys.map((key) => {
         const items = groups.get(key);
         if (!items || items.length === 0) return null;
-        return <ColliKarte key={key || "__ohne__"} colliKey={key} items={items} istColli={istColli} />;
+        return <ColliKarte key={key || "__ohne__"} colliKey={key} items={items} istColli={istColli} onDetail={onDetail} />;
       })}
     </div>
   );
 }
 
-function ColliKarte({ colliKey, items, istColli }: { colliKey: string; items: ScanPos[]; istColli: boolean }) {
+function ColliKarte({ colliKey, items, istColli, onDetail }: { colliKey: string; items: ScanPos[]; istColli: boolean; onDetail?: (p: ScanPos) => void }) {
   const offen    = items.filter((p) => p.status !== "GEFUNDEN").length;
   const komplett = offen === 0;
   const [auf, setAuf] = useState(() => !komplett); // fertige Collis starten eingeklappt
@@ -1082,13 +1106,19 @@ function ColliKarte({ colliKey, items, istColli }: { colliKey: string; items: Sc
           {items.map((p) => {
             const ok = p.status === "GEFUNDEN";
             return (
-              <div key={p.id} className={`flex items-center gap-3 px-4 min-h-[56px] py-2 flex-wrap gap-y-1 ${ok ? "bg-[#04B475]/5" : ""}`}>
-                <span className="text-xl w-6 text-center" aria-hidden style={{ color: ok ? "#04713f" : undefined }}>{ok ? "✓" : "○"}</span>
-                <div className="font-mono font-black text-lg min-w-[120px]" style={{ color: ok ? "#04713f" : undefined }}>
-                  {formatLogId(p.logId)}
-                </div>
-                <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] min-w-[80px]">{p.stellplatz ?? "—"}</div>
-                <div className="flex-1 min-w-0 text-sm truncate" title={p.bezeichnung ?? ""}>{p.bezeichnung ?? "—"}</div>
+              <div key={p.id} className={`flex items-start gap-3 px-4 min-h-[56px] py-2.5 ${ok ? "bg-[#04B475]/5" : ""}`}>
+                <span className="text-xl w-6 text-center pt-0.5" aria-hidden style={{ color: ok ? "#04713f" : undefined }}>{ok ? "✓" : "○"}</span>
+                <button onClick={() => onDetail?.(p)} className="flex-1 min-w-0 text-left">
+                  <div className="font-mono font-black text-lg" style={{ color: ok ? "#04713f" : undefined }}>
+                    {formatLogId(p.logId)}
+                  </div>
+                  <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] break-words leading-snug">
+                    {p.bezeichnung ?? "—"}
+                  </div>
+                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                    {p.stellplatz ?? "ohne Stellplatz"} · Details ansehen ›
+                  </div>
+                </button>
                 {!ok && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#65676b]/10 text-[#65676b] dark:text-[#b0b3b8]">Offen</span>
                 )}

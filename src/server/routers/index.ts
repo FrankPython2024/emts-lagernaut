@@ -38,6 +38,7 @@ import { preiseRouter }              from "./preise";
 import { abgabenRouter }             from "./abgaben";
 import { kameratestRouter }          from "./kameratest";
 import { teilenummernRouter }        from "./teilenummern";
+import { geraeteFotosRouter }        from "./geraeteFotos";
 import { bestellanfragenRouter }     from "./bestellanfragen";
 import { impactRouter }              from "./impact";
 import { erne }                      from "./ernte";
@@ -83,6 +84,7 @@ export const appRouter = createTRPCRouter({
   abgaben:            abgabenRouter,
   kameratest:         kameratestRouter,
   teilenummern:       teilenummernRouter,
+  geraeteFotos:       geraeteFotosRouter,
   bestellanfragen:    bestellanfragenRouter,
   impact:             impactRouter,
 });

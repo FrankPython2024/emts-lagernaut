@@ -201,6 +201,34 @@ model Artikel {
   @@index([poolPartnerId])
 }
 
+// ── Gerätefotos ───────────────────────────────────────────────────────────────
+//
+// Ein Foto je Gerätemodell, damit im Pickup sichtbar ist, wonach man sucht.
+// Wer eine Reihe abarbeitet, erkennt ein Gerät am Bild schneller als an
+// „HP EliteBook 840 G5" — gerade wer neu ist oder die Baureihen nicht kennt.
+//
+// ⚠️ Schlüssel ist der bereinigte MODELLNAME als Text, kein Fremdschlüssel auf
+// GeraeteModell. Grund: Die Pickup-Positionen tragen nur einen Bezeichnungs-
+// Text aus ReForm, und der lässt sich nicht immer sicher einem Katalogeintrag
+// zuordnen. Über den Namen funktioniert es auch für Geräte, die (noch) gar
+// nicht im Katalog stehen.
+//
+// Die Sammlung füllt sich von selbst: Wer ein Modell zum ersten Mal in der
+// Hand hat, fotografiert es, alle danach sehen das Bild.
+model GeraeteFoto {
+  id          Int      @id @default(autoincrement())
+  // Bereinigter Modellname MIT Hersteller-Präfix, z. B. „HP EliteBook 840 G5",
+  // normalisiert auf Kleinschreibung ohne Sonderzeichen (siehe fotoSchluessel).
+  schluessel  String   @unique @db.VarChar(191)
+  // Anzeigename, wie er beim Anlegen aussah — nur fürs Auge.
+  anzeige     String   @db.VarChar(255)
+  mimeType    String   @db.VarChar(50)
+  daten       Bytes    @db.MediumBlob
+  erstelltVon String?  @db.VarChar(100)
+  erstelltAm  DateTime @default(now())
+  aktualisiertAm DateTime @updatedAt
+}
+
 // ── Teilenummern-Wissen ───────────────────────────────────────────────────────
 //
 // Eine Zeile je physisch aufgedruckter Nummer, standortuebergreifend. Das ist
