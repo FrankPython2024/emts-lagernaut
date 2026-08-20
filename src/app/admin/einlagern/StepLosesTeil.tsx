@@ -28,7 +28,7 @@ export function StepLosesTeil({
    * Vorbelegung aus der Foto-Erkennung. Nur Startwerte — alles bleibt
    * änderbar, denn bestätigt hat es noch niemand.
    */
-  initial?: { teiltyp: string | null; hersteller: string | null; teilenummer: string | null };
+  initial?: { teiltyp: string | null; hersteller: string | null; teilenummer: string | null; fotoBase64?: string | null };
 }) {
   const { show } = useToast();
   const utils = api.useUtils();
@@ -205,6 +205,9 @@ export function StepLosesTeil({
             grading:    grading || undefined,
             lagerplatz: lagerplatz.trim() || undefined,
             notiz:      notiz.trim() || undefined,
+            // Nur mitschicken, solange die Nummer aus der Erkennung stammt.
+            // Wer sie danach von Hand ändert, meint ein anderes Teil.
+            fotoBase64: nummer === initial?.teilenummer ? initial?.fotoBase64 : undefined,
           })}
           disabled={!kannBuchen}
           className="w-full px-6 py-4 rounded-xl bg-[#202F61] text-white font-black text-lg disabled:opacity-40 min-h-[64px]"

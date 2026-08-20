@@ -74,6 +74,9 @@ export const einlagernRouter = createTRPCRouter({
       grading:     z.string().max(5).nullish(),
       lagerplatz:  z.string().max(50).nullish(),
       notiz:       z.string().max(500).nullish(),
+      // Foto aus der Erkennung, base64 ohne Praefix. Wird als Vergleichsbild
+      // an der Teilenummer abgelegt.
+      fotoBase64:  z.string().max(9_000_000).nullish(),
     }))
     .mutation(({ input, ctx }) => {
       const user = ctx.session!.user as SessionUser;

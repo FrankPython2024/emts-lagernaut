@@ -94,7 +94,19 @@ export function TeilenummerFeld({
               du kannst es später auf der Pflegeseite richtigstellen.
             </p>
           ) : treffer ? (
-            <div className="rounded-lg border border-[#04B475]/40 bg-[#04B475]/8 p-3">
+            <div className="rounded-lg border border-[#04B475]/40 bg-[#04B475]/8 p-3 flex gap-3">
+              {/* Vergleichsbild aus der ersten Erkennung. Bei Teilen, die sich
+                  nur in Nuancen unterscheiden, sagt es mehr als jede
+                  Beschreibung. */}
+              {treffer.fotoStand && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={`/api/teilenummern/foto?id=${treffer.id}&mini=1&v=${treffer.fotoStand}`}
+                  alt={`Vergleichsbild ${treffer.nummer}`}
+                  className="w-16 h-16 object-cover rounded-lg border border-[#04B475]/40 shrink-0 bg-white"
+                />
+              )}
+              <div className="min-w-0">
               <div className="font-bold text-[#038F5C] dark:text-[#04B475]">
                 ✓ Bekannt: {treffer.nummer}
               </div>
@@ -116,6 +128,7 @@ export function TeilenummerFeld({
                   </span>
                 </div>
               )}
+              </div>
             </div>
           ) : (
             <p className="text-[#0064d2] dark:text-[#45bdff]">

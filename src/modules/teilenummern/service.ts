@@ -1,6 +1,7 @@
 import { prisma } from "@/core/db/prisma";
 import { TRPCError } from "@trpc/server";
 import type { Prisma } from "@prisma/client";
+import { fuersArchiv } from "@/lib/bilder/groesse";
 
 // ── Teilenummern ─────────────────────────────────────────────────────────────
 //
@@ -148,6 +149,8 @@ export type TeilenummerInfo = {
   geprueft:        boolean;
   sichtungen:      number;
   notiz:           string | null;
+  /** Zeitstempel des Vergleichsfotos, oder null. Dient als Bild-Adresse. */
+  fotoStand:       string | null;
   modelle:         { modellId: number; hersteller: string; modell: string; quelle: string; bestaetigt: boolean }[];
   /** Artikel, die an dieser Nummer hängen — je Standort höchstens einer. */
   artikel:         { id: number; bezeichnung: string; kategorie: string; bestand: number; standortId: number }[];
@@ -179,6 +182,7 @@ export async function schlageNach(roh: string): Promise<TeilenummerInfo | null> 
     id: t.id, nummer: t.nummer, hersteller: t.hersteller, teiltyp: t.teiltyp,
     istSeriennummer: t.istSeriennummer, geprueft: t.geprueft,
     sichtungen: t.sichtungen, notiz: t.notiz,
+    fotoStand: t.fotoAm ? String(t.fotoAm.getTime()) : null,
     modelle: t.modelle.map((m) => ({
       modellId: m.modell.id, hersteller: m.modell.hersteller, modell: m.modell.modell,
       quelle: m.quelle, bestaetigt: m.bestaetigt,
@@ -352,6 +356,7 @@ export async function liste(f: ListeFilter = {}) {
       id: t.id, nummer: t.nummer, hersteller: t.hersteller, teiltyp: t.teiltyp,
       istSeriennummer: t.istSeriennummer, geprueft: t.geprueft,
       sichtungen: t.sichtungen, notiz: t.notiz, erstelltAm: t.erstelltAm,
+      fotoStand: t.fotoAm ? String(t.fotoAm.getTime()) : null,
       // Genau EIN Vorkommen bei mehreren Einlagerungen spricht für eine
       // Seriennummer. Als Hinweis, nicht als Automatik — entscheiden soll ein Mensch.
       seriennummerVerdacht: t.sichtungen === 1 && t.modelle.length <= 1,
@@ -471,4 +476,41 @@ export async function ordneNamenZu(id: number, namen: string[]): Promise<{
 
   if (treffer.length > 0) await setzeModelle(id, Array.from(new Set(treffer)), "MANUELL");
   return { zugeordnet: new Set(treffer).size, getroffen, nichtGefunden: fehlt };
+}
+
+// ── Vergleichsfoto je Teilenummer ────────────────────────────────────────────
+//
+// Das Bild, mit dem ein Teil erkannt wurde, bleibt an der Nummer hängen.
+//
+// ⚠️ Das ist nicht bloß Zierde. Foto plus bestätigter Teiltyp ist ein
+// beschriftetes Trainingsbeispiel. Ohne diese Sammlung lässt sich später kein
+// eigenes Erkennungsmodell bauen — und das ist der einzige Weg, dauerhaft ohne
+// fremden Dienst auszukommen. Jedes Bild ab heute zählt.
+
+export async function speichereFoto(
+  teilenummerId: number,
+  base64: string,
+): Promise<{ ok: boolean; groesse?: number }> {
+  const roh = Buffer.from(base64.replace(/^data:[^;]+;base64,/, ""), "base64");
+  if (roh.length === 0 || roh.length > 12 * 1024 * 1024) return { ok: false };
+
+  // Verkleinern: Als Vergleichsbild reicht eine handliche Größe, und die
+  // Datenbank trägt jede Aufnahme mit.
+  const klein = await fuersArchiv(roh);
+
+  await prisma.teilenummer.update({
+    where: { id: teilenummerId },
+    data:  { fotoDaten: klein.bytes, fotoMime: klein.mimeType, fotoAm: new Date() },
+  });
+  return { ok: true, groesse: klein.bytes.length };
+}
+
+export async function leseFoto(
+  id: number,
+): Promise<{ bytes: Buffer; mimeType: string } | null> {
+  const t = await prisma.teilenummer.findUnique({
+    where: { id }, select: { fotoDaten: true, fotoMime: true },
+  });
+  if (!t?.fotoDaten) return null;
+  return { bytes: Buffer.from(t.fotoDaten), mimeType: t.fotoMime ?? "image/jpeg" };
 }

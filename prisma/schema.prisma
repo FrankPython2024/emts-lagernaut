@@ -269,6 +269,23 @@ model Teilenummer {
   // Wie oft wurde diese Nummer bisher gescannt/erfasst — Grundlage fuer den
   // Seriennummern-Verdacht und fuer die Sortierung der Pflegeliste.
   sichtungen    Int      @default(0)
+
+  // ── Vergleichsfoto ────────────────────────────────────────────────────
+  // Das Bild, mit dem dieses Teil erkannt wurde. Zwei Zwecke:
+  //
+  //   1. Wiedererkennen. Wer dasselbe Teil in der Hand hat, vergleicht mit
+  //      dem Bild statt mit einer Beschreibung. Bei Teilen, die sich nur in
+  //      Nuancen unterscheiden, ist das oft mehr wert als jeder Text.
+  //   2. Trainingsmaterial. Foto plus bestaetigter Teiltyp ist genau ein
+  //      beschriftetes Beispiel. Ohne diese Sammlung kann ein eigenes,
+  //      lokales Erkennungsmodell nie entstehen — und das ist der einzige
+  //      Weg, dauerhaft ohne fremden Dienst auszukommen.
+  //
+  // Bewusst EIN Bild je Nummer, nicht je Stueck: Es geht um das Teil, nicht
+  // um das Exemplar.
+  fotoDaten     Bytes?   @db.MediumBlob
+  fotoMime      String?  @db.VarChar(50)
+  fotoAm        DateTime?
   erstelltAm    DateTime @default(now())
   aktualisiertAm DateTime @updatedAt
 

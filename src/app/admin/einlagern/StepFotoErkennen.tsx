@@ -21,6 +21,8 @@ export type ErkanntesTeil = {
   teiltyp:     string | null;
   hersteller:  string | null;
   teilenummer: string | null;
+  /** Uebersichtsbild, das als Vergleichsfoto an der Nummer haengen bleibt. */
+  fotoBase64:  string | null;
 };
 
 export function StepFotoErkennen({
@@ -244,6 +246,7 @@ export function StepFotoErkennen({
               teiltyp:     ergebnis.teiltyp,
               hersteller:  ergebnis.hersteller,
               teilenummer: gewaehlteNummer ?? ergebnis.bekannt?.nummer ?? null,
+              fotoBase64:  aufbereitet?.uebersicht.base64 ?? null,
             })}
             className={`${knopf} w-full bg-[#202F61] text-white`}
           >
@@ -254,7 +257,7 @@ export function StepFotoErkennen({
 
       {/* Nie eine Sackgasse: auch ohne Foto und ohne Erkennung weiterkommen. */}
       <button
-        onClick={() => onWeiter({ teiltyp: null, hersteller: null, teilenummer: null })}
+        onClick={() => onWeiter({ teiltyp: null, hersteller: null, teilenummer: null, fotoBase64: null })}
         className="text-sm font-semibold text-[#0064d2] dark:text-[#45bdff] underline">
         Überspringen und von Hand erfassen
       </button>

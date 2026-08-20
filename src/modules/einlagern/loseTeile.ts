@@ -4,6 +4,7 @@ import { prisma } from "@/core/db/prisma";
 import { bucheLager } from "@/modules/buchungen/service";
 import {
   findeOderLegeAn, artikelZuNummer, verknuepfeArtikel, normalisiere,
+  speichereFoto as speichereTeilFoto,
 } from "@/modules/teilenummern/service";
 
 // ── Einlagern ohne Spendergerät ──────────────────────────────────────────────
@@ -29,6 +30,12 @@ export type LosesTeilInput = {
   grading?:     string | null;
   lagerplatz?:  string | null;
   notiz?:       string | null;
+  /**
+   * Foto aus der Erkennung. Bleibt als Vergleichsbild an der Teilenummer
+   * hängen — und ist zugleich ein beschriftetes Trainingsbeispiel für ein
+   * späteres eigenes Erkennungsmodell.
+   */
+  fotoBase64?:  string | null;
   mitarbeiter:  string;
   standortId:   number;
 };
@@ -80,6 +87,12 @@ export async function erfasseLosesTeil(input: LosesTeilInput): Promise<LosesTeil
       }
     } else {
       teilenummerId = tn.id;
+
+      // Foto an der Nummer ablegen. Nur beim ERSTEN Mal — ein späteres Foto
+      // desselben Teils bringt nichts Neues, kostet aber Platz.
+      if (input.fotoBase64 && tn.neu) {
+        await speichereTeilFoto(tn.id, input.fotoBase64);
+      }
     }
   }
 
