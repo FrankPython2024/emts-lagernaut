@@ -1,3 +1,4 @@
+import { prisma } from "@/core/db/prisma";
 import { frage, alsJson, istEingerichtet } from "@/lib/ki/gemini";
 import { STANDARD_TEILE } from "@/modules/einlagern/constants";
 import { normalisiere, istPlausibel, schlageNach } from "./service";
@@ -6,14 +7,23 @@ import { normalisiere, istPlausibel, schlageNach } from "./service";
 //
 // Beantwortet genau zwei Fragen: Was ist das für ein Teil, und was steht drauf.
 //
-// ⚠️ Was hier bewusst NICHT gefragt wird: in welche Geräte das Teil passt.
-// Diese Frage kann ein Bildmodell nicht überprüfbar beantworten — es würde eine
-// flüssige, plausible und möglicherweise erfundene Liste liefern, und niemand
-// könnte ihr ansehen, dass sie falsch ist. Der Teiltyp dagegen ist überprüfbar:
-// Die Person hält das Teil in der Hand und sieht sofort, ob „Tastatur" stimmt.
+// Zusätzlich werden mögliche Geräte genannt — aber unter strengen Auflagen.
 //
-// Modelle kommen weiterhin nur aus dem Spendergerät, aus der Nummernsuche oder
-// von Hand. Das ist auch die Zusage, die AfB nach außen gegeben hat.
+// ⚠️ Der Teiltyp ist überprüfbar: Die Person hält das Teil in der Hand und
+// sieht sofort, ob „Tastatur" stimmt. Eine Geräteliste ist es NICHT. Ein
+// Bildmodell nennt auf diese Frage immer etwas, flüssig und überzeugend, auch
+// wenn es nichts weiß.
+//
+// Deshalb drei Auflagen für die Geräte-Vorschläge:
+//   1. Sie werden gegen die EIGENE Modelltabelle gefiltert. Was es bei euch
+//      nicht gibt, verschwindet — das erledigt die meisten Erfindungen.
+//   2. Sie werden nirgends gespeichert. Diese Funktion liefert Anzeige, keine
+//      Daten.
+//   3. Sie sind in der Oberfläche als unbestätigt gekennzeichnet.
+//
+// Echte Kompatibilitäten kommen weiterhin nur aus dem Spendergerät, aus der
+// Nummernsuche mit Fundstellen oder von Hand. Das ist die Zusage, die AfB nach
+// außen gegeben hat, und sie bleibt unangetastet.
 
 const HERSTELLER = ["HP", "Lenovo", "Dell", "Fujitsu", "unbekannt"] as const;
 
@@ -27,6 +37,17 @@ export type ErkennungsErgebnis = {
   nummern:     string[];
   /** Nummer, die Lagernaut bereits kennt — dann ist alles Weitere überflüssig. */
   bekannt:     { nummer: string; teiltyp: string | null; hersteller: string | null; modelle: number } | null;
+  /**
+   * Mögliche Geräte, gefiltert gegen die eigene Modelltabelle.
+   * ⚠️ UNBESTÄTIGT. Nur Anzeige, wird nirgends gespeichert.
+   */
+  geraete:     { modellId: number; name: string }[];
+  /**
+   * Genannte Geräte, die es in unserem Katalog NICHT gibt.
+   * Bewusst sichtbar: Sonst lässt sich „hat nichts erkannt" nicht von
+   * „alles rausgefiltert" unterscheiden — und man sucht an der falschen Stelle.
+   */
+  geraeteVerworfen: string[];
   sicherheit:  number;          // 0–100, wie das Modell sich selbst einschätzt
   bemerkung:   string | null;
 };
@@ -42,6 +63,7 @@ function anweisung(): string {
     '  "teiltyp": <einer dieser Werte oder null>,',
     `  "hersteller": <einer von ${HERSTELLER.map((h) => `"${h}"`).join(", ")}>,`,
     '  "nummern": [<alle lesbaren aufgedruckten Codes als Zeichenketten>],',
+    '  "geraete": [<Notebook-Modelle, in die dieses Teil passt — nur wenn du es WIRKLICH weisst, sonst leere Liste>],',
     '  "sicherheit": <0 bis 100>,',
     '  "bemerkung": <ein kurzer Satz auf Deutsch oder null>',
     "}",
@@ -54,8 +76,10 @@ function anweisung(): string {
     "  Platinenaufdrucke, Modellnummern. Barcodes nicht abtippen, nur Klartext.",
     "- Keine Seriennummern erfinden und keine Zeichen ergänzen, die du nicht siehst.",
     "  Lieber eine Nummer weniger als eine falsche.",
-    "- Nenne NIEMALS Gerätemodelle, in die das Teil passen könnte. Das wird hier",
-    "  nicht gefragt und wäre geraten.",
+    "- Bei geraete die Notebook-Modelle nennen, in die dieses Teil passt, in der",
+    "  Schreibweise des Herstellers (z. B. \"ThinkPad T14 Gen 1\", \"ProBook 440 G6\").",
+    "  Nenne ruhig mehrere, wenn ein Teil ueber eine Baureihe hinweg verwendet wird.",
+    "  Erfinde aber nichts: Wenn du das Teil nicht zuordnen kannst, leere Liste.",
     "- bemerkung nur für etwas Auffälliges, etwa sichtbare Beschädigung.",
   ].join("\n");
 }
@@ -64,6 +88,7 @@ type RohAntwort = {
   teiltyp?:    string | null;
   hersteller?: string | null;
   nummern?:    unknown;
+  geraete?:    unknown;
   sicherheit?: unknown;
   bemerkung?:  string | null;
 };
@@ -74,7 +99,7 @@ export async function erkenneTeil(input: {
 }): Promise<ErkennungsErgebnis> {
   const leer: ErkennungsErgebnis = {
     ok: false, teiltyp: null, teiltypLabel: null, hersteller: null,
-    nummern: [], bekannt: null, sicherheit: 0, bemerkung: null,
+    nummern: [], bekannt: null, geraete: [], geraeteVerworfen: [], sicherheit: 0, bemerkung: null,
   };
 
   if (!istEingerichtet()) {
@@ -122,6 +147,54 @@ export async function erkenneTeil(input: {
     ? Math.max(0, Math.min(100, Math.round(roh.sicherheit)))
     : 0;
 
+  // ── Geräte gegen die eigene Tabelle prüfen ──────────────────────────────
+  // Nur was es bei euch wirklich gibt, wird angezeigt. Ein erfundenes oder
+  // ein nie geführtes Modell fällt hier heraus, ohne dass jemand es bemerken
+  // muss. Verglichen wird mit und ohne Hersteller-Präfix, weil das Modell mal
+  // „ThinkPad T14 Gen 1" und mal „Lenovo ThinkPad T14 Gen 1" schreibt.
+  const geraete: { modellId: number; name: string }[] = [];
+  const genannt = Array.isArray(roh.geraete)
+    ? roh.geraete.filter((g): g is string => typeof g === "string" && g.trim().length > 2)
+    : [];
+  const verworfen: string[] = [];
+
+  if (genannt.length > 0) {
+    const alle = await prisma.geraeteModell.findMany({
+      where:  { aktiv: true },
+      select: { id: true, hersteller: true, modell: true },
+    });
+
+    // ⚠️ NICHT auf exakte Gleichheit prüfen. Das Modell schreibt „ThinkPad T14
+    // Gen 1", im Katalog steht vielleicht „T14 Gen 1" oder „ThinkPad T14 G1".
+    // Ein Vergleich auf Gleichheit hat deshalb alles verworfen, und weil nichts
+    // angezeigt wurde, sah es aus wie „hat nichts erkannt".
+    //
+    // Stattdessen: Steckt der eine Name im anderen? Das trifft beide
+    // Richtungen und ist bei Modellnamen zuverlässig genug, weil sie lang und
+    // eigen sind.
+    for (const g of genannt) {
+      const gesucht = normalisiere(g);
+      if (gesucht.length < 5) { verworfen.push(g); continue; }
+
+      const treffer = alle.find((m) => {
+        const kurz = normalisiere(m.modell);
+        const voll = normalisiere(`${m.hersteller} ${m.modell}`);
+        if (kurz.length < 5) return false;
+        return gesucht.includes(kurz) || kurz.includes(gesucht)
+            || gesucht === voll || voll.includes(gesucht);
+      });
+
+      if (treffer) {
+        const name = `${treffer.hersteller} ${treffer.modell}`.trim();
+        if (!geraete.some((x) => x.modellId === treffer.id)) {
+          geraete.push({ modellId: treffer.id, name });
+        }
+      } else {
+        verworfen.push(g);
+      }
+    }
+  }
+
   // ── Kennen wir eine der Nummern schon? ──────────────────────────────────
   // Dann ist die Erkennung nur noch Beiwerk: Was ein Mensch früher bestätigt
   // hat, schlägt jede Modellantwort.
@@ -146,6 +219,8 @@ export async function erkenneTeil(input: {
     hersteller,
     nummern,
     bekannt,
+    geraete: geraete.slice(0, 12),
+    geraeteVerworfen: verworfen.slice(0, 8),
     sicherheit,
     bemerkung:    typeof roh.bemerkung === "string" ? roh.bemerkung.slice(0, 200) : null,
   };

@@ -152,6 +152,50 @@ export function StepFotoErkennen({
                   stark={ergebnis.sicherheit >= 70} />
               </div>
 
+              {/* Geräte-Vorschläge. Bewusst optisch zurückhaltend und
+                  ausdrücklich als unbestätigt beschriftet: Sie sind eine
+                  Orientierung fürs spätere Zuordnen, keine Aussage, auf die
+                  sich jemand verlassen soll. Gespeichert wird davon nichts. */}
+              {ergebnis.geraete.length > 0 && (
+                <div className="rounded-lg border border-[#f7b928]/50 bg-[#f7b928]/8 p-3">
+                  <div className="text-sm font-bold text-[#8A5A00] dark:text-[#f7b928]">
+                    Könnte in diese Geräte passen — unbestätigt
+                  </div>
+                  <ul className="flex flex-wrap gap-1.5 mt-2">
+                    {ergebnis.geraete.map((g) => (
+                      <li key={g.modellId}
+                        className="text-xs px-2 py-1 rounded border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]">
+                        {g.name}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-2">
+                    Nur Modelle, die es bei uns wirklich gibt. Sie werden <strong>nicht</strong>
+                    {" "}gespeichert. Gesicherte Zuordnungen entstehen über das Spendergerät
+                    oder über „Automatisch nachschlagen" auf der Seite Teilenummern.
+                  </p>
+                </div>
+              )}
+
+              {/* Ehrlichkeit statt Schweigen: Wenn Geräte genannt wurden, die
+                  es bei uns nicht gibt, muss das sichtbar sein. Sonst sieht
+                  „alles rausgefiltert" aus wie „nichts erkannt". */}
+              {ergebnis.geraete.length === 0 && ergebnis.geraeteVerworfen.length > 0 && (
+                <div className="rounded-lg border border-[#ced4da] dark:border-[#3e4042] p-3">
+                  <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                    Genannt wurden {ergebnis.geraeteVerworfen.join(", ")} — diese Modelle
+                    stehen bei uns nicht im Katalog und werden deshalb nicht angezeigt.
+                  </div>
+                </div>
+              )}
+
+              {ergebnis.geraete.length === 0 && ergebnis.geraeteVerworfen.length === 0 && (
+                <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                  Zu passenden Geräten konnte nichts gesagt werden. Das ist der
+                  Regelfall bei Teilen ohne eindeutige Nummer.
+                </p>
+              )}
+
               {ergebnis.bemerkung && (
                 <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] italic">💬 {ergebnis.bemerkung}</p>
               )}
