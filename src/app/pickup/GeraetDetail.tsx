@@ -16,11 +16,12 @@ import { formatLogId } from "@/lib/pickup/logId";
 // Woher die Bilder kommen, in dieser Reihenfolge:
 //
 //   1. AfB-Shop. Er führt genau die Modelle, die AfB aufbereitet, und zeigt je
-//      Modell EIN Produktbild — drei EliteBooks 840 G5 mit verschiedener
-//      Ausstattung verweisen dort auf dasselbe Bild. Wird beim ersten Öffnen
-//      automatisch geholt und danach nie wieder abgefragt.
+//      Modell eine ganze Galerie: vorn, hinten, links, rechts und die
+//      Anschlussseite. Drei EliteBooks 840 G5 mit verschiedener Ausstattung
+//      verweisen dabei auf dieselben Bilder. Wird beim ersten Öffnen geholt
+//      und danach nie wieder abgefragt.
 //   2. Selbst fotografiert. Wer ein Modell in der Hand hat, kann jederzeit ein
-//      eigenes Bild machen; es ersetzt das Katalogbild.
+//      eigenes Bild machen; es belegt Position 0 und steht damit vorn.
 //
 // ⚠️ Ein selbst aufgenommenes Foto wird NIE vom Shop überschrieben. Der Katalog
 // zeigt ein neuwertiges Gerät, im Regal liegt ein gebrauchtes.
@@ -45,9 +46,9 @@ export function GeraetDetail({ pos, onClose }: { pos: PickupPos; onClose: () => 
   );
 
   // ── Bild aus dem AfB-Shop ────────────────────────────────────────────────
-  // Läuft beim Öffnen automatisch, wenn noch kein Bild da ist. Der Shop führt
-  // genau die Modelle, die AfB aufbereitet, und zeigt je Modell EIN Bild.
-  // Erfolg wie Misserfolg werden gemerkt, es passiert also einmal je Modell.
+  // Läuft beim Öffnen automatisch, wenn noch kein Bild da ist, und holt die
+  // ganze Galerie auf einmal. Erfolg wie Misserfolg werden gemerkt, es
+  // passiert also genau einmal je Modell.
   const ausShop = api.geraeteFotos.ausShop.useMutation({
     onSuccess: () => { void utils.geraeteFotos.invalidate(); },
   });
@@ -92,9 +93,12 @@ export function GeraetDetail({ pos, onClose }: { pos: PickupPos; onClose: () => 
   }
 
   const g = info.data;
-  const bildUrl = g?.hatFoto
-    ? `/api/geraete/foto?schluessel=${encodeURIComponent(g.schluessel)}&v=${g.fotoStand ?? ""}`
-    : null;
+  const bilder = g?.bilder ?? [];
+  // Welche Ansicht gerade groß zu sehen ist.
+  const [gewaehlt, setGewaehlt] = useState(0);
+  const aktiv = bilder[Math.min(gewaehlt, bilder.length - 1)] ?? null;
+  const adresse = (b: { position: number; stand: string }) =>
+    `/api/geraete/foto?schluessel=${encodeURIComponent(g!.schluessel)}&position=${b.position}&v=${b.stand}`;
 
   return (
     <div
@@ -124,16 +128,42 @@ export function GeraetDetail({ pos, onClose }: { pos: PickupPos; onClose: () => 
         <div className="p-4 space-y-4">
 
           {/* Bild oben: Es ist das, wonach gesucht wird. */}
-          {bildUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={bildUrl} alt={g?.anzeige ?? "Gerät"}
-              className="w-full rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a]" />
+          {aktiv && g ? (
+            <div className="space-y-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={adresse(aktiv)} alt={`${g.anzeige} — ${aktiv.ansicht ?? "Ansicht"}`}
+                className="w-full rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a]" />
+
+              {/* Ansichten zum Durchtippen. Die Anschlussseite ist beim Suchen
+                  im Regal oft aussagekräftiger als die Frontansicht. */}
+              {bilder.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {bilder.map((b, i) => (
+                    <button key={b.position} onClick={() => setGewaehlt(i)}
+                      aria-label={b.ansicht ?? `Ansicht ${i + 1}`}
+                      className={`shrink-0 rounded-lg border-2 overflow-hidden ${
+                        i === Math.min(gewaehlt, bilder.length - 1)
+                          ? "border-[#0064d2]"
+                          : "border-[#ced4da] dark:border-[#3e4042]"
+                      }`}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={adresse(b)} alt="" className="w-16 h-16 object-cover bg-white" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {aktiv.ansicht && (
+                <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] text-center">
+                  {aktiv.ansicht}
+                </p>
+              )}
+            </div>
           ) : (
             <div className="rounded-xl border-2 border-dashed border-[#ced4da] dark:border-[#3e4042] p-6 text-center">
               <div className="text-3xl mb-1">📷</div>
               <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
                 {ausShop.isPending
-                  ? "Suche ein Bild im AfB-Shop…"
+                  ? "Hole Bilder aus dem AfB-Shop…"
                   : ausShop.data && !ausShop.data.ok
                     ? `${ausShop.data.grund} Du kannst selbst eines aufnehmen.`
                     : "Von diesem Modell gibt es noch kein Bild."}
@@ -141,11 +171,11 @@ export function GeraetDetail({ pos, onClose }: { pos: PickupPos; onClose: () => 
             </div>
           )}
 
-          {/* Woher das Bild stammt, gehört dazu: Ein Shop-Bild zeigt ein
+          {/* Woher das Bild stammt, gehört dazu: Ein Katalogbild zeigt ein
               makelloses Gerät, im Regal liegt ein gebrauchtes. */}
-          {bildUrl && (
+          {aktiv && (
             <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] -mt-2">
-              {g?.quelle === "SHOP"
+              {aktiv.quelle === "SHOP"
                 ? "Katalogbild aus dem AfB-Shop — zeigt ein neuwertiges Gerät."
                 : "Foto aus dem Haus."}
             </p>
@@ -173,13 +203,13 @@ export function GeraetDetail({ pos, onClose }: { pos: PickupPos; onClose: () => 
 
           {g && (
             <label className={`inline-flex items-center justify-center w-full px-5 py-3 rounded-xl font-bold min-h-[56px] cursor-pointer ${
-              bildUrl
+              aktiv
                 ? "border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"
                 : "bg-[#0064d2] text-white"
             }`}>
               {laeuft || speichern.isPending
                 ? "Wird gespeichert…"
-                : bildUrl ? "Besseres Foto aufnehmen" : "📷 Foto von diesem Modell aufnehmen"}
+                : aktiv ? "Eigenes Foto aufnehmen" : "📷 Foto von diesem Modell aufnehmen"}
               <input type="file" accept="image/*" capture="environment"
                 onChange={fotoAufnehmen} className="sr-only"
                 disabled={laeuft || speichern.isPending} />

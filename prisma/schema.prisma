@@ -219,7 +219,16 @@ model GeraeteFoto {
   id          Int      @id @default(autoincrement())
   // Bereinigter Modellname MIT Hersteller-Präfix, z. B. „HP EliteBook 840 G5",
   // normalisiert auf Kleinschreibung ohne Sonderzeichen (siehe fotoSchluessel).
-  schluessel  String   @unique @db.VarChar(191)
+  schluessel  String   @db.VarChar(191)
+  // Mehrere Bilder je Modell: Der AfB-Shop zeigt sieben Ansichten — vorn,
+  // hinten, links, rechts und die Anschlussseite. Gerade letztere hilft beim
+  // Wiedererkennen im Regal mehr als die Frontansicht.
+  //
+  // 0 = Titelbild. Ein selbst aufgenommenes Foto belegt immer die 0 und steht
+  // damit vorn, egal wie viele Katalogbilder daneben liegen.
+  position    Int      @default(0)
+  /// Was das Bild zeigt, aus dem Dateinamen abgeleitet: front, ports, back …
+  ansicht     String?  @db.VarChar(40)
   // Anzeigename, wie er beim Anlegen aussah — nur fürs Auge.
   anzeige     String   @db.VarChar(255)
   mimeType    String   @db.VarChar(50)
@@ -231,6 +240,9 @@ model GeraeteFoto {
   erstelltVon String?  @db.VarChar(100)
   erstelltAm  DateTime @default(now())
   aktualisiertAm DateTime @updatedAt
+
+  @@unique([schluessel, position])
+  @@index([schluessel])
 }
 
 // ── Teilenummern-Wissen ───────────────────────────────────────────────────────

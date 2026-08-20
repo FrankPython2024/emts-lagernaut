@@ -26,7 +26,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const schluessel = q1(req.query.schluessel).trim();
   if (!schluessel) return res.status(400).json({ error: "schluessel fehlt" });
 
-  const foto = await leseFoto(schluessel);
+  // Position wählt die Ansicht: 0 = Titelbild, ab 1 die Katalogansichten.
+  const position = Math.max(0, Math.min(20, parseInt(q1(req.query.position) || "0", 10) || 0));
+
+  const foto = await leseFoto(schluessel, position);
   if (!foto) return res.status(404).json({ error: "Kein Foto" });
 
   res.setHeader("Content-Type", foto.mimeType);
