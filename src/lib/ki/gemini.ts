@@ -83,7 +83,11 @@ export async function frage(
             // Niedrig, weil hier nichts erfunden werden soll. Die Aufgabe ist
             // Ablesen und Zuordnen, nicht Formulieren.
             temperature:     0,
-            maxOutputTokens: 800,
+            // ⚠️ Großzügig. Die neueren Modelle denken vor der Antwort, und
+            // diese Denkschritte zählen mit. Mit 800 Token brach das JSON
+            // mittendrin ab und war nicht mehr lesbar — die Antwort selbst
+            // braucht keine 200 Token, das Denken davor aber schon.
+            maxOutputTokens: 4096,
             responseMimeType: "application/json",
           },
         }),
@@ -118,11 +122,31 @@ export async function frage(
       }
 
       const daten = await antwort.json() as {
-        candidates?: { content?: { parts?: { text?: string }[] } }[];
+        candidates?: {
+          content?: { parts?: { text?: string; thought?: boolean }[] };
+          finishReason?: string;
+        }[];
       };
-      const text = daten.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+      const kandidat = daten.candidates?.[0];
+
+      // Denkschritte herausfiltern: Die neueren Modelle liefern sie als eigene
+      // Teile mit. Würde man sie mitnehmen, stünde vor dem JSON noch Fließtext.
+      const text = (kandidat?.content?.parts ?? [])
+        .filter((p) => !p.thought)
+        .map((p) => p.text ?? "")
+        .join("");
+
       if (!text.trim()) {
-        return { ok: false, nochmal: true, antwort: { ok: false, grund: "Gemini hat nichts zurückgegeben." } };
+        // Häufigster Grund: MAX_TOKENS. Dann hat das Modell nur gedacht und
+        // nichts mehr geantwortet. Das gehört in die Meldung, sonst sucht
+        // jemand an der falschen Stelle.
+        const warum = kandidat?.finishReason
+          ? ` (Abbruchgrund: ${kandidat.finishReason})`
+          : "";
+        return {
+          ok: false, nochmal: true,
+          antwort: { ok: false, grund: `Gemini hat nichts zurückgegeben${warum}.` },
+        };
       }
 
       return { ok: true, nochmal: false, antwort: { ok: true, text } };
@@ -137,10 +161,41 @@ export async function frage(
 }
 
 /**
- * Antwort als JSON lesen. Modelle packen ihre Ausgabe gern in ```json-Blöcke,
- * auch wenn man sie ausdrücklich darum bittet, es nicht zu tun.
+ * Antwort als JSON lesen.
+ *
+ * Zwei Eigenheiten, die man einkalkulieren muss: Modelle packen ihre Ausgabe
+ * gern in ```json-Blöcke, auch wenn man ausdrücklich darum bittet, es nicht zu
+ * tun. Und manchmal steht ein Satz davor oder dahinter.
+ *
+ * Deshalb wird notfalls das erste vollständige geschweifte Klammerpaar aus dem
+ * Text herausgeschnitten, statt an einem Zeichen zu scheitern.
  */
 export function alsJson<T>(text: string): T | null {
-  const sauber = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-  try { return JSON.parse(sauber) as T; } catch { return null; }
+  const sauber = text.trim()
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/, "")
+    .trim();
+
+  try { return JSON.parse(sauber) as T; } catch { /* zweiter Versuch unten */ }
+
+  // Klammern zählen statt einer Zeichenkettensuche: Ein einfaches „bis zur
+  // letzten Klammer" würde bei verschachtelten Objekten daneben greifen.
+  const start = sauber.indexOf("{");
+  if (start === -1) return null;
+  let tiefe = 0, inText = false, entwertet = false;
+  for (let i = start; i < sauber.length; i++) {
+    const z = sauber[i]!;
+    if (entwertet) { entwertet = false; continue; }
+    if (z === "\\") { entwertet = true; continue; }
+    if (z === '"') { inText = !inText; continue; }
+    if (inText) continue;
+    if (z === "{") tiefe++;
+    else if (z === "}") {
+      tiefe--;
+      if (tiefe === 0) {
+        try { return JSON.parse(sauber.slice(start, i + 1)) as T; } catch { return null; }
+      }
+    }
+  }
+  return null;
 }

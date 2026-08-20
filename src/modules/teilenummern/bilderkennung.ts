@@ -88,7 +88,15 @@ export async function erkenneTeil(input: {
   if (!antwort.ok) return { ...leer, grund: antwort.grund };
 
   const roh = alsJson<RohAntwort>(antwort.text);
-  if (!roh) return { ...leer, grund: "Antwort war nicht lesbar." };
+  if (!roh) {
+    // ⚠️ Den Anfang der Antwort mitgeben. „Antwort war nicht lesbar" allein
+    // sagt niemandem, ob das Modell Unsinn geliefert hat, mitten im Satz
+    // abgebrochen wurde oder eine Fehlermeldung im Klartext geschickt hat.
+    return {
+      ...leer,
+      grund: `Antwort war nicht lesbar. Anfang der Antwort: ${antwort.text.slice(0, 180)}`,
+    };
+  }
 
   // ── Alles gegen die eigene Wirklichkeit prüfen ──────────────────────────
   // Was nicht in unsere Listen passt, wird verworfen statt übernommen.
