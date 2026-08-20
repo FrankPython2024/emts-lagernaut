@@ -89,11 +89,18 @@ export async function bereiteFotoAuf(datei: File): Promise<Aufbereitet> {
   }
   zellen.sort((a, b) => b.wert - a.wert);
 
-  // Die stärksten Zellen nehmen, aber nur solche, die deutlich über dem
-  // Mittelwert liegen — sonst schneidet man bei einem gleichmäßig
-  // strukturierten Teil sinnlos irgendwo hinein.
-  const mittel = zellen.reduce((s, z) => s + z.wert, 0) / (zellen.length || 1);
-  const kandidaten = zellen.filter((z) => z.wert > mittel * 1.6);
+  // ⚠️ Früher stand hier „nur Zellen, die 1,6-fach über dem Mittelwert liegen".
+  // Das war ein Denkfehler: Auf einer Platine ist das GANZE Bild voller Kanten,
+  // also liegt der Mittelwert hoch und keine Zelle sticht heraus — es kam kein
+  // einziger Ausschnitt zustande, ausgerechnet bei den Teilen mit der besten
+  // Beschriftung.
+  //
+  // Richtig ist: Die stärksten Zellen sind per Definition die besten
+  // Kandidaten, egal wie der Rest des Bildes aussieht. Eine Untergrenze bleibt
+  // nur, damit ein leeres oder komplett unscharfes Bild keine sinnlosen
+  // Ausschnitte erzeugt.
+  const MINDEST_ENERGIE = 4;
+  const kandidaten = zellen.filter((z) => z.wert > MINDEST_ENERGIE);
 
   // Zellen, die zu nah beieinander liegen, würden fast dasselbe zeigen.
   const gewaehlt: typeof kandidaten = [];

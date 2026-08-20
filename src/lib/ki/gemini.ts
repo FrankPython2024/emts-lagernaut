@@ -55,42 +55,84 @@ export async function frage(
     teile.push({ inline_data: { mime_type: b.mimeType, data: b.base64 } });
   }
 
-  try {
-    const antwort = await fetch(url, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: teile }],
-        generationConfig: {
-          // Niedrig, weil hier nichts erfunden werden soll. Die Aufgabe ist
-          // Ablesen und Zuordnen, nicht Formulieren.
-          temperature:     0,
-          maxOutputTokens: 800,
-          responseMimeType: "application/json",
-        },
-      }),
-      // Wer an der Werkbank steht, wartet nicht ewig.
-      signal: AbortSignal.timeout(20_000),
-    });
+  // ⚠️ Der Gratis-Zugang antwortet zeitweise mit 503 „high demand". Das ist
+  // kein Fehler, den jemand beheben könnte, sondern Googles Auslastung — und
+  // die Meldung sagt selbst „try again later". Also versuchen wir es zwei Mal
+  // nach, statt dem Mitarbeiter an der Werkbank eine Fehlermeldung hinzuwerfen.
+  // Kurze Wartezeiten, damit niemand ewig davorsteht.
+  const WARTEN = [1200, 2500];
+  let letzterGrund = "Gemini nicht erreichbar.";
 
-    if (!antwort.ok) {
-      const text = await antwort.text().catch(() => "");
-      // 429 = Tageskontingent aufgebraucht. Erwarteter Normalfall, kein Defekt.
-      if (antwort.status === 429) {
-        return { ok: false, grund: "Gemini-Tageskontingent aufgebraucht. Morgen wieder, oder von Hand eintragen." };
+  for (let versuch = 0; versuch <= WARTEN.length; versuch++) {
+    if (versuch > 0) await new Promise((r) => setTimeout(r, WARTEN[versuch - 1]));
+    const ergebnis = await einVersuch();
+    if (ergebnis.ok || !ergebnis.nochmal) return ergebnis.antwort;
+    letzterGrund = ergebnis.antwort.ok ? letzterGrund : ergebnis.antwort.grund;
+  }
+  return { ok: false, grund: `${letzterGrund} (auch nach ${WARTEN.length + 1} Versuchen)` };
+
+  /** Ein einzelner Aufruf. `nochmal` sagt, ob sich ein weiterer Versuch lohnt. */
+  async function einVersuch(): Promise<{ ok: boolean; nochmal: boolean; antwort: KiAntwort }> {
+    try {
+      const antwort = await fetch(url, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: teile }],
+          generationConfig: {
+            // Niedrig, weil hier nichts erfunden werden soll. Die Aufgabe ist
+            // Ablesen und Zuordnen, nicht Formulieren.
+            temperature:     0,
+            maxOutputTokens: 800,
+            responseMimeType: "application/json",
+          },
+        }),
+        // Wer an der Werkbank steht, wartet nicht ewig.
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      if (!antwort.ok) {
+        const text = await antwort.text().catch(() => "");
+
+        // 429 = Tageskontingent aufgebraucht. Erwarteter Normalfall, kein
+        // Defekt — und ein weiterer Versuch würde es nur schlimmer machen.
+        if (antwort.status === 429) {
+          return {
+            ok: false, nochmal: false,
+            antwort: { ok: false, grund: "Gemini-Tageskontingent aufgebraucht. Morgen wieder, oder von Hand eintragen." },
+          };
+        }
+
+        // 500 bis 504 sind Auslastung auf Googles Seite. Genau dafür ist die
+        // Wiederholung da.
+        const voruebergehend = antwort.status >= 500 && antwort.status <= 504;
+        return {
+          ok: false, nochmal: voruebergehend,
+          antwort: {
+            ok: false,
+            grund: voruebergehend
+              ? "Gemini ist gerade überlastet."
+              : `Gemini antwortet mit ${antwort.status}. ${text.slice(0, 200)}`,
+          },
+        };
       }
-      return { ok: false, grund: `Gemini antwortet mit ${antwort.status}. ${text.slice(0, 200)}` };
+
+      const daten = await antwort.json() as {
+        candidates?: { content?: { parts?: { text?: string }[] } }[];
+      };
+      const text = daten.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
+      if (!text.trim()) {
+        return { ok: false, nochmal: true, antwort: { ok: false, grund: "Gemini hat nichts zurückgegeben." } };
+      }
+
+      return { ok: true, nochmal: false, antwort: { ok: true, text } };
+    } catch (e) {
+      // Zeitüberschreitung oder Netzproblem: einmal nachfassen lohnt sich.
+      return {
+        ok: false, nochmal: true,
+        antwort: { ok: false, grund: `Gemini nicht erreichbar: ${(e as Error).message}` },
+      };
     }
-
-    const daten = await antwort.json() as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    const text = daten.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
-    if (!text.trim()) return { ok: false, grund: "Gemini hat nichts zurückgegeben." };
-
-    return { ok: true, text };
-  } catch (e) {
-    return { ok: false, grund: `Gemini nicht erreichbar: ${(e as Error).message}` };
   }
 }
 
