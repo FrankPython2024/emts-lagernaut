@@ -224,6 +224,10 @@ model GeraeteFoto {
   anzeige     String   @db.VarChar(255)
   mimeType    String   @db.VarChar(50)
   daten       Bytes    @db.MediumBlob
+  // SELBST = jemand hat das Gerät fotografiert. SHOP = aus dem AfB-Shop geholt.
+  // Ein selbst aufgenommenes Bild darf NIE von einem Shop-Bild überschrieben
+  // werden: Wer das Gerät in der Hand hatte, weiß es besser als der Katalog.
+  quelle      String   @default("SELBST") @db.VarChar(20)
   erstelltVon String?  @db.VarChar(100)
   erstelltAm  DateTime @default(now())
   aktualisiertAm DateTime @updatedAt

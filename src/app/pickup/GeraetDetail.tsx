@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { formatLogId } from "@/lib/pickup/logId";
@@ -13,10 +13,17 @@ import { formatLogId } from "@/lib/pickup/logId";
 // Aussehen als an „HP EliteBook 840 G5". Und wer die Baureihen nicht im Kopf
 // hat, erkennt es überhaupt erst.
 //
-// ⚠️ Die Bildersammlung füllt sich von selbst. Es gibt keine Quelle, aus der
-// man Fotos aller Notebookmodelle beziehen könnte — also fotografiert der, der
-// ein Modell zum ersten Mal in der Hand hat, und alle danach sehen es. Deshalb
-// steht der Aufnahmeknopf genau dort, wo jemand das Gerät gerade hält.
+// Woher die Bilder kommen, in dieser Reihenfolge:
+//
+//   1. AfB-Shop. Er führt genau die Modelle, die AfB aufbereitet, und zeigt je
+//      Modell EIN Produktbild — drei EliteBooks 840 G5 mit verschiedener
+//      Ausstattung verweisen dort auf dasselbe Bild. Wird beim ersten Öffnen
+//      automatisch geholt und danach nie wieder abgefragt.
+//   2. Selbst fotografiert. Wer ein Modell in der Hand hat, kann jederzeit ein
+//      eigenes Bild machen; es ersetzt das Katalogbild.
+//
+// ⚠️ Ein selbst aufgenommenes Foto wird NIE vom Shop überschrieben. Der Katalog
+// zeigt ein neuwertiges Gerät, im Regal liegt ein gebrauchtes.
 
 export type PickupPos = {
   id:          number;
@@ -36,6 +43,28 @@ export function GeraetDetail({ pos, onClose }: { pos: PickupPos; onClose: () => 
     { bezeichnung: pos.bezeichnung },
     { staleTime: 60_000 },
   );
+
+  // ── Bild aus dem AfB-Shop ────────────────────────────────────────────────
+  // Läuft beim Öffnen automatisch, wenn noch kein Bild da ist. Der Shop führt
+  // genau die Modelle, die AfB aufbereitet, und zeigt je Modell EIN Bild.
+  // Erfolg wie Misserfolg werden gemerkt, es passiert also einmal je Modell.
+  const ausShop = api.geraeteFotos.ausShop.useMutation({
+    onSuccess: () => { void utils.geraeteFotos.invalidate(); },
+  });
+  const versucht = useRef<string | null>(null);
+
+  useEffect(() => {
+    const g = info.data;
+    if (!g || g.hatFoto) return;
+    // Nur ein Versuch je Modell und Fenster — sonst löst jedes Neuzeichnen
+    // eine weitere Abfrage nach außen aus.
+    if (versucht.current === g.schluessel) return;
+    versucht.current = g.schluessel;
+    ausShop.mutate({ anzeige: g.anzeige, modell: g.modell });
+    // ausShop bewusst nicht in den Abhängigkeiten: Die Mutation wird bei
+    // jedem Zeichnen neu erzeugt und würde eine Endlosschleife auslösen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [info.data?.schluessel, info.data?.hatFoto]);
 
   const speichern = api.geraeteFotos.speichern.useMutation({
     onSuccess: (r) => {
@@ -103,9 +132,23 @@ export function GeraetDetail({ pos, onClose }: { pos: PickupPos; onClose: () => 
             <div className="rounded-xl border-2 border-dashed border-[#ced4da] dark:border-[#3e4042] p-6 text-center">
               <div className="text-3xl mb-1">📷</div>
               <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
-                Von diesem Modell gibt es noch kein Bild.
+                {ausShop.isPending
+                  ? "Suche ein Bild im AfB-Shop…"
+                  : ausShop.data && !ausShop.data.ok
+                    ? `${ausShop.data.grund} Du kannst selbst eines aufnehmen.`
+                    : "Von diesem Modell gibt es noch kein Bild."}
               </div>
             </div>
+          )}
+
+          {/* Woher das Bild stammt, gehört dazu: Ein Shop-Bild zeigt ein
+              makelloses Gerät, im Regal liegt ein gebrauchtes. */}
+          {bildUrl && (
+            <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] -mt-2">
+              {g?.quelle === "SHOP"
+                ? "Katalogbild aus dem AfB-Shop — zeigt ein neuwertiges Gerät."
+                : "Foto aus dem Haus."}
+            </p>
           )}
 
           <dl className="space-y-2">

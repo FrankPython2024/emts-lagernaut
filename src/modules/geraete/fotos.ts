@@ -2,6 +2,8 @@ import { prisma } from "@/core/db/prisma";
 import { TRPCError } from "@trpc/server";
 import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
 import { bereinigeBezeichnung } from "@/lib/geraete/bezeichnungBereinigen";
+import { sucheShopBild, ladeBild } from "@/lib/geraete/shopBild";
+import { redis } from "@/core/infra/redis";
 
 // ── Fotos je Gerätemodell ────────────────────────────────────────────────────
 //
@@ -37,6 +39,8 @@ export type GeraetInfo = {
   schluessel: string;
   hatFoto:    boolean;
   fotoStand:  string | null;
+  /** SELBST | SHOP — woher das vorhandene Bild stammt. */
+  quelle:     string | null;
 };
 
 /**
@@ -60,7 +64,7 @@ export async function deuteBezeichnung(roh: string | null): Promise<GeraetInfo |
 
   const foto = await prisma.geraeteFoto.findUnique({
     where:  { schluessel },
-    select: { aktualisiertAm: true },
+    select: { aktualisiertAm: true, quelle: true },
   });
 
   return {
@@ -72,6 +76,7 @@ export async function deuteBezeichnung(roh: string | null): Promise<GeraetInfo |
     // Zeitstempel als Zwischenspeicher-Stopper in der Bild-Adresse: Ohne ihn
     // zeigt der Browser nach dem Austauschen weiter das alte Bild.
     fotoStand: foto ? String(foto.aktualisiertAm.getTime()) : null,
+    quelle:    foto?.quelle ?? null,
   };
 }
 
@@ -103,10 +108,10 @@ export async function speichereFoto(input: {
 
   await prisma.geraeteFoto.upsert({
     where:  { schluessel },
-    create: { schluessel, anzeige, mimeType: input.mimeType, daten: bytes, erstelltVon: input.benutzer ?? null },
-    // Ein besseres Bild darf ein schlechteres ersetzen — wer eines schießt,
-    // hat das Gerät gerade vor sich und weiß, ob das alte taugt.
-    update: { anzeige, mimeType: input.mimeType, daten: bytes, erstelltVon: input.benutzer ?? null },
+    create: { schluessel, anzeige, mimeType: input.mimeType, daten: bytes, quelle: "SELBST", erstelltVon: input.benutzer ?? null },
+    // Ein selbst aufgenommenes Bild darf immer ersetzen — auch ein Shop-Bild.
+    // Wer das Gerät gerade vor sich hat, weiß besser, wie es aussieht.
+    update: { anzeige, mimeType: input.mimeType, daten: bytes, quelle: "SELBST", erstelltVon: input.benutzer ?? null },
   });
 
   return { schluessel, groesse: bytes.length, ersetzt: !!vorher };
@@ -131,4 +136,66 @@ export async function liste(limit = 300) {
     take:    limit,
     select:  { schluessel: true, anzeige: true, erstelltVon: true, aktualisiertAm: true },
   });
+}
+
+// ── Bild aus dem AfB-Shop ────────────────────────────────────────────────────
+//
+// Wird beim ersten Öffnen eines Modells versucht, das noch kein Bild hat.
+// Danach nie wieder: Erfolg landet in der Datenbank, Misserfolg in einer
+// Merkliste mit Verfallsdatum.
+//
+// ⚠️ Ein SELBST aufgenommenes Bild wird niemals überschrieben. Der Shop zeigt
+// ein makelloses Gerät, im Regal liegt ein gebrauchtes — wer fotografiert hat,
+// hatte das echte Teil in der Hand.
+
+/** Modelle, zu denen der Shop nichts hatte. 30 Tage, dann darf es neu versuchen. */
+const LEER_TAGE = 30;
+
+function leerSchluessel(s: string): string { return `shopbild:leer:${s}`; }
+
+export async function holeAusShop(anzeige: string, modell?: string | null): Promise<{
+  ok: boolean; grund?: string; wie?: string;
+}> {
+  const key = fotoSchluessel(anzeige);
+
+  const vorhanden = await prisma.geraeteFoto.findUnique({
+    where: { schluessel: key }, select: { quelle: true },
+  });
+  if (vorhanden?.quelle === "SELBST") {
+    return { ok: false, grund: "Es gibt bereits ein selbst aufgenommenes Foto." };
+  }
+  if (vorhanden) return { ok: true, wie: "war schon da" };
+
+  // Schon einmal erfolglos gesucht? Dann nicht bei jedem Öffnen erneut.
+  try {
+    if (await redis.get(leerSchluessel(key))) {
+      return { ok: false, grund: "Der Shop führt dieses Modell nicht." };
+    }
+  } catch { /* Redis weg: dann eben suchen */ }
+
+  const treffer = await sucheShopBild(anzeige, modell ?? null);
+  if (!treffer) {
+    try {
+      await redis.set(leerSchluessel(key), "1", "EX", LEER_TAGE * 86_400);
+    } catch { /* egal */ }
+    return { ok: false, grund: "Im Shop kein passendes Bild gefunden." };
+  }
+
+  const bild = await ladeBild(treffer.bildUrl);
+  if (!bild) return { ok: false, grund: "Bild konnte nicht geladen werden." };
+
+  await prisma.geraeteFoto.upsert({
+    where:  { schluessel: key },
+    create: {
+      schluessel: key, anzeige: anzeige.trim(),
+      mimeType: bild.mimeType, daten: bild.bytes,
+      quelle: "SHOP", erstelltVon: "AfB-Shop",
+    },
+    update: {
+      anzeige: anzeige.trim(), mimeType: bild.mimeType, daten: bild.bytes,
+      quelle: "SHOP", erstelltVon: "AfB-Shop",
+    },
+  });
+
+  return { ok: true, wie: treffer.wie };
 }

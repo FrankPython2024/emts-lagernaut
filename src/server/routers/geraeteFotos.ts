@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc";
 import type { SessionUser } from "@/core/types";
 import {
-  deuteBezeichnung, speichereFoto, loescheFoto, liste,
+  deuteBezeichnung, speichereFoto, loescheFoto, liste, holeAusShop,
 } from "@/modules/geraete/fotos";
 
 // ── Gerätefotos ──────────────────────────────────────────────────────────────
@@ -32,6 +32,18 @@ export const geraeteFotosRouter = createTRPCRouter({
   loeschen: protectedProcedure
     .input(z.object({ schluessel: z.string().min(1).max(191) }))
     .mutation(async ({ input }) => { await loescheFoto(input.schluessel); return { ok: true }; }),
+
+  /**
+   * Bild aus dem AfB-Shop holen. Bewusst eine Mutation, obwohl sie nur liest:
+   * Sie stösst eine Abfrage nach aussen an und darf deshalb nicht von React
+   * automatisch wiederholt werden.
+   */
+  ausShop: protectedProcedure
+    .input(z.object({
+      anzeige: z.string().min(3).max(255),
+      modell:  z.string().max(255).nullish(),
+    }))
+    .mutation(({ input }) => holeAusShop(input.anzeige, input.modell)),
 
   liste: protectedProcedure.query(() => liste()),
 });
