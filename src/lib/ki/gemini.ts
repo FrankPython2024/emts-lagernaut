@@ -15,7 +15,12 @@
 //    Deshalb gehen hier nur Teilenummern und Fotos von Bauteilen raus, niemals
 //    LogIDs, Kundendaten oder Bildschirminhalte.
 
-const STANDARD_MODELL = "gemini-2.5-flash";
+// ⚠️ Google schließt ältere Modelle für neue Konten. Am 19.08.2026 lieferte
+// „gemini-2.5-flash" ein 404 mit dem Hinweis, „gemini-3.6-flash" zu nehmen.
+// Falls das wieder passiert: Der Name lässt sich über GEMINI_MODELL in der
+// .env überschreiben, ohne dass hier etwas geändert werden muss. Die
+// Fehlermeldung von Google nennt den Nachfolger jeweils selbst.
+const STANDARD_MODELL = "gemini-3.6-flash";
 
 export type KiAntwort =
   | { ok: true;  text: string }

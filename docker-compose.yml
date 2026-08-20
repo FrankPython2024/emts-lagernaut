@@ -31,7 +31,7 @@ services:
       # Fehlt der Schluessel, verschwindet der Foto-Einstieg im Assistenten;
       # alles andere laeuft unveraendert weiter.
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODELL=${GEMINI_MODELL:-gemini-2.5-flash}
+      - GEMINI_MODELL=${GEMINI_MODELL:-gemini-3.6-flash}
     volumes:
       # Gemeinsamer Ordner mit dem ReForm-Sync (Trigger + Status). Der Host-Wächter
       # liest den Trigger; die App schreibt Trigger/Status. Bind-Mount vom Host.
