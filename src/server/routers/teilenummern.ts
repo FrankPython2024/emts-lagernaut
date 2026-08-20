@@ -4,6 +4,8 @@ import {
   schlageNach, liste, aktualisiere, setzeModelle, ordneNamenZu, istPlausibel, normalisiere,
 } from "@/modules/teilenummern/service";
 import { schlageAutomatischNach } from "@/modules/teilenummern/nachschlag";
+import { erkenneTeil } from "@/modules/teilenummern/bilderkennung";
+import { istEingerichtet as kiEingerichtet } from "@/lib/ki/gemini";
 import { istEingerichtet, verbrauchHeute, tageslimit, aktiveQuelle } from "@/lib/suche";
 
 // ── Teilenummern ─────────────────────────────────────────────────────────────
@@ -79,6 +81,24 @@ export const teilenummernRouter = createTRPCRouter({
   automatischSuchen: pflegen
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input }) => schlageAutomatischNach(input.id)),
+
+  // ── Foto-Erkennung ──────────────────────────────────────────────────────
+  // Haengt am Einlager-Recht: Das ist die Person an der Werkbank, die das Teil
+  // in der Hand haelt. Schreibt nichts — liefert nur einen Vorschlag.
+  erkenneFoto: scannen
+    .input(z.object({
+      uebersicht:  z.object({
+        base64:   z.string().min(100).max(8_000_000),
+        mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+      }),
+      ausschnitte: z.array(z.object({
+        base64:   z.string().min(100).max(8_000_000),
+        mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+      })).max(3).optional(),
+    }))
+    .mutation(({ input }) => erkenneTeil(input)),
+
+  kiStatus: scannen.query(() => ({ eingerichtet: kiEingerichtet() })),
 
   sucheStatus: pflegen.query(async () => ({
     eingerichtet: istEingerichtet(),

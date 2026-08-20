@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
-import { TeilenummerFeld } from "@/components/TeilenummerFeld";
+import { TeilenummerFeld, type TeilenummerTreffer } from "@/components/TeilenummerFeld";
 import { GRADING_OPTIONS } from "@/modules/einlagern/constants";
 
 // ── Weg B: nur das Teil, kein Gerät ──────────────────────────────────────────
@@ -19,18 +19,27 @@ import { GRADING_OPTIONS } from "@/modules/einlagern/constants";
 // dasselbe einstellen.
 
 export function StepLosesTeil({
-  standortId, teiltypen, onBack,
+  standortId, teiltypen, onBack, initial,
 }: {
   standortId: number;
   teiltypen:  { id: string; label: string }[];
   onBack:     () => void;
+  /**
+   * Vorbelegung aus der Foto-Erkennung. Nur Startwerte — alles bleibt
+   * änderbar, denn bestätigt hat es noch niemand.
+   */
+  initial?: { teiltyp: string | null; hersteller: string | null; teilenummer: string | null };
 }) {
   const { show } = useToast();
   const utils = api.useUtils();
 
-  const [nummer,      setNummer]      = useState("");
-  const [bezeichnung, setBezeichnung] = useState("");
-  const [teiltyp,     setTeiltyp]     = useState("");
+  const [nummer,      setNummer]      = useState(initial?.teilenummer ?? "");
+  const [bezeichnung, setBezeichnung] = useState(
+    initial?.hersteller && initial?.teiltyp
+      ? `${initial.hersteller} ${teiltypen.find((t) => t.id === initial.teiltyp)?.label ?? initial.teiltyp}`
+      : "",
+  );
+  const [teiltyp,     setTeiltyp]     = useState(initial?.teiltyp ?? "");
   const [menge,       setMenge]       = useState(1);
   const [grading,     setGrading]     = useState("");
   const [lagerplatz,  setLagerplatz]  = useState("");
@@ -38,6 +47,38 @@ export function StepLosesTeil({
   const [erledigt,    setErledigt]    = useState<
     { text: string; modelle: string[]; hinweis: string | null }[]
   >([]);
+  // Was die Erkennung von selbst ausgefüllt hat — wird angezeigt, damit
+  // sichtbar bleibt, was das Programm getan hat und was der Mensch.
+  const [uebernommen, setUebernommen] = useState<string | null>(null);
+
+  /**
+   * Aus einer erkannten Nummer das Formular füllen.
+   *
+   * ⚠️ Nur LEERE Felder werden gesetzt. Was jemand schon selbst eingetragen
+   * hat, wird nie überschrieben — sonst springt einem das Formular unter den
+   * Händen weg.
+   */
+  function ausTreffer(t: TeilenummerTreffer | null) {
+    if (!t) { setUebernommen(null); return; }
+
+    const gefuellt: string[] = [];
+
+    if (!teiltyp && t.teiltyp) {
+      // Der gespeicherte Teiltyp ist der Anzeigename; die Auswahl arbeitet mit
+      // Kennungen. Deshalb über beides vergleichen.
+      const passend = teiltypen.find(
+        (x) => x.id === t.teiltyp || x.label.toLowerCase() === t.teiltyp!.toLowerCase(),
+      );
+      if (passend) { setTeiltyp(passend.id); gefuellt.push(passend.label); }
+    }
+
+    if (!bezeichnung && t.hersteller && t.teiltyp) {
+      setBezeichnung(`${t.hersteller} ${t.teiltyp}`);
+      gefuellt.push("Bezeichnung");
+    }
+
+    setUebernommen(gefuellt.length > 0 ? gefuellt.join(", ") : null);
+  }
 
   const buchen = api.einlagern.erfasseLosesTeil.useMutation({
     onSuccess: (r) => {
@@ -81,7 +122,13 @@ export function StepLosesTeil({
       <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm space-y-5">
 
         {/* Nummer zuerst — sie ist hier das, was sonst die LogID ist. */}
-        <TeilenummerFeld wert={nummer} onChange={setNummer} autoFocus />
+        <TeilenummerFeld wert={nummer} onChange={setNummer} autoFocus onTreffer={ausTreffer} />
+
+        {uebernommen && (
+          <div className="rounded-lg border border-[#04B475]/40 bg-[#04B475]/8 px-3 py-2 text-sm text-[#038F5C] dark:text-[#04B475]">
+            Aus der Nummer übernommen: {uebernommen}. Du kannst es unten ändern.
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">

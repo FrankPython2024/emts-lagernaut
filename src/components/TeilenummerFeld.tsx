@@ -14,13 +14,26 @@ import { api } from "@/trpc/react";
 // ⚠️ Das Feld ist IMMER optional. Wer nichts scannen kann, lagert wie bisher
 // ein. Eine Sackgasse an der Werkbank wäre schlimmer als eine fehlende Nummer.
 
+export type TeilenummerTreffer = {
+  nummer:     string;
+  hersteller: string | null;
+  teiltyp:    string | null;
+  modelle:    { modell: string }[];
+};
+
 export function TeilenummerFeld({
-  wert, onChange, autoFocus, kompakt,
+  wert, onChange, autoFocus, kompakt, onTreffer,
 }: {
   wert:      string;
   onChange:  (v: string) => void;
   autoFocus?: boolean;
   kompakt?:  boolean;
+  /**
+   * Wird gemeldet, sobald eine Nummer erkannt (oder als unbekannt bestätigt)
+   * ist. Damit kann das umgebende Formular sich selbst ausfüllen — genau
+   * dafür ist die ganze Erkennung da.
+   */
+  onTreffer?: (t: TeilenummerTreffer | null) => void;
 }) {
   // Erst nachschlagen, wenn der Wert kurz stillsteht — sonst eine Abfrage je
   // Tastenanschlag. Der Scanner feuert ohnehin am Stück.
@@ -38,6 +51,23 @@ export function TeilenummerFeld({
   const d       = abfrage.data;
   const treffer = d?.treffer ?? null;
   const zeigt   = ruhig.trim().length >= 4 && !abfrage.isLoading && !!d;
+
+  // Ergebnis nach oben melden, sobald es feststeht. Über die Nummer als
+  // Abhängigkeit, damit es genau einmal je erkannter Nummer feuert und nicht
+  // bei jedem Neuzeichnen.
+  const gemeldet = treffer?.nummer ?? null;
+  useEffect(() => {
+    if (!zeigt || !onTreffer) return;
+    onTreffer(treffer ? {
+      nummer:     treffer.nummer,
+      hersteller: treffer.hersteller,
+      teiltyp:    treffer.teiltyp,
+      modelle:    treffer.modelle.map((m) => ({ modell: m.modell })),
+    } : null);
+    // onTreffer bewusst nicht in den Abhängigkeiten: Eine im Elternteil neu
+    // erzeugte Funktion würde sonst eine Endlosschleife auslösen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gemeldet, zeigt]);
 
   return (
     <div>

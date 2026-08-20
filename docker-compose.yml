@@ -27,6 +27,11 @@ services:
       # Eigene Metasuche im Docker-Netz. Ist sie gesetzt, hat sie Vorrang vor
       # Google — sie sucht im ganzen Web statt nur in gelisteten Domains.
       - SEARXNG_URL=http://searxng:8080
+      # Bilderkennung ueber den Gratis-Zugang von aistudio.google.com.
+      # Fehlt der Schluessel, verschwindet der Foto-Einstieg im Assistenten;
+      # alles andere laeuft unveraendert weiter.
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODELL=${GEMINI_MODELL:-gemini-2.5-flash}
     volumes:
       # Gemeinsamer Ordner mit dem ReForm-Sync (Trigger + Status). Der Host-Wächter
       # liest den Trigger; die App schreibt Trigger/Status. Bind-Mount vom Host.

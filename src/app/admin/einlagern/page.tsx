@@ -6,6 +6,7 @@ import { api }          from "@/trpc/react";
 import { useToast }     from "@/components/ui/Toast";
 import { TeilenummerFeld } from "@/components/TeilenummerFeld";
 import { StepLosesTeil }   from "./StepLosesTeil";
+import { StepFotoErkennen, type ErkanntesTeil } from "./StepFotoErkennen";
 import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
 import { useStandortFilter } from "@/lib/standort/standortContext";
 import {
@@ -30,7 +31,8 @@ import {
 // 0 Willkommen · 1–5 der Weg über das Spendergerät · 6 Datenträger/RAM ·
 // 7 einzelnes Teil ohne Gerät. 6 und 7 sind eigenständige Zweige, keine
 // Zwischenschritte — deshalb hinten angehängt statt einsortiert.
-type WizardStep = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+// 8 = Foto-Erkennung, muendet in 7 (Erfassung ohne Geraet).
+type WizardStep = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 type GeraetState = {
   name:  string;
@@ -444,7 +446,7 @@ function TeilKonfigurator({
 
 // ── Step 0: Willkommen ────────────────────────────────────────────────────────
 
-function StepWillkommen({ onStart, onKomponenten, onLosesTeil }: { onStart: () => void; onKomponenten: () => void; onLosesTeil: () => void }) {
+function StepWillkommen({ onStart, onKomponenten, onLosesTeil, onFoto }: { onStart: () => void; onKomponenten: () => void; onLosesTeil: () => void; onFoto?: () => void }) {
   return (
     <div style={{ maxWidth: 560, margin: "0 auto" }}>
       <div style={{ ...S.card, textAlign: "center" }}>
@@ -528,6 +530,19 @@ function StepWillkommen({ onStart, onKomponenten, onLosesTeil }: { onStart: () =
           >
             🔩 Einzelnes Teil ohne Gerät
           </button>
+
+          {/* Erscheint nur, wenn die Bilderkennung eingerichtet ist. Ohne
+              Schluessel waere der Knopf ein Versprechen, das niemand einloest. */}
+          {onFoto && (
+            <button
+              onClick={onFoto}
+              style={{ ...S.bigBtn("var(--afb-blue)"), fontSize: "1.05rem", marginTop: "0.8rem" }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = "")}
+            >
+              📷 Ersatzteil erkennen lassen
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -2289,6 +2304,9 @@ export default function EinlagernPage() {
   const [step,              setStep]              = useState<WizardStep>(0);
   const [geraet,            setGeraet]            = useState<GeraetState | null>(null);
   const [items,             setItems]             = useState<AusgewaehltItem[]>([]);
+  // Ergebnis der Foto-Erkennung, das in die Erfassung durchgereicht wird.
+  const [erkannt,           setErkannt]           = useState<ErkanntesTeil | null>(null);
+  const kiStatus = api.teilenummern.kiStatus.useQuery(undefined, { staleTime: 5 * 60_000 });
   const [ergebnisse,        setErgebnisse]        = useState<ErgebnisItem[]>([]);
   const [selectedLagerplatzId, setSelectedLagerplatzId] = useState<number | null>(null);
   // Manuell angelegter Platz: hat kein ETL-Fach und damit keine Belegung — der
@@ -2396,7 +2414,8 @@ export default function EinlagernPage() {
         <StepWillkommen
           onStart={() => setStep(1)}
           onKomponenten={() => setStep(6)}
-          onLosesTeil={() => setStep(7)}
+          onLosesTeil={() => { setErkannt(null); setStep(7); }}
+          onFoto={kiStatus.data?.eingerichtet ? () => setStep(8) : undefined}
         />
       )}
 
@@ -2408,7 +2427,15 @@ export default function EinlagernPage() {
         <StepLosesTeil
           standortId={einlagerStandortId}
           teiltypen={STANDARD_TEILE.map((t) => ({ id: t.id, label: t.label }))}
+          onBack={() => { setErkannt(null); setStep(0); }}
+          initial={erkannt ?? undefined}
+        />
+      )}
+
+      {step === 8 && (
+        <StepFotoErkennen
           onBack={() => setStep(0)}
+          onWeiter={(t) => { setErkannt(t); setStep(7); }}
         />
       )}
 
