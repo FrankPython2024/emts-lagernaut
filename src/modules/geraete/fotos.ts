@@ -4,6 +4,7 @@ import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
 import { bereinigeBezeichnung } from "@/lib/geraete/bezeichnungBereinigen";
 import { sucheShopBilder, ladeBild } from "@/lib/geraete/shopBild";
 import { redis } from "@/core/infra/redis";
+import { fuersArchiv } from "@/lib/bilder/groesse";
 
 // ── Fotos je Gerätemodell ────────────────────────────────────────────────────
 //
@@ -107,6 +108,11 @@ export async function speichereFoto(input: {
     });
   }
 
+  // Auch selbst aufgenommene Bilder nochmal durch die Größenbremse: Der
+  // Browser verkleinert schon, aber wer die Schnittstelle direkt anspricht,
+  // umgeht das sonst.
+  const klein = await fuersArchiv(bytes);
+
   const schluessel = fotoSchluessel(anzeige);
   const vorher = await prisma.geraeteFoto.findUnique({
     where: { schluessel_position: { schluessel, position: 0 } }, select: { id: true },
@@ -117,11 +123,11 @@ export async function speichereFoto(input: {
   // liegen. Wer das Gerät in der Hand hatte, weiß besser, wie es aussieht.
   await prisma.geraeteFoto.upsert({
     where:  { schluessel_position: { schluessel, position: 0 } },
-    create: { schluessel, position: 0, anzeige, ansicht: "eigenes Foto", mimeType: input.mimeType, daten: bytes, quelle: "SELBST", erstelltVon: input.benutzer ?? null },
-    update: { anzeige, ansicht: "eigenes Foto", mimeType: input.mimeType, daten: bytes, quelle: "SELBST", erstelltVon: input.benutzer ?? null },
+    create: { schluessel, position: 0, anzeige, ansicht: "eigenes Foto", mimeType: klein.mimeType, daten: klein.bytes, quelle: "SELBST", erstelltVon: input.benutzer ?? null },
+    update: { anzeige, ansicht: "eigenes Foto", mimeType: klein.mimeType, daten: klein.bytes, quelle: "SELBST", erstelltVon: input.benutzer ?? null },
   });
 
-  return { schluessel, groesse: bytes.length, ersetzt: !!vorher };
+  return { schluessel, groesse: klein.bytes.length, ersetzt: !!vorher };
 }
 
 export async function leseFoto(
@@ -199,16 +205,20 @@ export async function holeAusShop(anzeige: string, modell?: string | null): Prom
   for (const t of treffer) {
     const bild = await ladeBild(t.url);
     if (!bild) continue;
+    // ⚠️ Verkleinern, bevor es in die Datenbank geht. Ein Verkaufsfoto aus dem
+    // Shop hat volle Auflösung; sieben davon in einer Galerie sind im
+    // Hallen-WLAN auf einem Handgerät deutlich zu spüren.
+    const klein = await fuersArchiv(bild.bytes);
     await prisma.geraeteFoto.upsert({
       where:  { schluessel_position: { schluessel: key, position } },
       create: {
         schluessel: key, position, anzeige: anzeige.trim(), ansicht: t.ansicht,
-        mimeType: bild.mimeType, daten: bild.bytes,
+        mimeType: klein.mimeType, daten: klein.bytes,
         quelle: "SHOP", erstelltVon: "AfB-Shop",
       },
       update: {
         anzeige: anzeige.trim(), ansicht: t.ansicht,
-        mimeType: bild.mimeType, daten: bild.bytes,
+        mimeType: klein.mimeType, daten: klein.bytes,
         quelle: "SHOP", erstelltVon: "AfB-Shop",
       },
     });

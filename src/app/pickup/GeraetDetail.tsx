@@ -97,8 +97,8 @@ export function GeraetDetail({ pos, onClose }: { pos: PickupPos; onClose: () => 
   // Welche Ansicht gerade groß zu sehen ist.
   const [gewaehlt, setGewaehlt] = useState(0);
   const aktiv = bilder[Math.min(gewaehlt, bilder.length - 1)] ?? null;
-  const adresse = (b: { position: number; stand: string }) =>
-    `/api/geraete/foto?schluessel=${encodeURIComponent(g!.schluessel)}&position=${b.position}&v=${b.stand}`;
+  const adresse = (b: { position: number; stand: string }, mini = false) =>
+    `/api/geraete/foto?schluessel=${encodeURIComponent(g!.schluessel)}&position=${b.position}&v=${b.stand}${mini ? "&mini=1" : ""}`;
 
   return (
     <div
@@ -147,7 +147,8 @@ export function GeraetDetail({ pos, onClose }: { pos: PickupPos; onClose: () => 
                           : "border-[#ced4da] dark:border-[#3e4042]"
                       }`}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={adresse(b)} alt="" className="w-16 h-16 object-cover bg-white" />
+                      <img src={adresse(b, true)} alt="" loading="lazy"
+                        className="w-16 h-16 object-cover bg-white" />
                     </button>
                   ))}
                 </div>

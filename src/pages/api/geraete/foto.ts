@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/core/auth/config";
 import { leseFoto } from "@/modules/geraete/fotos";
+import { alsMiniatur } from "@/lib/bilder/groesse";
 
 // Liefert das Foto zu einem Gerätemodell aus. Eigener Endpunkt statt tRPC,
 // weil hier Bytes rausgehen und kein JSON — dasselbe Muster wie bei den
@@ -32,10 +33,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const foto = await leseFoto(schluessel, position);
   if (!foto) return res.status(404).json({ error: "Kein Foto" });
 
-  res.setHeader("Content-Type", foto.mimeType);
-  res.setHeader("Content-Length", foto.bytes.length);
+  // ⚠️ Die Vorschauleiste braucht Kacheln von 64 Bildpunkten. Ohne diesen
+  // Zweig lädt sie das volle Bild und zeichnet es klein — sieben Mal bei jeder
+  // Detailansicht. Genau daran lag die Ladezeit.
+  const mini = q1(req.query.mini) === "1";
+  const daten = mini ? (await alsMiniatur(foto.bytes)) ?? foto.bytes : foto.bytes;
+  const typ   = mini && daten !== foto.bytes ? "image/jpeg" : foto.mimeType;
+
+  res.setHeader("Content-Type", typ);
+  res.setHeader("Content-Length", daten.length);
   // Ein Jahr zwischenspeichern — die Adresse trägt einen Zeitstempel, ein
   // ausgetauschtes Bild bekommt also ohnehin eine neue Adresse.
   res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
-  return res.status(200).send(foto.bytes);
+  return res.status(200).send(daten);
 }
