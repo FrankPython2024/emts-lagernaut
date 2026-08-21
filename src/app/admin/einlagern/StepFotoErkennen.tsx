@@ -288,11 +288,25 @@ export function StepFotoErkennen({
                       <ul className="flex flex-wrap gap-1.5 mt-1.5">
                         {zuNummer.data.fund.vorschlaege.slice(0, 20).map((m) => (
                           <li key={m.modellId}
-                            className="text-xs px-2 py-1 rounded border border-[#0064d2]/30 text-[#0064d2] dark:text-[#45bdff]">
-                            {m.name}
+                            title={`Fundstelle ${m.belege.join(", ")}`}
+                            className={`text-xs px-2 py-1 rounded text-[#0064d2] dark:text-[#45bdff] ${
+                              m.art === "FAMILIE"
+                                ? "border border-dashed border-[#0064d2]/40"
+                                : "border border-[#0064d2]/30"
+                            }`}>
+                            {m.art === "FAMILIE" && "≈ "}{m.name}
+                            <span className="ml-1 opacity-60">{m.belege.join("·")}</span>
                           </li>
                         ))}
                       </ul>
+                      {/* Abgeleitete Vorschläge müssen als solche erkennbar sein —
+                          sonst sieht „meistens richtig" aus wie „sicher". */}
+                      {zuNummer.data.fund.vorschlaege.some((m) => m.art === "FAMILIE") && (
+                        <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1.5">
+                          ≈ heißt: aus einer Sammelangabe abgeleitet, etwa „440 445R G6 G7".
+                          Die kleine Zahl nennt die Fundstelle.
+                        </p>
+                      )}
                       {zuNummer.data.fund.schwach && (
                         <p className="text-xs text-[#8A5A00] dark:text-[#f7b928] mt-1.5">
                           Die Nummer kam in den Fundstellen kaum vor — bitte prüfen.
@@ -313,6 +327,7 @@ export function StepFotoErkennen({
                       <ul className="mt-1.5 space-y-1">
                         {zuNummer.data.fund.fundstellen.map((f, i) => (
                           <li key={i} className="text-xs">
+                            <span className="font-bold text-[#65676b] dark:text-[#b0b3b8] mr-1">{i + 1}.</span>
                             <a href={f.link} target="_blank" rel="noopener noreferrer"
                               className="text-[#0064d2] dark:text-[#45bdff] underline">{f.titel}</a>
                           </li>

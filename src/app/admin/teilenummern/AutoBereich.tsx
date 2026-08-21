@@ -16,7 +16,14 @@ export type AutoFund = {
   schwach?:    boolean;
   gesucht:     string[];
   fundstellen: { titel: string; ausriss: string; link: string }[];
-  vorschlaege: { modellId: number; name: string; treffer: number; bereits: boolean }[];
+  vorschlaege: {
+    modellId: number;
+    name:     string;
+    treffer:  number;
+    bereits:  boolean;
+    art:      "WOERTLICH" | "FAMILIE";
+    belege:   number[];
+  }[];
   ankerFehlt:  boolean;
 };
 
@@ -31,11 +38,20 @@ export function AutoBereich({
 }) {
   const [gewaehlt, setGewaehlt] = useState<Set<number> | null>(null);
 
-  // Beim ersten Anzeigen alles vorauswählen, was noch nicht bekannt ist —
-  // der Regelfall ist „passt, übernehmen", nicht „einzeln durchklicken".
+  // Beim ersten Anzeigen vorauswählen, was noch nicht bekannt ist — der
+  // Regelfall ist „passt, übernehmen", nicht „einzeln durchklicken".
+  //
+  // ⚠️ ABER nur wörtliche Treffer. Abgeleitete Vorschläge („440 445R G6 G7"
+  // → ProBook 440 G7) sind meistens richtig, aber eben abgeleitet. Wären sie
+  // vorausgewählt, wanderten sie mit einem einzigen Klick in die gepflegten
+  // Kompatibilitäten — und zugesagt ist, dort nur Sicheres einzutragen.
   const auswahl = gewaehlt ?? new Set(
-    (fund?.vorschlaege ?? []).filter((v) => !v.bereits).map((v) => v.modellId),
+    (fund?.vorschlaege ?? [])
+      .filter((v) => !v.bereits && v.art === "WOERTLICH")
+      .map((v) => v.modellId),
   );
+
+  const abgeleitet = (fund?.vorschlaege ?? []).filter((v) => v.art === "FAMILIE").length;
 
   function umschalten(id: number) {
     const n = new Set(auswahl);
@@ -84,17 +100,33 @@ export function AutoBereich({
             {fund.vorschlaege.map((v) => (
               <li key={v.modellId}>
                 <button onClick={() => umschalten(v.modellId)}
-                  className={`text-xs px-2 py-1 rounded border ${
+                  title={v.art === "FAMILIE"
+                    ? `Abgeleitet aus einer Sammelangabe. Nachlesen in Fundstelle ${v.belege.join(", ")}.`
+                    : `Wörtlich gefunden in Fundstelle ${v.belege.join(", ")}.`}
+                  className={`text-xs px-2 py-1 rounded ${
+                    v.art === "FAMILIE" ? "border border-dashed" : "border"
+                  } ${
                     auswahl.has(v.modellId)
                       ? "bg-[#0064d2]/10 border-[#0064d2] text-[#0064d2] dark:text-[#45bdff] font-bold"
                       : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"
                   }`}>
-                  {auswahl.has(v.modellId) ? "✓ " : ""}{v.name}
+                  {auswahl.has(v.modellId) ? "✓ " : ""}
+                  {v.art === "FAMILIE" && "≈ "}{v.name}
+                  <span className="ml-1 opacity-60">{v.belege.join("·")}</span>
                   {v.bereits && " (schon drin)"}
                 </button>
               </li>
             ))}
           </ul>
+
+          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+            Die kleine Zahl nennt die Fundstelle, die den Vorschlag belegt — unten nachlesbar.
+            {abgeleitet > 0 && (
+              <> <b>≈</b> heißt: aus einer Sammelangabe abgeleitet, etwa „440 445R G6 G7".
+              Diese {abgeleitet} sind bewusst nicht vorausgewählt. Bitte erst nachlesen,
+              dann anhaken.</>
+            )}
+          </p>
           <button
             onClick={() => onUebernehmen(Array.from(auswahl))}
             disabled={auswahl.size === 0 || uebernahmeLaeuft}
@@ -110,8 +142,10 @@ export function AutoBereich({
             {fund.fundstellen.length} Fundstellen ansehen
           </summary>
           <ul className="mt-2 space-y-1.5">
+            {/* Nummeriert, damit die Belegzahlen an den Vorschlägen hierher zeigen. */}
             {fund.fundstellen.map((f, i) => (
               <li key={i} className="text-xs">
+                <span className="font-bold text-[#65676b] dark:text-[#b0b3b8] mr-1">{i + 1}.</span>
                 <a href={f.link} target="_blank" rel="noopener noreferrer"
                   className="text-[#0064d2] dark:text-[#45bdff] underline">{f.titel}</a>
                 <div className="text-[#65676b] dark:text-[#b0b3b8]">{f.ausriss}</div>

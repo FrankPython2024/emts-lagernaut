@@ -1,6 +1,7 @@
 import { prisma } from "@/core/db/prisma";
 import { suche, istEingerichtet, verbrauchHeute, type Fundstelle } from "@/lib/suche";
 import { normalisiere, kandidaten } from "./service";
+import { bereiteStellenVor, gleicheModellAb, type TrefferArt } from "./modellAbgleich";
 
 // ── Automatisches Nachschlagen einer Teilenummer ─────────────────────────────
 //
@@ -21,6 +22,19 @@ export type Vorschlag = {
   treffer:   number;
   /** Steht dieses Modell schon als gesicherte Spender-Aussage fest? */
   bereits:   boolean;
+  /**
+   * WOERTLICH — der volle Name stand so im Text.
+   * FAMILIE   — aus einer Sammelangabe wie „440 445R G6 G7" abgeleitet.
+   */
+  art:       TrefferArt;
+  /**
+   * Nummern der Fundstellen, die diesen Vorschlag belegen (1-basiert, passend
+   * zur Reihenfolge in `fundstellen`).
+   *
+   * ⚠️ Das ist kein Beiwerk. Ohne Beleg kann ein Mensch einen Vorschlag nicht
+   * überprüfen — und dann darf er ihn auch nicht bestätigen.
+   */
+  belege:    number[];
 };
 
 export type NachschlagErgebnis = {
@@ -101,7 +115,22 @@ export async function sucheModelleZuNummer(
   // Nur aussortieren, wenn danach noch etwas übrig bleibt. Bleibt nichts,
   // arbeiten wir mit dem Rohmaterial weiter und sagen es dazu — lieber ein
   // schwacher Vorschlag mit Warnung als gar keiner.
-  const fundstellen = echte.length >= 2 ? echte : roh;
+  //
+  // Dazu Doppelte werfen: Zwei Suchläufe liefern dieselbe Seite gern zweimal.
+  // Ungefiltert zählte der Treffer doppelt und die Seite stünde zweimal in
+  // der Liste.
+  const gesehen = new Set<string>();
+  const auswahl = (echte.length >= 2 ? echte : roh)
+    .filter((f) => (f.link && gesehen.has(f.link)) ? false : (gesehen.add(f.link), true));
+
+  // ⚠️ Ab hier gilt EINE Liste für Abgleich UND Anzeige.
+  //
+  // Vorher wurde gegen alle Fundstellen abgeglichen, angezeigt wurden aber nur
+  // die ersten acht. Am 20.08.2026 kam so „HP ProBook 440 G7" heraus, während
+  // dieser Name in keiner der acht sichtbaren Fundstellen stand — der Beleg lag
+  // in einer Fundstelle, die niemand zu sehen bekam. Ein Vorschlag, den man
+  // nicht nachprüfen kann, ist für eine Kompatibilität wertlos.
+  const fundstellen = auswahl.slice(0, 16);
   const schwach     = echte.length < 2;
 
   if (fundstellen.length === 0) {
@@ -113,11 +142,10 @@ export async function sucheModelleZuNummer(
   }
 
   // ── Der eigentliche Abgleich ────────────────────────────────────────────
-  // Titel und Ausrisse zu einem Text zusammenschütten, normalisieren, und dann
-  // jeden bekannten Modellnamen darin suchen.
-  const heuhaufen = normalisiere(
-    fundstellen.map((f) => `${f.titel} ${f.ausriss}`).join(" "),
-  );
+  // Jede Fundstelle einmal in Wörter zerlegen, dann den gesamten Katalog
+  // dagegenhalten. Die Regeln stehen in modellAbgleich.ts — kurz gefasst:
+  // erst der volle Name, sonst Zahl und Generation dicht beieinander.
+  const stellen = bereiteStellenVor(fundstellen);
 
   const modelle = await prisma.geraeteModell.findMany({
     where:  { aktiv: true },
@@ -126,27 +154,26 @@ export async function sucheModelleZuNummer(
 
   const vorschlaege: Vorschlag[] = [];
   for (const m of modelle) {
-    // Ohne Hersteller-Präfix suchen: In Anzeigen steht meist „ProBook 440 G6",
-    // nicht „HP ProBook 440 G6". Der Hersteller steckt ohnehin im Kontext.
-    const nadel = normalisiere(m.modell);
-    // Sehr kurze Modellnamen wie „5490" träfen zufällig in Preisen und
-    // Artikelnummern. Erst ab sechs Zeichen ist ein Treffer aussagekräftig.
-    if (nadel.length < 6) continue;
+    const t = gleicheModellAb(m, stellen);
+    if (!t) continue;
 
-    let treffer = 0, pos = heuhaufen.indexOf(nadel);
-    while (pos !== -1) { treffer++; pos = heuhaufen.indexOf(nadel, pos + nadel.length); }
-
-    if (treffer > 0) {
-      vorschlaege.push({
-        modellId: m.id,
-        name:     `${m.hersteller} ${m.modell}`.trim(),
-        treffer,
-        bereits:  bekanntSet.has(m.id),
-      });
-    }
+    vorschlaege.push({
+      modellId: m.id,
+      name:     `${m.hersteller} ${m.modell}`.trim(),
+      treffer:  t.treffer,
+      bereits:  bekanntSet.has(m.id),
+      art:      t.art,
+      belege:   t.belege,
+    });
   }
 
-  vorschlaege.sort((a, b) => b.treffer - a.treffer || a.name.localeCompare(b.name));
+  // Wörtliche Treffer nach oben: Was ausgeschrieben dastand, ist verlässlicher
+  // als was aus einer Sammelangabe abgeleitet wurde.
+  vorschlaege.sort((a, b) =>
+    (a.art === b.art ? 0 : a.art === "WOERTLICH" ? -1 : 1)
+    || b.treffer - a.treffer
+    || a.name.localeCompare(b.name),
+  );
 
   // ── Prüfstein: das Spendermodell MUSS vorkommen ─────────────────────────
   // Wenn bekannt ist, aus welchem Gerät das Teil stammt, dieses Modell aber in
@@ -159,7 +186,9 @@ export async function sucheModelleZuNummer(
     ok: true,
     schwach,
     gesucht: begriffe,
-    fundstellen: fundstellen.slice(0, 8),
+    // Vollständig, nicht gekürzt — die Belegnummern der Vorschläge zeigen
+    // hierher und dürfen nicht ins Leere greifen.
+    fundstellen,
     vorschlaege: vorschlaege.slice(0, 40),
     ankerFehlt,
     verbrauchHeute: await verbrauchHeute(),

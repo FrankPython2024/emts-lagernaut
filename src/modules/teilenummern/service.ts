@@ -2,6 +2,7 @@ import { prisma } from "@/core/db/prisma";
 import { TRPCError } from "@trpc/server";
 import type { Prisma } from "@prisma/client";
 import { fuersArchiv } from "@/lib/bilder/groesse";
+import { normalisiere } from "./normalisierung";
 
 // ── Teilenummern ─────────────────────────────────────────────────────────────
 //
@@ -15,17 +16,11 @@ import { fuersArchiv } from "@/lib/bilder/groesse";
 // Stellen unterschiedlich zurechtgeschnitten, entstehen zwei Einträge für
 // dasselbe Teil — und der ganze Zweck wäre dahin.
 
-/**
- * Nummer vereinheitlichen: Großschreibung, keine Leerzeichen, keine
- * Trennzeichen. „DA0X8JTB8D0", „da0x8jtb8d0" und „DA0-X8J-TB8D0" sind
- * dieselbe Nummer.
- *
- * Bewusst KEINE weitere Klugheit: Führende Nullen bleiben, denn bei Dell
- * gehören sie dazu („0GG3K9").
- */
-export function normalisiere(roh: string): string {
-  return roh.trim().toUpperCase().replace(/[\s\-_./]/g, "");
-}
+// Die Normalisierung liegt in `normalisierung.ts` — als Blattdatei ohne
+// Prisma-Abhängigkeit, damit der Modell-Abgleich und sein Test sie ohne
+// Datenbank nutzen können. Hier nur weitergereicht, damit alle bestehenden
+// Aufrufe über `@/modules/teilenummern/service` gültig bleiben.
+export { normalisiere } from "./normalisierung";
 
 /** Grobe Plausibilität — fängt versehentlich gescannte Fremdcodes ab. */
 export function istPlausibel(nummer: string): boolean {
