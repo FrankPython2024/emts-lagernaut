@@ -26,20 +26,41 @@ export type KiAntwort =
   | { ok: true;  text: string;  dauerMs: number }
   | { ok: false; grund: string; dauerMs: number };
 
-// ── Denken abschalten ────────────────────────────────────────────────────────
+// ── Denkstufe ────────────────────────────────────────────────────────────────
 //
 // Die neueren Modelle denken vor der Antwort. Für „schreibe mir einen Text"
 // ist das Gold wert, für unsere Aufgabe nicht: Hier wird ein Etikett abgelesen
-// und einer festen Liste zugeordnet. Das Denkbudget ist der größte Einzelposten
-// in der Wartezeit an der Werkbank.
+// und einer festen Liste zugeordnet. Das Denken ist der größte Einzelposten in
+// der Wartezeit an der Werkbank.
 //
-// ⚠️ Zwei Sicherungen, weil wir Googles API-Oberfläche nicht in der Hand haben:
-//   1. Über GEMINI_DENKEN=1 in der .env lässt sich das Denken wieder einschalten,
-//      falls die Erkennung ohne merklich schlechter wird.
-//   2. Kennt ein Modell das Feld nicht, antwortet Google mit 400. Dann wird der
-//      Aufruf EINMAL ohne das Feld wiederholt und für die Laufzeit des Prozesses
-//      gemerkt. Ein unbekanntes Feld darf die Erkennung nicht lahmlegen.
-let denkenFeldAbgelehnt = false;
+// ⚠️ Zwei Dinge, die am 21.08.2026 Geld gekostet haben:
+//
+// 1. Es gibt ZWEI Felder, und das falsche ist ein sofortiger 400.
+//    `thinkingBudget` gehört zu Gemini 2.5, `thinkingLevel` zur 3er-Reihe.
+//    Unser Modell ist ein 3er — mit `thinkingBudget` kam nur
+//    „Request contains an invalid argument". Beide zusammen sind laut Google
+//    ebenfalls ein Fehler.
+//
+// 2. Ganz abschalten geht bei Flash NICHT. Google schreibt ausdrücklich, dass
+//    Gemini 3 Flash und Flash-Lite kein vollständiges „thinking off" können.
+//    Die niedrigste erlaubte Stufe ist „low" — mehr ist nicht zu holen.
+//
+// Erlaubt sind low | medium | high, Vorgabe des Modells wäre medium.
+// Über GEMINI_DENKSTUFE in der .env änderbar, falls „low" die Erkennung
+// spürbar verschlechtert.
+//
+// Und weil wir Googles API-Oberfläche nicht in der Hand haben: Antwortet ein
+// Modell auf das Feld mit 400, wird der Aufruf EINMAL ohne die Stufe
+// wiederholt. Nur wenn DAS klappt, gilt das Feld als abgelehnt — sonst hätte
+// ein 400 aus ganz anderem Grund (etwa ein kaputtes Bild) die Beschleunigung
+// dauerhaft stillgelegt.
+const DENKSTUFEN = ["low", "medium", "high"] as const;
+let stufeAbgelehnt = false;
+
+function denkstufe(): string {
+  const gewuenscht = (process.env.GEMINI_DENKSTUFE || "low").toLowerCase();
+  return (DENKSTUFEN as readonly string[]).includes(gewuenscht) ? gewuenscht : "low";
+}
 
 export function istEingerichtet(): boolean {
   return !!process.env.GEMINI_API_KEY;
@@ -99,54 +120,63 @@ export async function frage(
   function gut(text: string): KiAntwort  { return { ok: true,  text,  dauerMs: Date.now() - start }; }
   function mies(grund: string): KiAntwort { return { ok: false, grund, dauerMs: Date.now() - start }; }
 
-  function koerper(mitDenken: boolean): string {
+  function koerper(mitStufe: boolean): string {
+    const sparsam = mitStufe && denkstufe() === "low";
     return JSON.stringify({
       contents: [{ parts: teile }],
       generationConfig: {
         // Niedrig, weil hier nichts erfunden werden soll. Die Aufgabe ist
         // Ablesen und Zuordnen, nicht Formulieren.
         temperature:     0,
-        // Ohne Denken reichen wenige hundert Token für die Antwort. Mit
-        // Denken muss das alte, großzügige Budget stehen bleiben — sonst
-        // bricht das JSON mittendrin ab (19.08.2026).
-        maxOutputTokens: mitDenken ? 4096 : 1024,
+        // ⚠️ Die Denkschritte zählen auf dieses Budget mit. Bei „low" reicht
+        // weniger; sobald das Modell frei denken darf, muss das großzügige
+        // Budget stehen bleiben — sonst bricht das JSON mittendrin ab
+        // (19.08.2026, Antwort kam leer zurück).
+        maxOutputTokens: sparsam ? 2048 : 4096,
         responseMimeType: "application/json",
-        ...(mitDenken ? {} : { thinkingConfig: { thinkingBudget: 0 } }),
+        ...(mitStufe ? { thinkingConfig: { thinkingLevel: denkstufe() } } : {}),
       },
     });
   }
 
   /** Ein einzelner Aufruf. `nochmal` sagt, ob sich ein weiterer Versuch lohnt. */
   async function einVersuch(): Promise<{ ok: boolean; nochmal: boolean; antwort: KiAntwort }> {
-    // Denken ist standardmäßig AUS. Siehe Erklärung oben bei denkenFeldAbgelehnt.
-    const mitDenken = process.env.GEMINI_DENKEN === "1" || denkenFeldAbgelehnt;
+    const mitStufe = !stufeAbgelehnt;
 
     try {
       let antwort = await fetch(url, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    koerper(mitDenken),
-        // Ohne Denkschritte ist die Antwort deutlich schneller da. 30 Sekunden
-        // sind reichlich und begrenzen zugleich, wie lange jemand an der
-        // Werkbank vor einem hängenden Bildschirm steht.
-        signal: AbortSignal.timeout(mitDenken ? 60_000 : 30_000),
+        body:    koerper(mitStufe),
+        // 45 Sekunden. Mit gedrosseltem Denken ist die Antwort deutlich früher
+        // da; das Zeitlimit ist nur noch die Notbremse, damit niemand an der
+        // Werkbank endlos vor einem hängenden Bildschirm steht.
+        signal: AbortSignal.timeout(45_000),
       });
 
-      // Kennt dieses Modell `thinkingConfig` nicht, kommt ein 400. Dann einmal
-      // ohne das Feld wiederholen und es künftig weglassen — eine unbekannte
-      // Einstellung darf die Erkennung nicht lahmlegen.
-      if (antwort.status === 400 && !mitDenken) {
+      // ⚠️ JEDER 400 wird einmal ohne die Denkstufe wiederholt — nicht nur
+      // einer, dessen Text zufällig „thinking" enthält. Genau daran ist der
+      // Rückfall am 21.08.2026 vorbeigelaufen: Google schrieb bloß
+      // „Request contains an invalid argument", und der Mitarbeiter bekam eine
+      // Fehlermeldung statt eines Ergebnisses.
+      //
+      // Als abgelehnt gilt das Feld nur, wenn der Versuch OHNE es klappt. Ein
+      // 400 aus anderem Grund soll die Beschleunigung nicht stilllegen.
+      if (antwort.status === 400 && mitStufe) {
         const meldung = await antwort.clone().text().catch(() => "");
-        if (/thinking/i.test(meldung)) {
-          denkenFeldAbgelehnt = true;
-          console.warn("[Gemini] thinkingConfig wird nicht unterstützt — künftig mit Denken.");
-          antwort = await fetch(url, {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    koerper(true),
-            signal:  AbortSignal.timeout(60_000),
-          });
+        const zweite = await fetch(url, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    koerper(false),
+          signal:  AbortSignal.timeout(45_000),
+        });
+        if (zweite.ok) {
+          stufeAbgelehnt = true;
+          console.warn(`[Gemini] thinkingLevel wird abgelehnt, künftig ohne. Meldung war: ${meldung.slice(0, 200)}`);
+          antwort = zweite;
         }
+        // Sonst bleibt die ursprüngliche Antwort stehen und wird unten ehrlich
+        // als Fehler gemeldet.
       }
 
       if (!antwort.ok) {
