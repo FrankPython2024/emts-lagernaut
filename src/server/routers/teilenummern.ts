@@ -134,11 +134,20 @@ export const teilenummernRouter = createTRPCRouter({
         ...fund.vorschlaege.map((v) => v.name),
       ]));
 
+      // ⚠️ Ids MITGEBEN, nicht nur Namen. Die Fachbelegung hängt an
+      // `modellId`; über den Namen allein ist sie nicht auffindbar — genau
+      // deshalb blieb sie bis 21.08.2026 ungenutzt.
+      const modellIds = Array.from(new Set([
+        ...fund.vorschlaege.map((v) => v.modellId),
+        ...bekannt,
+      ]));
+
       const plaetze = input.teiltyp
         ? await platzVorschlaege({
             teilenummerId: vorhanden?.id ?? null,
             teiltyp:       input.teiltyp,
             geraete,
+            modellIds,
             standortId:    resolveStandortId(ctx, input.standortId),
           })
         : [];

@@ -426,14 +426,56 @@ export function StepFotoErkennen({
                     {" · "}{zuNummer.data.fund.verbrauchHeute} Abfragen heute
                   </p>
 
-                  {/* Lagerplatz: Wo liegen Teile für diese Geräte schon? */}
-                  {zuNummer.data.plaetze.length > 0 && (
+                  {/* ── Zugeteiltes Fach: die verbindliche Antwort ──────────
+                      Stufe 0 heißt: Ein Mensch hat festgelegt, dass dieses
+                      Gerätemodell in genau diesem Fach wohnt („ein Fach = ein
+                      Modell"). Das ist keine Ableitung aus Bestand, deshalb
+                      steht es abgesetzt und mit einer klaren Frage — statt als
+                      einer von fünf gleich aussehenden Vorschlägen. */}
+                  {zuNummer.data.plaetze.filter((p) => p.stufe === 0).map((p) => (
+                    <div key={p.lagerplatz}
+                      className="rounded-lg border-2 border-[#04B475] bg-[#04B475]/8 p-4">
+                      <div className="text-sm font-bold text-[#038F5C] dark:text-[#04B475]">
+                        Für dieses Gerät gibt es schon ein Fach
+                      </div>
+                      <div className="text-lg font-black font-mono text-[#1a1a1a] dark:text-[#e4e6eb] mt-1">
+                        {p.lagerplatz}
+                      </div>
+                      <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                        Dort wohnt {p.fachModell ?? "dieses Modell"}.
+                      </div>
+                      <div className="text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mt-3">
+                        Teile hier zubuchen?
+                      </div>
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        <button onClick={() => setPlatz(p.lagerplatz)}
+                          className={`px-5 py-3 rounded-lg font-bold text-base min-h-[56px] ${
+                            platz === p.lagerplatz
+                              ? "bg-[#04B475] text-white"
+                              : "border-2 border-[#04B475] text-[#038F5C] dark:text-[#04B475]"
+                          }`}>
+                          {platz === p.lagerplatz ? "✓ Ja, hierhin" : "Ja, hierhin"}
+                        </button>
+                        <button onClick={() => setPlatz(null)}
+                          className={`px-5 py-3 rounded-lg font-bold text-base min-h-[56px] border-2 ${
+                            platz === p.lagerplatz
+                              ? "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"
+                              : "border-[#0064d2] text-[#0064d2] dark:text-[#45bdff]"
+                          }`}>
+                          Nein, anderer Platz
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Abgeleitet aus dem Bestand — schwächer als ein zugeteiltes Fach. */}
+                  {zuNummer.data.plaetze.some((p) => p.stufe > 0) && (
                     <div>
                       <div className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
-                        Lagerplatz-Vorschlag
+                        Wo Teile für diese Geräte schon liegen
                       </div>
                       <div className="flex flex-wrap gap-2 mt-1.5">
-                        {zuNummer.data.plaetze.map((p) => (
+                        {zuNummer.data.plaetze.filter((p) => p.stufe > 0).map((p) => (
                           <button key={p.lagerplatz}
                             onClick={() => setPlatz(platz === p.lagerplatz ? null : p.lagerplatz)}
                             className={`px-3 py-2 rounded-lg border-2 text-sm min-h-[48px] text-left ${

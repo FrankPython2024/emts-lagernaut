@@ -6,7 +6,15 @@ import { prisma } from "@/core/db/prisma";
 // sagen, wo Teile für diese Geräte schon liegen. Die Frage „wo tue ich das
 // hin" muss dann niemand mehr aus dem Kopf beantworten.
 //
-// Drei Quellen, absteigend nach Aussagekraft:
+// Vier Quellen, absteigend nach Aussagekraft:
+//
+//   0. Dem Gerätemodell ist ein ETL-Fach ZUGETEILT. Das ist keine Ableitung
+//      aus Bestand, sondern eine Festlegung: „ein Fach = ein Modell". Wenn es
+//      sie gibt, ist sie die Antwort.
+//      ⚠️ Diese Quelle fehlte bis 21.08.2026 vollständig. Gefragt wurde nur,
+//      wo TEILE liegen (über Artikel.lagerplatz) — nie, welches Fach dem Gerät
+//      gehört. Das ist ein anderes System: `LagerplatzBelegung` gegen den
+//      String `Artikel.lagerplatz`, siehe CLAUDE.md „ZWEI getrennte Systeme".
 //
 //   1. Ein Artikel MIT DERSELBEN Teilenummer liegt schon irgendwo. Dann gehört
 //      das Stück genau dorthin, ohne Wenn und Aber.
@@ -25,8 +33,13 @@ export type PlatzVorschlag = {
   /** Gesamtbestand an diesem Platz — sagt, ob dort wirklich etwas ist. */
   bestand:    number;
   grund:      string;
-  /** 1 = sicher (gleiche Nummer), 2 = gleicher Teiltyp, 3 = gleiches Modell. */
-  stufe:      1 | 2 | 3;
+  /**
+   * 0 = dem Modell zugeteiltes ETL-Fach, 1 = sicher (gleiche Nummer),
+   * 2 = gleicher Teiltyp, 3 = gleiches Modell.
+   */
+  stufe:      0 | 1 | 2 | 3;
+  /** Bei Stufe 0: das Modell, dem das Fach gehört — für die Rückfrage. */
+  fachModell?: string;
 };
 
 export async function platzVorschlaege(input: {
@@ -34,19 +47,41 @@ export async function platzVorschlaege(input: {
   teiltyp:        string;
   /** Namen der Gerätemodelle, z. B. „HP ProBook 440 G6". */
   geraete:        string[];
+  /** Ids derselben Modelle — nur damit lässt sich die Fachbelegung finden. */
+  modellIds?:     number[];
   standortId:     number;
 }): Promise<PlatzVorschlag[]> {
   const gefunden = new Map<string, PlatzVorschlag>();
 
-  const merke = (platz: string | null, bestand: number, grund: string, stufe: 1 | 2 | 3) => {
+  const merke = (
+    platz: string | null, bestand: number, grund: string, stufe: 0 | 1 | 2 | 3,
+    fachModell?: string,
+  ) => {
     const p = platz?.trim();
     if (!p) return;
     const da = gefunden.get(p);
     // Die stärkste Begründung gewinnt; bei gleicher Stufe wird aufaddiert.
-    if (!da) { gefunden.set(p, { lagerplatz: p, artikel: 1, bestand, grund, stufe }); return; }
-    if (stufe < da.stufe) { gefunden.set(p, { lagerplatz: p, artikel: 1, bestand, grund, stufe }); return; }
+    if (!da) { gefunden.set(p, { lagerplatz: p, artikel: 1, bestand, grund, stufe, fachModell }); return; }
+    if (stufe < da.stufe) { gefunden.set(p, { lagerplatz: p, artikel: 1, bestand, grund, stufe, fachModell }); return; }
     if (stufe === da.stufe) { da.artikel += 1; da.bestand += bestand; }
   };
+
+  // ── 0. Dem Modell zugeteiltes ETL-Fach ─────────────────────────
+  // Die stärkste Aussage überhaupt: Hier hat ein Mensch festgelegt, wo dieses
+  // Modell wohnt. Kein Ableiten aus Bestand nötig.
+  if (input.modellIds && input.modellIds.length > 0) {
+    const belegt = await prisma.lagerplatzBelegung.findMany({
+      where:   { modellId: { in: input.modellIds }, lagerplatz: { standortId: input.standortId } },
+      include: {
+        lagerplatz: { select: { code: true } },
+        modell:     { select: { hersteller: true, modell: true } },
+      },
+    });
+    for (const b of belegt) {
+      const name = `${b.modell.hersteller} ${b.modell.modell}`.trim();
+      merke(b.lagerplatz.code, 0, `Fach von ${name}`, 0, name);
+    }
+  }
 
   // ── 1. Gleiche Teilenummer ───────────────────────────────────────────────
   if (input.teilenummerId) {
