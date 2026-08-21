@@ -159,7 +159,7 @@ EOF
 
 ---
 
-## Modul-Stand (zuletzt: Teilenummern + Foto-Erkennung + Gerätefotos; davor Teiltyp-Massenzuordnung, Bestellanfragen Eigenbedarf, Datenträger/RAM-Erfassung, Abgaben an Niederlassungen)
+## Modul-Stand (zuletzt: Modell-Abgleich Familienschreibweise + Tempo/Sichtbarkeit im Fotoweg + ETL-Fach-Rückfrage; davor Teilenummern + Foto-Erkennung + Gerätefotos; davor Teiltyp-Massenzuordnung, Bestellanfragen Eigenbedarf, Datenträger/RAM-Erfassung, Abgaben an Niederlassungen)
 
 ### ⚠️ Ein Barcode ist NICHT die Teilenummer (Kernerkenntnis 2026-08-19)
 
@@ -236,15 +236,39 @@ ohne den es bei Kunststoffteilen still scheitert:
   Logo drauf). Geräte kommen aus der **Nummernsuche**, siehe unten.
 - Bekannte Nummer schlägt die frische Erkennung.
 
-**Gemini-Fallen** (`src/lib/ki/gemini.ts`), alle am 19.08.2026 real aufgetreten:
+**Gemini-Fallen** (`src/lib/ki/gemini.ts`), alle real aufgetreten:
 - 404 „no longer available to new users" → Modellname veraltet. Über
   `GEMINI_MODELL` in der `.env` änderbar; die Fehlermeldung nennt den Nachfolger.
 - 503 „high demand" → vorübergehend, wird bis zu 2× wiederholt.
 - **Leere Antwort trotz 200** → `maxOutputTokens` zu klein. Denkende Modelle
-  verbrauchen das Kontingent fürs Denken; 800 reichten nicht, jetzt 4096.
-  Denkschritte kommen als eigene Teile und werden herausgefiltert.
-- **Timeout** → 15 s zu knapp bei mehreren Bildern. Jetzt 60 s, und nach einem
-  Timeout wird **nicht** wiederholt (3× 60 s = 3 Minuten Wartezeit).
+  verbrauchen das Kontingent fürs Denken; 800 reichten nicht. Jetzt 2048 bei
+  gedrosseltem Denken, sonst 4096. Denkschritte kommen als eigene Teile und
+  werden herausgefiltert.
+- **Timeout** → 15 s zu knapp bei mehreren Bildern. Jetzt 45 s, und nach einem
+  Timeout wird **nicht** wiederholt (3× würde Minuten kosten).
+- ⚠️ **Denksteuerung: ZWEI Felder, das falsche ist ein sofortiger 400** (21.08.2026).
+  `thinkingBudget` gehört zu Gemini **2.5**, `thinkingLevel` zur **3er-Reihe**;
+  unser Modell ist ein 3er. Mit `thinkingBudget` kam nur „Request contains an
+  invalid argument" — **ohne** Hinweis auf das Feld, weshalb ein Rückfall, der
+  das Wort „thinking" in der Meldung sucht, daran vorbeiläuft. Gegen die eigene
+  Instanz gemessen: `thinkingBudget` 400, `thinkingLevel: "low"` 200, mit Bild
+  wie ohne. Beide Felder zusammen sind laut Google ebenfalls ein Fehler.
+- ⚠️ **Ganz abschalten geht bei Flash nicht.** Google schreibt ausdrücklich, dass
+  Gemini 3 Flash und Flash-Lite kein vollständiges „thinking off" können. Unterste
+  Stufe ist `low`, über `GEMINI_DENKSTUFE` (low|medium|high) änderbar.
+- **Bei jedem 400** wird der Aufruf einmal **ohne** die Denkstufe wiederholt. Als
+  abgelehnt gilt das Feld nur, wenn der Versuch ohne es klappt — sonst legt ein
+  400 aus anderem Grund die Beschleunigung dauerhaft still.
+
+**Tempo und Sichtbarkeit** (21.08.2026). Gemessen wird jetzt und steht im UI
+(`dauer` in `ErkennungsErgebnis` und `NachschlagErgebnis`), samt laufender Uhr
+während der Arbeit. Ohne diese Zahlen bleibt jede Beschleunigung eine Behauptung.
+- Die beiden ersten Suchabfragen laufen **gleichzeitig** (vorher immer zwei
+  Runden nacheinander, weil 8 Fundstellen die Abbruchgrenze von 10 nie erreichten).
+- SearXNG-Zeitlimit 15 → 8 s.
+- Bekannte Nummern werden **gleichzeitig** geprüft (vorher bis zu 8 DB-Rundreisen).
+- Steht **genau eine** Nummer zur Wahl, startet die Suche von allein. Bei mehreren
+  bewusst nicht — das wäre eine Entscheidung, die dem Menschen gehört.
 
 ### Suchquelle: eigene SearXNG-Instanz (Aug 2026)
 
@@ -262,12 +286,55 @@ sonst kommt 403. `SEARXNG_SECRET` in der `.env`.
 
 **Der Abgleich ist KEINE offene Leseaufgabe**, sondern ein Vergleich gegen eine
 geschlossene Liste: „welche UNSERER 1160 Modelle kommen in den Fundstellen vor".
-Stumpfer Textvergleich, kein Sprachmodell nötig. Modellnamen unter 6 Zeichen
-werden übersprungen (ein Modell „5490" träfe in jeder Preisangabe).
+Stumpfer Textvergleich, kein Sprachmodell nötig.
 Fundstellen ohne die Nummer werden verworfen (sonst kommen Paketverfolgungen).
 
 **Prüfstein:** Ist das Spendermodell bekannt, MUSS es in den Funden vorkommen —
 sonst deutliche Warnung.
+
+### ⚠️ Händler schreiben FAMILIEN, keine Einzelmodelle (Kernerkenntnis 2026-08-20)
+
+`src/modules/teilenummern/modellAbgleich.ts`, Test `npm run test:abgleich`.
+
+Der erste Abgleich klebte den Text zusammen (Leerzeichen raus) und suchte den
+Modellnamen als Stück, also `PROBOOK440G6`. In acht echten Fundstellen zu
+`DA0X8JTB8D0` kam das **null Mal** vor — obwohl fünf davon das Board genau so
+zuordnen:
+
+| so steht es im Netz | Nadel `PROBOOK440G6` |
+|---|---|
+| „HP ProBook 440 445R G6 G7" | trifft nicht — Familie zusammengezogen |
+| „for HP 440 G6 / 450 G6 / 445 G6" | trifft nicht — „ProBook" fehlt ganz |
+| „HP ProBook 440 450 G6" | trifft nicht — zwei Größen in einem Namen |
+
+Vorgeschlagen wurde stattdessen das **Nachbarmodell G7**. Das ist die
+gefährlichere Fehlerart: Ein leerer Kasten macht misstrauisch, ein einzelner
+sauber aussehender Vorschlag nicht.
+
+- **Vergleich auf Wortebene**: Modell zerfällt in Serie (`ProBook`), Zahl (`440`)
+  und Generation (`G6`). Treffer, wenn Zahl und Generation höchstens
+  **FENSTER = 3** Wörter auseinander stehen. Serie darf fehlen (steht im Handel
+  meist nicht dabei), Hersteller muss in derselben Fundstelle vorkommen.
+- ⚠️ **FENSTER ist an echten Daten kalibriert.** 4 würde aus
+  „445 G6 66 14 G2" (das „ZHAN 66 Pro 14 G2" am Satzende) ein **ProBook 445 G2**
+  erfinden. 3 deckt „440 445R G6 G7" ab und schneidet den Fehltreffer weg.
+- **Zwei Trefferarten:** `WOERTLICH` (voller Name stand da) schlägt `FAMILIE`
+  (abgeleitet). Abgeleitete sind im UI mit `≈` markiert und auf der Pflegeseite
+  **nicht vorausgewählt** — sonst wandern sie mit einem Klick in die gepflegten
+  Kompatibilitäten.
+- **Belegstelle je Vorschlag.** Vorher wurde gegen ALLE Fundstellen abgeglichen,
+  angezeigt wurden nur die ersten acht — der G7-Beleg lag in einer nie
+  sichtbaren Fundstelle. Jetzt gilt **eine** Liste für Abgleich und Anzeige, und
+  jeder Vorschlag nennt die Nummer seiner Fundstelle. Ohne Beleg kann ein Mensch
+  nichts prüfen, und dann darf er es auch nicht bestätigen.
+- **Katalog-Platzhalter sind Gift als Suchnadel.** `GeraeteModell` mit
+  Modellname = Herstellername („Lenovo") traf `LENOVO` auf jeder Lenovo-Seite,
+  *wörtlich*, und stand damit vor dem richtigen ThinkPad X1 Carbon Gen 9.
+  Code filtert sie; #1888/#2507 wurden zusätzlich deaktiviert (nicht gelöscht —
+  `LagerplatzBelegung` hängt mit `onDelete: Cascade` an `modellId`).
+- **Allgemeinere Namen fallen weg**, wenn ein genauerer denselben Fund belegt
+  („ThinkPad X1" ⊂ „ThinkPad X1 Carbon Gen 9"). Ein abgeleiteter Treffer darf
+  dabei nie einen wörtlichen verdrängen.
 
 ### Gerätefotos im Pickup (Aug 2026)
 
@@ -431,6 +498,16 @@ Codes (nur code/beschreibung/bereich, Router `lagerplaetze` — Mehrzahl!); Arti
 (Platz-Browser zeigt „Eigene Lagerplätze", gefiltert auf `ausConfig`). Bearbeiten/Löschen in
 `/admin/lagerplaetze`; **beim Umbenennen ziehen die Artikel in EINER Transaktion mit**, Löschen nur
 bei 0 Artikeln.
+
+⚠️ **Genau diese Trennung war ein blinder Fleck** (21.08.2026): `platzVorschlaege`
+(`src/modules/teilenummern/lagerplatz.ts`) fragte nur, **wo Teile liegen**
+(`Artikel.lagerplatz`) — nie, **welches Fach dem Gerät gehört**. Die Fachbelegung
+hängt an `modellId`, durchgereicht wurden aber nur Modell**namen**; über den Namen ist
+sie nicht auffindbar. Jetzt gibt es **Stufe 0** über allen anderen: das dem Modell
+zugeteilte ETL-Fach aus `LagerplatzBelegung`. Keine Ableitung aus Bestand, sondern
+eine Festlegung („ein Fach = ein Modell"), deshalb im Assistenten **abgesetzt mit der
+Frage „Teile hier zubuchen?"** statt als einer von fünf gleich aussehenden Vorschlägen.
+Der Router muss dafür `modellIds` mitgeben.
 
 **⚠️ Standort-Zuordnung steckt im JWT.** Ohne Standort liefert die Zugriffsprüfung `[]` → Filter
 `standortId IN ()` → trifft **nichts**, still. Sah im Einlager-Assistenten aus wie „Lager ist voll"
