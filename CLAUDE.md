@@ -159,7 +159,148 @@ EOF
 
 ---
 
-## Modul-Stand (zuletzt: Teiltyp-Massenzuordnung; davor Bestellanfragen Eigenbedarf + eigene Rechte, Datenträger/RAM-Erfassung, Abgaben an Niederlassungen, Ersatzteil-Pool, Bauteil-Ernte)
+## Modul-Stand (zuletzt: Teilenummern + Foto-Erkennung + Gerätefotos; davor Teiltyp-Massenzuordnung, Bestellanfragen Eigenbedarf, Datenträger/RAM-Erfassung, Abgaben an Niederlassungen)
+
+### ⚠️ Ein Barcode ist NICHT die Teilenummer (Kernerkenntnis 2026-08-19)
+
+Der wichtigste Satz aus dem ganzen Teilenummern-Thema, gemessen mit der eigenen
+Suchinstanz:
+
+| gesucht | Fundstellen |
+|---|---|
+| `DA0X8JTB8D0` (aufgedruckt, HP USB-Board) | **43** |
+| `8SSN20V43652C3DG1AK01XR` (Barcode, Lenovo-Tastatur) | **0** |
+
+Beide stehen auf demselben Etikett. Der **Scanner nimmt den Barcode**, und der
+enthält zusätzlich Werk, Datum und Stücknummer — er beschreibt also **genau
+dieses eine Exemplar** und steht nirgends im Netz. Suchbar ist nur die im
+Klartext aufgedruckte Nummer.
+
+Folgen im Code:
+- `kandidaten()` in `src/modules/teilenummern/service.ts` zerlegt Sammelbarcodes
+  in plausible Teilstücke und sucht auch danach — **ohne Herstellerwissen**,
+  damit die Regel nicht altert. Trifft aber nicht jedes Format.
+- `kuerzungsVorschlaege()` liefert anklickbare Kürzungen auf der Pflegeseite.
+  Reihenfolge ist Absicht: Vorsatz 2 / Länge 10 zuerst → bei „8SSN20V43652…"
+  steht `SN20V43652` an erster Stelle.
+- **Deshalb ist der Fotoweg entstanden:** Das Foto liest den Klartext.
+
+### Teilenummern als Artikel-Identität (Aug 2026)
+
+**`Artikel.teilenummerId` schlägt die Bezeichnung.** Dasselbe USB-Board, einmal
+über die LogID eines Spendergeräts geerntet und einmal lose erfasst, muss auf
+DENSELBEN Artikel laufen. Über den getippten Namen klappt das nicht — genau
+daran liegt es, dass ein Touchpad 24-mal in der DB steht (24.657 Artikel bei
+143 vorkommenden Gerätenamen × 17 Teiltypen).
+
+- **Schema:** `Teilenummer` (nummer @unique, hersteller, teiltyp, istSeriennummer,
+  geprueft, sichtungen, notiz, **fotoDaten/fotoMime/fotoAm**), `TeilenummerModell`
+  (quelle SPENDER|MANUELL|AUTOMATISCH, bestaetigt), `Artikel.teilenummerId`
+  mit `@@unique([teilenummerId, standortId])`.
+- **Auflösungsreihenfolge** in `execute()`: Teilenummer → Kompatibilität →
+  Bezeichnung → neu anlegen. Scheitert das Verknüpfen, **bricht die Einlagerung
+  NICHT ab** — Bestand stimmt, Fall landet in der Pflegeliste.
+- **`findeEintrag()` sucht in BEIDE Richtungen**: gespeicherte Nummer in der
+  Eingabe ODER Eingabe in einer gespeicherten. Ohne das entstünden zwei
+  Einträge, je nachdem ob jemand gescannt oder abgetippt hat.
+- **Seriennummern** (`istSeriennummer`) taugen nicht als Identität — sie
+  erzeugten je Stück einen Artikel. Verdachtsanzeige (1× gesehen), Entscheidung
+  durch einen Menschen auf `/admin/teilenummern`.
+- **Weg B „Einzelnes Teil ohne Gerät"** (`StepLosesTeil`, Schritt 7): Anker ist
+  die Nummer statt der LogID. Nummer ODER Bezeichnung ist Pflicht. Es wird
+  **keine Kompatibilität geraten** — nur bestätigte Modelle der Nummer werden
+  übernommen.
+- **Rechte:** ARTIKEL_VIEW / ARTIKEL_EDIT / ARTIKEL_EINLAGERN wiederverwendet,
+  kein seed-rbac.
+
+### Foto-Erkennung von Ersatzteilen (Aug 2026)
+
+Dritter Einstieg im Assistenten: **„📷 Ersatzteil erkennen lassen"** (Schritt 8),
+mündet in Schritt 7. Erscheint nur, wenn `GEMINI_API_KEY` gesetzt ist.
+
+**Bildaufbereitung im Browser** (`src/lib/bilder/aufbereiten.ts`) — der Teil,
+ohne den es bei Kunststoffteilen still scheitert:
+- Übersicht auf 768 px (Frage „was ist das"), **plus 2 Ausschnitte der
+  beschrifteten Stellen in Originalauflösung** (Frage „was steht drauf").
+- Die Stellen werden über **Kantenenergie** je Gitterzelle gefunden, kein Modell.
+- ⚠️ **Nicht relativ zum Mittelwert filtern!** Auf einer Platine ist das ganze
+  Bild voller Kanten, dann sticht nichts heraus und es kam **kein einziger**
+  Ausschnitt zustande. Jetzt: stärkste Zellen, absolute Untergrenze.
+- ⚠️ Immer über die **Kamera-App** (`capture`), nie über die Live-Vorschau:
+  gemessen 3120×4160 gegen 1280×720.
+
+**Erkennung** (`src/modules/teilenummern/bilderkennung.ts`), harte Fesseln:
+- `teiltyp` nur aus den 17 bekannten, sonst verworfen.
+- ⚠️ **Das Modell darf NICHT sagen, in welche Geräte ein Teil passt.** Diese
+  Angabe steht nicht im Foto — es kam nur der Hersteller zurück (der steht als
+  Logo drauf). Geräte kommen aus der **Nummernsuche**, siehe unten.
+- Bekannte Nummer schlägt die frische Erkennung.
+
+**Gemini-Fallen** (`src/lib/ki/gemini.ts`), alle am 19.08.2026 real aufgetreten:
+- 404 „no longer available to new users" → Modellname veraltet. Über
+  `GEMINI_MODELL` in der `.env` änderbar; die Fehlermeldung nennt den Nachfolger.
+- 503 „high demand" → vorübergehend, wird bis zu 2× wiederholt.
+- **Leere Antwort trotz 200** → `maxOutputTokens` zu klein. Denkende Modelle
+  verbrauchen das Kontingent fürs Denken; 800 reichten nicht, jetzt 4096.
+  Denkschritte kommen als eigene Teile und werden herausgefiltert.
+- **Timeout** → 15 s zu knapp bei mehreren Bildern. Jetzt 60 s, und nach einem
+  Timeout wird **nicht** wiederholt (3× 60 s = 3 Minuten Wartezeit).
+
+### Suchquelle: eigene SearXNG-Instanz (Aug 2026)
+
+**Warum nicht Google/Brave:** Brave hat sein Gratis-Kontingent im Februar 2026
+abgeschafft (Karte + Abrechnung). Googles Custom Search JSON API ist laut
+eigener Doku **für neue Kunden geschlossen** (Bestand bis 01.01.2027), „Im
+gesamten Web suchen" wird eingestellt, und die Cloud Console verlangt bei neuen
+Konten Zahlungsdaten. Es gibt derzeit **keine kostenlose Websuche für Programme**,
+auf die man bauen sollte.
+
+**Lösung:** `searxng`-Container in der `docker-compose.yml`, **ohne Portfreigabe**
+(nur im Docker-Netz). `searxng/settings.yml` braucht zwingend `search.formats: [html, json]`,
+sonst kommt 403. `SEARXNG_SECRET` in der `.env`.
+`src/lib/suche/index.ts` wählt die Quelle: SearXNG vor Google, sonst nichts.
+
+**Der Abgleich ist KEINE offene Leseaufgabe**, sondern ein Vergleich gegen eine
+geschlossene Liste: „welche UNSERER 1160 Modelle kommen in den Fundstellen vor".
+Stumpfer Textvergleich, kein Sprachmodell nötig. Modellnamen unter 6 Zeichen
+werden übersprungen (ein Modell „5490" träfe in jeder Preisangabe).
+Fundstellen ohne die Nummer werden verworfen (sonst kommen Paketverfolgungen).
+
+**Prüfstein:** Ist das Spendermodell bekannt, MUSS es in den Funden vorkommen —
+sonst deutliche Warnung.
+
+### Gerätefotos im Pickup (Aug 2026)
+
+Antippen einer LogID öffnet Details: Gerät, Hersteller, Colli, Stellplatz und
+**Bildergalerie**. Die Zeile zeigt das Gerät jetzt **unter** der LogID in voller
+Breite statt abgeschnitten daneben.
+
+- **Quelle: der AfB-Shop.** `afbshop.de/search?search=<Modell>` → Produktseite →
+  Galerie (front, front-links/rechts, back, back-links/rechts, **ports**).
+  Rechtlich unkritisch: AfB-Material für AfB-Zwecke.
+- ⚠️ **Ausgewertet wird der DATEINAME, nicht die Seitenstruktur** — Shopware-
+  Markup ändert sich, Bildnamen nicht. Und derselbe Filter („Dateiname enthält
+  den Modellnamen") wirft Werbebanner, Prüfsiegel und Zahlungssymbole von
+  selbst weg. **Keine Ausschlussliste nötig.**
+- **Schema:** `GeraeteFoto` (schluessel = normalisierter Modellname, `position`,
+  `ansicht`, `quelle` SELBST|SHOP, `@@unique([schluessel, position])`).
+  **Position 0 gehört dem selbst aufgenommenen Foto** und wird nie vom Shop
+  überschrieben.
+- Erfolglose Suche wird 30 Tage in Redis gemerkt (`shopbild:leer:*`).
+- ⚠️ **Vorschauleisten brauchen `?mini=1`.** Ohne das lädt eine 64-px-Kachel das
+  volle Bild — sieben Mal je Detailansicht. Genau daran lag die Ladezeit.
+  `src/lib/bilder/groesse.ts` (sharp) verkleinert beim Speichern auf 1400 px
+  und liefert Miniaturen mit 200 px.
+
+### Kamera-Test (Aug 2026, temporär)
+
+`/admin/kameratest` — misst, ob die Kamera eines Geräts eine Teilenummer lesbar
+aufnimmt: Auflösung, Schärfe (Laplace-Varianz), Helligkeit, Überstrahlung, plus
+1:1-Ausschnitt zum Selbstbeurteilen. Fotos landen serverseitig unter
+`/var/www/lagernaut/reform/teilefotos` (Bind-Mount, überlebt Rebuild).
+Schwellen kalibriert: lesbares Foto = 74, künstlich verwischt = 3 → gut ab 40.
+**Kann raus, sobald die Frage beantwortet ist.**
+
 
 ### Teiltypen: Standard vs. modellgebunden + Massenzuordnung (Aug 2026)
 
