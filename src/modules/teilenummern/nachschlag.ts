@@ -1,7 +1,10 @@
 import { prisma } from "@/core/db/prisma";
 import { suche, istEingerichtet, verbrauchHeute, type Fundstelle } from "@/lib/suche";
 import { normalisiere, kandidaten } from "./service";
-import { bereiteStellenVor, gleicheModellAb, type TrefferArt } from "./modellAbgleich";
+import {
+  bereiteStellenVor, gleicheModellAb, vollerName, taugtAlsVorschlag, entferneAllgemeinere,
+  type TrefferArt,
+} from "./modellAbgleich";
 
 // ── Automatisches Nachschlagen einer Teilenummer ─────────────────────────────
 //
@@ -187,12 +190,16 @@ export async function sucheModelleZuNummer(
 
   const vorschlaege: Vorschlag[] = [];
   for (const m of modelle) {
+    // Einträge, deren Modellname nur der Herstellername ist, sind keine
+    // Geräte — und als Suchnadel treffen sie überall. Siehe modellAbgleich.ts.
+    if (!taugtAlsVorschlag(m.hersteller, m.modell)) continue;
+
     const t = gleicheModellAb(m, stellen);
     if (!t) continue;
 
     vorschlaege.push({
       modellId: m.id,
-      name:     `${m.hersteller} ${m.modell}`.trim(),
+      name:     vollerName(m.hersteller, m.modell),
       treffer:  t.treffer,
       bereits:  bekanntSet.has(m.id),
       art:      t.art,
@@ -208,12 +215,16 @@ export async function sucheModelleZuNummer(
     || a.name.localeCompare(b.name),
   );
 
+  // „ThinkPad X1" trifft nur, weil „ThinkPad X1 Carbon Gen 9" ihn enthält.
+  // Das ist ein Fund, nicht zwei — also bleibt der genauere stehen.
+  const gefiltert = entferneAllgemeinere(vorschlaege);
+
   // ── Prüfstein: das Spendermodell MUSS vorkommen ─────────────────────────
   // Wenn bekannt ist, aus welchem Gerät das Teil stammt, dieses Modell aber in
   // keiner Fundstelle auftaucht, passt etwas nicht zusammen. Dann ist die
   // Nummer falsch gelesen oder die Fundstellen gehören zu einem anderen Teil.
   const ankerFehlt = spender.length > 0
-    && !vorschlaege.some((v) => spender.includes(v.modellId));
+    && !gefiltert.some((v) => spender.includes(v.modellId));
 
   return {
     ok: true,
@@ -222,7 +233,7 @@ export async function sucheModelleZuNummer(
     // Vollständig, nicht gekürzt — die Belegnummern der Vorschläge zeigen
     // hierher und dürfen nicht ins Leere greifen.
     fundstellen,
-    vorschlaege: vorschlaege.slice(0, 40),
+    vorschlaege: gefiltert.slice(0, 40),
     ankerFehlt,
     verbrauchHeute: await verbrauchHeute(),
     dauer: dauer(),

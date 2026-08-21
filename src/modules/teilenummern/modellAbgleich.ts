@@ -116,6 +116,63 @@ export function zerlegeModell(modell: string): ModellKern {
   return { serie, zahl, gen };
 }
 
+/**
+ * Anzeigename aus Hersteller und Modell — ohne Dopplung.
+ *
+ * Im Katalog steht der Hersteller bei einzelnen Einträgen im Modellfeld
+ * nochmal drin. Stumpf zusammengesetzt kam dabei „Lenovo Lenovo ThinkPad X1"
+ * heraus (21.08.2026, am Akku L20M4P71 gesehen).
+ */
+export function vollerName(hersteller: string, modell: string): string {
+  const h = hersteller.trim(), m = modell.trim();
+  if (!h) return m;
+  if (m.toUpperCase().startsWith(`${h.toUpperCase()} `) || m.toUpperCase() === h.toUpperCase()) return m;
+  return `${h} ${m}`.trim();
+}
+
+/**
+ * Taugt dieser Katalogeintrag überhaupt als Vorschlag?
+ *
+ * ⚠️ Ein Eintrag, dessen Modellname nur der Herstellername ist („Lenovo"),
+ * ist kein Gerätemodell. Als Suchnadel ist er verheerend: „LENOVO" steht auf
+ * jeder Lenovo-Seite, also trifft er IMMER — wörtlich sogar, damit vor allen
+ * echten Treffern. Am Akku L20M4P71 stand er deshalb mit sieben Belegen ganz
+ * oben, über ThinkPad X1 Carbon Gen 9.
+ *
+ * Der Eintrag gehört im Katalog bereinigt; bis dahin darf er wenigstens keine
+ * Vorschlagsliste mehr anführen.
+ */
+export function taugtAlsVorschlag(hersteller: string, modell: string): boolean {
+  const h = normalisiere(hersteller), m = normalisiere(modell);
+  if (!m) return false;
+  return m !== h;
+}
+
+/**
+ * Vorschläge aussortieren, die in einem genaueren vollständig aufgehen.
+ *
+ * „ThinkPad X1" trifft nur deshalb, weil „ThinkPad X1 Carbon Gen 9" diesen
+ * Wortlaut enthält — es ist derselbe Fund, nur unschärfer gelesen. Beide
+ * anzuzeigen sieht nach zwei Aussagen aus, ist aber eine.
+ *
+ * ⚠️ Nur innerhalb desselben Herstellers und nur, wenn der genauere Vorschlag
+ * mindestens so belastbar ist. Sonst könnte ein abgeleiteter Treffer einen
+ * wörtlichen verdrängen.
+ */
+export function entferneAllgemeinere<T extends { name: string; art: TrefferArt }>(liste: T[]): T[] {
+  const staerke = (a: TrefferArt) => (a === "WOERTLICH" ? 2 : 1);
+  return liste.filter((v) => {
+    const meiner = normalisiere(v.name);
+    return !liste.some((anderer) => {
+      if (anderer === v) return false;
+      const seiner = normalisiere(anderer.name);
+      return seiner.length > meiner.length
+        && seiner.includes(meiner)
+        && staerke(anderer.art) >= staerke(v.art);
+    });
+  });
+}
+
 export type VorbereiteteStelle = { tokens: string[]; glue: string };
 
 /**

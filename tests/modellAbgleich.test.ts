@@ -16,6 +16,9 @@ import {
   zerlegeModell,
   bereiteStellenVor,
   gleicheModellAb,
+  vollerName,
+  taugtAlsVorschlag,
+  entferneAllgemeinere,
   type Textstelle,
 } from "../src/modules/teilenummern/modellAbgleich";
 
@@ -164,6 +167,45 @@ check("Voller Name im Text → WOERTLICH, nicht FAMILIE",
     return t ? `${t.art} [${t.belege.join(",")}]` : "-";
   })(),
   "WOERTLICH [1]");
+
+
+// ── Katalog-Lärm (Akku L20M4P71, 21.08.2026) ─────────────────────────
+//
+// Am Lenovo-Akku standen ganz oben „Lenovo Lenovo" und „Lenovo ThinkPad X1" —
+// vor dem richtigen ThinkPad X1 Carbon Gen 9. Beides sind keine echten
+// Aussagen, sondern Nebenwirkungen des Katalogs.
+console.log("\n══ KATALOG-LÄRM ══");
+
+check("Hersteller wird nicht verdoppelt",
+  vollerName("Lenovo", "Lenovo ThinkPad X1"), "Lenovo ThinkPad X1");
+check("Normaler Fall bleibt unverändert",
+  vollerName("HP", "ProBook 440 G6"), "HP ProBook 440 G6");
+check("Modellname gleich Herstellername → kein Gerät",
+  taugtAlsVorschlag("Lenovo", "Lenovo"), false);
+check("Echtes Modell taugt",
+  taugtAlsVorschlag("Lenovo", "ThinkPad X1 Carbon Gen 9"), true);
+
+check("Der allgemeinere Name fällt weg, die genauen bleiben",
+  entferneAllgemeinere([
+    { name: "Lenovo ThinkPad X1",              art: "WOERTLICH" as const },
+    { name: "Lenovo ThinkPad X1 Carbon Gen 9", art: "WOERTLICH" as const },
+    { name: "Lenovo ThinkPad X1 Yoga Gen 6",   art: "WOERTLICH" as const },
+  ]).map((v) => v.name),
+  ["Lenovo ThinkPad X1 Carbon Gen 9", "Lenovo ThinkPad X1 Yoga Gen 6"]);
+
+// Gegenprobe: Ein abgeleiteter Treffer darf keinen wörtlichen verdrängen.
+check("Abgeleitet verdrängt keinen wörtlichen Treffer",
+  entferneAllgemeinere([
+    { name: "HP ProBook 440",    art: "WOERTLICH" as const },
+    { name: "HP ProBook 440 G6", art: "FAMILIE"   as const },
+  ]).map((v) => v.name),
+  ["HP ProBook 440", "HP ProBook 440 G6"]);
+
+check("Unterschiedliche Modelle bleiben beide",
+  entferneAllgemeinere([
+    { name: "HP ProBook 440 G6", art: "FAMILIE" as const },
+    { name: "HP ProBook 450 G6", art: "FAMILIE" as const },
+  ]).length, 2);
 
 console.log(`\n══════════════════════════════════════════`);
 console.log(`  📊 ${passed} passed  |  ${failed} failed`);
