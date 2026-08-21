@@ -23,8 +23,23 @@
 const STANDARD_MODELL = "gemini-3.6-flash";
 
 export type KiAntwort =
-  | { ok: true;  text: string }
-  | { ok: false; grund: string };
+  | { ok: true;  text: string;  dauerMs: number }
+  | { ok: false; grund: string; dauerMs: number };
+
+// ── Denken abschalten ────────────────────────────────────────────────────────
+//
+// Die neueren Modelle denken vor der Antwort. Für „schreibe mir einen Text"
+// ist das Gold wert, für unsere Aufgabe nicht: Hier wird ein Etikett abgelesen
+// und einer festen Liste zugeordnet. Das Denkbudget ist der größte Einzelposten
+// in der Wartezeit an der Werkbank.
+//
+// ⚠️ Zwei Sicherungen, weil wir Googles API-Oberfläche nicht in der Hand haben:
+//   1. Über GEMINI_DENKEN=1 in der .env lässt sich das Denken wieder einschalten,
+//      falls die Erkennung ohne merklich schlechter wird.
+//   2. Kennt ein Modell das Feld nicht, antwortet Google mit 400. Dann wird der
+//      Aufruf EINMAL ohne das Feld wiederholt und für die Laufzeit des Prozesses
+//      gemerkt. Ein unbekanntes Feld darf die Erkennung nicht lahmlegen.
+let denkenFeldAbgelehnt = false;
 
 export function istEingerichtet(): boolean {
   return !!process.env.GEMINI_API_KEY;
@@ -40,9 +55,10 @@ export async function frage(
   anweisung: string,
   bilder?: { base64: string; mimeType: string }[],
 ): Promise<KiAntwort> {
+  const start = Date.now();
   const schluessel = process.env.GEMINI_API_KEY;
   if (!schluessel) {
-    return { ok: false, grund: "Gemini ist nicht eingerichtet (GEMINI_API_KEY fehlt)." };
+    return { ok: false, grund: "Gemini ist nicht eingerichtet (GEMINI_API_KEY fehlt).", dauerMs: 0 };
   }
 
   const modell = process.env.GEMINI_MODELL || STANDARD_MODELL;
@@ -73,34 +89,65 @@ export async function frage(
     if (ergebnis.ok || !ergebnis.nochmal) return ergebnis.antwort;
     letzterGrund = ergebnis.antwort.ok ? letzterGrund : ergebnis.antwort.grund;
   }
-  return { ok: false, grund: `${letzterGrund} (auch nach ${WARTEN.length + 1} Versuchen)` };
+  return {
+    ok: false,
+    grund: `${letzterGrund} (auch nach ${WARTEN.length + 1} Versuchen)`,
+    dauerMs: Date.now() - start,
+  };
+
+  /** Kurzformen, damit die Zeitmessung an keinem Ausgang vergessen wird. */
+  function gut(text: string): KiAntwort  { return { ok: true,  text,  dauerMs: Date.now() - start }; }
+  function mies(grund: string): KiAntwort { return { ok: false, grund, dauerMs: Date.now() - start }; }
+
+  function koerper(mitDenken: boolean): string {
+    return JSON.stringify({
+      contents: [{ parts: teile }],
+      generationConfig: {
+        // Niedrig, weil hier nichts erfunden werden soll. Die Aufgabe ist
+        // Ablesen und Zuordnen, nicht Formulieren.
+        temperature:     0,
+        // Ohne Denken reichen wenige hundert Token für die Antwort. Mit
+        // Denken muss das alte, großzügige Budget stehen bleiben — sonst
+        // bricht das JSON mittendrin ab (19.08.2026).
+        maxOutputTokens: mitDenken ? 4096 : 1024,
+        responseMimeType: "application/json",
+        ...(mitDenken ? {} : { thinkingConfig: { thinkingBudget: 0 } }),
+      },
+    });
+  }
 
   /** Ein einzelner Aufruf. `nochmal` sagt, ob sich ein weiterer Versuch lohnt. */
   async function einVersuch(): Promise<{ ok: boolean; nochmal: boolean; antwort: KiAntwort }> {
+    // Denken ist standardmäßig AUS. Siehe Erklärung oben bei denkenFeldAbgelehnt.
+    const mitDenken = process.env.GEMINI_DENKEN === "1" || denkenFeldAbgelehnt;
+
     try {
-      const antwort = await fetch(url, {
+      let antwort = await fetch(url, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: teile }],
-          generationConfig: {
-            // Niedrig, weil hier nichts erfunden werden soll. Die Aufgabe ist
-            // Ablesen und Zuordnen, nicht Formulieren.
-            temperature:     0,
-            // ⚠️ Großzügig. Die neueren Modelle denken vor der Antwort, und
-            // diese Denkschritte zählen mit. Mit 800 Token brach das JSON
-            // mittendrin ab und war nicht mehr lesbar — die Antwort selbst
-            // braucht keine 200 Token, das Denken davor aber schon.
-            maxOutputTokens: 4096,
-            responseMimeType: "application/json",
-          },
-        }),
-        // Großzügig: Mit mehreren Bildern und einem denkenden Modell sind
-        // 15 Sekunden zu knapp — daran ist es am 19.08.2026 gescheitert.
-        // Eine Minute ist an der Werkbank lang, aber immer noch besser als
-        // eine Fehlermeldung nach 45 Sekunden.
-        signal: AbortSignal.timeout(60_000),
+        body:    koerper(mitDenken),
+        // Ohne Denkschritte ist die Antwort deutlich schneller da. 30 Sekunden
+        // sind reichlich und begrenzen zugleich, wie lange jemand an der
+        // Werkbank vor einem hängenden Bildschirm steht.
+        signal: AbortSignal.timeout(mitDenken ? 60_000 : 30_000),
       });
+
+      // Kennt dieses Modell `thinkingConfig` nicht, kommt ein 400. Dann einmal
+      // ohne das Feld wiederholen und es künftig weglassen — eine unbekannte
+      // Einstellung darf die Erkennung nicht lahmlegen.
+      if (antwort.status === 400 && !mitDenken) {
+        const meldung = await antwort.clone().text().catch(() => "");
+        if (/thinking/i.test(meldung)) {
+          denkenFeldAbgelehnt = true;
+          console.warn("[Gemini] thinkingConfig wird nicht unterstützt — künftig mit Denken.");
+          antwort = await fetch(url, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    koerper(true),
+            signal:  AbortSignal.timeout(60_000),
+          });
+        }
+      }
 
       if (!antwort.ok) {
         const text = await antwort.text().catch(() => "");
@@ -110,7 +157,7 @@ export async function frage(
         if (antwort.status === 429) {
           return {
             ok: false, nochmal: false,
-            antwort: { ok: false, grund: "Gemini-Tageskontingent aufgebraucht. Morgen wieder, oder von Hand eintragen." },
+            antwort: mies("Gemini-Tageskontingent aufgebraucht. Morgen wieder, oder von Hand eintragen."),
           };
         }
 
@@ -119,12 +166,9 @@ export async function frage(
         const voruebergehend = antwort.status >= 500 && antwort.status <= 504;
         return {
           ok: false, nochmal: voruebergehend,
-          antwort: {
-            ok: false,
-            grund: voruebergehend
-              ? "Gemini ist gerade überlastet."
-              : `Gemini antwortet mit ${antwort.status}. ${text.slice(0, 200)}`,
-          },
+          antwort: mies(voruebergehend
+            ? "Gemini ist gerade überlastet."
+            : `Gemini antwortet mit ${antwort.status}. ${text.slice(0, 200)}`),
         };
       }
 
@@ -136,8 +180,9 @@ export async function frage(
       };
       const kandidat = daten.candidates?.[0];
 
-      // Denkschritte herausfiltern: Die neueren Modelle liefern sie als eigene
-      // Teile mit. Würde man sie mitnehmen, stünde vor dem JSON noch Fließtext.
+      // Denkschritte herausfiltern: Sie kommen als eigene Teile mit. Bleibt
+      // das Denken abgeschaltet, ist die Liste ohnehin leer — der Filter
+      // schadet dann nicht und trägt weiter, falls jemand es wieder einschaltet.
       const text = (kandidat?.content?.parts ?? [])
         .filter((p) => !p.thought)
         .map((p) => p.text ?? "")
@@ -150,25 +195,19 @@ export async function frage(
         const warum = kandidat?.finishReason
           ? ` (Abbruchgrund: ${kandidat.finishReason})`
           : "";
-        return {
-          ok: false, nochmal: true,
-          antwort: { ok: false, grund: `Gemini hat nichts zurückgegeben${warum}.` },
-        };
+        return { ok: false, nochmal: true, antwort: mies(`Gemini hat nichts zurückgegeben${warum}.`) };
       }
 
-      return { ok: true, nochmal: false, antwort: { ok: true, text } };
+      return { ok: true, nochmal: false, antwort: gut(text) };
     } catch (e) {
       const meldung = (e as Error).message;
       // Nach einer Zeitüberschreitung NICHT wiederholen — siehe oben.
       const zeitAus = /timeout|abort/i.test(meldung);
       return {
         ok: false, nochmal: !zeitAus,
-        antwort: {
-          ok: false,
-          grund: zeitAus
-            ? "Die Erkennung hat zu lange gedauert. Bitte von Hand erfassen oder es gleich nochmal versuchen."
-            : `Gemini nicht erreichbar: ${meldung}`,
-        },
+        antwort: mies(zeitAus
+          ? "Die Erkennung hat zu lange gedauert. Bitte von Hand erfassen oder es gleich nochmal versuchen."
+          : `Gemini nicht erreichbar: ${meldung}`),
       };
     }
   }

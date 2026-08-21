@@ -50,6 +50,14 @@ export type ErkennungsErgebnis = {
   geraeteVerworfen: string[];
   sicherheit:  number;          // 0–100, wie das Modell sich selbst einschätzt
   bemerkung:   string | null;
+  /**
+   * Wo die Zeit geblieben ist, in Millisekunden — `ki` ist die Anfrage an
+   * Gemini, `pruefung` das Abgleichen gegen die eigenen Tabellen.
+   *
+   * Steht in der Oberfläche, damit an der Werkbank sichtbar ist, worauf
+   * gewartet wird, statt nur ein Rad drehen zu sehen.
+   */
+  dauer: { ki: number; pruefung: number; gesamt: number };
 };
 
 function anweisung(): string {
@@ -97,9 +105,11 @@ export async function erkenneTeil(input: {
   uebersicht:  { base64: string; mimeType: string };
   ausschnitte?: { base64: string; mimeType: string }[];
 }): Promise<ErkennungsErgebnis> {
+  const beginn = Date.now();
   const leer: ErkennungsErgebnis = {
     ok: false, teiltyp: null, teiltypLabel: null, hersteller: null,
     nummern: [], bekannt: null, geraete: [], geraeteVerworfen: [], sicherheit: 0, bemerkung: null,
+    dauer: { ki: 0, pruefung: 0, gesamt: 0 },
   };
 
   if (!istEingerichtet()) {
@@ -110,7 +120,10 @@ export async function erkenneTeil(input: {
   // in der Anweisung — sonst weiß das Modell nicht, was es vor sich hat.
   const bilder = [input.uebersicht, ...(input.ausschnitte ?? [])].slice(0, 4);
   const antwort = await frage(anweisung(), bilder);
-  if (!antwort.ok) return { ...leer, grund: antwort.grund };
+  const kiMs = antwort.dauerMs;
+  const dauer = () => ({ ki: kiMs, pruefung: Date.now() - beginn - kiMs, gesamt: Date.now() - beginn });
+
+  if (!antwort.ok) return { ...leer, grund: antwort.grund, dauer: dauer() };
 
   const roh = alsJson<RohAntwort>(antwort.text);
   if (!roh) {
@@ -120,6 +133,7 @@ export async function erkenneTeil(input: {
     return {
       ...leer,
       grund: `Antwort war nicht lesbar. Anfang der Antwort: ${antwort.text.slice(0, 180)}`,
+      dauer: dauer(),
     };
   }
 
@@ -198,19 +212,23 @@ export async function erkenneTeil(input: {
   // ── Kennen wir eine der Nummern schon? ──────────────────────────────────
   // Dann ist die Erkennung nur noch Beiwerk: Was ein Mensch früher bestätigt
   // hat, schlägt jede Modellantwort.
-  let bekannt: ErkennungsErgebnis["bekannt"] = null;
-  for (const n of nummern) {
-    const treffer = await schlageNach(n);
-    if (treffer) {
-      bekannt = {
-        nummer:     treffer.nummer,
-        teiltyp:    treffer.teiltyp,
-        hersteller: treffer.hersteller,
-        modelle:    treffer.modelle.length,
-      };
-      break;
-    }
-  }
+  //
+  // ⚠️ GLEICHZEITIG nachschlagen, nicht nacheinander. Auf einem Etikett
+  // stehen bis zu acht lesbare Codes; einzeln abgefragt waren das acht
+  // Datenbank-Rundreisen hintereinander, während jemand vor dem Bildschirm
+  // wartet. Die Reihenfolge bleibt trotzdem gewahrt: Es gewinnt die erste
+  // Nummer aus der Liste, die einen Treffer hat — nicht die schnellste Abfrage.
+  const treffer = await Promise.all(nummern.map((n) => schlageNach(n)));
+  const ersterTreffer = treffer.find(Boolean);
+
+  const bekannt: ErkennungsErgebnis["bekannt"] = ersterTreffer
+    ? {
+        nummer:     ersterTreffer.nummer,
+        teiltyp:    ersterTreffer.teiltyp,
+        hersteller: ersterTreffer.hersteller,
+        modelle:    ersterTreffer.modelle.length,
+      }
+    : null;
 
   return {
     ok:           true,
@@ -223,5 +241,6 @@ export async function erkenneTeil(input: {
     geraeteVerworfen: verworfen.slice(0, 8),
     sicherheit,
     bemerkung:    typeof roh.bemerkung === "string" ? roh.bemerkung.slice(0, 200) : null,
+    dauer: dauer(),
   };
 }

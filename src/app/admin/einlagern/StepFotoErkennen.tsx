@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/trpc/react";
 import { useToast } from "@/components/ui/Toast";
 import { bereiteFotoAuf, type Aufbereitet } from "@/lib/bilder/aufbereiten";
@@ -26,6 +26,29 @@ export type ErkanntesTeil = {
   /** Vorgeschlagener Lagerplatz, aus dem vorhandenen Bestand abgeleitet. */
   lagerplatz:  string | null;
 };
+
+/** Millisekunden lesbar machen: 4213 → „4,2 s". */
+function sek(ms: number): string {
+  return `${(ms / 1000).toFixed(1).replace(".", ",")} s`;
+}
+
+/**
+ * Laufende Uhr, solange gearbeitet wird.
+ *
+ * Ein drehendes Rad sagt nur „noch nicht fertig". An der Werkbank ist der
+ * Unterschied zwischen „drei Sekunden" und „dreißig Sekunden" aber genau der,
+ * an dem sich entscheidet, ob jemand wartet oder von Hand weitermacht.
+ */
+function useLaufzeit(aktiv: boolean): number {
+  const [ms, setMs] = useState(0);
+  useEffect(() => {
+    if (!aktiv) { setMs(0); return; }
+    const start = Date.now();
+    const t = setInterval(() => setMs(Date.now() - start), 100);
+    return () => clearInterval(t);
+  }, [aktiv]);
+  return ms;
+}
 
 export function StepFotoErkennen({
   onWeiter, onBack,
@@ -74,6 +97,28 @@ export function StepFotoErkennen({
   }
 
   const arbeitet = laeuft || erkennen.isPending;
+  const laufzeit = useLaufzeit(arbeitet);
+  const sucheLaufzeit = useLaufzeit(zuNummer.isPending);
+
+  // ── Suche vorziehen ───────────────────────────────────────────
+  // Steht nur EINE Nummer zur Auswahl, gibt es nichts zu entscheiden — dann
+  // ist das Antippen reine Wartezeit. Also wird sie sofort gewählt und die
+  // Suche läuft schon, während die Person das Ergebnis liest.
+  //
+  // ⚠️ Nur bei genau einer Nummer. Bei mehreren würde ein Vorgriff eine
+  // Entscheidung vorwegnehmen, die dem Menschen gehört — und jede Suche kostet
+  // Tageskontingent.
+  const vorgeladen = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ergebnis?.ok || ergebnis.nummern.length !== 1) return;
+    const n = ergebnis.nummern[0]!;
+    if (vorgeladen.current === n) return;
+    vorgeladen.current = n;
+    setGewaehlteNummer(n);
+    setPlatz(null);
+    zuNummer.mutate({ nummer: n, teiltyp: ergebnis.teiltyp ?? undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ergebnis]);
 
   const knopf = "px-5 py-3 rounded-xl font-bold min-h-[56px] text-base";
 
@@ -111,10 +156,30 @@ export function StepFotoErkennen({
             onChange={ausDatei} className="sr-only" disabled={arbeitet} />
         </label>
 
+        {/* Was gerade passiert — mit laufender Uhr. Ein drehendes Rad allein
+            sagt nicht, ob sich Warten noch lohnt. */}
         {arbeitet && (
-          <p className="text-sm text-[#0064d2] dark:text-[#45bdff] font-semibold">
-            {laeuft ? "Bild wird aufbereitet…" : "Wird erkannt…"}
-          </p>
+          <div className="rounded-lg border border-[#0064d2]/40 bg-[#0064d2]/5 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-4 h-4 rounded-full border-2 border-[#0064d2] border-t-transparent animate-spin" />
+              <span className="text-sm font-bold text-[#0064d2] dark:text-[#45bdff]">
+                {laeuft ? "Bild wird aufbereitet" : "Teil wird erkannt"} … {sek(laufzeit)}
+              </span>
+            </div>
+            <ul className="text-xs text-[#65676b] dark:text-[#b0b3b8] space-y-0.5 ml-6">
+              <li>{laeuft ? "▸" : "✓"} Foto verkleinern, beschriftete Stellen ausschneiden</li>
+              <li>
+                {laeuft ? "◦" : "▸"} Bilder zur Erkennung schicken
+                {aufbereitet && ` — ${1 + aufbereitet.ausschnitte.length} Bilder, ${aufbereitet.groesseKb} kB`}
+              </li>
+            </ul>
+            {!laeuft && laufzeit > 15_000 && (
+              <p className="text-xs text-[#8A5A00] dark:text-[#f7b928] ml-6">
+                Das dauert heute länger als üblich. Über „Zurück" geht es jederzeit
+                zur Erfassung von Hand.
+              </p>
+            )}
+          </div>
         )}
 
         {vorschau && (
@@ -258,13 +323,31 @@ export function StepFotoErkennen({
             </>
           )}
 
+          {/* Zeitbilanz: sagt, wo die Wartezeit wirklich hingegangen ist.
+              Ohne diese Zahl bleibt jede Beschleunigung eine Behauptung. */}
+          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] border-t border-[#ced4da] dark:border-[#3e4042] pt-2">
+            ⏱ Erkennung {sek(ergebnis.dauer.gesamt)} — davon Bildmodell {sek(ergebnis.dauer.ki)},
+            Abgleich mit unseren Daten {sek(ergebnis.dauer.pruefung)}
+          </p>
+
+
           {/* ── Geräte und Lagerplatz zur gewählten Nummer ───────────── */}
           {gewaehlteNummer && (
             <div className="rounded-lg border border-[#008BD2]/40 bg-[#008BD2]/5 p-3 space-y-3">
               {zuNummer.isPending && (
-                <p className="text-sm text-[#0064d2] dark:text-[#45bdff] font-semibold">
-                  Suche, in welche Geräte {gewaehlteNummer} passt…
-                </p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-4 h-4 rounded-full border-2 border-[#0064d2] border-t-transparent animate-spin" />
+                    <span className="text-sm font-bold text-[#0064d2] dark:text-[#45bdff]">
+                      Suche, in welche Geräte {gewaehlteNummer} passt … {sek(sucheLaufzeit)}
+                    </span>
+                  </div>
+                  <ul className="text-xs text-[#65676b] dark:text-[#b0b3b8] space-y-0.5 ml-6">
+                    <li>▸ Zwei Abfragen gleichzeitig über die eigene Suchinstanz</li>
+                    <li>◦ Fundstellen gegen unsere Gerätemodelle halten</li>
+                    <li>◦ Lagerplatz aus dem vorhandenen Bestand ableiten</li>
+                  </ul>
+                </div>
               )}
 
               {zuNummer.data && (
@@ -335,6 +418,13 @@ export function StepFotoErkennen({
                       </ul>
                     </details>
                   )}
+
+                  <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                    ⏱ Nachschlagen {sek(zuNummer.data.fund.dauer.gesamt)} — davon Suche
+                    {" "}{sek(zuNummer.data.fund.dauer.suche)}, Abgleich
+                    {" "}{sek(zuNummer.data.fund.dauer.abgleich)}
+                    {" · "}{zuNummer.data.fund.verbrauchHeute} Abfragen heute
+                  </p>
 
                   {/* Lagerplatz: Wo liegen Teile für diese Geräte schon? */}
                   {zuNummer.data.plaetze.length > 0 && (

@@ -48,6 +48,14 @@ export type NachschlagErgebnis = {
   /** Spendermodell nicht unter den Funden — starkes Warnsignal. */
   ankerFehlt:  boolean;
   verbrauchHeute: number;
+  /**
+   * Wo die Zeit geblieben ist, in Millisekunden.
+   *
+   * Steht in der Oberfläche, damit an der Werkbank sichtbar ist, worauf
+   * gewartet wird — und damit sich beim nächsten Mal messen statt raten lässt,
+   * ob eine Änderung wirklich etwas gebracht hat.
+   */
+  dauer: { suche: number; abgleich: number; gesamt: number };
 };
 
 /**
@@ -63,16 +71,19 @@ export async function sucheModelleZuNummer(
   bekannt: number[] = [],
   spender: number[] = [],
 ): Promise<NachschlagErgebnis> {
+  const beginn = Date.now();
+  let sucheMs = 0;
   const tn = { nummer, modelle: [] as { modellId: number; quelle: string }[] };
   const bekanntSet = new Set(bekannt);
 
   const leer = { gesucht: [], fundstellen: [], vorschlaege: [], ankerFehlt: false };
+  const dauer = () => ({ suche: sucheMs, abgleich: Date.now() - beginn - sucheMs, gesamt: Date.now() - beginn });
 
   if (!istEingerichtet()) {
     return {
       ok: false, ...leer,
       grund: "Keine Suchquelle eingerichtet. Modelle lassen sich weiterhin von Hand eintragen.",
-      verbrauchHeute: 0,
+      verbrauchHeute: 0, dauer: dauer(),
     };
   }
 
@@ -94,14 +105,36 @@ export async function sucheModelleZuNummer(
   for (const b of begriffe) versuche.push(`"${b}"`);
   for (const b of begriffe) versuche.push(b);
 
-  for (const begriff of versuche) {
-    const r = await suche(begriff);
-    if (!r.ok) { letzterGrund = r.grund; break; }
+  // ⚠️ Die ersten beiden Versuche laufen GLEICHZEITIG.
+  //
+  // Vorher lief das nacheinander: erst die Nummer in Anführungszeichen, dann,
+  // wenn noch nicht genug zusammenkam, die nächste Schreibweise. Bei
+  // DA0X8JTB8D0 kamen aus dem ersten Lauf 8 Fundstellen — also immer zu wenig
+  // für die Abbruchgrenze, also immer ein zweiter Lauf, also immer zweimal
+  // warten. Zwei gleichzeitige Abfragen kosten dieselbe Zeit wie eine.
+  //
+  // Zwei bleibt die Obergrenze fürs Gleichzeitige: Mehr belastet die eigene
+  // Instanz spürbar und bringt beim Abgleich nichts mehr dazu.
+  const sucheBeginn = Date.now();
+  const gleichzeitig = versuche.slice(0, 2);
+  const ergebnisse = await Promise.all(gleichzeitig.map((b) => suche(b)));
+
+  for (const r of ergebnisse) {
+    if (!r.ok) { letzterGrund = r.grund; continue; }
     roh.push(...r.fundstellen);
-    // Genug Material: aufhören. Jede weitere Abfrage belastet die
-    // Suchmaschinen ohne Erkenntnisgewinn.
-    if (roh.length >= 10) break;
   }
+
+  // Nur wenn beide zusammen zu wenig hergeben, wird nachgelegt — dann aber
+  // wieder einzeln, damit nicht ohne Not weitergesucht wird.
+  if (roh.length < 4) {
+    for (const begriff of versuche.slice(2)) {
+      const r = await suche(begriff);
+      if (!r.ok) { letzterGrund = r.grund; break; }
+      roh.push(...r.fundstellen);
+      if (roh.length >= 10) break;
+    }
+  }
+  sucheMs = Date.now() - sucheBeginn;
 
   // ── Rauschen wegwerfen ──────────────────────────────────────────────────
   // Eine Fundstelle, in der die Nummer nicht einmal vorkommt, sagt nichts über
@@ -137,7 +170,7 @@ export async function sucheModelleZuNummer(
     return {
       ok: false, ...leer, gesucht: begriffe,
       grund: letzterGrund ?? "Nichts gefunden. Diese Nummer scheint im Netz nicht aufzutauchen.",
-      verbrauchHeute: await verbrauchHeute(),
+      verbrauchHeute: await verbrauchHeute(), dauer: dauer(),
     };
   }
 
@@ -192,6 +225,7 @@ export async function sucheModelleZuNummer(
     vorschlaege: vorschlaege.slice(0, 40),
     ankerFehlt,
     verbrauchHeute: await verbrauchHeute(),
+    dauer: dauer(),
   };
 }
 

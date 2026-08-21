@@ -65,7 +65,11 @@ export async function suche(begriff: string, anzahl = 8): Promise<SucheErgebnis>
   try {
     const antwort = await fetch(url, {
       headers: { Accept: "application/json" },
-      signal:  AbortSignal.timeout(15_000),
+      // 8 statt 15 Sekunden. SearXNG fragt selbst mehrere Suchmaschinen und
+      // liefert normalerweise in 2 bis 4 Sekunden. Was länger braucht, ist
+      // fast immer eine Maschine, die klemmt — darauf zu warten verlängert nur
+      // die Wartezeit an der Werkbank, ohne mehr Fundstellen zu bringen.
+      signal:  AbortSignal.timeout(8_000),
     });
 
     if (!antwort.ok) {
