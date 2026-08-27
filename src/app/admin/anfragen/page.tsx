@@ -863,6 +863,30 @@ function AnfragenPageInner() {
                     <span className={`font-mono font-black text-lg leading-tight truncate ${optik.textCls || "text-[#1a1a1a] dark:text-[#e4e6eb]"}`}>{gruppe.logId}</span>
                     <GruppenStatusPille status={gruppe.gruppenStatus} style={statusStyle} />
 
+                    {/* ── Lagerhinweis ─────────────────────────────────────────
+                        Steht bewusst direkt hinter der Status-Pille und ist die
+                        auffälligste Marke nach ihr. Beim Durchsehen einer langen
+                        Liste ist „kann sofort raus" die Information, nach der
+                        gesucht wird — vorher stand hier ein kleines „📦 1/1" in
+                        derselben Größe wie der Sperr-Chip und ging unter.
+                        Vollständig und teilweise lieferbar sind bewusst zwei
+                        verschiedene Farben: Das sind zwei verschiedene
+                        Entscheidungen für den, der die Kiste packt.
+                        Wie überall hier: Farbe UND Zeichen UND Wort. */}
+                    {hatVerfuegbare && auslagerInfo && (
+                      auslagerInfo.anzahlVerfuegbar >= auslagerInfo.anzahlTotal ? (
+                        <span className="inline-flex items-center gap-1.5 text-sm font-black px-3 py-1.5 rounded-full bg-[#038F5C] text-white whitespace-nowrap shadow-sm">
+                          ✅ {auslagerInfo.anzahlTotal === 1
+                            ? "Teil auf Lager"
+                            : `Alle ${auslagerInfo.anzahlTotal} Teile auf Lager`}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-sm font-black px-3 py-1.5 rounded-full bg-[#8A5A00] text-white whitespace-nowrap shadow-sm">
+                          📦 {auslagerInfo.anzahlVerfuegbar} von {auslagerInfo.anzahlTotal} auf Lager
+                        </span>
+                      )
+                    )}
+
                     {/* Sperre NUR als kleiner Chip — keine ganzflächige Tönung */}
                     {isLockedByMe && (
                       <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 whitespace-nowrap">
@@ -880,11 +904,6 @@ function AnfragenPageInner() {
                         className="text-xs font-black px-2 py-0.5 rounded-full bg-yellow-300 text-yellow-900 whitespace-nowrap"
                       >
                         🧪 TEST
-                      </span>
-                    )}
-                    {hatVerfuegbare && auslagerInfo && (
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008bd2]/15 text-[#008bd2] dark:text-[#45bdff] whitespace-nowrap">
-                        📦 {auslagerInfo.anzahlVerfuegbar}/{auslagerInfo.anzahlTotal}
                       </span>
                     )}
                   </div>
