@@ -134,7 +134,18 @@ EOF
   danach technischer Output.
 - **Konservative Aufwandsschätzung** (Feature-Pass = 15–30 Min, nicht Stunden); konkrete
   Schritte statt Zeit-Labels.
-- **Datum/Zeit per Websuche verifizieren**, nicht aus dem Verlauf ableiten.
+- ⚠️ **Datum/Uhrzeit IMMER nachsehen, nie aus dem Verlauf ableiten** — `date "+%A, %d.%m.%Y %H:%M"`.
+  Grund: Gespräche mit Frank laufen über **mehrere Tage** weiter. An seinen Nachrichten
+  hängt kein Zeitstempel, und das Datum im Sitzungskopf bleibt auf dem Stand des
+  Sitzungsstarts stehen. Ein Verlauf *sieht* zusammenhängend aus, ist es aber nicht.
+  Am 01.09.2026 wurde deshalb Arbeit aus drei verschiedenen Tagen als „heute
+  erledigt" zusammengefasst.
+  Uhr abfragen: zu Beginn eines Arbeitsblocks, vor jedem Dokument mit Datum
+  (Papiere, die das Haus verlassen), vor jedem „heute/gestern/letzte Woche" und vor
+  Datumsangaben in Code-Kommentaren. Im Zweifel ohne Zeitangabe formulieren.
+- **Bei einer Übergabe an einen neuen Chat** gehört das **aktuelle Datum samt Uhrzeit
+  in den Übergabe-Prompt** — vorher frisch abfragen, nicht aus dem alten Gespräch
+  übernehmen. Sonst startet die neue Sitzung mit einem veralteten Zeitbezug.
 - **Risikoreiche DB-Operationen immer erst als Trockenlauf/SELECT**, bevor geschrieben wird.
 
 ---
