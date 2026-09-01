@@ -70,6 +70,11 @@ const PERMISSIONS = [
   { key: "GERAETE_REISE_VIEW",  kategorie: "Auswertung",  bezeichnung: "Geräte-Reise (LogID-Tracking) einsehen & importieren" },
   { key: "FEHLTEILE_VIEW",      kategorie: "Auswertung",  bezeichnung: "Fehlteile einsehen" },
 
+  // Versand: gleiches Gerät finden — eigener Bereich mit eigenem CSV-Import.
+  // Getrennt vergeben: Der Versand sucht, der Import ersetzt den ganzen Bestand.
+  { key: "GLEICHE_GERAETE_VIEW",   kategorie: "Auswertung", bezeichnung: "Gleiches Gerät finden (LogID suchen)" },
+  { key: "GLEICHE_GERAETE_IMPORT", kategorie: "Auswertung", bezeichnung: "Gleiches Gerät finden: CSV importieren" },
+
   // System
   { key: "STRESSTEST_RUN",      kategorie: "System",      bezeichnung: "Stresstest ausführen" },
   { key: "SYSTEM_ADMIN",        kategorie: "System",      bezeichnung: "Voll-Administrator (alle Rechte)" },

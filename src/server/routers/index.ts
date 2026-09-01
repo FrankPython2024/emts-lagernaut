@@ -30,6 +30,7 @@ import { colliEtikettenRouter }     from "./colliEtiketten";
 import { pickupRouter }             from "./pickup";
 import { lagerwagenRouter }         from "./lagerwagen";
 import { geraeteReiseRouter }       from "./geraeteReise";
+import { gleicheGeraeteRouter }     from "./gleicheGeraete";
 import { fehlteileRouter }          from "./fehlteile";
 import { verbrauchsmaterialRouter }  from "./verbrauchsmaterial";
 import { mobilRouter }               from "./mobil";
@@ -76,6 +77,7 @@ export const appRouter = createTRPCRouter({
   pickup:            pickupRouter,
   lagerwagen:        lagerwagenRouter,
   geraeteReise:      geraeteReiseRouter,
+  gleicheGeraete:    gleicheGeraeteRouter,
   fehlteile:         fehlteileRouter,
   verbrauchsmaterial: verbrauchsmaterialRouter,
   mobil:              mobilRouter,

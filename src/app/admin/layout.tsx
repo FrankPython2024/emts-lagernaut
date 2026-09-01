@@ -68,7 +68,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/admin/sonderanfragen",   label: "Sonderanfragen bewerten", icon: "💬", permission: "ANFRAGE_VIEW_ALL" },
       { href: "/admin/bestellempfehlung", label: "Bestell-Empfehlungen", icon: "🛒", permission: "ANFRAGE_VIEW_ALL" },
       { href: "/admin/geraete-lookup", label: "LogID Suche",    icon: "🔍", permission: "ARTIKEL_VIEW" },
-      { href: "/admin/gleiche-geraete", label: "Gleiches Gerät finden", icon: "🧭", permission: "GERAETE_REISE_VIEW" },
+      { href: "/admin/gleiche-geraete", label: "Gleiches Gerät finden", icon: "🧭", permission: "GLEICHE_GERAETE_VIEW" },
       { href: "/admin/geraete-import", label: "Geräte Import",  icon: "📥", permission: "MODELL_EDIT" },
       { href: "/admin/geraete-reise",  label: "Lagerfuchs",   icon: "🦊", permission: "GERAETE_REISE_VIEW" },
       { href: "/admin/import-sandbox", label: "Import-Sandbox", icon: "🧪", permission: "MODELL_VIEW" },

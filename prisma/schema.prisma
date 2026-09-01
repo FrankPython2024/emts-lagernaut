@@ -1299,3 +1299,32 @@ enum BestellanfrageStatus {
   NICHT_GENEHMIGT
   STORNIERT // von uns zurückgezogen
 }
+
+// ── Versand: „Gleiches Gerät finden" ─────────────────────────────────
+//
+// Eigener Schnappschuss aus einem ReForm-CSV-Export.
+//
+// ⚠️ BEWUSST getrennt von LogIdStand (Lagerfuchs). Dieser Bereich importiert
+// seine Daten selbst; ein Import hier darf die Abgangs-Erkennung des Lagerfuchs
+// nicht auslösen und umgekehrt. Jeder Import ERSETZT den Bestand vollständig —
+// die hochgeladene Datei ist der aktuelle Stand, es wird keine Historie geführt.
+//
+// logIdClean hält die punktfreie Fassung: Der Handscanner liefert „212965142",
+// gespeichert wird „212.965.142". Ohne diese Spalte findet ein Scan nichts.
+model VersandGeraet {
+  logId        String   @id @db.VarChar(32)
+  logIdClean   String   @db.VarChar(32)
+  hersteller   String?  @db.VarChar(64)
+  bezeichnung  String?  @db.VarChar(255)
+  geraeteart   String?  @db.VarChar(64)
+  grading      String?  @db.VarChar(8)
+  stellplatz   String?  @db.VarChar(64)
+  colli        String?  @db.VarChar(32)
+  lager        String?  @db.VarChar(64)
+  verbleib     String?  @db.VarChar(64)
+  importiertAm DateTime
+
+  @@index([logIdClean])
+  @@index([bezeichnung, grading])
+  @@index([stellplatz])
+}
