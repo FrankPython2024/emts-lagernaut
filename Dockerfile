@@ -5,13 +5,18 @@ FROM node:20-alpine AS base
 # klappt. Deshalb bis zu drei Versuche mit Pause.
 # Die Pruefung am Ende laesst den Build trotzdem scheitern, wenn wirklich nichts
 # installiert wurde -- ein stiller Weiterlauf ohne openssl waere schlimmer.
+# tesseract-ocr liest Teilenummern von gedruckten Etiketten, ohne fremdes
+# Kontingent und ohne Netz nach draussen. Gemessen am 21.08.2026 an vier echten
+# Teilen: Etiketten (Akku, Tastatur) werden zeichengenau gelesen, Siebdruck auf
+# Platinen NICHT -- dafuer bleibt Gemini der Weg. Kostet rund 15 MB im Image.
 RUN set -eu; \
     for i in 1 2 3; do \
-      if apk add --no-cache openssl openssl-dev libc6-compat; then break; fi; \
+      if apk add --no-cache openssl openssl-dev libc6-compat tesseract-ocr tesseract-ocr-data-eng; then break; fi; \
       echo ">>> apk-Versuch $i fehlgeschlagen, neuer Versuch in 5 Sekunden"; \
       sleep 5; \
     done; \
-    apk info -e openssl >/dev/null
+    apk info -e openssl >/dev/null; \
+    apk info -e tesseract-ocr >/dev/null
 
 FROM base AS deps
 WORKDIR /app

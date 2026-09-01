@@ -8,6 +8,7 @@ import { platzVorschlaege } from "@/modules/teilenummern/lagerplatz";
 import { resolveStandortId } from "@/lib/auth/standortFilter";
 import { erkenneTeil } from "@/modules/teilenummern/bilderkennung";
 import { istEingerichtet as kiEingerichtet } from "@/lib/ki/gemini";
+import { leseNummern, istEingerichtet as ocrEingerichtet } from "@/lib/ocr/tesseract";
 import { istEingerichtet, verbrauchHeute, tageslimit, aktiveQuelle } from "@/lib/suche";
 
 // ── Teilenummern ─────────────────────────────────────────────────────────────
@@ -100,7 +101,58 @@ export const teilenummernRouter = createTRPCRouter({
     }))
     .mutation(({ input }) => erkenneTeil(input)),
 
-  kiStatus: scannen.query(() => ({ eingerichtet: kiEingerichtet() })),
+  kiStatus: scannen.query(async () => ({
+    eingerichtet: kiEingerichtet(),
+    ocr:          await ocrEingerichtet(),
+  })),
+
+  /**
+   * Etikett lesen — ohne fremdes Kontingent.
+   *
+   * Läuft VOR der Bilderkennung und in aller Regel statt ihrer: Gedruckte
+   * Etiketten liest Tesseract im eigenen Container in etwa einer Sekunde.
+   * Siebdruck auf Platinen liest er nicht — dafür gibt es den Knopf zur
+   * Bilderkennung, den ein Mensch drückt, wenn keine Nummer passt.
+   *
+   * ⚠️ Bewusst KEINE Automatik, die selbst auf Gemini umschaltet. Beim
+   * Messen lieferte das USB-Board „2S01L“ — Lesemüll, der echt aussieht. Eine
+   * Regel „irgendetwas gefunden, also fertig“ hätte genau dort den Rückfall
+   * unterdrückt. Der Mensch hält das Teil in der Hand und sieht das Etikett;
+   * er entscheidet das in einer Sekunde.
+   */
+  leseFoto: scannen
+    .input(z.object({
+      uebersicht:  z.object({
+        base64:   z.string().min(100).max(8_000_000),
+        mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+      }),
+      ausschnitte: z.array(z.object({
+        base64:   z.string().min(100).max(8_000_000),
+        mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+      })).max(3).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const bilder = [input.uebersicht, ...(input.ausschnitte ?? [])].slice(0, 4);
+      const gelesen = await leseNummern(bilder);
+
+      // Kennen wir eine der Nummern schon? Gleichzeitig prüfen, Reihenfolge
+      // bleibt gewahrt — es gewinnt die erste Nummer der Liste mit Treffer.
+      const treffer = await Promise.all(gelesen.nummern.map((n) => schlageNach(n)));
+      const erster  = treffer.find(Boolean);
+
+      return {
+        nummern: gelesen.nummern,
+        dauerMs: gelesen.dauerMs,
+        bekannt: erster
+          ? {
+              nummer:     erster.nummer,
+              teiltyp:    erster.teiltyp,
+              hersteller: erster.hersteller,
+              modelle:    erster.modelle.length,
+            }
+          : null,
+      };
+    }),
 
   /**
    * Der Schritt nach der Foto-Erkennung: Zu einer gelesenen Nummer heraus-
