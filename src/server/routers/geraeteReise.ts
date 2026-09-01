@@ -737,4 +737,76 @@ export const geraeteReiseRouter = createTRPCRouter({
       liste,
     };
   }),
+  // ── Gleiches Gerät finden ──────────────────────────────────────
+  //
+  // Für den Versand: Eine LogID scannen und sehen, ob dasselbe Gerät mit
+  // demselben Grading noch einmal im Lager liegt — und wo genau.
+  //
+  // ⚠️ „Gleich" heißt hier: identische Bezeichnung UND identisches Grading.
+  // Die Bezeichnung fasst Ausstattungsvarianten zusammen (ein
+  // „EliteBook 850 G8" kann verschiedene Konfigurationen bedeuten). Für den
+  // Versand ist genau das gewollt; wer die exakt gleiche Konfiguration braucht,
+  // müsste über die AAN gehen — die steht im Snapshot bisher nicht.
+  //
+  // Ausgeschiedene Geräte bleiben draußen: Was das Haus verlassen hat, kann
+  // niemand mehr holen.
+  gleicheGeraete: permissionProcedure("GERAETE_REISE_VIEW")
+    .input(z.object({ logId: z.string().trim().min(1).max(60) }))
+    .query(async ({ input }) => {
+      const stand = await prisma.logIdStand.findUnique({
+        where:  { logId: input.logId },
+        select: {
+          logId: true, bezeichnung: true, hersteller: true, geraeteart: true,
+          grading: true, stellplatz: true, colli: true, lager: true,
+          verbleib: true, ausgeschieden: true,
+        },
+      });
+      if (!stand) return { kind: "none" as const };
+
+      // Ohne Bezeichnung oder Grading lässt sich nichts vergleichen — das
+      // ehrlich melden statt eine leere Liste zu zeigen.
+      if (!stand.bezeichnung || !stand.grading) {
+        return { kind: "unvollstaendig" as const, stand };
+      }
+
+      const gemeinsam = {
+        bezeichnung:   stand.bezeichnung,
+        grading:       stand.grading,
+        ausgeschieden: false,
+        logId:         { not: stand.logId },
+      };
+
+      // ⚠️ Obergrenze mit Ansage. Die größte Gruppe im Bestand hat über 700
+      // Geräte (gemessen am Export vom 01.09.2026). Ungebremst wäre das eine
+      // unbrauchbare Liste — und der Client soll wissen, dass gekürzt wurde.
+      const GRENZE = 500;
+      const [gesamt, treffer, andereGradings] = await Promise.all([
+        prisma.logIdStand.count({ where: gemeinsam }),
+        prisma.logIdStand.findMany({
+          where:   gemeinsam,
+          select:  { logId: true, stellplatz: true, colli: true, lager: true, verbleib: true },
+          orderBy: [{ stellplatz: "asc" }, { logId: "asc" }],
+          take:    GRENZE,
+        }),
+        // Kein Treffer im gesuchten Grading? Dann ist die nächste Frage immer,
+        // ob es dasselbe Gerät in einem anderen Zustand gibt.
+        prisma.logIdStand.groupBy({
+          by:      ["grading"],
+          where:   { bezeichnung: stand.bezeichnung, ausgeschieden: false, logId: { not: stand.logId } },
+          _count:  { _all: true },
+        }),
+      ]);
+
+      return {
+        kind:    "found" as const,
+        stand,
+        gesamt,
+        treffer,
+        gekuerzt: gesamt > treffer.length,
+        andereGradings: andereGradings
+          .filter((g) => g.grading && g.grading !== stand.grading)
+          .map((g) => ({ grading: g.grading as string, anzahl: g._count._all }))
+          .sort((a, b) => b.anzahl - a.anzahl),
+      };
+    }),
 });
