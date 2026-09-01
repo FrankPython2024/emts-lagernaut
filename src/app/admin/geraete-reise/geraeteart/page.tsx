@@ -130,7 +130,7 @@ function GeraeteartDetail() {
       {data && (
         <>
           <h2 className="text-xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">
-            {data.geraeteart} <span className="text-[#0064d2] dark:text-[#45bdff]">— {nf(data.kennzahlen.anzahl)} Geräte</span>
+            {data.geraeteart} <span className="text-[#0064d2] dark:text-[#45bdff]">· {nf(data.kennzahlen.anzahl)} Geräte</span>
           </h2>
 
           {/* Kennzahl-Karten */}

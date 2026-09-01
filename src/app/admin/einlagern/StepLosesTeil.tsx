@@ -85,7 +85,7 @@ export function StepLosesTeil({
 
   const buchen = api.einlagern.erfasseLosesTeil.useMutation({
     onSuccess: (r) => {
-      show(`✅ ${r.menge}× ${r.bezeichnung} — Bestand ${r.neuerBestand}`, "success");
+      show(`✅ ${r.menge}× ${r.bezeichnung} · Bestand ${r.neuerBestand}`, "success");
       setErledigt((v) => [{
         text: `${r.menge}× ${r.bezeichnung}${r.neuAngelegt ? " (neu angelegt)" : ""} → Bestand ${r.neuerBestand}`,
         modelle: r.modelle,
@@ -149,7 +149,7 @@ export function StepLosesTeil({
             Was für ein Teil ist das? *
           </label>
           <select value={teiltyp} onChange={(e) => setTeiltyp(e.target.value)} className={feld}>
-            <option value="">— auswählen —</option>
+            <option value="">auswählen</option>
             {teiltypen.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </div>

@@ -111,7 +111,7 @@ export default function FehlteilePage() {
       <div>
         <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">🧩 Fehlteile</h1>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
-          Geräte mit Verbleib „Fehlteile" — alle Artikelarten, durchsuchbar &amp; exportierbar
+          Geräte mit Verbleib „Fehlteile": alle Artikelarten, durchsuchbar &amp; exportierbar
         </p>
       </div>
 
@@ -163,7 +163,7 @@ export default function FehlteilePage() {
 
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase tracking-wide">in Verbleib seit — von</span>
+            <span className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase tracking-wide">in Verbleib seit: von</span>
             <input type="date" value={seitVon} onChange={(e) => setVon(e.target.value)} className={selectCls} />
           </label>
           <label className="flex flex-col gap-1">
@@ -187,7 +187,7 @@ export default function FehlteilePage() {
       <div className={`${cardCls} overflow-hidden`}>
         <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042] flex items-center justify-between gap-3 flex-wrap">
           <h2 className="font-black text-[#1a1a1a] dark:text-[#e4e6eb]">
-            Treffer <span style={{ color: BLAU }}>— {nf(total)}</span>
+            Treffer <span style={{ color: BLAU }}>· {nf(total)}</span>
             {listeQ.isFetching && <span className="ml-2 text-xs font-normal text-[#65676b] dark:text-[#b0b3b8]">Lädt…</span>}
           </h2>
           <div className="flex items-center gap-2">

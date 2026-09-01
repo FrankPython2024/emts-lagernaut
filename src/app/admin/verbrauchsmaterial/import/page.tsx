@@ -23,7 +23,7 @@ export default function VerbrauchsmaterialImportPage() {
 
   const importieren = api.verbrauchsmaterial.importBestand.useMutation({
     onSuccess: (r) => {
-      show(`✅ Import übernommen — ${r.neu} neu, ${r.aktualisiert} aktualisiert, ${r.uebersprungen} übersprungen`, "success");
+      show(`✅ Import übernommen: ${r.neu} neu, ${r.aktualisiert} aktualisiert, ${r.uebersprungen} übersprungen`, "success");
       setRes(null); setFileName(null);
       if (fileRef.current) fileRef.current.value = "";
     },
@@ -69,7 +69,7 @@ export default function VerbrauchsmaterialImportPage() {
     <div className="max-w-3xl space-y-5">
       <div className="flex items-center gap-3">
         <button onClick={() => router.push("/admin/verbrauchsmaterial")} className="text-[#65676b] hover:text-[#008BD2] text-sm">← Zurück</button>
-        <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">📥 Verbrauchsmaterial — Excel-Import</h1>
+        <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">📥 Verbrauchsmaterial: Excel-Import</h1>
       </div>
 
       <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
@@ -96,7 +96,7 @@ export default function VerbrauchsmaterialImportPage() {
             className="w-full flex items-center justify-center gap-2 px-5 rounded-xl border-2 border-dashed text-sm font-bold transition-colors min-h-[56px]"
             style={{ borderColor: `${AKZENT}66`, background: `${AKZENT}0d`, color: AKZENT }}
           >
-            📄 {fileName ? `Datei: ${fileName} — andere wählen` : "Excel auswählen"}
+            📄 {fileName ? `Datei: ${fileName} · andere wählen` : "Excel auswählen"}
           </button>
           <p className="text-xs text-[#90939a] dark:text-[#6b6e73] mt-1">
             Spalten (tolerant): Artikelname, Merkmale, Mindestbestand, „Aktueller Bestand", Kategorie, AAN, Stückzahl, Bemerkung.

@@ -19,9 +19,9 @@ const REGEL_LABEL: Record<string, string> = {
   leer:      "Leerer Hersteller",
   apple:     "Apple-Indikator in der Bezeichnung erkannt",
   typo:      "Tippfehler-Korrektur",
-  blocklist: "Blockliste — nicht im AfB-Portfolio",
+  blocklist: "Blockliste: nicht im AfB-Portfolio",
   whitelist: "Whitelist-Treffer",
-  unbekannt: "Unbekannter Hersteller — nicht in der Whitelist",
+  unbekannt: "Unbekannter Hersteller: nicht in der Whitelist",
 };
 
 type Beispiel = { hersteller: string; bezeichnung: string; hinweis: string };
@@ -66,7 +66,7 @@ export default function ImportSandboxPage() {
         <div>
           <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Import-Sandbox</h1>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
-            Zeigt Schritt für Schritt, wie der Import aus rohen Werten saubere Werte macht. Nur Anschauung — es wird nichts gespeichert.
+            Zeigt Schritt für Schritt, wie der Import aus rohen Werten saubere Werte macht. Nur Anschauung. Es wird nichts gespeichert.
           </p>
         </div>
       </div>
@@ -154,7 +154,7 @@ function Auswertung({ data, rohHersteller }: { data: Vorschau; rohHersteller: st
       >
         <div className={`px-5 py-3 flex items-center gap-2 ${erlaubt ? "bg-[#04B475]/[0.08]" : "bg-[#fa3e3e]/[0.08]"}`}>
           <span aria-hidden>{erlaubt ? "✅" : "⛔"}</span>
-          <h2 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb]">Tor A — Hersteller-Prüfung</h2>
+          <h2 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb]">Tor A: Hersteller-Prüfung</h2>
         </div>
         <div className="bg-white dark:bg-[#242526] px-5 py-4 space-y-2">
           {erlaubt ? (
@@ -191,7 +191,7 @@ function Auswertung({ data, rohHersteller }: { data: Vorschau; rohHersteller: st
         <section className="rounded-2xl border-2 border-[#008BD2]/40 shadow-sm overflow-hidden">
           <div className="px-5 py-3 flex items-center gap-2 bg-[#008BD2]/[0.08]">
             <span aria-hidden>🧹</span>
-            <h2 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb]">Tor B — Bezeichnung-Bereinigung</h2>
+            <h2 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb]">Tor B: Bezeichnung-Bereinigung</h2>
           </div>
           <div className="bg-white dark:bg-[#242526] px-5 py-4">
             <ol className="space-y-2 list-none m-0 p-0">
@@ -261,7 +261,7 @@ function Auswertung({ data, rohHersteller }: { data: Vorschau; rohHersteller: st
       {/* ── Endergebnis ── */}
       {erlaubt && endergebnis ? (
         <section className="rounded-2xl border-2 border-[#202F61] bg-[#202F61]/[0.04] dark:bg-[#202F61]/[0.12] shadow-sm p-5 sm:p-6">
-          <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-2 uppercase tracking-wider">Endergebnis — so würde es gespeichert</p>
+          <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-2 uppercase tracking-wider">Endergebnis: so würde es gespeichert</p>
           <div className="flex items-center gap-2 flex-wrap">
             <span aria-hidden className="text-2xl">💾</span>
             <span className="inline-flex items-center px-4 py-2 rounded-xl font-mono font-black text-lg text-white break-all" style={{ background: "#04B475" }}>
@@ -290,7 +290,7 @@ function Auswertung({ data, rohHersteller }: { data: Vorschau; rohHersteller: st
       <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] leading-relaxed px-1 max-w-[68ch]">
         <span aria-hidden>ℹ️ </span>
         Danach prüft das System, ob es dieses Modell schon gibt (case-insensitive, mit und ohne
-        Hersteller-Präfix) — Duplikate werden nie angelegt.
+        Hersteller-Präfix). Duplikate werden nie angelegt.
       </p>
     </div>
   );
@@ -306,9 +306,9 @@ function TorC({ katalog }: { katalog: Katalog }) {
     <section className="rounded-2xl border-2 border-[#008BD2]/40 shadow-sm overflow-hidden">
       <div className="px-5 py-3 flex items-center gap-2 bg-[#008BD2]/[0.08] flex-wrap">
         <span aria-hidden>🔎</span>
-        <h2 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb] flex-1">Tor C — Modell-Abgleich (Katalog)</h2>
+        <h2 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb] flex-1">Tor C: Modell-Abgleich (Katalog)</h2>
         <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#f7b928]/15 text-[#9a7b0a] dark:text-[#f7b928] border border-[#f7b928]/30">
-          Vorschau — der echte Import bleibt unberührt
+          Vorschau: der echte Import bleibt unberührt
         </span>
       </div>
 
@@ -319,7 +319,7 @@ function TorC({ katalog }: { katalog: Katalog }) {
             Vergleichs-Kern (das wird verglichen)
           </p>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mb-1.5">
-            Specs, Größen und Codes werden für den Vergleich entfernt — übrig bleibt der Modell-Kern:
+            Specs, Größen und Codes werden für den Vergleich entfernt. Übrig bleibt der Modell-Kern:
           </p>
           <span className="inline-block font-mono text-sm px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#202F61] dark:text-[#e4e6eb] break-all">
             {inputKern || "∅"}
@@ -332,7 +332,7 @@ function TorC({ katalog }: { katalog: Katalog }) {
             <span aria-hidden className="text-xl">🆕</span>
             <p className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
               <span className="font-bold">Kein Katalog-Treffer.</span> Dieses Modell würde als
-              NEU vorgeschlagen — der Admin bestätigt das Anlegen.
+              NEU vorgeschlagen. Der Admin bestätigt das Anlegen.
             </p>
           </div>
         ) : (
@@ -347,7 +347,7 @@ function TorC({ katalog }: { katalog: Katalog }) {
               ) : (
                 <>
                   <span aria-hidden>🔢</span>
-                  <span>Kandidaten — der Admin würde bestätigen</span>
+                  <span>Kandidaten: der Admin würde bestätigen</span>
                 </>
               )}
             </p>

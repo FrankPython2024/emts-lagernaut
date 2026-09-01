@@ -185,7 +185,7 @@ export default function SonderanfragenPage() {
           </button>
         </div>
       ) : (
-        <p className="mt-4 text-sm text-[#90939a]">Nur-Lese-Zugriff — Werte setzen dürfen nur Admins.</p>
+        <p className="mt-4 text-sm text-[#90939a]">Nur-Lese-Zugriff. Werte setzen dürfen nur Admins.</p>
       )}
     </div>
   );

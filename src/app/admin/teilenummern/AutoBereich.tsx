@@ -90,7 +90,7 @@ export function AutoBereich({
       {fund?.schwach && fund.ok && (
         <p className="text-sm text-[#8A5A00] dark:text-[#f7b928]">
           In den Fundstellen kam die Nummer kaum vor. Die Vorschläge sind deshalb
-          wackelig — bitte einzeln prüfen statt alles zu übernehmen.
+          wackelig. Bitte einzeln prüfen statt alles zu übernehmen.
         </p>
       )}
 
@@ -120,7 +120,7 @@ export function AutoBereich({
           </ul>
 
           <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-            Die kleine Zahl nennt die Fundstelle, die den Vorschlag belegt — unten nachlesbar.
+            Die kleine Zahl nennt die Fundstelle, die den Vorschlag belegt (unten nachlesbar).
             {abgeleitet > 0 && (
               <> <b>≈</b> heißt: aus einer Sammelangabe abgeleitet, etwa „440 445R G6 G7".
               Diese {abgeleitet} sind bewusst nicht vorausgewählt. Bitte erst nachlesen,

@@ -115,7 +115,7 @@ export default function GeraeteImportPage() {
     onSuccess: (data) => {
       setGenJobId(data.jobId);
       setGenPhase("running");
-      show(`⚙️ Generator gestartet — ${data.modelle} Modelle × ${data.teile} Teile`, "info");
+      show(`⚙️ Generator gestartet: ${data.modelle} Modelle × ${data.teile} Teile`, "info");
     },
     onError: (e) => show(`Fehler: ${e.message}`, "error"),
   });
@@ -408,7 +408,7 @@ export default function GeraeteImportPage() {
                 />
               </div>
               <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                Läuft im Hintergrund — du kannst die Seite verlassen.
+                Läuft im Hintergrund. Du kannst die Seite verlassen.
               </p>
             </div>
           )}
@@ -445,7 +445,7 @@ export default function GeraeteImportPage() {
           <span className="text-lg">⚙️</span>
           <div>
             <span className="font-bold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-              Schritt 2 (optional) — Artikel automatisch generieren
+              Schritt 2 (optional): Artikel automatisch generieren
             </span>
             <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
               {STANDARD_TEILTYPEN.length} Standard-Teile pro Modell anlegen · Bestand: 0 · Idempotent (sicher mehrfach starten)
@@ -584,7 +584,7 @@ export default function GeraeteImportPage() {
                       </p>
                     )}
                     <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-2">
-                      Du kannst diese Seite verlassen — der Generator läuft im Hintergrund weiter.
+                      Du kannst diese Seite verlassen. Der Generator läuft im Hintergrund weiter.
                     </p>
                   </>
                 );

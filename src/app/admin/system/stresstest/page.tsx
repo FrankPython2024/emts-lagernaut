@@ -129,8 +129,8 @@ function actionColor(action: string, success: boolean): string {
 // ── Config Screen ─────────────────────────────────────────────────────────────
 
 const MODE_WARN: Partial<Record<LoadMode, string>> = {
-  burst:   "🔥 Hohe Last — viele Aktionen pro Minute",
-  extreme: "💀 Extreme Last — DB stark beansprucht",
+  burst:   "🔥 Hohe Last: viele Aktionen pro Minute",
+  extreme: "💀 Extreme Last: DB stark beansprucht",
 };
 
 function ConfigScreen({ onStart }: { onStart: (cfg: { duration: number; numTechniker: number; numAdmins: number; loadMode: LoadMode }) => void }) {
@@ -476,11 +476,11 @@ function FehlerSektion({ errors }: { errors: ErrorDetail[] }) {
 
       {/* Erklärung Kategorien */}
       <div style={{ padding: "0.45rem 1rem", background: "#14141a", borderBottom: `1px solid ${C.border}`, display: "flex", gap: "1.5rem", flexWrap: "wrap", fontSize: "0.6rem", color: C.dim }}>
-        <span>🟢 Race — erwartet, kein Bug</span>
-        <span>🟡 Validierung / Duplikat — Eingaben prüfen</span>
-        <span>🟠 Stale Ref — Timing-Problem</span>
-        <span>🟣 API — Logik-Fehler</span>
-        <span>🔴 Bug — Code prüfen</span>
+        <span>🟢 Race: erwartet, kein Bug</span>
+        <span>🟡 Validierung / Duplikat: Eingaben prüfen</span>
+        <span>🟠 Stale Ref: Timing-Problem</span>
+        <span>🟣 API: Logik-Fehler</span>
+        <span>🔴 Bug: Code prüfen</span>
       </div>
 
       {/* Gruppiete Fehler-Liste */}
@@ -938,14 +938,14 @@ function genEmpfehlungen(r: FinalResult): Empfehlung[] {
   const bugCount  = r.fehlerPerKategorie?.bug ?? 0;
   const raceCount = r.fehlerPerKategorie?.race ?? 0;
 
-  if (bugCount > 0)        empf.push({ level: "rot",   text: `${bugCount} Echter Bug(s) — Fehler-Sektion + Stack-Traces prüfen` });
-  if (r.p95 > 500)         empf.push({ level: "gelb",  text: `P95 ${r.p95}ms hoch — DB-Indexes auf oft abgefragten Spalten prüfen` });
-  if (r.avgResponseTime > 300) empf.push({ level: "gelb", text: `Ø Response ${r.avgResponseTime}ms — Langsame Queries identifizieren` });
-  if ((r.memMBPeak ?? 0) > 400) empf.push({ level: "gelb", text: `Memory-Peak ${r.memMBPeak}MB — Heap-Wachstum bei Extreme-Mode beobachten` });
+  if (bugCount > 0)        empf.push({ level: "rot",   text: `${bugCount} Echter Bug(s). Fehler-Sektion + Stack-Traces prüfen` });
+  if (r.p95 > 500)         empf.push({ level: "gelb",  text: `P95 ${r.p95}ms hoch. DB-Indexes auf oft abgefragten Spalten prüfen` });
+  if (r.avgResponseTime > 300) empf.push({ level: "gelb", text: `Ø Response ${r.avgResponseTime}ms. Langsame Queries identifizieren` });
+  if ((r.memMBPeak ?? 0) > 400) empf.push({ level: "gelb", text: `Memory-Peak ${r.memMBPeak}MB. Heap-Wachstum bei Extreme-Mode beobachten` });
   if (raceCount > 0 && bugCount === 0) empf.push({ level: "gruen", text: `Lock-System: ${raceCount} Race Conditions korrekt abgefangen` });
-  if (errorRate < 0.01 && r.totalOps > 50) empf.push({ level: "gruen", text: `${((1 - errorRate) * 100).toFixed(1)}% Erfolgsrate — System ist stabil` });
-  if (r.lockKonflikte > 0) empf.push({ level: "gruen", text: `${r.lockKonflikte} Lock-Konflikte behandelt — Optimistic Locking funktioniert` });
-  if (empf.length === 0)   empf.push({ level: "gruen", text: "Keine Probleme gefunden — System produktionsreif" });
+  if (errorRate < 0.01 && r.totalOps > 50) empf.push({ level: "gruen", text: `${((1 - errorRate) * 100).toFixed(1)}% Erfolgsrate. System ist stabil` });
+  if (r.lockKonflikte > 0) empf.push({ level: "gruen", text: `${r.lockKonflikte} Lock-Konflikte behandelt. Optimistic Locking funktioniert` });
+  if (empf.length === 0)   empf.push({ level: "gruen", text: "Keine Probleme gefunden. System produktionsreif" });
 
   return empf;
 }
@@ -984,7 +984,7 @@ function DetailedReportScreen({ result, onNew }: { result: FinalResult; onNew: (
 
   function copyToClipboard() {
     const lines = [
-      `LAGERNAUT BENCHMARK REPORT — ${new Date(result.startTime ?? Date.now()).toLocaleString("de-DE")}`,
+      `LAGERNAUT BENCHMARK REPORT · ${new Date(result.startTime ?? Date.now()).toLocaleString("de-DE")}`,
       `Modus: ${LOAD_MODES[result.modus]?.label ?? result.modus} | Score: ${fmtNum(score)} (${rating.label})`,
       `Ops: ${fmtNum(result.totalOps)} | Ø ${result.avgResponseTime}ms | P95: ${result.p95}ms | Fehler: ${result.fehler}`,
     ].join("\n");

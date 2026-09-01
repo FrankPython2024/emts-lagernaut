@@ -148,13 +148,13 @@ export default function BestellanfragenPage() {
           "text/plain": new Blob([text], { type: "text/plain" }),
         }),
       ]);
-      show("📋 Tabelle kopiert — jetzt in die Mail einfügen", "success");
+      show("📋 Tabelle kopiert. Jetzt in die Mail einfügen", "success");
     } catch {
       try {
         await navigator.clipboard.writeText(text);
         show("📋 Als Text kopiert (Tabellenformat vom Browser nicht unterstützt)", "warning");
       } catch {
-        show("Kopieren nicht möglich — bitte Text unten manuell markieren", "error");
+        show("Kopieren nicht möglich. Bitte Text unten manuell markieren", "error");
       }
     }
   }
@@ -249,7 +249,7 @@ export default function BestellanfragenPage() {
               onClick={() => versendet.mutate({ ids: zuVersenden.map((b) => b.id) })}
               disabled={versendet.isPending}
               className="px-4 py-2 text-sm font-bold rounded-xl bg-[#04B475]/10 text-[#038F5C] dark:text-[#04B475] border border-[#04B475]/30 hover:bg-[#04B475]/20 disabled:opacity-50">
-              ✓ Ist raus — als bestellt markieren
+              ✓ Ist raus: als bestellt markieren
             </button>
             <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
               Erst klicken, wenn die Mail wirklich verschickt ist. Danach zählen die Positionen als bestellt.

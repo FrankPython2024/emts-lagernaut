@@ -180,7 +180,7 @@ function FaktorenBox({ istAdmin, co2, gewicht, onGespeichert }: {
       <h2 className="font-black text-base text-[#202F61] dark:text-[#e4e6eb]">⚙️ Annahmen je wiederverwendetem Teil</h2>
       <p className="mt-1 text-sm text-[#65676b] dark:text-[#b0b3b8]">
         Diese Pauschal-Werte fließen in CO₂ und Elektroschrott ein. Setzt hier eure eigenen, belastbaren
-        Zahlen ein — sie gelten rückwirkend für alle Auswertungen.
+        Zahlen ein. Sie gelten rückwirkend für alle Auswertungen.
       </p>
 
       <div className="mt-4 flex flex-wrap gap-6">

@@ -157,7 +157,7 @@ export default function ImportABTestPage() {
         addRecord(agg.abgelehntRegel,       res.abgelehntRegel);
         detailRef.current.push(...res.detail);
       } catch {
-        show("Ein Chunk konnte nicht ausgewertet werden — Auswertung läuft weiter.", "error");
+        show("Ein Chunk konnte nicht ausgewertet werden. Die Auswertung läuft weiter.", "error");
       }
       setProcessed(Math.min(i + CHUNK_SIZE, rows.length));
     }
@@ -167,7 +167,7 @@ export default function ImportABTestPage() {
     setReport(agg);
     setRunning(false);
     setPhase("");
-    show(`✅ Probelauf fertig — ${nf.format(agg.ausgewertet)} Zeilen ausgewertet`, "success");
+    show(`✅ Probelauf fertig: ${nf.format(agg.ausgewertet)} Zeilen ausgewertet`, "success");
   }
 
   function handleFile(file: File | null) {
@@ -203,7 +203,7 @@ export default function ImportABTestPage() {
         <div>
           <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Import A/B-Test</h1>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
-            Probelauf: vergleicht das heutige Matching (A) mit dem neuen Katalog-Abgleich (B) — anhand einer echten CSV.
+            Probelauf: vergleicht das heutige Matching (A) mit dem neuen Katalog-Abgleich (B), anhand einer echten CSV.
           </p>
         </div>
       </div>
@@ -212,7 +212,7 @@ export default function ImportABTestPage() {
       <div role="note" className="flex items-start gap-3 rounded-2xl border-2 border-[#f7b928]/40 bg-[#f7b928]/10 px-5 py-4">
         <span aria-hidden className="text-xl">🛡️</span>
         <p className="text-sm font-bold text-[#9a7b0a] dark:text-[#f7b928]">
-          Probelauf — es wird NICHTS importiert oder gespeichert. Es werden keine Modelle angelegt.
+          Probelauf: es wird NICHTS importiert oder gespeichert. Es werden keine Modelle angelegt.
         </p>
       </div>
 
@@ -321,13 +321,13 @@ function Report({ agg, risiko, fidelity, onDownload }: { agg: Agg; risiko: Detai
       {/* A vs B Buckets */}
       <section className="grid sm:grid-cols-2 gap-5">
         <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5">
-          <h3 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb] mb-3">A — heutiges Matching</h3>
+          <h3 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb] mb-3">A: heutiges Matching</h3>
           <BucketRow label="EXAKT (eindeutig erkannt)" value={agg.aBuckets.EXAKT} color="#04B475" />
           <BucketRow label="UNSICHER (Admin bestätigt)" value={agg.aBuckets.UNSICHER} color="#f7b928" />
           <BucketRow label="NEU (würde neu angelegt)" value={agg.aBuckets.NEU} color="#008BD2" />
         </div>
         <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5">
-          <h3 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb] mb-3">B — neuer Katalog-Abgleich</h3>
+          <h3 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb] mb-3">B: neuer Katalog-Abgleich</h3>
           <BucketRow label="EXAKT (perfekter Treffer)" value={agg.bBuckets.EXAKT} color="#04B475" />
           <BucketRow label="ERKANNT (1 Kandidat)" value={agg.bBuckets.ERKANNT} color="#04B475" />
           <BucketRow label="KANDIDATEN (mehrere)" value={agg.bBuckets.KANDIDATEN} color="#f7b928" />
@@ -347,9 +347,9 @@ function Report({ agg, risiko, fidelity, onDownload }: { agg: Agg; risiko: Detai
 
       {/* Risiko-Stichprobe */}
       <section className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 sm:p-6">
-        <h3 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">Risiko — knappe B-Treffer (Score &lt; 60 %)</h3>
+        <h3 className="font-black text-base text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">Risiko: knappe B-Treffer (Score &lt; 60 %)</h3>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mb-3">
-          B = ERKANNT, aber knapper Score. Mögliche Fehltreffer — hier lohnt eine manuelle Kontrolle.
+          B = ERKANNT, aber knapper Score. Mögliche Fehltreffer. Hier lohnt eine manuelle Kontrolle.
         </p>
         {risiko.length === 0 ? (
           <p className="text-sm text-[#04B475] font-semibold">✅ Keine knappen B-Treffer.</p>
@@ -393,7 +393,7 @@ function Report({ agg, risiko, fidelity, onDownload }: { agg: Agg; risiko: Detai
               <ul className="mt-2 space-y-1 text-xs font-mono text-[#65676b] dark:text-[#b0b3b8]">
                 {fidelity.abweichungen.slice(0, 10).map((a, i) => (
                   <li key={i} className="break-all">
-                    {a.hersteller} · {a.bezeichnung} — Spiegel: <span className="font-bold">{a.aSpiegel}</span>, echt: <span className="font-bold">{a.aEcht}</span>
+                    {a.hersteller} · {a.bezeichnung} · Spiegel: <span className="font-bold">{a.aSpiegel}</span>, echt: <span className="font-bold">{a.aEcht}</span>
                   </li>
                 ))}
               </ul>
@@ -403,7 +403,7 @@ function Report({ agg, risiko, fidelity, onDownload }: { agg: Agg; risiko: Detai
       </section>
 
       <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] px-1">
-        <span aria-hidden>ℹ️ </span>Reine Vorschau — der echte Import und getOrCreateModell bleiben unberührt.
+        <span aria-hidden>ℹ️ </span>Reine Vorschau. Der echte Import und getOrCreateModell bleiben unberührt.
       </p>
     </div>
   );

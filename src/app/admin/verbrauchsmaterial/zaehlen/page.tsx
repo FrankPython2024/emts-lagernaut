@@ -325,8 +325,8 @@ export default function ZaehlenPage() {
               </div>
               <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
                 {modus === "addieren"
-                  ? "Teilmenge eines weiteren Lagerorts eingeben — wird zur Wochensumme addiert."
-                  : "Gesamten Wochenbestand neu eingeben — überschreibt den erfassten Wert."}
+                  ? "Teilmenge eines weiteren Lagerorts eingeben. Sie wird zur Wochensumme addiert."
+                  : "Gesamten Wochenbestand neu eingeben. Das überschreibt den erfassten Wert."}
               </div>
             </div>
           )}

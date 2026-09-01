@@ -52,7 +52,7 @@ export default function GeraeteReisePage() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? `Fehler ${res.status}`);
       }
-      show("✅ Upload gestartet — Import läuft im Hintergrund.", "success");
+      show("✅ Upload gestartet. Der Import läuft im Hintergrund.", "success");
       importeQ.refetch();
     } catch (e) {
       show(`Upload fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, "error");
@@ -72,7 +72,7 @@ export default function GeraeteReisePage() {
         <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">🦊 Lagerfuchs</h1>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
           ReForm-LogID-Export hochladen · je LogID wird der aktuelle Stand gepflegt,
-          Änderungen werden als Bewegungen festgehalten. Reine Auswertung — kein Bestandseffekt.
+          Änderungen werden als Bewegungen festgehalten. Reine Auswertung, kein Bestandseffekt.
         </p>
       </div>
 

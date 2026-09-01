@@ -106,7 +106,7 @@ export default function MobilAnfrageBereich({ kuerzel }: { kuerzel: string }) {
       {/* Schritt 2: Modell — Klick öffnet das Pop-up */}
       {selHersteller && (
         <section>
-          <h2 style={{ margin: "0 0 0.6rem", fontSize: "1.1rem", fontWeight: 800 }}>2 · Modell wählen — {selHersteller}</h2>
+          <h2 style={{ margin: "0 0 0.6rem", fontSize: "1.1rem", fontWeight: 800 }}>2 · Modell wählen: {selHersteller}</h2>
           {modelleQ.isLoading ? (
             <Hint>Wird geladen…</Hint>
           ) : !modelleQ.data?.length ? (
@@ -228,9 +228,9 @@ function ModellAnfrageModal({
   const senden = api.mobilAnfrage.erstellenSammel.useMutation({
     onSuccess: (r) => {
       if (r.erstellt > 0) {
-        show(`✅ Anfrage gesendet (${r.erstellt} Teil${r.erstellt !== 1 ? "e" : ""})${r.abgelehnt.length ? ` — ${r.abgelehnt.length} nicht mehr auf Lager` : ""}`, r.abgelehnt.length ? "warning" : "success");
+        show(`✅ Anfrage gesendet (${r.erstellt} Teil${r.erstellt !== 1 ? "e" : ""})${r.abgelehnt.length ? ` · ${r.abgelehnt.length} nicht mehr auf Lager` : ""}`, r.abgelehnt.length ? "warning" : "success");
       } else {
-        show("Nichts gesendet — Teile nicht mehr auf Lager.", "warning");
+        show("Nichts gesendet. Teile nicht mehr auf Lager.", "warning");
       }
       onDone();
       onClose();
@@ -387,7 +387,7 @@ function TeilDetailModal({
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label={`ReForm-Bezeichnung — ${label}`} onClick={(e) => e.stopPropagation()}
+      <div role="dialog" aria-modal="true" aria-label={`ReForm-Bezeichnung: ${label}`} onClick={(e) => e.stopPropagation()}
         style={{ width: "100%", maxWidth: 560, background: "var(--card-bg)", color: "var(--text)", borderRadius: 18, boxShadow: "0 8px 40px rgba(0,0,0,0.35)", fontFamily: "'Ubuntu', sans-serif", maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, padding: "1.1rem 1.35rem", borderBottom: "1px solid var(--border)" }}>
           <div>

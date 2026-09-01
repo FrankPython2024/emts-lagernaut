@@ -183,7 +183,7 @@ export default function StellplatzAnalysePage() {
         </div>
         <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8]">
           Teil des Stellplatzes tippen (Groß-/Kleinschreibung egal). „Lagernummer-Stellplatz" wird automatisch erkannt
-          {parsed.lagernummer && <> — erkannt: <strong>Lager {parsed.lagernummer}</strong>, Stellplatz „{sucheContains}"</>}.
+          {parsed.lagernummer && <>: <strong>Lager {parsed.lagernummer}</strong>, Stellplatz „{sucheContains}"</>}.
         </p>
 
         {/* Lagernummer-Filter — nur wenn Werte existieren */}
@@ -221,7 +221,7 @@ export default function StellplatzAnalysePage() {
               <span aria-hidden>🛒</span> Warenkorb
               <span aria-live="polite">
                 <span className="text-[#65676b] dark:text-[#b0b3b8] font-normal">
-                  {" "}— {nf(korb.length)} {korb.length === 1 ? "Stellplatz" : "Stellplätze"} · {nf(gesamt)} Geräte
+                  {" "}· {nf(korb.length)} {korb.length === 1 ? "Stellplatz" : "Stellplätze"} · {nf(gesamt)} Geräte
                 </span>
               </span>
             </h2>
@@ -335,7 +335,7 @@ export default function StellplatzAnalysePage() {
         <div className={`${cardCls} overflow-hidden`}>
           <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042] flex items-center justify-between gap-3 flex-wrap">
             <h2 className="font-black text-[#1a1a1a] dark:text-[#e4e6eb]">
-              {scopeLabel} <span style={{ color: BLAU }}>— {nf(gesamt)} Geräte</span>
+              {scopeLabel} <span style={{ color: BLAU }}>· {nf(gesamt)} Geräte</span>
               <span className="block text-sm font-bold mt-0.5" style={{ color: GRUEN }}>
                 💶 Wert der Auswahl: {formatEuro(wert)}
               </span>

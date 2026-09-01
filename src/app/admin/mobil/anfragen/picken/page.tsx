@@ -58,7 +58,7 @@ export default function MobilPickListePage() {
       const res = await pickScan.mutateAsync({ logId: c, bereich });
       if (res.status === "gefunden") {
         const a = res.anfrage;
-        setFeedback({ kind: "ok", text: `✓ ${a.modell} · ${a.teiltyp}${a.farbe ? ` · 🎨 ${a.farbe}` : ""} (${a.gefunden}/${a.menge})${a.komplett ? " — komplett" : ""}` });
+        setFeedback({ kind: "ok", text: `✓ ${a.modell} · ${a.teiltyp}${a.farbe ? ` · 🎨 ${a.farbe}` : ""} (${a.gefunden}/${a.menge})${a.komplett ? " · komplett" : ""}` });
         playScanErfolg();
         void utils.mobilAnfrage.pickliste.invalidate();
       } else if (res.status === "schonErfasst") {
@@ -68,14 +68,14 @@ export default function MobilPickListePage() {
         setFeedback({ kind: "warn", text: `Kein offener Bedarf für „${res.teiltyp}" in diesem Bereich` });
         playScanNichtBenoetigt();
       } else if (res.status === "andererBereich") {
-        setFeedback({ kind: "warn", text: `Teil gehört zu Bereich „${bezLabel(res.bereich)}" — dort picken` });
+        setFeedback({ kind: "warn", text: `Teil gehört zu Bereich „${bezLabel(res.bereich)}". Dort picken` });
         playScanNichtBenoetigt();
       } else {
         setFeedback({ kind: "error", text: `LogID „${c}" unbekannt oder nicht mehr auf Lager` });
         playNegativeSound();
       }
     } catch {
-      setFeedback({ kind: "error", text: "Fehler beim Scannen — nochmal versuchen" });
+      setFeedback({ kind: "error", text: "Fehler beim Scannen. Nochmal versuchen" });
       playNegativeSound();
     } finally {
       setEingabe("");
@@ -198,7 +198,7 @@ export default function MobilPickListePage() {
       )}
 
       {!darfPicken && (
-        <p className="mt-4 text-sm text-[#90939a]">Nur-Lese-Zugriff — zum Scannen/Abhaken fehlt das Recht „Mobil verwalten" (MOBIL_MANAGE).</p>
+        <p className="mt-4 text-sm text-[#90939a]">Nur-Lese-Zugriff. Zum Scannen/Abhaken fehlt das Recht „Mobil verwalten" (MOBIL_MANAGE).</p>
       )}
     </div>
   );

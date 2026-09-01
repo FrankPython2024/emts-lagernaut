@@ -39,8 +39,8 @@ export default function MobilImportPage() {
       setBerichtWarTrocken(!!vars.dryRun);
       show(
         vars.dryRun
-          ? `🔎 Trockenlauf fertig — ${b.erkannt} erkannt, ${b.review} Review (nichts gespeichert)`
-          : `✅ Import fertig — ${b.neu} neu, ${b.aktualisiert} aktualisiert`,
+          ? `🔎 Trockenlauf fertig: ${b.erkannt} erkannt, ${b.review} Review (nichts gespeichert)`
+          : `✅ Import fertig: ${b.neu} neu, ${b.aktualisiert} aktualisiert`,
         vars.dryRun ? "info" : "success",
       );
     },
@@ -124,7 +124,7 @@ export default function MobilImportPage() {
           </div>
           <p className="text-sm text-[#90939a] dark:text-[#6b6e73] mt-2">
             Bestimmt, in welchen Reiter die Teile importiert werden. Die Abgangs-Erkennung wirkt
-            <strong> nur innerhalb dieses Bereichs</strong> — ein „digital Education"-Import lässt die
+            <strong> nur innerhalb dieses Bereichs</strong>. Ein „digital Education"-Import lässt die
             Standard-Teile unberührt (und umgekehrt).
           </p>
         </div>
@@ -146,7 +146,7 @@ export default function MobilImportPage() {
             className="w-full flex items-center justify-center gap-2 px-5 rounded-xl border-2 border-dashed text-base font-bold transition-colors min-h-[60px] disabled:opacity-50"
             style={{ borderColor: `${AKZENT}66`, background: `${AKZENT}0d`, color: AKZENT }}
           >
-            📄 {fileName ? `Datei: ${fileName} — andere wählen` : "CSV-Datei auswählen"}
+            📄 {fileName ? `Datei: ${fileName} (andere wählen)` : "CSV-Datei auswählen"}
           </button>
           <p className="text-sm text-[#90939a] dark:text-[#6b6e73] mt-2">
             Große Dateien (z. B. ~1.600 Zeilen) sind in Ordnung. Der Import kann ein paar Sekunden dauern.
@@ -163,7 +163,7 @@ export default function MobilImportPage() {
             className="mt-1 w-6 h-6 accent-[#008BD2]"
           />
           <span className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">
-            <strong>Trockenlauf</strong> — nur anzeigen, was passieren würde.
+            <strong>Trockenlauf</strong>: nur anzeigen, was passieren würde.
             <span className="block text-sm text-[#65676b] dark:text-[#b0b3b8]">
               Es wird <strong>nichts</strong> gespeichert. Häkchen entfernen, um wirklich zu importieren.
             </span>
@@ -180,10 +180,10 @@ export default function MobilImportPage() {
             className="mt-1 w-6 h-6 accent-[#b25e00]"
           />
           <span className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">
-            <strong>Kompletter Export</strong> — Abgänge über <strong>alle</strong> Hersteller erkennen.
+            <strong>Kompletter Export</strong>: Abgänge über <strong>alle</strong> Hersteller erkennen.
             <span className="block text-sm text-[#65676b] dark:text-[#b0b3b8]">
               Standardmäßig (Häkchen leer) werden Abgänge <strong>nur für die im Import enthaltenen
-              Hersteller</strong> erkannt — ein Apple-Export lässt Samsung/Google/Xiaomi unberührt.
+              Hersteller</strong> erkannt. Ein Apple-Export lässt Samsung/Google/Xiaomi unberührt.
               Nur ankreuzen, wenn die Datei wirklich <strong>alle</strong> Hersteller vollständig
               enthält; sonst werden fehlende Hersteller fälschlich als ausgeschieden markiert.
             </span>
@@ -229,8 +229,8 @@ export default function MobilImportPage() {
             <span className="block mt-0.5 text-[#65676b] dark:text-[#b0b3b8]">
               {bericht.herstellerImport.length > 0
                 ? <>Hersteller im Import: <strong>{bericht.herstellerImport.join(", ")}</strong>
-                    {bericht.modus === "gescopt" && " — nur deren fehlende Teile werden ausgeschieden."}</>
-                : "Kein Hersteller eindeutig erkannt — es werden keine Teile ausgeschieden."}
+                    {bericht.modus === "gescopt" && ". Nur deren fehlende Teile werden ausgeschieden."}</>
+                : "Kein Hersteller eindeutig erkannt. Es werden keine Teile ausgeschieden."}
             </span>
           </div>
 

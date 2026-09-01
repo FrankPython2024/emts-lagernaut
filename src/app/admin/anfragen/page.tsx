@@ -187,7 +187,7 @@ function druckeA4(
     tr:nth-child(even)td{background:#f8f8f8}
     .ftr{margin-top:6mm;font-size:7pt;color:#888;text-align:right;border-top:.3mm solid #ccc;padding-top:3mm}`;
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Anfragen ${datumDE}</title><style>${css}</style></head><body>
-    <div class="hdr"><div class="ttl">EMTS Lagernaut — Anfragen Übersicht</div>
+    <div class="hdr"><div class="ttl">EMTS Lagernaut · Anfragen Übersicht</div>
     <div class="sub">AfB Sömmerda · ${datumDE}</div><div class="flt">${filterInfo}</div></div>
     <table><thead><tr><th>LogID</th><th>Techniker</th><th>Ersatzteil</th><th>Grading</th><th>Status</th><th>Datum</th></tr></thead>
     <tbody>${rows || "<tr><td colspan='6' style='text-align:center;color:#aaa;padding:8mm'>Keine Anfragen</td></tr>"}</tbody></table>
@@ -581,7 +581,7 @@ function AnfragenPageInner() {
   // ── Zurücksetzen (nur für erledigte) ──────────────────────────────────────────
   const resetMutation = api.anfragen.reset.useMutation({
     onSuccess: (r) => {
-      show(`↻ Anfrage #${r.id} zurückgesetzt — Buchung gelöscht, Statistik korrigiert`, "success");
+      show(`↻ Anfrage #${r.id} zurückgesetzt. Buchung gelöscht, Statistik korrigiert`, "success");
       refetch();
       refetchChatBadges();
     },
@@ -900,7 +900,7 @@ function AnfragenPageInner() {
                     )}
                     {istTestGruppe && (
                       <span
-                        title="Test-Anfrage — zählt nicht in Statistik"
+                        title="Test-Anfrage, zählt nicht in Statistik"
                         className="text-xs font-black px-2 py-0.5 rounded-full bg-yellow-300 text-yellow-900 whitespace-nowrap"
                       >
                         🧪 TEST
@@ -1004,7 +1004,7 @@ function AnfragenPageInner() {
               {/* Test-Anfrage-Hinweis — wird nicht in Statistik gezählt */}
               {istTestGruppe && (
                 <div className="flex items-center gap-2 px-5 py-2 bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-300/60 dark:border-yellow-700/40 text-xs font-semibold text-yellow-800 dark:text-yellow-300">
-                  🧪 Test-Anfrage — wird nicht in Statistik gezählt. Auslagern verändert keinen echten Bestand.
+                  🧪 Test-Anfrage. Wird nicht in Statistik gezählt. Auslagern verändert keinen echten Bestand.
                 </div>
               )}
 
@@ -1075,7 +1075,7 @@ function AnfragenPageInner() {
                       )}
                       {a.testModus && (
                         <span
-                          title="Test-Anfrage — zählt nicht in Statistik"
+                          title="Test-Anfrage, zählt nicht in Statistik"
                           className="text-[11px] font-black px-1.5 py-0.5 rounded bg-yellow-300 text-yellow-900 whitespace-nowrap"
                         >
                           [TEST]

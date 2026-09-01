@@ -229,7 +229,7 @@ export default function BenutzerPage() {
             <>
               Benutzer <strong>{confirm.name}</strong> dauerhaft entfernen. Diese Aktion kann nicht
               rückgängig gemacht werden. Wenn der User noch Anfragen oder Buchungen hat, wird
-              das Löschen serverseitig blockiert — dann lieber deaktiviert lassen.
+              das Löschen serverseitig blockiert. Dann lieber deaktiviert lassen.
             </>
           ) : null
         }

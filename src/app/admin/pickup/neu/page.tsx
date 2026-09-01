@@ -199,7 +199,7 @@ export default function PickupNeuPage() {
             className="w-full flex items-center justify-center gap-2 px-5 rounded-xl border-2 border-dashed text-sm font-bold transition-colors min-h-[56px]"
             style={{ borderColor: `${akzent}66`, background: `${akzent}0d`, color: akzent }}
           >
-            📄 {fileName ? `Datei: ${fileName} — andere wählen` : "CSV auswählen"}
+            📄 {fileName ? `Datei: ${fileName} (andere wählen)` : "CSV auswählen"}
           </button>
           <p className="text-xs text-[#90939a] dark:text-[#6b6e73] mt-1">
             Wird direkt im Browser gelesen. {typ === "COLLI"

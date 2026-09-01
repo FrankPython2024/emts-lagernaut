@@ -226,7 +226,7 @@ export default function MobilStatistikPage() {
           <ChartZustand
             laden={ausgeschQ.isLoading}
             leer={!ausgesch || ausgesch.jeTeiltyp.length === 0}
-            leerText="Noch nichts ausgeschieden — Abgänge erscheinen hier nach künftigen Importen."
+            leerText="Noch nichts ausgeschieden. Abgänge erscheinen hier nach künftigen Importen."
           >
             <KlickHinweis text="Balken anklicken für die ausgeschiedenen Teile" />
             <ResponsiveContainer width="100%" height={Math.max(160, (ausgesch?.jeTeiltyp.length ?? 0) * 32 + 24)}>
@@ -309,7 +309,7 @@ export default function MobilStatistikPage() {
         ) : (
           <>
             <p className="mb-2 text-sm text-[#65676b] dark:text-[#b0b3b8]">
-              Je Import-Zeitpunkt die Anzahl zuletzt erfasster Teile — der jüngste Punkt entspricht dem aktuellen Bestand.
+              Je Import-Zeitpunkt die Anzahl zuletzt erfasster Teile. Der jüngste Punkt entspricht dem aktuellen Bestand.
             </p>
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={verlauf.punkte.map((p) => ({ label: fmtDatum(p.zeitpunkt), erfasst: p.erfasst }))} margin={{ top: 4, right: 16, left: -8, bottom: 4 }}>

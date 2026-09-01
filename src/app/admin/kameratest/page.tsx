@@ -107,7 +107,7 @@ export default function KameraTestPage() {
     } catch (e) {
       setFehler(
         "Kamera nicht verfügbar: " + ((e as Error).message || "unbekannt") +
-        " — die Live-Vorschau braucht HTTPS und eine Freigabe im Browser. " +
+        ". Die Live-Vorschau braucht HTTPS und eine Freigabe im Browser. " +
         "Der Weg über die Kamera-App funktioniert auch ohne.",
       );
     }
@@ -253,8 +253,8 @@ export default function KameraTestPage() {
           <li>Teil leicht kippen, bis die Spiegelung neben der Schrift liegt.</li>
           <li>Etwa 15 bis 20 cm Abstand, auf die Nummer tippen zum Scharfstellen.</li>
           <li><strong>Das Teil soll das Bild füllen.</strong> Viel weißer Tisch ringsherum heißt
-            wenige Bildpunkte auf der Nummer — genau die entscheiden.</li>
-          <li>Die Nummer <strong>in die Bildmitte</strong> — der Ausschnitt unten kommt von dort.</li>
+            wenige Bildpunkte auf der Nummer, und genau die entscheiden.</li>
+          <li>Die Nummer <strong>in die Bildmitte</strong>. Der Ausschnitt unten kommt von dort.</li>
         </ol>
       </div>
 
@@ -282,7 +282,7 @@ export default function KameraTestPage() {
           <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Weg 2: Live-Vorschau</h2>
           <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5 mb-2">
             Zum Ausprobieren von Abstand und Licht. Liefert nur Videoauflösung,
-            oft deutlich weniger als ein Foto — als Qualitätsurteil also nicht geeignet.
+            oft deutlich weniger als ein Foto, als Qualitätsurteil also nicht geeignet.
           </p>
           <div className="flex gap-2 flex-wrap">
             {!stream ? (

@@ -141,8 +141,8 @@ export default function ArtikelDetailPage() {
           />
           <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
             Überschreibt den{" "}
-            <a href="/admin/preise" className="underline hover:text-[#0064d2]">Kategoriepreis</a>
-            {" "}— sinnvoll bei Festplatten, RAM und allem, wo die Kategorie den Wert nicht trifft.
+            <a href="/admin/preise" className="underline hover:text-[#0064d2]">Kategoriepreis</a>.
+            Sinnvoll bei Festplatten, RAM und allem, wo die Kategorie den Wert nicht trifft.
           </p>
         </div>
 
@@ -219,7 +219,7 @@ export default function ArtikelDetailPage() {
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
-              Nicht verknüpft. Wähle das baugleiche Gegenstück — beide teilen sich danach einen Bestand.
+              Nicht verknüpft. Wähle das baugleiche Gegenstück. Beide teilen sich danach einen Bestand.
               Vorgeschlagen werden die Teile <strong>desselben Geräts</strong>; über die Suche findest du alle anderen.
             </p>
             <input
@@ -235,10 +235,10 @@ export default function ArtikelDetailPage() {
                 onChange={(e) => setPartnerWahl(e.target.value)}
                 className="flex-1 min-w-[240px] px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]"
               >
-                <option value="">— Gegenstück wählen —</option>
+                <option value="">Gegenstück wählen</option>
                 {(poolKandidaten.data ?? []).map((k) => (
                   <option key={k.id} value={k.id} disabled={!!k.poolPartnerId}>
-                    {k.bezeichnung} ({k.bestand} St.){k.poolPartnerId ? " — bereits verknüpft" : ""}
+                    {k.bezeichnung} ({k.bestand} St.){k.poolPartnerId ? " (bereits verknüpft)" : ""}
                   </option>
                 ))}
               </select>
@@ -341,7 +341,7 @@ export default function ArtikelDetailPage() {
       )}
 
       {/* Label-Druck Modal */}
-      <Modal open={labelOpen} onClose={() => setLabelOpen(false)} title="Label drucken — 57×32mm" width="max-w-xl">
+      <Modal open={labelOpen} onClose={() => setLabelOpen(false)} title="Label drucken (57×32mm)" width="max-w-xl">
         <div className="space-y-5">
           <div>
             <p className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] uppercase mb-3">Vorschau (200%):</p>
@@ -356,7 +356,7 @@ export default function ArtikelDetailPage() {
           <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] bg-[#f0f2f5] dark:bg-[#18191a] rounded-lg p-3 space-y-1">
             <p>• Format: <strong>57mm × 32mm</strong> · Thermodrucker (Schwarz/Weiß)</p>
             <p>• QR-Code Inhalt: <strong>#{artikel.id}</strong> (Artikel-ID)</p>
-            <p>• Druckt direkt auf die Seite — kein Popup-Blocker nötig</p>
+            <p>• Druckt direkt auf die Seite, kein Popup-Blocker nötig</p>
           </div>
 
           <div className="flex gap-3">

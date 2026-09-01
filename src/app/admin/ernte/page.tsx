@@ -84,7 +84,7 @@ export default function ErnteAuswertungPage() {
             <div className="mb-6 p-4 rounded-lg bg-[#e7f3ff] dark:bg-[#1e3a4d] border border-[#008bd2] dark:border-[#0066aa]">
               <p className="text-sm text-[#004080] dark:text-[#5eb3ff]">
                 <strong>ℹ️ {fmt(k.mengeGesamt - k.geraete)} Teile ohne Spender-LogID:</strong> Alte Einlagerungen vor dem Feature oder ohne gescannte LogID.
-                Beim nächsten Einlagern die LogID des Spender-Geräts scannen — dann erscheint es hier in den Top-Modellen.
+                Beim nächsten Einlagern die LogID des Spender-Geräts scannen, dann erscheint es hier in den Top-Modellen.
               </p>
             </div>
           )}

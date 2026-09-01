@@ -72,7 +72,7 @@ export default function ColliVerfolgenPage() {
       <div>
         <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">📦 Colli verfolgen</h1>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
-          Colli-Nummer eingeben — du siehst alle Geräte, die auf dieser Colli waren:
+          Colli-Nummer eingeben. Du siehst alle Geräte, die auf dieser Colli waren:
           die noch drauf liegen und die schon weitergewandert sind.
         </p>
         <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
@@ -153,7 +153,7 @@ export default function ColliVerfolgenPage() {
             <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042] flex items-center justify-between gap-2 flex-wrap">
                 <p className="font-black text-[#1a1a1a] dark:text-[#e4e6eb]">
-                  {anzahl} {anzahl === 1 ? "Gerät" : "Geräte"} – Colli <span className="font-mono">{submitted}</span>
+                  {anzahl} {anzahl === 1 ? "Gerät" : "Geräte"} · Colli <span className="font-mono">{submitted}</span>
                 </p>
                 <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Tippe eine LogID an, um die Geräte-Reise zu sehen.</p>
               </div>

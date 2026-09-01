@@ -180,7 +180,7 @@ export default function BestellempfehlungPage() {
         <div>
           <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Bestell-Empfehlungen</h1>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
-            Welche Ersatzteile als „nicht verfügbar" gemeldet und noch nicht extern nachbestellt wurden — offen = Anfragen minus erfasste Bestellungen.
+            Welche Ersatzteile als „nicht verfügbar" gemeldet und noch nicht extern nachbestellt wurden. Offen = Anfragen minus erfasste Bestellungen.
           </p>
         </div>
         <div className="flex rounded-lg overflow-hidden border border-[#ced4da] dark:border-[#3e4042]">

@@ -197,7 +197,7 @@ function LagerstrukturTab({ standortId, kurzname }: { standortId: number; kurzna
             defaultValue=""
             onChange={(e) => { if (e.target.value) ladeVorlage(Number(e.target.value)); }}
           >
-            <option value="">— Vorlage laden —</option>
+            <option value="">Vorlage laden</option>
             {standorteQ.data.filter(s => s.id !== standortId).map(s => (
               <option key={s.id} value={s.id}>{s.name} ({s.kurzname})</option>
             ))}
@@ -239,7 +239,7 @@ function LagerstrukturTab({ standortId, kurzname }: { standortId: number; kurzna
 
       {hatDoppelteNamen && (
         <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">
-          ⚠️ Doppelte Regal-Namen — bitte eindeutige Namen vergeben.
+          ⚠️ Doppelte Regal-Namen. Bitte eindeutige Namen vergeben.
         </div>
       )}
 
@@ -251,7 +251,7 @@ function LagerstrukturTab({ standortId, kurzname }: { standortId: number; kurzna
           </div>
           {total > 10_000 && (
             <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-              ⚠️ Sehr viele Plätze — bitte Konfiguration prüfen.
+              ⚠️ Sehr viele Plätze. Bitte Konfiguration prüfen.
             </div>
           )}
         </div>

@@ -532,7 +532,7 @@ export default function ColliEtikettenPage() {
         </h2>
         {anzahl === 0 ? (
           <div className="text-center py-16 text-[#65676b] dark:text-[#b0b3b8] border border-dashed border-[#ced4da] dark:border-[#3e4042] rounded-2xl">
-            Noch keine Colli-Nummern — oben eingeben, um Etiketten zu sehen.
+            Noch keine Colli-Nummern. Oben eingeben, um Etiketten zu sehen.
           </div>
         ) : (
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>

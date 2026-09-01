@@ -353,16 +353,16 @@ function SocketNotifications() {
     on(EVENTS.ANFRAGE_STORNIERT, (d: unknown) => {
       const a = d as { teil: string; techniker: string; warInBearbeitung?: boolean };
       show(
-        `⚠️ ${a.techniker} hat „${a.teil}" storniert${a.warInBearbeitung ? " — war schon in Bearbeitung!" : ""} · bitte nicht mehr ausgeben`,
+        `⚠️ ${a.techniker} hat „${a.teil}" storniert${a.warInBearbeitung ? " (war schon in Bearbeitung!)" : ""} · bitte nicht mehr ausgeben`,
         "warning",
       );
     });
     on(EVENTS.PICKUP_ABGESCHLOSSEN, (d: unknown) => {
       const p = d as { name: string; gesamt: number; gefunden: number; nichtGefunden: number };
       if (p.nichtGefunden > 0) {
-        show(`⚠️ Pickup „${p.name}" als NICHT komplett gemeldet — ${p.gefunden}/${p.gesamt}, ${p.nichtGefunden} fehlen`, "warning");
+        show(`⚠️ Pickup „${p.name}" als NICHT komplett gemeldet: ${p.gefunden}/${p.gesamt}, ${p.nichtGefunden} fehlen`, "warning");
       } else {
-        show(`✅ Pickup „${p.name}" vollständig abgeschlossen — ${p.gefunden}/${p.gesamt}`, "success");
+        show(`✅ Pickup „${p.name}" vollständig abgeschlossen: ${p.gefunden}/${p.gesamt}`, "success");
       }
     });
 

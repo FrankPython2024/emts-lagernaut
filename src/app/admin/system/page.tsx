@@ -334,7 +334,7 @@ export default function SystemPage() {
         {data?.bullmq ? (
           <>
             {!data.bullmq.ok && (
-              <p className="text-xs text-[#f7b928] mb-3">⚠️ Redis nicht erreichbar — Worker inaktiv</p>
+              <p className="text-xs text-[#f7b928] mb-3">⚠️ Redis nicht erreichbar, Worker inaktiv</p>
             )}
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -407,7 +407,7 @@ export default function SystemPage() {
               </span>
               {data.socketio.ok && (
                 <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                  — {(data.socketio as { clients: unknown[] }).clients?.length ?? 0} Verbindungen
+                  · {(data.socketio as { clients: unknown[] }).clients?.length ?? 0} Verbindungen
                 </span>
               )}
             </div>

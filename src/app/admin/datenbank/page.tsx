@@ -61,7 +61,7 @@ export default function DatenbankPage() {
         <div>
           <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Datenbank-Explorer</h1>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
-            Read-only Einblick in die Datenbank — nur für Administratoren, separat passwortgeschützt.
+            Read-only Einblick in die Datenbank. Nur für Administratoren, separat passwortgeschützt.
           </p>
         </div>
       </div>
@@ -504,26 +504,26 @@ function ErklaerPanel() {
           <div className="space-y-3">
             <h4 className="font-black text-base text-[#202F61] dark:text-[#008BD2]">Die Tabellen einfach erklärt</h4>
             <ul className="space-y-2">
-              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">GeraeteModell</span> — die Geräte-Modelle. Zum Beispiel ein bestimmter Laptop-Typ.</span></li>
-              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">Artikel</span> — die einzelnen Ersatzteile im Lager.</span></li>
-              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">Kompatibilitaet</span> — die Verbindung: Welches Ersatzteil passt zu welchem Modell.</span></li>
-              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">lagerplatz / LagerplatzBelegung</span> — der Ort: Wo liegt ein Teil im Lager?</span></li>
-              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">Anfrage</span> — die Anfrage von einem Techniker: „Ich brauche ein Teil für dieses Gerät."</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">GeraeteModell</span>: die Geräte-Modelle. Zum Beispiel ein bestimmter Laptop-Typ.</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">Artikel</span>: die einzelnen Ersatzteile im Lager.</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">Kompatibilitaet</span> ist die Verbindung: Welches Ersatzteil passt zu welchem Modell.</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">lagerplatz / LagerplatzBelegung</span> ist der Ort: Wo liegt ein Teil im Lager?</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">Anfrage</span> ist die Anfrage von einem Techniker: „Ich brauche ein Teil für dieses Gerät."</span></li>
             </ul>
           </div>
 
           <div className="space-y-3">
             <h4 className="font-black text-base text-[#202F61] dark:text-[#008BD2]">Was bedeuten die Pfeile?</h4>
             <ul className="space-y-2">
-              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">1:n</span> — Eins zu viele. Ein Gerät kann viele Ersatzteile haben.</span></li>
-              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">n:m</span> — Viele zu viele. Viele Geräte und viele Teile passen zusammen.</span></li>
-              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">1:1</span> — Eins zu eins. Genau ein Teil gehört zu genau einer Sache.</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">1:n</span> bedeutet: Eins zu viele. Ein Gerät kann viele Ersatzteile haben.</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">n:m</span> bedeutet: Viele zu viele. Viele Geräte und viele Teile passen zusammen.</span></li>
+              <li className="flex gap-2"><span aria-hidden className="text-[#008BD2] font-bold">•</span><span><span className="font-mono font-semibold">1:1</span> bedeutet: Eins zu eins. Genau ein Teil gehört zu genau einer Sache.</span></li>
             </ul>
           </div>
 
           <div className="space-y-3">
             <h4 className="font-black text-base text-[#202F61] dark:text-[#008BD2]">Die gestrichelte Linie (wichtig!)</h4>
-            <p>Die Anfrage ist mit dem Gerät nur über den Namen verbunden — nicht über eine feste Nummer.</p>
+            <p>Die Anfrage ist mit dem Gerät nur über den Namen verbunden, nicht über eine feste Nummer.</p>
             <p>Das heißt: Wenn ein Name anders geschrieben ist, findet das System die Verbindung vielleicht nicht.</p>
             <p>Eine feste Verbindung über eine Nummer wäre sicherer.</p>
           </div>
@@ -917,7 +917,7 @@ function InhaltTab({ table, onTableChange }: { table: string | null; onTableChan
               onChange={(e) => onTableChange(e.target.value || null)}
               className="w-full min-h-[56px] px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-base outline-none focus:border-[#008BD2] focus:ring-2 focus:ring-[#008BD2]/40 transition-colors"
             >
-              <option value="">{overview.isLoading ? "Tabellen werden geladen…" : "— Tabelle wählen —"}</option>
+              <option value="">{overview.isLoading ? "Tabellen werden geladen…" : "Tabelle wählen"}</option>
               {tabellen.map((name) => (
                 <option key={name} value={name}>{name}</option>
               ))}
@@ -1302,7 +1302,7 @@ function KompatibilitaetFluss({
           <p className="text-sm leading-relaxed text-[#1a1a1a] dark:text-[#e4e6eb] max-w-[60ch]">
             <span className="font-bold">So funktioniert es:</span> Jeder Artikel hat eine Nummer. In der Tabelle
             Kompatibilitaet steht, zu welchem Gerät eine Artikel-Nummer gehört. Das System sammelt alle Einträge
-            mit dieser Nummer — und weiß so, in welche Geräte das Teil passt.
+            mit dieser Nummer und weiß so, in welche Geräte das Teil passt.
           </p>
 
           {/* 3-Stufen-Fluss (oben → unten) */}
@@ -1328,7 +1328,7 @@ function KompatibilitaetFluss({
                 <div className="px-4 py-2.5 flex items-center gap-2 flex-wrap border-b border-[#008BD2]/30 bg-[#008BD2]/[0.06]">
                   <span aria-hidden>🔗</span>
                   <span className="font-bold text-[#008BD2]">Tabelle Kompatibilitaet</span>
-                  <span className="text-sm text-[#65676b] dark:text-[#b0b3b8]">— {anzahl} {anzahl === 1 ? "passender Eintrag" : "passende Einträge"}</span>
+                  <span className="text-sm text-[#65676b] dark:text-[#b0b3b8]">· {anzahl} {anzahl === 1 ? "passender Eintrag" : "passende Einträge"}</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-left text-xs border-collapse">
@@ -1354,7 +1354,7 @@ function KompatibilitaetFluss({
                   </table>
                 </div>
                 <p className="px-4 py-2 text-[11px] text-[#65676b] dark:text-[#b0b3b8] border-t border-[#008BD2]/20">
-                  <span className="text-[#008BD2] font-bold">Cyan</span> = die Artikel-Nummer. In allen Zeilen identisch — genau darüber läuft der Treffer.
+                  <span className="text-[#008BD2] font-bold">Cyan</span> = die Artikel-Nummer. In allen Zeilen identisch. Genau darüber läuft der Treffer.
                 </p>
               </div>
             </li>

@@ -108,7 +108,7 @@ export default function GleicheGeraetePage() {
         setFortschritt(`${Math.min(i + CHUNK, nutzbar.length)} von ${nutzbar.length} Zeilen…`);
       }
 
-      setFortschritt(`Fertig — ${geschrieben} Geräte übernommen.`);
+      setFortschritt(`Fertig. ${geschrieben} Geräte übernommen.`);
       await status.refetch();
       if (gesucht) await abfrage.refetch();
     } catch (e) {
@@ -124,7 +124,7 @@ export default function GleicheGeraetePage() {
       <div>
         <h1 className="text-xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Gleiches Gerät finden</h1>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
-          LogID scannen — zeigt Geräte mit derselben Bezeichnung und demselben Grading,
+          LogID scannen. Zeigt Geräte mit derselben Bezeichnung und demselben Grading,
           die im Kommissionierlager stehen, mit Stellplatz und Colli.
         </p>
       </div>
@@ -161,7 +161,7 @@ export default function GleicheGeraetePage() {
         )}
       </form>
       <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] -mt-3">
-        Mit oder ohne Punkte — <span className="font-mono">212965142</span> und{" "}
+        Mit oder ohne Punkte: <span className="font-mono">212965142</span> und{" "}
         <span className="font-mono">212.965.142</span> finden dasselbe Gerät.
       </p>
 
@@ -223,7 +223,7 @@ export default function GleicheGeraetePage() {
               </div>
               {daten.andereGradings.length > 0 && (
                 <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1.5">
-                  Dasselbe Gerät gibt es aber mit anderem Grading — siehe unten.
+                  Dasselbe Gerät gibt es aber mit anderem Grading. Siehe unten.
                 </p>
               )}
             </div>
@@ -296,7 +296,7 @@ export default function GleicheGeraetePage() {
                   Dasselbe Gerät mit anderem Grading
                 </div>
                 <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
-                  Kein Ersatz für Grading {daten.stand.grading} — nur zur Kenntnis.
+                  Kein Ersatz für Grading {daten.stand.grading}, nur zur Kenntnis.
                 </p>
               </div>
               {daten.andereGradings.map((g) => (
@@ -334,8 +334,8 @@ export default function GleicheGeraetePage() {
           <div>
             <div className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Daten aktualisieren</div>
             <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
-              ReForm-Export als CSV. <b>Jeder Import ersetzt den kompletten Bestand</b> —
-              die Datei ist der neue Stand. Der Lagerfuchs bleibt davon unberührt.
+              ReForm-Export als CSV. <b>Jeder Import ersetzt den kompletten Bestand</b>:
+              Die Datei ist der neue Stand. Der Lagerfuchs bleibt davon unberührt.
             </p>
           </div>
           <label className={`inline-flex items-center px-5 py-3 rounded-lg font-bold text-base min-h-[56px] cursor-pointer ${importLaeuft ? "bg-[#ced4da] text-[#65676b]" : "bg-[#008BD2] text-white"}`}>

@@ -284,7 +284,7 @@ export default function BenutzerDetailPage() {
             </button>
 
             <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] italic">
-              Wirkt sofort (serverseitig live). Die Menü-/Sidebar-Anzeige beim Benutzer folgt nach kurzer Zeit (spätestens nach einem Reload) — <strong>kein Neu-Anmelden nötig</strong>.
+              Wirkt sofort (serverseitig live). Die Menü-/Sidebar-Anzeige beim Benutzer folgt nach kurzer Zeit (spätestens nach einem Reload). <strong>Kein Neu-Anmelden nötig</strong>.
             </p>
           </>
         )}
@@ -296,7 +296,7 @@ export default function BenutzerDetailPage() {
           <h2 className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">Entzogene Rechte</h2>
           <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
             Rechte, die der Account über seine Rolle <strong>{denyQ.data?.rolle ?? user.rolle}</strong> hat, hier gezielt entziehen.
-            <strong> Entzug gewinnt immer</strong> — überschreibt Rolle und Zusatzrechte. Greift sofort für rechte-geprüfte Bereiche.
+            <strong> Entzug gewinnt immer</strong>, er überschreibt Rolle und Zusatzrechte. Greift sofort für rechte-geprüfte Bereiche.
           </p>
         </div>
 
@@ -359,7 +359,7 @@ export default function BenutzerDetailPage() {
             </button>
 
             <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] italic">
-              SYSTEM_ADMIN ist nicht entziehbar (Schutz gegen Aussperrung). Wirkt sofort (serverseitig live); die Menü-Anzeige beim Benutzer folgt kurz danach — kein Neu-Anmelden nötig.
+              SYSTEM_ADMIN ist nicht entziehbar (Schutz gegen Aussperrung). Wirkt sofort (serverseitig live); die Menü-Anzeige beim Benutzer folgt kurz danach. Kein Neu-Anmelden nötig.
             </p>
           </>
         )}

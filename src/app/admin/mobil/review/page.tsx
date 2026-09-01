@@ -49,10 +49,10 @@ export default function MobilReviewPage() {
     <div className="max-w-3xl space-y-6">
       <header>
         <Link href="/admin/mobil" className="text-base text-[#65676b] hover:text-[#008BD2] dark:text-[#b0b3b8]">← Zur Übersicht</Link>
-        <h1 className="mt-1 text-3xl font-black text-[#202F61] dark:text-[#e4e6eb]">🔍 Review — Teile zuordnen</h1>
+        <h1 className="mt-1 text-3xl font-black text-[#202F61] dark:text-[#e4e6eb]">🔍 Review: Teile zuordnen</h1>
         <p className="mt-2 text-base text-[#65676b] dark:text-[#b0b3b8]">
           Beim Import unklar gebliebene Teile. Ordne jeder Zeile Hersteller, Modell und Teiltyp
-          zu — danach erscheinen die Teile ganz normal in der Ersatzteil-Liste. Gleiche Wortlaute
+          zu. Danach erscheinen die Teile ganz normal in der Ersatzteil-Liste. Gleiche Wortlaute
           sind zusammengefasst und werden in einem Rutsch zugeordnet.
         </p>
       </header>
@@ -80,7 +80,7 @@ export default function MobilReviewPage() {
         <div role="status" className="text-base text-[#65676b] dark:text-[#b0b3b8] py-3">⏳ Lade…</div>
       ) : gruppen.length === 0 ? (
         <div className="rounded-xl border border-[#2e7d32]/40 bg-[#2e7d32]/10 dark:bg-[#7bc67e]/10 p-5 text-base text-[#2e7d32] dark:text-[#7bc67e]">
-          ✓ Nichts zu prüfen — in diesem Bereich sind alle Teile zugeordnet.
+          ✓ Nichts zu prüfen. In diesem Bereich sind alle Teile zugeordnet.
         </div>
       ) : (
         <>
@@ -90,7 +90,7 @@ export default function MobilReviewPage() {
           </div>
           {!darfVerwalten && (
             <div className="rounded-xl border border-dashed border-[#ced4da] dark:border-[#3e4042] p-4 text-sm text-[#65676b] dark:text-[#b0b3b8]">
-              Zum Zuordnen wird das Recht <strong>MOBIL_MANAGE</strong> benötigt — du siehst die Liste,
+              Zum Zuordnen wird das Recht <strong>MOBIL_MANAGE</strong> benötigt. Du siehst die Liste,
               kannst aber (noch) nicht speichern.
             </div>
           )}
@@ -212,7 +212,7 @@ function ReviewKarte({
         />
         {bezeichnungGeaendert && (
           <p className="mt-1 text-xs text-[#008BD2] dark:text-[#45bdff]">
-            ✏️ Bezeichnung angepasst — wird beim Zuordnen übernommen.
+            ✏️ Bezeichnung angepasst. Wird beim Zuordnen übernommen.
           </p>
         )}
       </div>
@@ -289,7 +289,7 @@ function ReviewKarte({
             disabled={!darfVerwalten}
             className={feld}
           >
-            <option value="">— wählen —</option>
+            <option value="">wählen</option>
             {HERSTELLER.map((h) => <option key={h} value={h}>{h}</option>)}
           </select>
         </label>
@@ -320,7 +320,7 @@ function ReviewKarte({
             disabled={!darfVerwalten}
             className={feld}
           >
-            <option value="">— wählen —</option>
+            <option value="">wählen</option>
             {teiltypen.map((t) => <option key={t} value={t}>{t}</option>)}
             <option value="__neu__">➕ Neuer Teiltyp…</option>
           </select>
@@ -346,7 +346,7 @@ function ReviewKarte({
             disabled={!darfVerwalten}
             className="w-5 h-5 accent-[#008BD2]"
           />
-          Wortlaut merken — künftige Importe erkennen ihn automatisch
+          Wortlaut merken, damit künftige Importe ihn automatisch erkennen
         </label>
         <button
           type="button"

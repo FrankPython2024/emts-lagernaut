@@ -139,7 +139,7 @@ export default function MobilPage() {
                     <strong>{g.modell}</strong> <span className="text-[#65676b] dark:text-[#b0b3b8]">· {g.teiltyp}</span>
                   </span>
                   <span className="tabular-nums text-[#b25e00] dark:text-[#ffb74d] font-semibold">
-                    {g.ist} / {g.soll} — {g.fehlt} fehlen
+                    {g.ist} / {g.soll} · {g.fehlt} fehlen
                   </span>
                 </li>
               ))}
@@ -186,7 +186,7 @@ export default function MobilPage() {
       {/* Schritt 2: Modelle */}
       {selHersteller && (
         <div className="space-y-2">
-          <Schrittkopf nr={2} text={`Modell wählen — ${selHersteller}`} />
+          <Schrittkopf nr={2} text={`Modell wählen: ${selHersteller}`} />
           {modelleQ.isLoading ? (
             <Laden />
           ) : !modelleQ.data?.length ? (
@@ -448,7 +448,7 @@ function TeiltypCard({
           ) : stueck >= soll ? (
             <span className="font-semibold text-[#2e7d32] dark:text-[#7bc67e]">✓ <span className="tabular-nums">{stueck} / {soll}</span> erfüllt</span>
           ) : (
-            <span className="font-semibold text-[#b25e00] dark:text-[#ffb74d]">⚠️ <span className="tabular-nums">{stueck} / {soll}</span> — {soll - stueck} fehlen</span>
+            <span className="font-semibold text-[#b25e00] dark:text-[#ffb74d]">⚠️ <span className="tabular-nums">{stueck} / {soll}</span> · {soll - stueck} fehlen</span>
           )}
         </div>
         {darfVerwalten && (
@@ -645,7 +645,7 @@ function LogIdEditor({
         <label className="block">
           <span className="block text-xs font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] mb-0.5">Hersteller</span>
           <select value={h} onChange={(e) => setH(e.target.value)} className={feld}>
-            <option value="">— wählen —</option>
+            <option value="">wählen</option>
             {HERSTELLER.map((x) => <option key={x} value={x}>{x}</option>)}
           </select>
         </label>
@@ -670,7 +670,7 @@ function LogIdEditor({
             }}
             className={feld}
           >
-            <option value="">— wählen —</option>
+            <option value="">wählen</option>
             {teiltypen.map((x) => <option key={x} value={x}>{x}</option>)}
             <option value="__neu__">➕ Neuer Teiltyp…</option>
           </select>

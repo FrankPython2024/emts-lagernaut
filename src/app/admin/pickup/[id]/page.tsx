@@ -463,7 +463,7 @@ function CsvUpdateCard({
 
   const aktualisieren = api.pickup.auftragAktualisieren.useMutation({
     onSuccess: (r) => {
-      show(`✅ Aktualisiert — ${r.neu} neu, ${r.bereitsVorhanden} bereits vorhanden, ${r.nichtInCsvBehalten} behalten · jetzt ${r.gesamtNachher}`, "success");
+      show(`✅ Aktualisiert: ${r.neu} neu, ${r.bereitsVorhanden} bereits vorhanden, ${r.nichtInCsvBehalten} behalten · jetzt ${r.gesamtNachher}`, "success");
       reset();
       onDone();
     },
@@ -536,7 +536,7 @@ function CsvUpdateCard({
       <div>
         <h2 className="font-black text-sm uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">🔄 Per CSV aktualisieren</h2>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
-          Neue {typ === "COLLI" ? "Stellplatz-Export" : "Geräte-Export"}-CSV laden — neue Positionen kommen dazu.
+          Neue {typ === "COLLI" ? "Stellplatz-Export" : "Geräte-Export"}-CSV laden. Neue Positionen kommen dazu.
           <strong> Bereits gescannte bleiben erhalten, es wird nichts entfernt.</strong>
         </p>
       </div>
@@ -555,7 +555,7 @@ function CsvUpdateCard({
         className="w-full flex items-center justify-center gap-2 px-5 rounded-xl border-2 border-dashed text-sm font-bold transition-colors min-h-[56px]"
         style={{ borderColor: `${akzent}66`, background: `${akzent}0d`, color: akzent }}
       >
-        📄 {fileName ? `Datei: ${fileName} — andere wählen` : "CSV auswählen"}
+        📄 {fileName ? `Datei: ${fileName} (andere wählen)` : "CSV auswählen"}
       </button>
 
       {parsing && <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Lese CSV…</div>}
@@ -574,7 +574,7 @@ function CsvUpdateCard({
             <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{vorschau.nichtInCsv} nicht in CSV (bleiben)</span>
           </div>
           {vorschau.neu === 0 && (
-            <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Keine neuen Positionen — alle aus der CSV sind bereits im Auftrag.</div>
+            <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Keine neuen Positionen. Alle aus der CSV sind bereits im Auftrag.</div>
           )}
           <div className="flex items-center justify-end gap-2">
             <button

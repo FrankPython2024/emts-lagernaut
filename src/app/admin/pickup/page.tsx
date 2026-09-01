@@ -101,7 +101,7 @@ export default function PickupListePage() {
         <div>
           <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">📦 Pickup</h1>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
-            Scan-/Sammel-Aufträge. Keine Umbuchung — die passiert in ReForm.
+            Scan-/Sammel-Aufträge. Keine Umbuchung. Die passiert in ReForm.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -144,7 +144,7 @@ export default function PickupListePage() {
           {abgeschlossene.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-black uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">
-                Abgeschlossen — Nachweis-Archiv <span className="text-[#04B475]">({abgeschlossene.length})</span>
+                Abgeschlossen: Nachweis-Archiv <span className="text-[#04B475]">({abgeschlossene.length})</span>
               </h2>
               <div className={gridCls} style={gridStyle}>
                 {abgeschlossene.map((a) => <AuftragKarte key={a.id} a={a} />)}

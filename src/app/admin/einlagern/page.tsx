@@ -238,7 +238,7 @@ function TeilKonfigurator({
     const ft = freitext.trim();
     onSave({
       teiltyp:    teil.id,
-      label:      istVerschiedenes && ft ? `${teil.label} — ${ft}` : teil.label,
+      label:      istVerschiedenes && ft ? `${teil.label}: ${ft}` : teil.label,
       icon:       teil.icon,
       menge:      Math.max(1, Math.min(9999, menge)),
       grading,
@@ -1085,7 +1085,7 @@ function StepGeraet({
                       style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, background: "rgba(247,185,40,0.15)", border: "1px solid rgba(247,185,40,0.5)", borderRadius: 10, padding: "0.7rem 0.9rem", fontSize: "0.95rem", fontWeight: 700, color: "var(--text)" }}
                     >
                       <span aria-hidden style={{ fontSize: "1.3rem" }}>⚠️</span>
-                      Achtung: liegt an <strong>Standort {regal.standortName}</strong> — nicht im aktuellen Lager!
+                      Achtung: liegt an <strong>Standort {regal.standortName}</strong>, nicht im aktuellen Lager!
                     </div>
                   )}
                 </div>
@@ -1096,7 +1096,7 @@ function StepGeraet({
                 >
                   <span aria-hidden style={{ fontSize: "1.6rem" }}>🆕</span>
                   <div style={{ fontSize: "1rem", lineHeight: 1.5 }}>
-                    <strong>Neues Modell</strong> — die Zuordnung im Regal beginnt im nächsten Schritt.
+                    <strong>Neues Modell</strong>. Die Zuordnung im Regal beginnt im nächsten Schritt.
                   </div>
                 </div>
               )
@@ -2031,7 +2031,7 @@ function StepBestaetigung({
                                 style={{ ...S.input, minHeight: 44, fontSize: "1rem", marginBottom: 8 }}
                                 aria-label={`Lagerplatz auswählen für ${teilInfo?.label ?? p.teiltyp}`}
                               >
-                                <option value="">— Lagerplatz wählen —</option>
+                                <option value="">Lagerplatz wählen</option>
                                 {bekannteLagerplaetze.map((c) => (
                                   <option key={c} value={c}>{c}</option>
                                 ))}
@@ -2246,7 +2246,7 @@ function StepFertig({
                   </div>
                 ) : (
                   <div style={{ fontSize: "0.8rem", color: "#f7b928", marginBottom: 6 }}>
-                    ⚠️ Kein Lagerplatz vergeben — bitte manuell zuweisen
+                    ⚠️ Kein Lagerplatz vergeben. Bitte manuell zuweisen
                   </div>
                 )}
               </div>
@@ -2267,7 +2267,7 @@ function StepFertig({
 
           {alleEingelagert && ergebnisse.length > 0 && (
             <div style={{ textAlign: "center", padding: "0.8rem", background: "rgba(4,180,117,0.1)", borderRadius: 10, border: "1px solid rgba(4,180,117,0.3)", marginTop: 4 }}>
-              <span style={{ color: "var(--afb-green)", fontWeight: 800 }}>✅ Alles eingelagert — super gemacht!</span>
+              <span style={{ color: "var(--afb-green)", fontWeight: 800 }}>✅ Alles eingelagert. Super gemacht!</span>
             </div>
           )}
         </div>
@@ -2415,7 +2415,14 @@ export default function EinlagernPage() {
           onStart={() => setStep(1)}
           onKomponenten={() => setStep(6)}
           onLosesTeil={() => { setErkannt(null); setStep(7); }}
-          onFoto={kiStatus.data?.eingerichtet ? () => setStep(8) : undefined}
+          onFoto={
+            // Der Fotoweg trägt sich auch ohne Bilderkennung: Die Texterkennung
+            // auf unserem Server liest gedruckte Etiketten allein. Deshalb
+            // reicht EINE der beiden Quellen, damit der Einstieg erscheint.
+            (kiStatus.data?.eingerichtet || kiStatus.data?.ocr)
+              ? () => setStep(8)
+              : undefined
+          }
         />
       )}
 

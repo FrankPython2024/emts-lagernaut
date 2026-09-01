@@ -589,7 +589,7 @@ function ArtikelForm({
         id = artikel.id; msg = "✅ Gespeichert";
       } else {
         const r = await anlegen.mutateAsync(felder);
-        id = r.id; msg = `✅ Angelegt — Code ${r.code}`;
+        id = r.id; msg = `✅ Angelegt. Code ${r.code}`;
       }
       // 2) Fotos abgleichen:
       //    a) gelöschte bestehende Fotos entfernen
@@ -624,7 +624,7 @@ function ArtikelForm({
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#ced4da] dark:border-[#3e4042] sticky top-0 bg-white dark:bg-[#242526]">
           <h2 className="font-black text-lg text-[#202F61] dark:text-[#e4e6eb]">
-            {istNeu ? "Neuer Artikel" : `Bearbeiten — ${artikel?.code}`}
+            {istNeu ? "Neuer Artikel" : `Bearbeiten: ${artikel?.code}`}
           </h2>
           <button onClick={onClose} aria-label="Schließen" className="w-10 h-10 rounded-lg text-[#65676b] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]">×</button>
         </div>
@@ -633,7 +633,7 @@ function ArtikelForm({
           {/* Foto-Galerie — erstes Foto = Titelbild (Liste/A5-Schild). Kamera auf Handheld/Handy. */}
           <div className="sm:col-span-2">
             <span className={labelCls}>
-              Fotos <span className="normal-case font-normal text-[#65676b] dark:text-[#b0b3b8]">— erstes = Titelbild</span>
+              Fotos <span className="normal-case font-normal text-[#65676b] dark:text-[#b0b3b8]">(erstes = Titelbild)</span>
             </span>
             <div className="flex flex-wrap gap-3">
               {fotos.map((f, idx) => (

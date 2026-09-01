@@ -101,7 +101,7 @@ export default function TeilenummernPage() {
           <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
             {status.data.eingerichtet
               ? `Automatische Suche über ${status.data.quelle === "searxng" ? "die eigene Metasuche" : "Google"}: ${status.data.verbraucht} von ${status.data.tageslimit} Abfragen heute`
-              : "Automatische Suche nicht eingerichtet — Modelle von Hand eintragen"}
+              : "Automatische Suche nicht eingerichtet. Modelle von Hand eintragen"}
           </span>
         )}
       </div>
@@ -147,7 +147,7 @@ export default function TeilenummernPage() {
                   Seriennummer sein — sie kann aber auch einfach neu sein. */}
               {t.seriennummerVerdacht && !t.istSeriennummer && !t.geprueft && (
                 <div className="px-4 pb-3 -mt-1 text-xs text-[#8A5A00] dark:text-[#f7b928]">
-                  Bisher nur einmal gesehen — könnte eine Seriennummer dieses einen Stücks sein.
+                  Bisher nur einmal gesehen. Könnte eine Seriennummer dieses einen Stücks sein.
                 </div>
               )}
 
@@ -180,7 +180,7 @@ export default function TeilenummernPage() {
                                 ? "bg-[#04B475]/10 text-[#038F5C] dark:text-[#04B475] border-[#04B475]/30"
                                 : "bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] border-[#ced4da] dark:border-[#3e4042]"
                             }`}
-                            title={m.quelle === "SPENDER" ? "Aus einem echten Spendergerät — sicher" : m.quelle}
+                            title={m.quelle === "SPENDER" ? "Aus einem echten Spendergerät (sicher)" : m.quelle}
                           >
                             {m.name}{m.quelle === "SPENDER" ? " ✓" : ""}
                           </li>
@@ -259,7 +259,7 @@ export default function TeilenummernPage() {
                               ? "border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"
                               : "bg-[#04B475] text-white"
                           }`}>
-                          {t.geprueft ? "Wieder als offen markieren" : "✓ Geprüft — Liste stimmt"}
+                          {t.geprueft ? "Wieder als offen markieren" : "✓ Geprüft: Liste stimmt"}
                         </button>
                         <button
                           onClick={() => aendern.mutate({ id: t.id, istSeriennummer: !t.istSeriennummer })}

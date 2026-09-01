@@ -258,7 +258,7 @@ function EtlReihe({ reihe, plaetze, onKlick }: {
               <button
                 key={ebene}
                 onClick={() => onKlick(p)}
-                title={belegt ? `${p.code} — ${modellListe} (${anzahl}/${MAX_MODELLE_PRO_FACH})` : `${p.code} — leer`}
+                title={belegt ? `${p.code}: ${modellListe} (${anzahl}/${MAX_MODELLE_PRO_FACH})` : `${p.code}: leer`}
                 aria-label={`Lagerplatz ${p.code}${belegt ? `, ${anzahl} von ${MAX_MODELLE_PRO_FACH} belegt: ${modellListe}` : ", leer"}`}
                 style={{
                   minHeight:    62,
@@ -365,7 +365,7 @@ export default function LagerplaetzePage() {
     onSuccess: (r) => {
       show(
         r.umbenannt
-          ? `✅ Umbenannt in ${r.code}${r.artikelVerschoben > 0 ? ` — ${r.artikelVerschoben} Artikel mitgezogen` : ""}`
+          ? `✅ Umbenannt in ${r.code}${r.artikelVerschoben > 0 ? ` (${r.artikelVerschoben} Artikel mitgezogen)` : ""}`
           : `✅ ${r.code} gespeichert`,
         "success",
       );
@@ -646,7 +646,7 @@ export default function LagerplaetzePage() {
               />
               {bearbeite.neuerCode !== bearbeite.code && bearbeite.artikelAnzahl > 0 && (
                 <p className="text-xs text-[#f7b928] mt-1.5">
-                  ⚠️ {bearbeite.artikelAnzahl} Artikel stehen auf {bearbeite.code} — sie werden beim
+                  ⚠️ {bearbeite.artikelAnzahl} Artikel stehen auf {bearbeite.code}. Sie werden beim
                   Umbenennen automatisch auf {bearbeite.neuerCode || "…"} umgezogen.
                 </p>
               )}
@@ -695,7 +695,7 @@ export default function LagerplaetzePage() {
             Lagerplatz <span className="font-mono font-bold">{loesche}</span> wirklich löschen?
           </p>
           <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-            Der Platz ist leer — es gehen keine Artikel oder Buchungen verloren.
+            Der Platz ist leer. Es gehen keine Artikel oder Buchungen verloren.
             Nur der Eintrag selbst verschwindet aus der Liste.
           </p>
           <div className="flex gap-3">

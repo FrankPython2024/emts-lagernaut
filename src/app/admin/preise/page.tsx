@@ -169,7 +169,7 @@ export default function PreisePage() {
           )}
 
           {!darfBearbeiten && (
-            <p className="mt-4 text-sm text-[#90939a]">Nur-Lese-Zugriff — zum Ändern fehlt das Recht „Artikel bearbeiten".</p>
+            <p className="mt-4 text-sm text-[#90939a]">Nur-Lese-Zugriff. Zum Ändern fehlt das Recht „Artikel bearbeiten".</p>
           )}
         </>
       )}

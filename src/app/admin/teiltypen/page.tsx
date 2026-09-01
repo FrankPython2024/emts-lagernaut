@@ -161,8 +161,8 @@ export default function TeiltypenAdminPage() {
             Icon-Namen aus{" "}
             <a href="https://lucide.dev/icons" target="_blank" rel="noopener noreferrer" className="text-[#0064d2] hover:underline">
               lucide.dev/icons
-            </a>{" "}
-            — z. B. Cpu, Monitor, Wifi, Battery, Box, Plug.
+            </a>,
+            z. B. Cpu, Monitor, Wifi, Battery, Box, Plug.
           </p>
         </div>
       )}
@@ -174,7 +174,7 @@ export default function TeiltypenAdminPage() {
             <Layers size={18} /> Teiltyp allen Gerätemodellen zuordnen
           </h2>
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1 mb-4">
-            Für Teile, die es in praktisch jedem Laptop gibt — der Teiltyp erscheint danach
+            Für Teile, die es in praktisch jedem Laptop gibt. Der Teiltyp erscheint danach
             bei jedem Modell in der Ersatzteil-Auswahl der Techniker.
           </p>
 
@@ -188,7 +188,7 @@ export default function TeiltypenAdminPage() {
                 onChange={(e) => { setMassenId(e.target.value ? Number(e.target.value) : null); setConfirmWeg(false); }}
                 className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] min-h-[44px]"
               >
-                <option value="">— auswählen —</option>
+                <option value="">auswählen</option>
                 {custom.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}{t.aktiv ? "" : " (inaktiv)"}
@@ -207,7 +207,7 @@ export default function TeiltypenAdminPage() {
               </div>
               {!stand.data.aktiv && (
                 <div className="text-sm text-[#c62828] dark:text-[#ff8a80] font-bold mt-2">
-                  ⚠️ Dieser Teiltyp ist inaktiv — er erscheint bei den Technikern erst,
+                  ⚠️ Dieser Teiltyp ist inaktiv. Er erscheint bei den Technikern erst,
                   wenn du ihn unten wieder aktiv schaltest.
                 </div>
               )}
@@ -258,8 +258,8 @@ export default function TeiltypenAdminPage() {
 
               <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-3">
                 Die Zuordnung ist eine Momentaufnahme: Modelle, die später neu angelegt werden,
-                bekommen den Teiltyp nicht von selbst. Dann diesen Knopf einfach erneut drücken —
-                schon zugeordnete Modelle bleiben unberührt.
+                bekommen den Teiltyp nicht von selbst. Dann diesen Knopf einfach erneut drücken.
+                Schon zugeordnete Modelle bleiben unberührt.
               </p>
             </div>
           )}
@@ -269,7 +269,7 @@ export default function TeiltypenAdminPage() {
       {/* Aktive Teiltypen */}
       <Section title={`Aktive Teiltypen (${aktive.length})`}>
         {aktive.length === 0 ? (
-          <Leer text="Keine aktiven Teiltypen — bitte Seed-Skript fahren oder Eintrag anlegen." />
+          <Leer text="Keine aktiven Teiltypen. Bitte Seed-Skript fahren oder Eintrag anlegen." />
         ) : (
           <List
             items={aktive}

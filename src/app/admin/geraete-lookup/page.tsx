@@ -171,7 +171,7 @@ export default function GeraeteLookupPage() {
               <div className="flex items-center gap-2">
                 <span>⚠️</span>
                 <span className="text-sm font-bold text-[#f7b928]">
-                  Keine Kompatibilität hinterlegt — Standard-Ersatzteile werden angezeigt
+                  Keine Kompatibilität hinterlegt. Standard-Ersatzteile werden angezeigt
                 </span>
               </div>
               <button

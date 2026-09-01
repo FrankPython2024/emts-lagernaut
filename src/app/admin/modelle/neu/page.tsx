@@ -27,7 +27,7 @@ export default function ModellNeuPage() {
       <div className="max-w-lg space-y-5">
         <h1 className="text-2xl font-black text-[#00a400]">✅ Modell angelegt!</h1>
         <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm">
-          <p className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-3">{hersteller} {modell} — {result.length} Artikel angelegt:</p>
+          <p className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-3">{hersteller} {modell} · {result.length} Artikel angelegt:</p>
           <div className="space-y-1.5">
             {result.map((t) => (
               <div key={t.id} className="flex items-center justify-between py-1.5 border-b border-[#ced4da] dark:border-[#3e4042] last:border-0 text-sm">

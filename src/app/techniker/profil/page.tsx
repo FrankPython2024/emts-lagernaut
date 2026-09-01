@@ -365,7 +365,7 @@ export default function TechnikerProfilPage() {
                     <strong style={{ fontSize: "0.9rem" }}>{a.teil}</strong>
                     <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", marginTop: 2 }}>
                       #{a.logId}
-                      {a.geraeteName && ` — ${a.geraeteName}`}
+                      {a.geraeteName && ` · ${a.geraeteName}`}
                     </div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>

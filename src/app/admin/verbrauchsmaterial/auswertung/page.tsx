@@ -108,13 +108,13 @@ export default function VerbrauchsmaterialAuswertungPage() {
           style={{ background: nachb.length > 0 ? "rgba(239,68,68,0.08)" : undefined }}>
           <span aria-hidden>{nachb.length > 0 ? "⚠️" : "✓"}</span>
           <h2 className="font-black text-[#1a1a1a] dark:text-[#e4e6eb]">
-            Nachbestellen{nachb.length > 0 ? ` — ${nachb.length} ${nachb.length === 1 ? "Artikel" : "Artikel"}` : ""}
+            Nachbestellen{nachb.length > 0 ? ` · ${nachb.length} ${nachb.length === 1 ? "Artikel" : "Artikel"}` : ""}
           </h2>
         </div>
         {nachbQ.isLoading ? (
           <div className="px-5 py-6 text-center text-sm text-[#65676b] dark:text-[#b0b3b8]">Lädt…</div>
         ) : nachb.length === 0 ? (
-          <div className="px-5 py-6 text-center text-sm text-[#04713f]">Alles über Mindestbestand — nichts nachzubestellen. 🎉</div>
+          <div className="px-5 py-6 text-center text-sm text-[#04713f]">Alles über Mindestbestand. Nichts nachzubestellen. 🎉</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

@@ -659,7 +659,7 @@ function AnfrageFlow({
         const info        = teile.find(t => t.teiltyp === teiltyp);
         const tastaturInf = teiltyp === "Tastatur" && tastaturBeschr ? tastaturBeschr : null;
         const anmerkung   = anmerkungen[teiltyp]?.trim() || null;
-        const zusatzinfo  = [tastaturInf, anmerkung].filter(Boolean).join(" — ") || undefined;
+        const zusatzinfo  = [tastaturInf, anmerkung].filter(Boolean).join(" · ") || undefined;
         return {
           logId,
           artikelId: info?.artikelId ?? null,
@@ -913,7 +913,7 @@ function AnfrageFlow({
                           )}
                           {tastaturHint && (
                             <span style={{ fontWeight: 600, fontSize: "0.78rem", color: "#005fa3" }}>
-                              — {tastaturHint}
+                              · {tastaturHint}
                             </span>
                           )}
                         </label>
@@ -1678,7 +1678,7 @@ function AnfrageDetailModal({
             </ul>
             {einzelStorno && (
               <p style={{ margin: "0.6rem 0 0", fontSize: "0.85rem", color: "var(--text-dim)" }}>
-                Du kannst einzelne Teile stornieren — der Rest der Anfrage bleibt bestehen.
+                Du kannst einzelne Teile stornieren. Der Rest der Anfrage bleibt bestehen.
               </p>
             )}
           </div>

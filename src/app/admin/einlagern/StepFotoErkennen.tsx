@@ -76,11 +76,28 @@ export function StepFotoErkennen({
   });
   const ergebnis = erkennen.data;
 
+  // ── Texterkennung auf unserem eigenen Server ──────────────────────
+  // Läuft immer und zuerst: gedruckte Etiketten in etwa einer Sekunde, ohne
+  // fremdes Tageskontingent. Siebdruck auf Platinen liest sie nicht — dafür
+  // gibt es den Knopf zur Bilderkennung weiter unten.
+  const lesen = api.teilenummern.leseFoto.useMutation({
+    onError: (e) => show(e.message, "error"),
+  });
+
+  /** Nummer wählen und das Nachschlagen anwerfen. Von beiden Wegen genutzt. */
+  function waehleNummer(n: string | null, teiltyp?: string | null) {
+    setGewaehlteNummer(n);
+    setPlatz(null);
+    zuNummer.reset();
+    if (n) zuNummer.mutate({ nummer: n, teiltyp: teiltyp ?? undefined });
+  }
+
   async function ausDatei(e: React.ChangeEvent<HTMLInputElement>) {
     const datei = e.target.files?.[0];
     if (!datei) return;
     setLaeuft(true);
     erkennen.reset();
+    lesen.reset();
     setGewaehlteNummer(null);
     try {
       setVorschau(URL.createObjectURL(datei));
@@ -88,7 +105,9 @@ export function StepFotoErkennen({
       // die Nummer darin trotzdem unlesbar.
       const a = await bereiteFotoAuf(datei);
       setAufbereitet(a);
-      erkennen.mutate({ uebersicht: a.uebersicht, ausschnitte: a.ausschnitte });
+      // Zuerst die eigene Texterkennung. Die Bilderkennung wird erst gefragt,
+      // wenn ein Mensch sagt, dass keine der gelesenen Nummern passt.
+      lesen.mutate({ uebersicht: a.uebersicht, ausschnitte: a.ausschnitte });
     } catch (err) {
       show((err as Error).message, "error");
     } finally {
@@ -96,7 +115,7 @@ export function StepFotoErkennen({
     }
   }
 
-  const arbeitet = laeuft || erkennen.isPending;
+  const arbeitet = laeuft || lesen.isPending || erkennen.isPending;
   const laufzeit = useLaufzeit(arbeitet);
   const sucheLaufzeit = useLaufzeit(zuNummer.isPending);
 
@@ -110,15 +129,14 @@ export function StepFotoErkennen({
   // Tageskontingent.
   const vorgeladen = useRef<string | null>(null);
   useEffect(() => {
-    if (!ergebnis?.ok || ergebnis.nummern.length !== 1) return;
-    const n = ergebnis.nummern[0]!;
+    const nummern = ergebnis?.ok ? ergebnis.nummern : lesen.data?.nummern;
+    if (!nummern || nummern.length !== 1) return;
+    const n = nummern[0]!;
     if (vorgeladen.current === n) return;
     vorgeladen.current = n;
-    setGewaehlteNummer(n);
-    setPlatz(null);
-    zuNummer.mutate({ nummer: n, teiltyp: ergebnis.teiltyp ?? undefined });
+    waehleNummer(n, ergebnis?.teiltyp ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ergebnis]);
+  }, [ergebnis, lesen.data]);
 
   const knopf = "px-5 py-3 rounded-xl font-bold min-h-[56px] text-base";
 
@@ -163,14 +181,17 @@ export function StepFotoErkennen({
             <div className="flex items-center gap-2">
               <span className="inline-block w-4 h-4 rounded-full border-2 border-[#0064d2] border-t-transparent animate-spin" />
               <span className="text-sm font-bold text-[#0064d2] dark:text-[#45bdff]">
-                {laeuft ? "Bild wird aufbereitet" : "Teil wird erkannt"} … {sek(laufzeit)}
+                {laeuft
+                  ? "Bild wird aufbereitet"
+                  : lesen.isPending ? "Etikett wird gelesen" : "Bilderkennung läuft"} … {sek(laufzeit)}
               </span>
             </div>
             <ul className="text-xs text-[#65676b] dark:text-[#b0b3b8] space-y-0.5 ml-6">
               <li>{laeuft ? "▸" : "✓"} Foto verkleinern, beschriftete Stellen ausschneiden</li>
               <li>
-                {laeuft ? "◦" : "▸"} Bilder zur Erkennung schicken
-                {aufbereitet && ` — ${1 + aufbereitet.ausschnitte.length} Bilder, ${aufbereitet.groesseKb} kB`}
+                {laeuft ? "◦" : "▸"}{" "}
+                {erkennen.isPending ? "Bilder an die Bilderkennung schicken" : "Text auf unserem Server lesen"}
+                {aufbereitet && ` (${1 + aufbereitet.ausschnitte.length} Bilder, ${aufbereitet.groesseKb} kB)`}
               </li>
             </ul>
             {!laeuft && laufzeit > 15_000 && (
@@ -192,7 +213,7 @@ export function StepFotoErkennen({
                 {aufbereitet.breite}×{aufbereitet.hoehe} Bildpunkte.
                 {aufbereitet.ausschnitte.length > 0
                   ? ` ${aufbereitet.ausschnitte.length} beschriftete Stelle${aufbereitet.ausschnitte.length === 1 ? "" : "n"} gefunden und vergrößert mitgeschickt.`
-                  : " Keine auffällig beschriftete Stelle gefunden — es wurde nur das Gesamtbild geschickt."}
+                  : " Keine auffällig beschriftete Stelle gefunden. Es wurde nur das Gesamtbild geschickt."}
                 {` Verschickt: ${aufbereitet.groesseKb} kB.`}
               </p>
             )}
@@ -201,9 +222,12 @@ export function StepFotoErkennen({
       </div>
 
       {/* ── Ergebnis ───────────────────────────────────────────────────── */}
-      {ergebnis && (
+      {/* Eine Karte für beide Wege. Alles, was nur die Bilderkennung liefert
+          (Teiltyp, Hersteller), ist mit `ergebnis &&` geklammert — damit der
+          Weg auch ohne sie zu Ende geht. */}
+      {(ergebnis || lesen.data) && (
         <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-5 shadow-sm space-y-4">
-          {!ergebnis.ok ? (
+          {ergebnis && (!ergebnis.ok ? (
             <p className="text-sm text-[#8A5A00] dark:text-[#f7b928]">{ergebnis.grund}</p>
           ) : (
             <>
@@ -237,7 +261,7 @@ export function StepFotoErkennen({
               {ergebnis.geraete.length > 0 && (
                 <div className="rounded-lg border border-[#f7b928]/50 bg-[#f7b928]/8 p-3">
                   <div className="text-sm font-bold text-[#8A5A00] dark:text-[#f7b928]">
-                    Könnte in diese Geräte passen — unbestätigt
+                    Könnte in diese Geräte passen (unbestätigt)
                   </div>
                   <ul className="flex flex-wrap gap-1.5 mt-2">
                     {ergebnis.geraete.map((g) => (
@@ -261,7 +285,7 @@ export function StepFotoErkennen({
               {ergebnis.geraete.length === 0 && ergebnis.geraeteVerworfen.length > 0 && (
                 <div className="rounded-lg border border-[#ced4da] dark:border-[#3e4042] p-3">
                   <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
-                    Genannt wurden {ergebnis.geraeteVerworfen.join(", ")} — diese Modelle
+                    Genannt wurden {ergebnis.geraeteVerworfen.join(", ")}. Diese Modelle
                     stehen bei uns nicht im Katalog und werden deshalb nicht angezeigt.
                   </div>
                 </div>
@@ -289,7 +313,7 @@ export function StepFotoErkennen({
               {ergebnis.nummern.length > 0 ? (
                 <div>
                   <div className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">
-                    Gelesene Nummern — welche ist die Teilenummer?
+                    Gelesene Nummern. Welche ist die Teilenummer?
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {ergebnis.nummern.map((n) => (
@@ -321,14 +345,82 @@ export function StepFotoErkennen({
                 </p>
               )}
             </>
+          ))}
+
+          {/* ── Was die eigene Texterkennung gelesen hat ──────────────────── */}
+          {lesen.data && !ergebnis && (
+            <>
+              {lesen.data.bekannt && (
+                <div className="rounded-lg border-2 border-[#04B475] bg-[#04B475]/8 p-4">
+                  <div className="font-bold text-[#038F5C] dark:text-[#04B475]">
+                    ✓ Diese Nummer kennt Lagernaut schon: {lesen.data.bekannt.nummer}
+                  </div>
+                  <div className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
+                    {[lesen.data.bekannt.hersteller, lesen.data.bekannt.teiltyp].filter(Boolean).join(" · ") || "noch ohne Angaben"}
+                    {lesen.data.bekannt.modelle > 0 && ` · passt in ${lesen.data.bekannt.modelle} Modelle`}
+                  </div>
+                </div>
+              )}
+
+              {lesen.data.nummern.length > 0 ? (
+                <div>
+                  <div className="text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">
+                    Vom Etikett gelesen. Welche ist die Teilenummer?
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {lesen.data.nummern.map((n) => (
+                      <button key={n}
+                        onClick={() => waehleNummer(gewaehlteNummer === n ? null : n)}
+                        className={`px-3 py-2 rounded-lg font-mono text-sm border-2 min-h-[48px] ${
+                          gewaehlteNummer === n
+                            ? "border-[#0064d2] bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] font-bold"
+                            : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"
+                        }`}>
+                        {gewaehlteNummer === n ? "✓ " : ""}{n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                  Auf dem Foto war keine Nummer lesbar. Bei Aufdrucken direkt auf
+                  der Platine ist das der Regelfall. Dort hilft die Bilderkennung.
+                </p>
+              )}
+
+              {/* ⚠️ Der Mensch entscheidet, nicht eine Regel. Beim Messen lieferte
+                  das USB-Board „2S01L" — Lesemüll, der echt aussieht. Eine
+                  Automatik „irgendetwas gefunden, also fertig" hätte genau dort
+                  den Rückfall unterdrückt. Wer das Teil in der Hand hält, sieht
+                  in einer Sekunde, ob eine Nummer stimmt. */}
+              <div className="border-t border-[#ced4da] dark:border-[#3e4042] pt-3">
+                <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-2">
+                  ⏱ Auf unserem Server gelesen in {sek(lesen.data.dauerMs)}, ohne
+                  Tageskontingent. Passt keine Nummer, kann zusätzlich die
+                  Bilderkennung gefragt werden. Die erkennt auch Teiltyp und
+                  Hersteller, braucht aber deutlich länger und hat ein Tageslimit.
+                </p>
+                <button
+                  onClick={() => aufbereitet && erkennen.mutate({
+                    uebersicht: aufbereitet.uebersicht, ausschnitte: aufbereitet.ausschnitte,
+                  })}
+                  disabled={!aufbereitet || erkennen.isPending}
+                  className="px-4 py-3 rounded-lg border-2 border-[#0064d2] text-[#0064d2] dark:text-[#45bdff] font-bold text-sm min-h-[48px] disabled:opacity-50">
+                  {erkennen.isPending ? "Bilderkennung läuft…" : "Keine passt? Bilderkennung fragen"}
+                </button>
+              </div>
+            </>
           )}
+
 
           {/* Zeitbilanz: sagt, wo die Wartezeit wirklich hingegangen ist.
               Ohne diese Zahl bleibt jede Beschleunigung eine Behauptung. */}
-          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] border-t border-[#ced4da] dark:border-[#3e4042] pt-2">
-            ⏱ Erkennung {sek(ergebnis.dauer.gesamt)} — davon Bildmodell {sek(ergebnis.dauer.ki)},
-            Abgleich mit unseren Daten {sek(ergebnis.dauer.pruefung)}
-          </p>
+          {ergebnis && (
+            <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] border-t border-[#ced4da] dark:border-[#3e4042] pt-2">
+              ⏱ Bilderkennung {sek(ergebnis.dauer.gesamt)}, davon Bildmodell {sek(ergebnis.dauer.ki)},
+              Abgleich mit unseren Daten {sek(ergebnis.dauer.pruefung)}
+            </p>
+          )}
 
 
           {/* ── Geräte und Lagerplatz zur gewählten Nummer ───────────── */}
@@ -392,7 +484,7 @@ export function StepFotoErkennen({
                       )}
                       {zuNummer.data.fund.schwach && (
                         <p className="text-xs text-[#8A5A00] dark:text-[#f7b928] mt-1.5">
-                          Die Nummer kam in den Fundstellen kaum vor — bitte prüfen.
+                          Die Nummer kam in den Fundstellen kaum vor. Bitte prüfen.
                         </p>
                       )}
                     </div>
@@ -420,7 +512,7 @@ export function StepFotoErkennen({
                   )}
 
                   <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                    ⏱ Nachschlagen {sek(zuNummer.data.fund.dauer.gesamt)} — davon Suche
+                    ⏱ Nachschlagen {sek(zuNummer.data.fund.dauer.gesamt)}, davon Suche
                     {" "}{sek(zuNummer.data.fund.dauer.suche)}, Abgleich
                     {" "}{sek(zuNummer.data.fund.dauer.abgleich)}
                     {" · "}{zuNummer.data.fund.verbrauchHeute} Abfragen heute
@@ -506,9 +598,9 @@ export function StepFotoErkennen({
 
           <button
             onClick={() => onWeiter({
-              teiltyp:     ergebnis.teiltyp,
-              hersteller:  ergebnis.hersteller,
-              teilenummer: gewaehlteNummer ?? ergebnis.bekannt?.nummer ?? null,
+              teiltyp:     ergebnis?.teiltyp ?? null,
+              hersteller:  ergebnis?.hersteller ?? null,
+              teilenummer: gewaehlteNummer ?? ergebnis?.bekannt?.nummer ?? lesen.data?.bekannt?.nummer ?? null,
               fotoBase64:  aufbereitet?.uebersicht.base64 ?? null,
               lagerplatz:  platz,
             })}

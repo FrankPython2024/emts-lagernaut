@@ -518,7 +518,7 @@ function SchrittErfolg({ ergebnis, onNochEins }: { ergebnis: ErgebnisData; onNoc
 
         {/* Platzhalter für Phase C */}
         <div style={{ padding: "0.8rem", borderRadius: 10, border: "1px dashed var(--border)", color: "var(--text-dim)", fontSize: "0.8rem", marginBottom: "1rem" }}>
-          📄 Auslagerbeleg — kommt in Phase C
+          📄 Auslagerbeleg (kommt in Phase C)
         </div>
 
         <button onClick={onNochEins} style={{ ...S.bigBtn("var(--afb-navy)") }}>

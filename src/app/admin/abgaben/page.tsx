@@ -97,7 +97,7 @@ export default function AbgabenPage() {
 
     const ziele = new Set(zeilen.map((b) => b.niederlassung?.id));
     if (ziele.size > 1) {
-      show("Bitte nur Abgaben an dieselbe Niederlassung markieren — ein Beleg hat einen Empfänger.", "warning");
+      show("Bitte nur Abgaben an dieselbe Niederlassung markieren. Ein Beleg hat einen Empfänger.", "warning");
       return;
     }
 
@@ -172,7 +172,7 @@ export default function AbgabenPage() {
             <label className="block text-sm font-semibold mb-1 text-[#1a1a1a] dark:text-[#e4e6eb]">Artikel</label>
             <select value={artikelId} onChange={(e) => setArtikelId(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]">
-              <option value="">— Artikel wählen —</option>
+              <option value="">Artikel wählen</option>
               {artikel.map((a) => (
                 <option key={a.id} value={a.id} disabled={a.bestand <= 0}>
                   {a.bezeichnung} · {a.kategorie} · Bestand {a.bestand}{a.bestand <= 0 ? " (leer)" : ""}{istLithiumAkku(a) ? ` · Gefahrgut ${UN_NUMMER}` : ""}
@@ -198,7 +198,7 @@ export default function AbgabenPage() {
             <label className="block text-sm font-semibold mb-1 text-[#1a1a1a] dark:text-[#e4e6eb]">Niederlassung</label>
             <select value={zielId} onChange={(e) => setZielId(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]">
-              <option value="">— Ziel wählen —</option>
+              <option value="">Ziel wählen</option>
               {(niederlassungen.data ?? []).filter((n) => n.aktiv).map((n) => (
                 <option key={n.id} value={n.id}>{n.name}</option>
               ))}
@@ -418,7 +418,7 @@ export default function AbgabenPage() {
                       <input
                         type="text" value={nlForm.adresse}
                         onChange={(e) => setNlForm({ ...nlForm, adresse: e.target.value })}
-                        placeholder="Anschrift — erscheint auf dem Beleg, z. B. Musterweg 3, 12345 Musterstadt"
+                        placeholder="Anschrift, erscheint auf dem Beleg, z. B. Musterweg 3, 12345 Musterstadt"
                         className="w-full px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]"
                       />
                       <div className="flex gap-2">
@@ -470,7 +470,7 @@ export default function AbgabenPage() {
             </ul>
             <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
               Niederlassungen mit bereits erfassten Abgaben werden nicht gelöscht, sondern auf inaktiv
-              gesetzt — sonst verlöre die Auswertung ihren Bezug.
+              gesetzt. Sonst verlöre die Auswertung ihren Bezug.
             </p>
           </div>
         )}

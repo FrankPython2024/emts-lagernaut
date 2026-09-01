@@ -148,7 +148,7 @@ export default function GeraeteReiseAuswertungenPage() {
       <div>
         <h1 className="text-2xl font-black text-[#1a1a1a] dark:text-[#e4e6eb]">🦊 Lagerfuchs</h1>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
-          Auswertungen — Alter, Stillstand &amp; Stau
+          Auswertungen: Alter, Stillstand &amp; Stau
         </p>
       </div>
 

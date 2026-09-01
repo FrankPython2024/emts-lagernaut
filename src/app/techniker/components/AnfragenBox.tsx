@@ -223,7 +223,7 @@ export default function AnfragenBox({ kuerzel }: Props) {
         )}
         {anfragenQuery.isError && (
           <div style={{ textAlign: "center", padding: "1rem", color: "var(--danger)", fontSize: "0.85rem" }}>
-            Fehler beim Laden — {anfragenQuery.error.message}
+            Fehler beim Laden: {anfragenQuery.error.message}
           </div>
         )}
         {!anfragenQuery.isLoading && !anfragenQuery.isError && gefiltert.length === 0 && (

@@ -193,7 +193,7 @@ export function GeraetDetailInhalt({ stand, bewegungen }: { stand: StandData; be
           {bewegungen.length === 0 && (
             <div className="mb-5 text-sm text-[#65676b] dark:text-[#b0b3b8] bg-[#f0f2f5] dark:bg-[#18191a] rounded-lg px-4 py-3 flex items-start gap-2">
               <span>ℹ️</span>
-              <span>Noch keine Bewegungen erfasst – ab dem nächsten Import.</span>
+              <span>Noch keine Bewegungen erfasst. Sie erscheinen ab dem nächsten Import.</span>
             </div>
           )}
           {items.length === 0 ? (

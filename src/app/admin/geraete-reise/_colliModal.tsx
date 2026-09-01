@@ -127,7 +127,7 @@ function ColliModal({ colli, onClose }: { colli: string; onClose: () => void }) 
               <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042] flex items-center gap-2">
                 <span aria-hidden>🧾</span>
                 <p className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
-                  Diese Geräte liegen zusammen — tippe ein Gerät an, um seine Reise zu sehen.
+                  Diese Geräte liegen zusammen. Tippe ein Gerät an, um seine Reise zu sehen.
                 </p>
               </div>
               <ul className="divide-y divide-[#ced4da] dark:divide-[#3e4042]">

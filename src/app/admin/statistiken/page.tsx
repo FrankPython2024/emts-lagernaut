@@ -120,7 +120,7 @@ function WertAusgegebenPanel({ tage, standortId }: { tage: number; standortId: n
           {q.data.ohnePreis.length > 0 && (
             <div className="mt-3 text-xs text-[#f7b928]">
               ⚠️ {q.data.ohnePreis.length} Kategorien ohne Preis (nicht enthalten):{" "}
-              {q.data.ohnePreis.map((o) => `${o.kategorie} (${o.menge})`).join(", ")} —{" "}
+              {q.data.ohnePreis.map((o) => `${o.kategorie} (${o.menge})`).join(", ")}.{" "}
               <a href="/admin/preise" className="underline font-semibold">Preise ergänzen</a>
             </div>
           )}
@@ -166,7 +166,7 @@ function GesamtwertPanel({ tage, standortId }: { tage: number; standortId: numbe
             {euro(gesamt)}
           </div>
           <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-4">
-            Bauteil-Ernte ist bewusst nicht enthalten — das ist Wert, der im Lager <em>liegt</em>, nicht ausgegeben wurde.
+            Bauteil-Ernte ist bewusst nicht enthalten. Das ist Wert, der im Lager <em>liegt</em>, nicht ausgegeben wurde.
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -203,7 +203,7 @@ function GesamtwertPanel({ tage, standortId }: { tage: number; standortId: numbe
 
           {luecken > 0 && (
             <div className="mt-3 text-xs text-[#f7b928]">
-              ⚠️ {luecken.toLocaleString("de-DE")} Stück ohne hinterlegten Preis — in der Summe nicht enthalten.
+              ⚠️ {luecken.toLocaleString("de-DE")} Stück ohne hinterlegten Preis, in der Summe nicht enthalten.
               Preise pflegen unter <a href="/admin/preise" className="underline font-semibold">Kategorie-Preise</a>
               {" "}bzw. am Artikel selbst.
             </div>
@@ -234,7 +234,7 @@ function AbgabenPanel({ tage, standortId }: { tage: number; standortId: number |
             </div>
             {q.data.ohnePreis > 0 && (
               <div className="text-xs text-[#f7b928] mt-0.5">
-                ⚠️ {q.data.ohnePreis.toLocaleString("de-DE")} Stück ohne hinterlegten Preis — nicht im Wert enthalten
+                ⚠️ {q.data.ohnePreis.toLocaleString("de-DE")} Stück ohne hinterlegten Preis, nicht im Wert enthalten
               </div>
             )}
           </div>
@@ -302,14 +302,14 @@ function ErntePanel({ tage, standortId }: { tage: number; standortId: number | n
             {q.data.erfassung.druckTeile > 0 && (
               <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
                 🖨️ {q.data.erfassung.druckTeile.toLocaleString("de-DE")} Teile selbst gedruckt
-                <span className="text-[#90939a]"> — eigene Fertigung, zählt nicht als Ernte</span>
+                <span className="text-[#90939a]"> (eigene Fertigung, zählt nicht als Ernte)</span>
               </div>
             )}
           </div>
 
           {q.data.mengeGesamt === 0 && (
             <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
-              Noch keine Ernte mit Spender-LogID erfasst. Beim Einlagern die LogID des Altgeräts scannen —
+              Noch keine Ernte mit Spender-LogID erfasst. Beim Einlagern die LogID des Altgeräts scannen,
               dann erscheint hier, was aus welchem Gerät gewonnen wurde.
             </div>
           )}
@@ -362,7 +362,7 @@ function ErntePanel({ tage, standortId }: { tage: number; standortId: number | n
               {q.data.ohnePreis.length > 0 && (
                 <div className="mt-3 text-xs text-[#f7b928]">
                   ⚠️ {q.data.ohnePreis.length} Kategorien ohne Preis (nicht im Wert enthalten):{" "}
-                  {q.data.ohnePreis.map((o) => `${o.kategorie} (${o.menge})`).join(", ")} —{" "}
+                  {q.data.ohnePreis.map((o) => `${o.kategorie} (${o.menge})`).join(", ")}.{" "}
                   <a href="/admin/preise" className="underline font-semibold">Preise ergänzen</a>
                 </div>
               )}
@@ -378,9 +378,9 @@ function ErntePanel({ tage, standortId }: { tage: number; standortId: number | n
                 Früher bearbeitete Modelle <span className="font-medium normal-case">(vor der Herkunfts-Erfassung)</span>
               </div>
               <div className="text-xs text-[#90939a] mb-1.5">
-                Aus der Buchungs-Notiz rekonstruiert — nur Modell, nicht das einzelne Gerät.
+                Aus der Buchungs-Notiz rekonstruiert: nur Modell, nicht das einzelne Gerät.
                 <strong className="font-semibold"> Enthält auch selbst gefertigte Teile (3D-Druck)</strong>,
-                die sich in Altdaten nicht von echter Ernte trennen lassen — hohe Stückzahlen kommen meist daher.
+                die sich in Altdaten nicht von echter Ernte trennen lassen. Hohe Stückzahlen kommen meist daher.
               </div>
               <ul className="space-y-1">
                 {q.data.altModelle.map((m) => (
@@ -1250,11 +1250,11 @@ export default function StatistikenPage() {
 
           {/* Wochentag + Tageszeit */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-            <Panel title="Wochentag-Analyse" sub="90 Tage — wann fragt er an?">
+            <Panel title="Wochentag-Analyse" sub="90 Tage · wann fragt er an?">
               {techWochentag.isLoading && <Skeleton h="h-24" />}
               {techWochentag.data && <VBarChart items={techWochentag.data.map((d) => ({ label: d.tag, anzahl: d.anzahl }))} />}
             </Panel>
-            <Panel title="Tageszeit-Analyse" sub="90 Tage — zu welcher Uhrzeit?">
+            <Panel title="Tageszeit-Analyse" sub="90 Tage · zu welcher Uhrzeit?">
               {techTageszeit.isLoading && <Skeleton h="h-24" />}
               {techTageszeit.data && (
                 <VBarChart

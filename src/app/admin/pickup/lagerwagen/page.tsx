@@ -30,7 +30,7 @@ export default function LagerwagenPage() {
 
   const importieren = api.lagerwagen.importieren.useMutation({
     onSuccess: (r) => {
-      show(`✅ Import übernommen — ${r.wagen} Wagen · ${r.untercollis} Untercollis`, "success");
+      show(`✅ Import übernommen: ${r.wagen} Wagen · ${r.untercollis} Untercollis`, "success");
       setRes(null); setFileName(null);
       if (fileRef.current) fileRef.current.value = "";
       void utils.lagerwagen.status.invalidate();
@@ -89,7 +89,7 @@ export default function LagerwagenPage() {
       <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
         ReForm-"Stellplatz"-Übersicht der mobilen Lagerwagen hochladen. Ordnet jedes Untercolli seinem
         Hauptcolli (vorderes Colli des Wagens) + Stellplatz zu. Grundlage für den Hauptcolli-Vorabscan im
-        Pickup. Jeder Import <strong>ersetzt</strong> den kompletten Stand — die Datei ist der vollständige
+        Pickup. Jeder Import <strong>ersetzt</strong> den kompletten Stand. Die Datei ist der vollständige
         aktuelle Stand. Reine Zuordnung, kein Bestandseffekt.
       </p>
 
@@ -129,7 +129,7 @@ export default function LagerwagenPage() {
             className="w-full flex items-center justify-center gap-2 px-5 rounded-xl border-2 border-dashed text-sm font-bold transition-colors min-h-[56px]"
             style={{ borderColor: `${akzent}66`, background: `${akzent}0d`, color: akzent }}
           >
-            📄 {fileName ? `Datei: ${fileName} — andere wählen` : "Datei auswählen"}
+            📄 {fileName ? `Datei: ${fileName} (andere wählen)` : "Datei auswählen"}
           </button>
           <p className="text-xs text-[#90939a] dark:text-[#6b6e73] mt-1">
             Wird direkt im Browser gelesen. .xlsx: Tabellenblatt "Stellplatz". Spalten: Nummer, Hauptcolli, Stellplatz, Lagernummer.

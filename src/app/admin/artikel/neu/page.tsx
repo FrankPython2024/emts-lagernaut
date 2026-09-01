@@ -92,7 +92,7 @@ export default function ArtikelNeuPage() {
             className="w-full px-4 py-2.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]"
           />
           <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
-            Nötig, wo die Kategorie den Wert nicht trifft — z. B. 256-GB-SSD gegen 2-TB-NVMe.
+            Nötig, wo die Kategorie den Wert nicht trifft, z. B. 256-GB-SSD gegen 2-TB-NVMe.
           </p>
         </div>
 

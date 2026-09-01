@@ -114,7 +114,7 @@ function GeraetModal({ initialQ, onClose }: { initialQ: string; onClose: () => v
           {!laedt && data?.kind === "treffer" && (
             <div className="bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] overflow-hidden">
               <div className="px-5 py-3 border-b border-[#ced4da] dark:border-[#3e4042]">
-                <p className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{data.treffer.length} Treffer — bitte Gerät wählen</p>
+                <p className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{data.treffer.length} Treffer, bitte Gerät wählen</p>
               </div>
               <div className="divide-y divide-[#ced4da] dark:divide-[#3e4042]">
                 {data.treffer.map((t) => (
