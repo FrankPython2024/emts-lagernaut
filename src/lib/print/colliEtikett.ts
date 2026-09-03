@@ -46,12 +46,39 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// Schriftgröße der Nummer nach Länge — lange Nummern bleiben lesbar und umbrechen.
-function nummerFontSize(len: number): string {
-  if (len <= 10) return "13pt";
-  if (len <= 16) return "11pt";
-  if (len <= 24) return "8.5pt";
-  return "6.5pt";
+// ── Schriftgröße der Colli-Nummer ────────────────────────────────────────────
+//
+// ⚠️ Gerechnet, nicht geschätzt. Die frühere Stufentabelle („bis 10 Zeichen →
+// 13pt") war nie gegen die tatsächlich vorhandene Breite geprüft — und genau
+// deshalb brach „3.254.425" auf dem Etikett um.
+//
+// Die Rechnung dahinter:
+//   Etikett 55 mm − 2 × 1,5 mm Innenabstand − 26 mm QR − 2 mm Abstand = 24 mm
+//   Courier New ist eine Festbreitenschrift: 0,6 em je Zeichen
+//   → 9 Zeichen bei 13 pt brauchen 9 × 0,6 × 13 pt ≈ 24,8 mm. Knapp zu breit.
+//
+// Wer am Layout dreht (QR-Größe, Padding, Abstand), muss RECHTS_MM mitziehen.
+const RECHTS_MM      = 24;    // nutzbare Breite der rechten Spalte
+const PT_JE_MM       = 2.835;
+const ZEICHENBREITE  = 0.6;   // Courier New, Anteil der Schriftgröße
+const SICHERHEIT     = 0.95;  // Rundungen im Druckertreiber abfangen
+const MAX_PT         = 13;    // nie größer als bisher
+const MIN_PT         = 5;     // absolute Untergrenze
+const LESBAR_PT      = 7;     // darunter wird lieber umgebrochen
+
+/**
+ * Erst einzeilig rechnen. Würde die Schrift dabei unter LESBAR_PT rutschen,
+ * lieber auf zwei Zeilen umbrechen als sie zur Mikroschrift zu drücken — in
+ * der rechten Spalte ist Höhe reichlich vorhanden, Breite nicht.
+ */
+export function nummerFontSize(len: number): string {
+  const platzPt = RECHTS_MM * PT_JE_MM * SICHERHEIT;
+  const fuer    = (zeichen: number) => platzPt / (ZEICHENBREITE * Math.max(zeichen, 1));
+
+  let pt = fuer(len);
+  if (pt < LESBAR_PT) pt = fuer(Math.ceil(len / 2));
+
+  return `${Math.round(Math.min(MAX_PT, Math.max(MIN_PT, pt)) * 10) / 10}pt`;
 }
 
 // Auto-Fit für das Blanko-Text-Etikett: je länger der Text, desto kleiner —
@@ -66,20 +93,32 @@ export function textEtikettFontPt(len: number): number {
 }
 
 /**
- * Druckt alle übergebenen Colli-Nummern als Stapel — jedes Etikett eine eigene
- * 55×30mm-Seite, eines pro Nummer. Optionaler Zusatztext erscheint auf ALLEN
- * Etiketten oben rechts als dunkle Markierung. Fenster wird VOR dem await
- * geöffnet (Popup-Blocker), QR danach erzeugt, dann geschrieben.
+ * Druckt alle übergebenen Colli-Nummern als Stapel. Jedes Etikett bekommt eine
+ * eigene 55×30mm-Seite. Optionaler Zusatztext erscheint auf ALLEN Etiketten
+ * oben rechts als dunkle Markierung. Fenster wird VOR dem await geöffnet
+ * (Popup-Blocker), QR danach erzeugt, dann geschrieben.
+ *
+ * `kopien` druckt jede Nummer mehrfach. Die Kopien kommen DIREKT hintereinander,
+ * nicht der ganze Stapel zweimal: Wer zwei Etiketten auf dieselbe Kiste klebt,
+ * will sie nebeneinander vom Drucker nehmen und nicht am Ende suchen müssen.
+ *
+ * Der QR wird je Nummer nur EINMAL erzeugt und für die Kopien wiederverwendet.
  */
-export async function printColliEtiketten(nummern: string[], zusatztext = ""): Promise<void> {
+export async function printColliEtiketten(
+  nummern: string[],
+  zusatztext = "",
+  kopien = 1,
+): Promise<void> {
   const liste = nummern.map((s) => s.trim()).filter((s) => s.length > 0);
   if (liste.length === 0) return;
   const zusatz = zusatztext.trim();
+  const anzahl = Math.max(1, Math.min(10, Math.floor(kopien)));
 
   const w = window.open("", "_blank", "width=400,height=250");
-  if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
+  if (!w) { console.warn("Popup blockiert. Popup-Blocker deaktivieren"); return; }
 
-  const entries = await Promise.all(liste.map(async (nr) => ({ nr, qr: await genQrSvg(nr) })));
+  const einmal  = await Promise.all(liste.map(async (nr) => ({ nr, qr: await genQrSvg(nr) })));
+  const entries = einmal.flatMap((e) => Array.from({ length: anzahl }, () => e));
 
   const css = `
     @page { size: 55mm 30mm; margin: 0; }

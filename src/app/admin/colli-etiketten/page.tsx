@@ -5,6 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Printer, Plus } from "lucide-react";
 import {
   printColliEtiketten,
+  nummerFontSize,
   writeSchrankBeschriftung,
   writeTextLabel,
   type SchrankOrientierung,
@@ -159,7 +160,15 @@ function ColliEtikett({ nummer, zusatz, onPrint }: { nummer: string; zusatz: str
             <div className="text-[10px] font-semibold uppercase tracking-wider text-[#444]">
               Colli-Nummer
             </div>
-            <div className="font-mono font-bold text-black leading-tight break-all text-base">
+            {/* Dieselbe Regel wie beim Druck, nur verhaeltnismaessig statt in
+                Punkt: Die Vorschau ist skalierbar, das Etikett ist 55 mm breit.
+                13 pt entspricht der bisherigen Groesse (1 rem), alles darunter
+                wird im selben Verhaeltnis kleiner. So sieht man vorher, ob eine
+                Nummer klein gesetzt wird. */}
+            <div
+              className="font-mono font-bold text-black leading-tight break-all"
+              style={{ fontSize: `${parseFloat(nummerFontSize(nummer.length)) / 13}rem` }}
+            >
               {nummer}
             </div>
           </div>
@@ -198,8 +207,12 @@ export default function ColliEtikettenPage() {
   const [text, setText]           = useState("");
   const [zusatzAktiv, setZusatzAktiv] = useState(false);
   const [zusatz, setZusatz]       = useState("");
+  // Jede Nummer zweimal drucken. Kommt vor, wenn ein Etikett auf die Kiste und
+  // eines auf den Deckel soll.
+  const [doppelt, setDoppelt]     = useState(false);
   const nummern   = useMemo(() => parseColli(text), [text]);
   const effZusatz = zusatzAktiv ? zusatz.trim() : "";
+  const kopien    = doppelt ? 2 : 1;
 
   // Text-Modus (WYSIWYG-Freitext-Label, 55×30 mm — ein Label)
   const [textHtml, setTextHtml] = useState("");
@@ -219,7 +232,7 @@ export default function ColliEtikettenPage() {
   const zusatzId   = useId();
 
   const anzahl =
-    modus === "colli" ? nummern.length :
+    modus === "colli" ? nummern.length * kopien :
     modus === "text"  ? (textBereit ? 1 : 0) :
     schrankBereit ? 1 : 0;
 
@@ -266,7 +279,7 @@ export default function ColliEtikettenPage() {
   }
 
   function druckeAlle() {
-    if (modus === "colli") { printColliEtiketten(nummern, effZusatz); logDruck("colli", nummern.length); }
+    if (modus === "colli") { printColliEtiketten(nummern, effZusatz, kopien); logDruck("colli", nummern.length * kopien); }
     else if (modus === "text") { void druckeText(); }
     else { void druckeSchrank(); }
   }
@@ -456,6 +469,16 @@ export default function ColliEtikettenPage() {
             >
               <Plus size={16} aria-hidden /> {zusatzAktiv ? "Text ausblenden" : "Text hinzufügen"}
             </button>
+            {/* Jede Nummer zweimal. Gleiche Optik wie der Zusatztext-Schalter,
+                damit beide Optionen als das erkennbar sind, was sie sind. */}
+            <button
+              type="button"
+              onClick={() => setDoppelt((v) => !v)}
+              aria-pressed={doppelt}
+              className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-colors min-h-[44px] ${doppelt ? "bg-[#0064d2]/10 border-[#0064d2] text-[#0064d2] dark:text-[#45bdff]" : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
+            >
+              {doppelt ? "✓ " : ""}Jede Nummer zweimal
+            </button>
             <button
               type="button"
               onClick={() => setText("")}
@@ -530,6 +553,14 @@ export default function ColliEtikettenPage() {
         <h2 className="text-sm font-black uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">
           Vorschau
         </h2>
+        {/* Die Vorschau zeigt jede Nummer EINMAL, auch wenn zweimal gedruckt
+            wird. Alles doppelt anzuzeigen würde die Liste nur verdoppeln, ohne
+            etwas Neues zu zeigen. Der Hinweis sagt, was tatsächlich passiert. */}
+        {doppelt && nummern.length > 0 && (
+          <p className="text-sm font-bold text-[#0064d2] dark:text-[#45bdff]">
+            Jede Nummer wird zweimal gedruckt: {nummern.length} × 2 = {nummern.length * 2} Etiketten.
+          </p>
+        )}
         {anzahl === 0 ? (
           <div className="text-center py-16 text-[#65676b] dark:text-[#b0b3b8] border border-dashed border-[#ced4da] dark:border-[#3e4042] rounded-2xl">
             Noch keine Colli-Nummern. Oben eingeben, um Etiketten zu sehen.
@@ -541,7 +572,7 @@ export default function ColliEtikettenPage() {
                 key={`${i}-${nr}`}
                 nummer={nr}
                 zusatz={effZusatz}
-                onPrint={() => { printColliEtiketten([nr], effZusatz); logDruck("colli", 1); }}
+                onPrint={() => { printColliEtiketten([nr], effZusatz, kopien); logDruck("colli", kopien); }}
               />
             ))}
           </div>
