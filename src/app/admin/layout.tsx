@@ -37,6 +37,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/admin/buchungen",   label: "Buchungen",       icon: "📋", permission: "BUCHUNG_VIEW" },
       { href: "/admin/colli-etiketten", label: "Label Tool", icon: "🏷️", permission: "COLLI_ETIKETTEN_VIEW" },
       { href: "/admin/pickup",          label: "Pickup",     icon: "🛻", permission: "PICKUP_MANAGE" },
+      { href: "/admin/schrott",         label: "Schrottabholung", icon: "♻️", permission: "SCHROTT_VIEW" },
       // Vorübergehend: Messseite für die Teile-Erkennung. Kann raus, sobald
       // entschieden ist, ob die Kameras der Handgeräte dafür taugen.
       { href: "/admin/kameratest",      label: "Kamera-Test", icon: "📷", permission: "ARTIKEL_EINLAGERN" },

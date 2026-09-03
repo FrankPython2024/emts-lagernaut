@@ -31,7 +31,8 @@
     "seed:standort": "tsx prisma/seeds/standort-sommerda.ts",
     "reindex": "tsx src/scripts/reindex-meilisearch.ts",
     "test:abgleich": "tsx tests/modellAbgleich.test.ts",
-    "test:ocr": "tsx tests/ocrKandidat.test.ts"
+    "test:ocr": "tsx tests/ocrKandidat.test.ts",
+    "seed:schrott": "tsx prisma/scripts/seed-schrott-abfallarten.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

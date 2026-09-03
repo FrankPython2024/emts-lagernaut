@@ -75,6 +75,10 @@ const PERMISSIONS = [
   { key: "GLEICHE_GERAETE_VIEW",   kategorie: "Auswertung", bezeichnung: "Gleiches Gerät finden (LogID suchen)" },
   { key: "GLEICHE_GERAETE_IMPORT", kategorie: "Auswertung", bezeichnung: "Gleiches Gerät finden: CSV importieren" },
 
+  // Schrott-Collis: Erfassung der Abholungen für den Entsorger.
+  { key: "SCHROTT_VIEW",   kategorie: "Betrieb", bezeichnung: "Schrott-Collis einsehen" },
+  { key: "SCHROTT_MANAGE", kategorie: "Betrieb", bezeichnung: "Schrott-Collis erfassen und Abfallarten pflegen" },
+
   // System
   { key: "STRESSTEST_RUN",      kategorie: "System",      bezeichnung: "Stresstest ausführen" },
   { key: "SYSTEM_ADMIN",        kategorie: "System",      bezeichnung: "Voll-Administrator (alle Rechte)" },

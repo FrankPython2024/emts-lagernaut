@@ -216,29 +216,29 @@ model Artikel {
 // Die Sammlung füllt sich von selbst: Wer ein Modell zum ersten Mal in der
 // Hand hat, fotografiert es, alle danach sehen das Bild.
 model GeraeteFoto {
-  id          Int      @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   // Bereinigter Modellname MIT Hersteller-Präfix, z. B. „HP EliteBook 840 G5",
   // normalisiert auf Kleinschreibung ohne Sonderzeichen (siehe fotoSchluessel).
-  schluessel  String   @db.VarChar(191)
+  schluessel     String   @db.VarChar(191)
   // Mehrere Bilder je Modell: Der AfB-Shop zeigt sieben Ansichten — vorn,
   // hinten, links, rechts und die Anschlussseite. Gerade letztere hilft beim
   // Wiedererkennen im Regal mehr als die Frontansicht.
   //
   // 0 = Titelbild. Ein selbst aufgenommenes Foto belegt immer die 0 und steht
   // damit vorn, egal wie viele Katalogbilder daneben liegen.
-  position    Int      @default(0)
+  position       Int      @default(0)
   /// Was das Bild zeigt, aus dem Dateinamen abgeleitet: front, ports, back …
-  ansicht     String?  @db.VarChar(40)
+  ansicht        String?  @db.VarChar(40)
   // Anzeigename, wie er beim Anlegen aussah — nur fürs Auge.
-  anzeige     String   @db.VarChar(255)
-  mimeType    String   @db.VarChar(50)
-  daten       Bytes    @db.MediumBlob
+  anzeige        String   @db.VarChar(255)
+  mimeType       String   @db.VarChar(50)
+  daten          Bytes    @db.MediumBlob
   // SELBST = jemand hat das Gerät fotografiert. SHOP = aus dem AfB-Shop geholt.
   // Ein selbst aufgenommenes Bild darf NIE von einem Shop-Bild überschrieben
   // werden: Wer das Gerät in der Hand hatte, weiß es besser als der Katalog.
-  quelle      String   @default("SELBST") @db.VarChar(20)
-  erstelltVon String?  @db.VarChar(100)
-  erstelltAm  DateTime @default(now())
+  quelle         String   @default("SELBST") @db.VarChar(20)
+  erstelltVon    String?  @db.VarChar(100)
+  erstelltAm     DateTime @default(now())
   aktualisiertAm DateTime @updatedAt
 
   @@unique([schluessel, position])
@@ -254,21 +254,21 @@ model GeraeteFoto {
 // ⚠️ Auch eine Nummer, ueber die noch NICHTS bekannt ist, hat schon Wert: Sie
 // sagt „dieses Teil ist dasselbe wie jenes" und verhindert damit Dubletten.
 model Teilenummer {
-  id            Int      @id @default(autoincrement())
-  nummer        String   @unique @db.VarChar(120)
-  hersteller    String?  @db.VarChar(100)
-  teiltyp       String?  @db.VarChar(100)
+  id              Int     @id @default(autoincrement())
+  nummer          String  @unique @db.VarChar(120)
+  hersteller      String? @db.VarChar(100)
+  teiltyp         String? @db.VarChar(100)
   // Seriennummern sind pro Stueck einmalig und taugen NICHT als Teilenummer.
   // Erkennungshilfe: eine Nummer, die nur ein einziges Mal vorkommt, ist
   // verdaechtig. Entschieden wird das auf der Pflegeseite, nicht an der Werkbank.
   istSeriennummer Boolean @default(false)
   // true = ein Mensch hat die Modellliste bestaetigt. Erst dann gilt sie als
   // gesichert im Sinne der Zusage, Kompatibilitaeten nur sicher zu pflegen.
-  geprueft      Boolean  @default(false)
-  notiz         String?  @db.VarChar(500)
+  geprueft        Boolean @default(false)
+  notiz           String? @db.VarChar(500)
   // Wie oft wurde diese Nummer bisher gescannt/erfasst — Grundlage fuer den
   // Seriennummern-Verdacht und fuer die Sortierung der Pflegeliste.
-  sichtungen    Int      @default(0)
+  sichtungen      Int     @default(0)
 
   // ── Vergleichsfoto ────────────────────────────────────────────────────
   // Das Bild, mit dem dieses Teil erkannt wurde. Zwei Zwecke:
@@ -283,14 +283,14 @@ model Teilenummer {
   //
   // Bewusst EIN Bild je Nummer, nicht je Stueck: Es geht um das Teil, nicht
   // um das Exemplar.
-  fotoDaten     Bytes?   @db.MediumBlob
-  fotoMime      String?  @db.VarChar(50)
-  fotoAm        DateTime?
-  erstelltAm    DateTime @default(now())
-  aktualisiertAm DateTime @updatedAt
+  fotoDaten      Bytes?    @db.MediumBlob
+  fotoMime       String?   @db.VarChar(50)
+  fotoAm         DateTime?
+  erstelltAm     DateTime  @default(now())
+  aktualisiertAm DateTime  @updatedAt
 
-  artikel  Artikel[]
-  modelle  TeilenummerModell[]
+  artikel Artikel[]
+  modelle TeilenummerModell[]
 
   @@index([geprueft])
   @@index([istSeriennummer])
@@ -1327,4 +1327,89 @@ model VersandGeraet {
   @@index([logIdClean])
   @@index([bezeichnung, grading])
   @@index([stellplatz])
+}
+
+// ── Schrott-Collis ───────────────────────────────────────────────
+//
+// Erfassung der Schrottabholungen: Ein Auftrag ist eine Tabelle, jede Zeile ein
+// Colli. Am Ende geht die Tabelle als E-Mail an den Entsorger.
+//
+// ⚠️ Ein Colli zählt als EIN LKW-Stellplatz; ab 33 wird gewarnt.
+
+enum SchrottStatus {
+  OFFEN
+  VERSENDET
+  ERLEDIGT
+}
+
+/// Stammdaten. ⚠️ Eine Schlüsselnummer kann MEHRERE Abfallarten tragen
+/// (16 02 13 = Elektronikschrott gemischt UND Laptop ohne Akku). Die Richtung
+/// ist deshalb nur Abfallart → Schlüssel, niemals zurück. Aus dem Schlüssel
+/// allein lässt sich nicht sagen, was im Colli liegt.
+model SchrottAbfallart {
+  id          Int      @id @default(autoincrement())
+  /// Voller Name, wie im Abfallverzeichnis — eindeutig.
+  bezeichnung String   @unique @db.VarChar(191)
+  /// Kurzform für die Auftragstabelle ("ext. Netzt."). Muss die Arten
+  /// UNTERSCHEIDBAR halten: "Kabel" allein wäre zweideutig.
+  kurzform    String   @db.VarChar(40)
+  /// Abfallschlüssel ohne Leerzeichen ("160216").
+  schluessel  String   @db.VarChar(16)
+  /// Leergewicht des Behälters in kg. Vorschlag beim Erfassen: Netto = Brutto
+  /// minus Tara. In den Altdaten durchgängig 85 kg (Gitterbox).
+  taraKg      Int?
+  aktiv       Boolean  @default(true)
+  sortierung  Int      @default(0)
+  erstelltAm  DateTime @default(now())
+
+  collis SchrottColli[]
+
+  @@index([aktiv, sortierung])
+}
+
+model SchrottAuftrag {
+  id             Int           @id @default(autoincrement())
+  bezeichnung    String        @db.VarChar(191)
+  datum          DateTime
+  status         SchrottStatus @default(OFFEN)
+  notiz          String?       @db.Text
+  erstelltVon    String        @db.VarChar(64)
+  erstelltAm     DateTime      @default(now())
+  aktualisiertAm DateTime      @updatedAt
+
+  collis SchrottColli[]
+
+  @@index([status])
+  @@index([datum])
+}
+
+model SchrottColli {
+  id        Int            @id @default(autoincrement())
+  auftragId Int
+  auftrag   SchrottAuftrag @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+
+  /// Nur Ziffern, Punkte werden beim Erfassen entfernt ("3.202.971" → "3202971").
+  colliNummer String @db.VarChar(32)
+  abfalllager String @db.VarChar(64)
+
+  abfallartId Int
+  abfallart   SchrottAbfallart @relation(fields: [abfallartId], references: [id])
+
+  /// ⚠️ Schlüssel und Kurzform werden beim Erfassen KOPIERT, nicht bei jeder
+  /// Anzeige nachgeschlagen. Wird eine Abfallart später in den Stammdaten
+  /// geändert, darf sich ein bereits verschickter Auftrag nicht rückwirkend
+  /// ändern — er liegt beim Entsorger als Nachweis.
+  schluessel String @db.VarChar(16)
+  kurzform   String @db.VarChar(40)
+
+  bruttoKg   Int
+  nettoKg    Int
+  versandart String @db.VarChar(32)
+
+  position   Int      @default(0)
+  erfasstVon String   @db.VarChar(64)
+  erfasstAm  DateTime @default(now())
+
+  @@index([auftragId, position])
+  @@index([colliNummer])
 }
