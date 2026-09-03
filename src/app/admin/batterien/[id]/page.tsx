@@ -5,5 +5,5 @@ import { BEREICHE } from "@/lib/entsorgung/bereiche";
 
 export default function Seite() {
   const params = useParams<{ id: string }>();
-  return <EntsorgungAuftragSeite bereich={BEREICHE.SCHROTT} auftragId={Number(params?.id)} />;
+  return <EntsorgungAuftragSeite bereich={BEREICHE.BATTERIE} auftragId={Number(params?.id)} />;
 }

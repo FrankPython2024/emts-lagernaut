@@ -31,7 +31,7 @@ import { pickupRouter }             from "./pickup";
 import { lagerwagenRouter }         from "./lagerwagen";
 import { geraeteReiseRouter }       from "./geraeteReise";
 import { gleicheGeraeteRouter }     from "./gleicheGeraete";
-import { schrottRouter }            from "./schrott";
+import { entsorgungRouter }         from "./entsorgung";
 import { fehlteileRouter }          from "./fehlteile";
 import { verbrauchsmaterialRouter }  from "./verbrauchsmaterial";
 import { mobilRouter }               from "./mobil";
@@ -79,7 +79,7 @@ export const appRouter = createTRPCRouter({
   lagerwagen:        lagerwagenRouter,
   geraeteReise:      geraeteReiseRouter,
   gleicheGeraete:    gleicheGeraeteRouter,
-  schrott:           schrottRouter,
+  entsorgung:        entsorgungRouter,
   fehlteile:         fehlteileRouter,
   verbrauchsmaterial: verbrauchsmaterialRouter,
   mobil:              mobilRouter,

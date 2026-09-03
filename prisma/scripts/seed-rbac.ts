@@ -75,9 +75,10 @@ const PERMISSIONS = [
   { key: "GLEICHE_GERAETE_VIEW",   kategorie: "Auswertung", bezeichnung: "Gleiches Gerät finden (LogID suchen)" },
   { key: "GLEICHE_GERAETE_IMPORT", kategorie: "Auswertung", bezeichnung: "Gleiches Gerät finden: CSV importieren" },
 
-  // Schrott-Collis: Erfassung der Abholungen für den Entsorger.
-  { key: "SCHROTT_VIEW",   kategorie: "Betrieb", bezeichnung: "Schrott-Collis einsehen" },
-  { key: "SCHROTT_MANAGE", kategorie: "Betrieb", bezeichnung: "Schrott-Collis erfassen und Abfallarten pflegen" },
+  // Entsorgung: Schrottabholung und Batterietransport. Ein Rechtepaar für
+  // beide Bereiche — es ist derselbe Vorgang mit denselben Papieren.
+  { key: "ENTSORGUNG_VIEW",   kategorie: "Betrieb", bezeichnung: "Schrottabholung und Batterietransport einsehen" },
+  { key: "ENTSORGUNG_MANAGE", kategorie: "Betrieb", bezeichnung: "Behälter erfassen und Abfallarten pflegen" },
 
   // System
   { key: "STRESSTEST_RUN",      kategorie: "System",      bezeichnung: "Stresstest ausführen" },

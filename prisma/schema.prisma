@@ -1329,71 +1329,84 @@ model VersandGeraet {
   @@index([stellplatz])
 }
 
-// ── Schrott-Collis ───────────────────────────────────────────────
+// ── Entsorgung: Schrottabholung und Batterietransport ───────────────────
 //
-// Erfassung der Schrottabholungen: Ein Auftrag ist eine Tabelle, jede Zeile ein
-// Colli. Am Ende geht die Tabelle als E-Mail an den Entsorger.
+// Derselbe Vorgang in zwei Ausführungen: Behälter erfassen, Gewichte
+// summieren, Tabelle an den Entsorger schicken. Ein Auftrag ist eine Abholung,
+// jede Position ein Behälter (Colli bzw. Fass).
 //
-// ⚠️ Ein Colli zählt als EIN LKW-Stellplatz; ab 33 wird gewarnt.
+// ⚠️ Der Unterschied steckt allein im Feld `bereich`. Beschriftung und
+// Kapazitätsregel stehen in src/lib/entsorgung/bereiche.ts — NICHT hier
+// nachbilden, sonst driften Datenbank und Oberfläche auseinander.
 
-enum SchrottStatus {
+enum EntsorgungBereich {
+  SCHROTT
+  BATTERIE
+}
+
+enum EntsorgungStatus {
   OFFEN
   VERSENDET
   ERLEDIGT
 }
 
-/// Stammdaten. ⚠️ Eine Schlüsselnummer kann MEHRERE Abfallarten tragen
+/// Stammdaten der Abfallarten.
+///
+/// ⚠️ Eine Schlüsselnummer kann MEHRERE Abfallarten tragen
 /// (16 02 13 = Elektronikschrott gemischt UND Laptop ohne Akku). Die Richtung
 /// ist deshalb nur Abfallart → Schlüssel, niemals zurück. Aus dem Schlüssel
-/// allein lässt sich nicht sagen, was im Colli liegt.
-model SchrottAbfallart {
-  id          Int      @id @default(autoincrement())
+/// allein lässt sich nicht sagen, was im Behälter liegt.
+model EntsorgungAbfallart {
+  id          Int               @id @default(autoincrement())
+  bereich     EntsorgungBereich @default(SCHROTT)
   /// Voller Name, wie im Abfallverzeichnis — eindeutig.
-  bezeichnung String   @unique @db.VarChar(191)
+  bezeichnung String            @unique @db.VarChar(191)
   /// Kurzform für die Auftragstabelle ("ext. Netzt."). Muss die Arten
   /// UNTERSCHEIDBAR halten: "Kabel" allein wäre zweideutig.
-  kurzform    String   @db.VarChar(40)
+  kurzform    String            @db.VarChar(40)
   /// Abfallschlüssel ohne Leerzeichen ("160216").
-  schluessel  String   @db.VarChar(16)
+  schluessel  String            @db.VarChar(16)
   /// Leergewicht des Behälters in kg. Vorschlag beim Erfassen: Netto = Brutto
-  /// minus Tara. In den Altdaten durchgängig 85 kg (Gitterbox).
+  /// minus Tara. Bei den Schrott-Altdaten durchgängig 85 kg (Gitterbox).
   taraKg      Int?
-  aktiv       Boolean  @default(true)
-  sortierung  Int      @default(0)
-  erstelltAm  DateTime @default(now())
+  aktiv       Boolean           @default(true)
+  sortierung  Int               @default(0)
+  erstelltAm  DateTime          @default(now())
 
-  collis SchrottColli[]
+  positionen EntsorgungPosition[]
 
-  @@index([aktiv, sortierung])
+  @@index([bereich, aktiv, sortierung])
 }
 
-model SchrottAuftrag {
-  id             Int           @id @default(autoincrement())
-  bezeichnung    String        @db.VarChar(191)
+model EntsorgungAuftrag {
+  id             Int               @id @default(autoincrement())
+  bereich        EntsorgungBereich @default(SCHROTT)
+  bezeichnung    String            @db.VarChar(191)
   datum          DateTime
-  status         SchrottStatus @default(OFFEN)
-  notiz          String?       @db.Text
-  erstelltVon    String        @db.VarChar(64)
-  erstelltAm     DateTime      @default(now())
-  aktualisiertAm DateTime      @updatedAt
+  status         EntsorgungStatus  @default(OFFEN)
+  notiz          String?           @db.Text
+  erstelltVon    String            @db.VarChar(64)
+  erstelltAm     DateTime          @default(now())
+  aktualisiertAm DateTime          @updatedAt
 
-  collis SchrottColli[]
+  positionen EntsorgungPosition[]
 
-  @@index([status])
+  @@index([bereich, status])
   @@index([datum])
 }
 
-model SchrottColli {
-  id        Int            @id @default(autoincrement())
+model EntsorgungPosition {
+  id        Int               @id @default(autoincrement())
   auftragId Int
-  auftrag   SchrottAuftrag @relation(fields: [auftragId], references: [id], onDelete: Cascade)
+  auftrag   EntsorgungAuftrag @relation(fields: [auftragId], references: [id], onDelete: Cascade)
 
-  /// Nur Ziffern, Punkte werden beim Erfassen entfernt ("3.202.971" → "3202971").
-  colliNummer String @db.VarChar(32)
+  /// Colli- bzw. Fassnummer. Nur Ziffern, Punkte werden beim Erfassen
+  /// entfernt ("3.202.971" → "3202971").
+  nummer      String @db.VarChar(32)
   abfalllager String @db.VarChar(64)
 
   abfallartId Int
-  abfallart   SchrottAbfallart @relation(fields: [abfallartId], references: [id])
+  abfallart   EntsorgungAbfallart @relation(fields: [abfallartId], references: [id])
 
   /// ⚠️ Schlüssel und Kurzform werden beim Erfassen KOPIERT, nicht bei jeder
   /// Anzeige nachgeschlagen. Wird eine Abfallart später in den Stammdaten
@@ -1406,10 +1419,16 @@ model SchrottColli {
   nettoKg    Int
   versandart String @db.VarChar(32)
 
+  /// Nur beim Batterietransport: UN 3090 (Lithium-Metall) oder UN 3480
+  /// (Lithium-Ionen), wie es auf dem Fass steht. Das ist die
+  /// Transportkennzeichnung nach ADR und etwas anderes als der
+  /// Abfallschlüssel — beide gehören auf die Papiere.
+  unNummer String? @db.VarChar(8)
+
   position   Int      @default(0)
   erfasstVon String   @db.VarChar(64)
   erfasstAm  DateTime @default(now())
 
   @@index([auftragId, position])
-  @@index([colliNummer])
+  @@index([nummer])
 }
