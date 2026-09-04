@@ -21,6 +21,9 @@ type AktivArtikel = {
   mindestbestand:    number;
   letztesZaehldatum: Date | string | null;
   status:            "OK" | "NACHBESTELLEN";
+  // false = von der Wochenzählung ausgenommen. Zählen bleibt erlaubt, die Seite
+  // sagt nur Bescheid — wer bewusst scannt, hat meist einen Grund.
+  zaehlpflichtig:    boolean;
   // null = diese Woche noch nicht gezählt; sonst der bereits erfasste Wochenstand.
   wocheBereits:      { bestand: number } | null;
 };
@@ -136,7 +139,9 @@ export default function ZaehlenPage() {
     aktuellerBestand: number; mindestbestand: number; status: "OK" | "NACHBESTELLEN";
   }) {
     // Suche/Offen-Liste tragen keinen Wochenstand → als Erstzählung behandeln.
-    setAktiv({ ...a, letztesZaehldatum: null, wocheBereits: null });
+    // Aus der Offen-Liste kann nur Zählpflichtiges kommen, aus der Suche auch
+    // Ausgenommenes — dort ist der Hinweis eine Fehlgriff-Sicherung.
+    setAktiv({ zaehlpflichtig: true, ...a, letztesZaehldatum: null, wocheBereits: null });
     setModus("ersetzen");
     setBestand("");
     setFeedback(null);
@@ -297,6 +302,23 @@ export default function ZaehlenPage() {
             >×</button>
           </div>
 
+          {/* Von der Wochenzählung ausgenommen. Kein Verbot — nur ein Hinweis,
+              damit niemand aus Versehen eine Position abarbeitet, die bewusst
+              aus dem Rundgang genommen wurde. */}
+          {!aktiv.zaehlpflichtig && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="rounded-xl border-2 p-3 text-base font-bold"
+              style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.08)", color: "#BA7517" }}
+            >
+              ⃠ Diese Position gehört nicht zur wöchentlichen Zählung.
+              <span className="block text-sm font-semibold mt-1">
+                Du kannst sie trotzdem zählen. Sie zählt nur nicht in den Wochenfortschritt.
+              </span>
+            </div>
+          )}
+
           {/* Schon diese Woche erfasst → Modus-Wahl: dazuzählen oder ersetzen */}
           {aktiv.wocheBereits && (
             <div className="rounded-xl border-2 p-3 space-y-3" style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.08)" }}>
@@ -450,6 +472,13 @@ export default function ZaehlenPage() {
           {dieseWocheQ.data && (
             <span className="text-sm font-bold text-[#008BD2] dark:text-[#45bdff]">
               {dieseWocheQ.data.anzahl} / {dieseWocheQ.data.aktiveGesamt}
+              {/* Erklärt, warum der Nenner kleiner ist als die Artikelzahl —
+                  sonst wirkt die Zahl wie ein Fehler. */}
+              {dieseWocheQ.data.ausgenommenGesamt > 0 && (
+                <span className="block text-xs font-semibold text-[#65676b] dark:text-[#b0b3b8] text-right">
+                  {dieseWocheQ.data.ausgenommenGesamt} ohne Zählung
+                </span>
+              )}
             </span>
           )}
         </div>
@@ -463,7 +492,12 @@ export default function ZaehlenPage() {
               <li key={e.artikelId} className="flex items-center gap-3 px-4 py-2.5">
                 <span className="text-[#04B475]" aria-hidden>✓</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{e.name}</span>
+                  <span className="block text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] truncate">
+                    {e.name}
+                    {e.ausgenommen && (
+                      <span className="ml-1 text-xs font-bold text-[#BA7517]">⃠ ohne Zählung</span>
+                    )}
+                  </span>
                   <span className="block text-xs text-[#65676b] dark:text-[#b0b3b8]">
                     {fmtZeit(e.datum)}{e.benutzer ? ` · ${e.benutzer}` : ""}{e.verbrauch > 0 ? ` · Verbrauch ${e.verbrauch}` : ""}
                   </span>

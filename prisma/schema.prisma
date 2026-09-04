@@ -1015,6 +1015,18 @@ model VerbrauchsArtikel {
   standort         String?                 @db.VarChar(191)
   bemerkung        String?                 @db.Text
   aktiv            Boolean                 @default(true)
+  // ── Von der wöchentlichen Zählung ausgenommen ─────────────────────────────
+  // NICHT dasselbe wie `aktiv`. `aktiv = false` ist der Soft-Delete: der Artikel
+  // verschwindet aus Liste, Nachbestell-Vorschlag und Kennzahlen. Hier geht es
+  // um Positionen, die weiterleben und weiter bestellt werden, bei denen das
+  // wöchentliche Nachzählen aber keinen Sinn ergibt — Dauerbestände, extern
+  // geführte Positionen, Dinge die stückweise nicht zählbar sind.
+  //
+  // Wirkt NUR auf den Wochen-Zählweg (`dieseWoche`: Fortschritt X/Y und die
+  // Liste „noch offen"). Wer den QR-Code trotzdem scannt, darf zählen — die
+  // Zählung wird dann als „ausgenommen" gekennzeichnet und zählt nicht in den
+  // Wochenfortschritt, sonst wäre X größer als Y.
+  zaehlpflichtig   Boolean                 @default(true)
   erstelltAm       DateTime                @default(now())
   aktualisiertAm   DateTime                @updatedAt
   zaehlungen       VerbrauchsZaehlung[]

@@ -63,7 +63,7 @@ function bereinige(f: RoheFelder) {
 // Artikel anlegen + Code aus der frischen id ableiten (2-Schritt, transaktional).
 async function createMitCode(
   tx: Prisma.TransactionClient,
-  data: ReturnType<typeof bereinige>,
+  data: ReturnType<typeof bereinige> & { zaehlpflichtig?: boolean },
 ) {
   const created = await tx.verbrauchsArtikel.create({
     // temporär eindeutiger Platzhalter, sofort durch vmCode(id) ersetzt
@@ -112,6 +112,11 @@ const positionInput = z.object({
   gebindegroesse:   z.number().int().positive().nullish(),
   standort:         z.string().nullish(),
   bemerkung:        z.string().nullish(),
+  // ⚠️ Bewusst OHNE .default(): `importBestand` nutzt dasselbe Schema, und die
+  // Excel kennt die Spalte nicht. Mit einem Vorgabewert würde jeder Bestands-
+  // Import alle von der Zählung ausgenommenen Positionen still zurücksetzen.
+  // undefined heißt hier „nicht angefasst", nicht „true".
+  zaehlpflichtig:   z.boolean().optional(),
 });
 
 export const verbrauchsmaterialRouter = createTRPCRouter({
@@ -208,6 +213,9 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
           aktuellerBestand:  a.aktuellerBestand, // = letzter Bestand
           mindestbestand:    a.mindestbestand,
           aktiv:             a.aktiv,
+          // Handheld weist darauf hin, dass diese Position eigentlich nicht zur
+          // Wochenzählung gehört. Gezählt werden darf sie trotzdem.
+          zaehlpflichtig:    a.zaehlpflichtig,
           letztesZaehldatum: letzte?.datum ?? null,
           status:            status(a.aktuellerBestand, a.mindestbestand),
           // null = diese Woche noch nicht gezählt; sonst der bisher erfasste Wochenstand.
@@ -276,13 +284,16 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
   dieseWoche: view.query(async () => {
     const start = wochenStart();
 
-    const [zaehlungen, aktiveGesamt] = await Promise.all([
+    const [zaehlungen, aktiveGesamt, ausgenommenGesamt] = await Promise.all([
       prisma.verbrauchsZaehlung.findMany({
         where:   { datum: { gte: start } },
         orderBy: { datum: "desc" },
-        include: { artikel: { select: { name: true, code: true } } },
+        include: { artikel: { select: { name: true, code: true, zaehlpflichtig: true } } },
       }),
-      prisma.verbrauchsArtikel.count({ where: { aktiv: true } }),
+      // Nenner des Wochenfortschritts: nur die Positionen, die wirklich gezählt
+      // werden sollen. Ausgenommene dürfen X/Y nicht unerreichbar machen.
+      prisma.verbrauchsArtikel.count({ where: { aktiv: true, zaehlpflichtig: true } }),
+      prisma.verbrauchsArtikel.count({ where: { aktiv: true, zaehlpflichtig: false } }),
     ]);
 
     // Jüngste Zählung je Artikel (Liste ist bereits absteigend sortiert).
@@ -299,18 +310,24 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
         verbrauch: z.verbrauch,
         datum:     z.datum,
         benutzer:  z.benutzer,
+        // Jemand hat eine ausgenommene Position trotzdem gescannt. Die Zählung
+        // ist gültig und bleibt sichtbar, zählt aber nicht in den Fortschritt —
+        // sonst könnte X größer werden als Y.
+        ausgenommen: !z.artikel.zaehlpflichtig,
       });
     }
 
-    // Noch offen: aktive Artikel, die diese Woche keine Zählung haben. notIn mit
-    // leerem Array ist in Prisma unkritisch (= keine Ausschlüsse).
+    // Noch offen: zählpflichtige aktive Artikel ohne Zählung diese Woche. notIn
+    // mit leerem Array ist in Prisma unkritisch (= keine Ausschlüsse).
     const offen = await prisma.verbrauchsArtikel.findMany({
-      where:   { aktiv: true, id: { notIn: [...gesehen] } },
+      where:   { aktiv: true, zaehlpflichtig: true, id: { notIn: [...gesehen] } },
       select:  { id: true, code: true, name: true, kategorie: true, standort: true, aktuellerBestand: true, mindestbestand: true },
       orderBy: [{ kategorie: "asc" }, { name: "asc" }],
     });
 
-    return { erfasst, anzahl: erfasst.length, aktiveGesamt, offen, offenAnzahl: offen.length };
+    const anzahl = erfasst.filter((e) => !e.ausgenommen).length;
+
+    return { erfasst, anzahl, aktiveGesamt, ausgenommenGesamt, offen, offenAnzahl: offen.length };
   }),
 
   // ── Auswertung (alles MATERIAL_VIEW) ────────────────────────────────────────
@@ -403,7 +420,9 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const data = bereinige(input);
       if (!data.name) throw new TRPCError({ code: "BAD_REQUEST", message: "Name fehlt" });
-      const artikel = await prisma.$transaction((tx) => createMitCode(tx, data));
+      const artikel = await prisma.$transaction((tx) =>
+        createMitCode(tx, { ...data, zaehlpflichtig: input.zaehlpflichtig ?? true }),
+      );
       return { id: artikel.id, code: artikel.code };
     }),
 
@@ -414,7 +433,13 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
       const { id, ...rest } = input;
       const data = bereinige(rest);
       if (!data.name) throw new TRPCError({ code: "BAD_REQUEST", message: "Name fehlt" });
-      await prisma.verbrauchsArtikel.update({ where: { id }, data });
+      await prisma.verbrauchsArtikel.update({
+        where: { id },
+        // Nur setzen, wenn das Formular es mitgeschickt hat (siehe positionInput).
+        data: rest.zaehlpflichtig === undefined
+          ? data
+          : { ...data, zaehlpflichtig: rest.zaehlpflichtig },
+      });
       return { ok: true };
     }),
 
@@ -508,6 +533,19 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
     .input(z.object({ id: z.number().int().positive(), aktiv: z.boolean() }))
     .mutation(async ({ input }) => {
       await prisma.verbrauchsArtikel.update({ where: { id: input.id }, data: { aktiv: input.aktiv } });
+      return { ok: true };
+    }),
+
+  // Von der Wochenzählung ausnehmen bzw. wieder aufnehmen. Bewusst getrennt von
+  // `setAktiv`: Der Artikel bleibt in Liste, Nachbestell-Vorschlag und
+  // Kennzahlen, er taucht nur im wöchentlichen Zählweg nicht mehr auf.
+  setZaehlpflicht: manage
+    .input(z.object({ id: z.number().int().positive(), zaehlpflichtig: z.boolean() }))
+    .mutation(async ({ input }) => {
+      await prisma.verbrauchsArtikel.update({
+        where: { id: input.id },
+        data:  { zaehlpflichtig: input.zaehlpflichtig },
+      });
       return { ok: true };
     }),
 

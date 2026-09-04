@@ -24,6 +24,7 @@ type Artikel = {
   standort:         string | null;
   bemerkung:        string | null;
   aktiv:            boolean;
+  zaehlpflichtig:   boolean;
   status:           "OK" | "NACHBESTELLEN";
   hatBild:          boolean;
   bildStand:        number | null; // ms-Zeitstempel als Cache-Buster (null = kein Foto)
@@ -384,7 +385,18 @@ export default function VerbrauchsmaterialPage() {
                       </button>
                     </td>
                     <td className="py-2.5 px-4">
-                      <div className="font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">{a.name}</div>
+                      <div className="font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] flex items-center gap-2 flex-wrap">
+                        {a.name}
+                        {/* Kennzeichnung mit Symbol UND Wort, nie nur über Farbe. */}
+                        {!a.zaehlpflichtig && (
+                          <span
+                            title="Diese Position wird beim wöchentlichen Zählen nicht abgefragt"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-[#f7b928]/18 text-[#8A5A00] dark:text-[#f7b928] whitespace-nowrap"
+                          >
+                            ⃠ Ohne Zählung
+                          </span>
+                        )}
+                      </div>
                       {a.merkmale && <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{a.merkmale}</div>}
                     </td>
                     <td className="py-2.5 px-4 text-[#65676b] dark:text-[#b0b3b8]">{a.kategorie ?? "—"}</td>
@@ -487,6 +499,8 @@ function ArtikelForm({
   const [standort, setStandort]         = useState(artikel?.standort ?? "");
   const [aan, setAan]                   = useState(artikel?.aan ?? "");
   const [mindestbestand, setMindest]    = useState(String(artikel?.mindestbestand ?? 0));
+  // Neue Positionen werden gezählt — Ausnehmen ist die bewusste Entscheidung.
+  const [zaehlpflichtig, setZaehlpflichtig] = useState(artikel?.zaehlpflichtig ?? true);
   const [aktuellerBestand, setBestand]  = useState(String(artikel?.aktuellerBestand ?? 0));
   const [gebindegroesse, setGebinde]    = useState(artikel?.gebindegroesse != null ? String(artikel.gebindegroesse) : "");
   const [bemerkung, setBemerkung]       = useState(artikel?.bemerkung ?? "");
@@ -579,6 +593,7 @@ function ArtikelForm({
       aktuellerBestand: toNum(aktuellerBestand),
       gebindegroesse:   gebindegroesse.trim() ? toNum(gebindegroesse) : null,
       bemerkung:        bemerkung.trim() || null,
+      zaehlpflichtig,
     };
     try {
       // 1) Stammdaten speichern (für „Neu" brauchen wir die frische id fürs Foto).
@@ -701,6 +716,29 @@ function ArtikelForm({
             <span className={labelCls}>Bemerkung</span>
             <textarea value={bemerkung} onChange={(e) => setBemerkung(e.target.value)} rows={3} className={inputCls.replace("min-h-[56px]", "min-h-[80px] py-2")} placeholder="optional" />
           </label>
+
+          {/* Wochenzählung — bewusst als eigener Block, nicht als kleines Häkchen
+              zwischen den Zahlenfeldern: Es ist eine Entscheidung über den
+              Arbeitsablauf, keine Stammdatenangabe. */}
+          <div className="sm:col-span-2 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] p-4">
+            <label className="flex items-start gap-3 cursor-pointer min-h-[56px]">
+              <input
+                type="checkbox"
+                checked={!zaehlpflichtig}
+                onChange={(e) => setZaehlpflichtig(!e.target.checked)}
+                className="mt-1 w-6 h-6 accent-[#0064d2] shrink-0"
+              />
+              <span>
+                <span className="block font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                  Von der wöchentlichen Zählung ausnehmen
+                </span>
+                <span className="block text-sm text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
+                  Die Position bleibt normal in der Liste und im Nachbestell-Vorschlag.
+                  Sie taucht nur beim wöchentlichen Zählen nicht mehr auf.
+                </span>
+              </span>
+            </label>
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-[#ced4da] dark:border-[#3e4042] sticky bottom-0 bg-white dark:bg-[#242526]">
@@ -812,6 +850,10 @@ function ArtikelInfo({
             <InfoFeld label="Standort"       wert={artikel.standort} />
             <InfoFeld label="Bestand"        wert={String(artikel.aktuellerBestand)} />
             <InfoFeld label="Mindestbestand" wert={String(artikel.mindestbestand)} />
+            <InfoFeld
+              label="Wochenzählung"
+              wert={artikel.zaehlpflichtig ? "wird gezählt" : "⃠ ausgenommen"}
+            />
           </dl>
         </div>
 
