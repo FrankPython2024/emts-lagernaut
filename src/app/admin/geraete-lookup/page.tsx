@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useDebounce } from "use-debounce";
 import { api } from "@/trpc/react";
+import { Geraeteakte } from "./Geraeteakte";
 
 const HISTORY_KEY = "logid_search_history";
 const HISTORY_MAX = 10;
@@ -236,6 +237,11 @@ export default function GeraeteLookupPage() {
           )}
         </div>
       )}
+
+      {/* Geräteakte — was ist in dieses Gerät gegangen, was kam heraus.
+          Bewusst unabhängig davon, ob die LogID in GeraeteLookup steht: Die
+          Teile-Vorgänge existieren auch für Geräte, die nie importiert wurden. */}
+      {isReady && <Geraeteakte logId={searchValue} />}
 
       {/* Letzte Suchen */}
       {history.length > 0 && (

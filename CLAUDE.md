@@ -164,6 +164,18 @@ EOF
   still den ganzen `createMany`-Batch. `bereinigePositionsFelder()` cappt defensiv
   (colli/stellplatz→191, bezeichnung→2000; logId nie cappen).
 - **Anfrage hat keinen `modellId`-FK** — Bestell-Empfehlung aggregiert per `geraeteName`-String.
+- **Die Teile-Kette hat ZWEI Enden und eine Mitte.** `Buchung.herkunftLogId` = Spendergerät,
+  `Anfrage.logId` = Zielgerät, **`Buchung.anfrageId`** = die Verbindung dazwischen. Ohne die
+  Mitte war „in welchem Gerät steckt dieses Teil?" nicht beantwortbar. Gesetzt an **allen vier**
+  Buchungsstellen (`auslagern.teile` schreibt direkt in der TX, `anfragen.setStatus`,
+  `anfragen.erledigenMitLogId`, `schliesseAnfrageAb`) — **auch bei DIREKT**, denn ein
+  Pass-Through-Teil wird genauso verbaut. `onDelete: SetNull`: eine gelöschte Anfrage darf nie
+  eine Buchung mitnehmen, sonst reißt `syncBestandAusHistorie()`.
+  ⚠️ **Die Kette ist artikelweise, nicht stückweise.** Vom Spender vorwärts („wo ist dieses
+  Teil gelandet") gibt es nur **Kandidaten**: Ein geerntetes Teil liegt im Bestand seines
+  Artikels und ist dort nicht mehr unterscheidbar. Im UI (`Geraeteakte.tsx`) sind belegte und
+  geratene Blöcke deshalb getrennt und unterschiedlich gekennzeichnet — wer das zusammenzieht,
+  behauptet mehr, als die Daten hergeben.
 - **Socket.io-Panel ≠ Auth-State.** Sockets bestehen bis Tab-Reload, unabhängig vom Token.
 - **Geräte-Import:** nur HP, Lenovo, Dell, Fujitsu (typo-tolerant; HPE explizit abgelehnt =
   Server). Modellnummern bleiben erhalten ("Precision 7530"); Marketing-Text raus.

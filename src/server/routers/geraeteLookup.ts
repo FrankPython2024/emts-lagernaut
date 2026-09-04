@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { BuchungsTyp } from "@prisma/client";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/server/trpc";
 import { prisma }                    from "@/core/db/prisma";
+import { normalizeLogId, logIdClean } from "@/lib/format/logId";
 import { queues }                    from "@/modules/jobs/worker";
 import { STANDARD_TEILTYPEN }        from "@/lib/constants/teiltypen";
 import { normalisiereHersteller,
@@ -43,6 +45,158 @@ export const geraeteLookupRouter = createTRPCRouter({
         logId:       eintrag.logId,
         bereinigt:   eintrag.bereinigt,
         hersteller:  extractHersteller(eintrag.bereinigt),
+      };
+    }),
+
+  /**
+   * Geräteakte zu einer LogID — beide Richtungen der Teile-Kette.
+   *
+   * ⚠️ Die beiden Richtungen sind UNTERSCHIEDLICH verlässlich, und das muss im
+   * UI sichtbar bleiben:
+   *
+   *   `verbaut`  — belegt. Ein Techniker hat für GENAU dieses Gerät ein Teil
+   *                angefragt, und darauf gibt es eine Ausgabe-Buchung. Die
+   *                Verbindung ist seit `Buchung.anfrageId` hart gespeichert.
+   *
+   *   `geerntet` — belegt. EINGANG-Buchungen mit diesem Gerät als Spender.
+   *
+   *   `moeglicheZiele` — NUR KANDIDATEN, kein Beleg. Ein geerntetes Teil geht in
+   *                den Bestand seines Artikels und ist dort von jedem anderen
+   *                Stück desselben Artikels nicht mehr unterscheidbar. Wir können
+   *                deshalb nur sagen: „Aus diesem Spender kamen Teile auf Artikel
+   *                X, und Artikel X ging danach an diese Geräte." Wer daraus einen
+   *                Einzelnachweis macht, behauptet mehr, als die Daten hergeben.
+   *                Zeitfilter ab der ersten Ernte, damit wenigstens Ausgaben VOR
+   *                der Einlagerung nicht als mögliches Ziel erscheinen.
+   */
+  akte: protectedProcedure
+    .input(z.object({ logId: z.string().trim().min(1).max(60) }))
+    .query(async ({ input }) => {
+      // Mit und ohne Punkte suchen: der Handscanner liefert „212965142",
+      // gespeichert ist meist „212.965.142".
+      const varianten = [...new Set([
+        input.logId.trim(),
+        normalizeLogId(input.logId),
+        logIdClean(input.logId),
+      ])].filter((v) => v.length > 0);
+
+      // ── Richtung A: Was wurde in dieses Gerät eingebaut? ────────────────────
+      // Test-Anfragen bleiben draußen — sie erzeugen keine echte Ausgabe.
+      const anfragen = await prisma.anfrage.findMany({
+        where:  { logId: { in: varianten }, testModus: false },
+        select: {
+          id: true, datum: true, techniker: true, teil: true, menge: true,
+          geraeteName: true, istSonderAnfrage: true, status: true,
+          buchungen: {
+            select: {
+              id: true, datum: true, typ: true, menge: true, bezeichnung: true,
+              mitarbeiter: true, herkunftLogId: true,
+              artikel: {
+                select: {
+                  id: true, kategorie: true,
+                  teilenummer: { select: { nummer: true } },
+                },
+              },
+            },
+            orderBy: { datum: "asc" },
+          },
+        },
+        orderBy: { datum: "desc" },
+        take:    200,
+      });
+
+      const verbaut = anfragen.flatMap((a) =>
+        a.buchungen.map((b) => ({
+          buchungId:   b.id,
+          datum:       b.datum,
+          typ:         b.typ,
+          menge:       b.menge,
+          bezeichnung: b.bezeichnung,
+          kategorie:   b.artikel?.kategorie ?? null,
+          teilenummer: b.artikel?.teilenummer?.nummer ?? null,
+          ausgegebenVon: b.mitarbeiter,
+          spenderLogId:  b.herkunftLogId,
+          anfrageId:   a.id,
+          techniker:   a.techniker,
+          angefragtAm: a.datum,
+        })),
+      ).sort((x, y) => y.datum.getTime() - x.datum.getTime());
+
+      // Anfragen ohne Buchung: angefragt, aber nie ein Teil bekommen. Gehört in
+      // die Akte — „nichts eingebaut" ist auch eine Aussage über das Gerät.
+      const offen = anfragen
+        .filter((a) => a.buchungen.length === 0)
+        .map((a) => ({
+          anfrageId: a.id, datum: a.datum, teil: a.teil, menge: a.menge,
+          techniker: a.techniker, status: a.status, istSonderAnfrage: a.istSonderAnfrage,
+        }));
+
+      // ── Richtung B: Was wurde aus diesem Gerät geerntet? ────────────────────
+      const geerntet = await prisma.buchung.findMany({
+        where:  { typ: BuchungsTyp.EINGANG, herkunftLogId: { in: varianten } },
+        select: {
+          id: true, datum: true, bezeichnung: true, menge: true,
+          mitarbeiter: true, artikelId: true, herkunftArt: true,
+          artikel: { select: { kategorie: true } },
+        },
+        orderBy: { datum: "desc" },
+        take:    200,
+      });
+
+      // ── Richtung B2: Wohin KÖNNTEN diese Teile gegangen sein? ───────────────
+      let moeglicheZiele: {
+        datum: Date; bezeichnung: string; menge: number;
+        zielLogId: string; zielGeraet: string | null; techniker: string; anfrageId: number;
+      }[] = [];
+
+      if (geerntet.length > 0) {
+        const artikelIds = [...new Set(geerntet.map((g) => g.artikelId))];
+        const abErnte    = geerntet.reduce(
+          (min, g) => (g.datum < min ? g.datum : min),
+          geerntet[0]!.datum,
+        );
+
+        const ausgaben = await prisma.buchung.findMany({
+          where: {
+            artikelId: { in: artikelIds },
+            typ:       { in: [BuchungsTyp.AUSGANG, BuchungsTyp.DIREKT] },
+            anfrageId: { not: null },
+            datum:     { gte: abErnte },
+          },
+          select: {
+            datum: true, bezeichnung: true, menge: true,
+            anfrage: { select: { id: true, logId: true, geraeteName: true, techniker: true } },
+          },
+          orderBy: { datum: "desc" },
+          take:    200,
+        });
+
+        moeglicheZiele = ausgaben
+          .filter((b) => b.anfrage !== null && !varianten.includes(b.anfrage.logId))
+          .map((b) => ({
+            datum:       b.datum,
+            bezeichnung: b.bezeichnung,
+            menge:       b.menge,
+            zielLogId:   b.anfrage!.logId,
+            zielGeraet:  b.anfrage!.geraeteName,
+            techniker:   b.anfrage!.techniker,
+            anfrageId:   b.anfrage!.id,
+          }));
+      }
+
+      return {
+        verbaut,
+        offen,
+        geerntet: geerntet.map((g) => ({
+          buchungId:   g.id,
+          datum:       g.datum,
+          bezeichnung: g.bezeichnung,
+          kategorie:   g.artikel?.kategorie ?? null,
+          menge:       g.menge,
+          erfasstVon:  g.mitarbeiter,
+          herkunftArt: g.herkunftArt,
+        })),
+        moeglicheZiele,
       };
     }),
 
