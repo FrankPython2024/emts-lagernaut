@@ -347,6 +347,27 @@ model Buchung {
   // Auswertung „was ging wohin". null = normaler Vorgang im eigenen Haus.
   niederlassungId Int?
   niederlassung   Niederlassung? @relation(fields: [niederlassungId], references: [id])
+  // ── Die andere Hälfte der Kette: WOHIN ist das Teil gegangen? ──────────────
+  // `herkunftLogId` oben sagt, aus welchem Spendergerät ein Teil kam. Hier steht
+  // die Anfrage, die diese Ausgabe ausgelöst hat — und über `Anfrage.logId` damit
+  // das ZIELGERÄT, in das der Techniker das Teil eingebaut hat.
+  //
+  // Ohne diese Spalte war die Frage „in welchem Gerät steckt dieses Teil heute?"
+  // nicht beantwortbar: Beide Enden waren gespeichert, die Verbindung dazwischen
+  // nur als Freitext in `notiz` („Anfrage #123"). Gebraucht wird sie für
+  // Rückruf-Selektion (welche Geräte haben ein Teil aus Spendergerät X) und für
+  // den Nachweis der Ersatzteil-Herkunft je ausgeliefertem Gerät.
+  //
+  // Wird bei AUSGANG **und** DIREKT gesetzt — auch ein Pass-Through-Teil wird
+  // physisch verbaut und gehört in die Kette; der Bestand bleibt davon unberührt.
+  // null = Einlagerung, Abgabe an eine Niederlassung, oder Altdaten vor der
+  // Einführung (für die greift das Nachtrag-Skript über die Notiz).
+  //
+  // onDelete: SetNull ist Absicht: Eine gelöschte Anfrage darf NIEMALS eine
+  // Buchung mitnehmen — die Bestandshistorie ist die Grundlage von
+  // `syncBestandAusHistorie()` und muss lückenlos bleiben.
+  anfrageId       Int?
+  anfrage         Anfrage?       @relation(fields: [anfrageId], references: [id], onDelete: SetNull)
   artikel         Artikel        @relation(fields: [artikelId], references: [id])
   createdAt       DateTime       @default(now())
 
@@ -356,6 +377,7 @@ model Buchung {
   @@index([herkunftLogId])
   @@index([herkunftArt])
   @@index([niederlassungId])
+  @@index([anfrageId])
 }
 
 // ── Niederlassungen (Empfänger von Material-Abgaben) ─────────────────────────
@@ -415,6 +437,10 @@ model Anfrage {
   // DIREKT). Bleibt in Admin-Liste + Activity-Log sichtbar (markiert).
   testModus        Boolean       @default(false)
   artikel          Artikel?      @relation(fields: [artikelId], references: [id])
+  // Die Ausgabe-Buchungen zu dieser Anfrage. In aller Regel genau eine; eine
+  // Liste, weil eine Anfrage aus dem Pool-Partner bedient oder nachträglich
+  // korrigiert worden sein kann.
+  buchungen        Buchung[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 

@@ -327,6 +327,8 @@ export const anfragenRouter = createTRPCRouter({
                 menge:       anfrage.menge,
                 typ:         BuchungsTyp.AUSGANG,
                 mitarbeiter: user.kuerzel,
+                // Kette zum Zielgerät (siehe Buchung.anfrageId im Schema).
+                anfrageId:   input.id,
                 notiz:       buchenAuf === anfrage.artikelId
                   ? `Anfrage #${input.id}`
                   : `Anfrage #${input.id} | aus Pool-Partner entnommen`,
@@ -415,6 +417,8 @@ export const anfragenRouter = createTRPCRouter({
             mitarbeiter:  user.kuerzel,
             notiz:        `Anfrage #${input.id}`,
             herkunftLogId: input.logId.trim() || null,  // Spender-LogID speichern
+            // Kette zum Zielgerät (siehe Buchung.anfrageId im Schema).
+            anfrageId:    input.id,
           });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);

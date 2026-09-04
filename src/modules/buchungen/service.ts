@@ -24,6 +24,10 @@ export type BucheLagerData = {
   herkunftLogId?: string | null;
   // "SPENDER" (aus Altgerät geerntet) oder "DRUCK" (selbst gedruckt).
   herkunftArt?:   string | null;
+  // Die Anfrage, die diese Ausgabe ausgelöst hat. Über `Anfrage.logId` hängt
+  // daran das Zielgerät — damit ist nachvollziehbar, wo ein Teil gelandet ist.
+  // Nur bei AUSGANG/DIREKT aus dem Anfragen-Weg gesetzt.
+  anfrageId?:     number | null;
 };
 
 /**
@@ -98,6 +102,7 @@ export async function bucheLager(data: BucheLagerData): Promise<Buchung> {
         notiz:       data.notiz,
         herkunftLogId: data.herkunftLogId ?? null,
         herkunftArt:   data.herkunftArt   ?? null,
+        anfrageId:     data.anfrageId     ?? null,
       },
     });
 

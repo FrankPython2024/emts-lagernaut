@@ -416,7 +416,8 @@ export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
 
   // Test-Anfragen: Sicherheitsgurt — keine AUSGANG-Buchung, kein Bestand-Effekt.
   if (anfrage.artikelId && !anfrage.testModus) {
-    await bucheLager({ artikelId: anfrage.artikelId, menge: anfrage.menge, typ: BuchungsTyp.AUSGANG, mitarbeiter, notiz: `Anfrage #${id}` });
+    // anfrageId: Kette zum Zielgerät (siehe Buchung.anfrageId im Schema).
+    await bucheLager({ artikelId: anfrage.artikelId, menge: anfrage.menge, typ: BuchungsTyp.AUSGANG, mitarbeiter, notiz: `Anfrage #${id}`, anfrageId: id });
   }
   await prisma.anfrage.update({
     where: { id },

@@ -412,6 +412,11 @@ export const auslagernRouter = createTRPCRouter({
               typ:         buchungsTyp,
               menge:       anfrage.menge,
               mitarbeiter: user.kuerzel,
+              // Verbindung zum Zielgerät: über die Anfrage hängt an dieser Buchung
+              // die LogID des Geräts, in das der Techniker das Teil einbaut.
+              // Auch bei DIREKT gesetzt — das Teil wird verbaut, nur der Bestand
+              // bleibt unberührt.
+              anfrageId,
               notiz:       ausPool
                 ? `${notizTeile} | aus Pool-Partner für „${anfrage.artikel.bezeichnung}"`
                 : notizTeile,
