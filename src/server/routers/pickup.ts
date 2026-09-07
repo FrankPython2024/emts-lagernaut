@@ -127,6 +127,40 @@ export const pickupRouter = createTRPCRouter({
 
   // Auftrag aus importierten Positionen anlegen. Server-seitig nochmal nach
   // normalisiertem logId deduppen. Transaktional.
+  /**
+   * Welche dieser LogIDs stehen schon auf einem OFFENEN Auftrag?
+   *
+   * Der Technik-Export wird immer wieder neu eingelesen. Ohne diese Prüfung
+   * stünde ein Gerät, das beim letzten Import schon eingeplant war, beim
+   * nächsten Mal ein zweites Mal auf einer Abholliste — und jemand liefe
+   * hinterher, obwohl es längst auf dem Wagen liegt.
+   *
+   * Abgeschlossene Aufträge zählen bewusst NICHT: Was dort steht, ist erledigt,
+   * und wenn ein Gerät wieder im Export auftaucht, gehört es wieder abgeholt.
+   */
+  bereitsOffen: pickupManage
+    .input(z.object({ logIds: z.array(z.string()).min(1).max(5000) }))
+    .query(async ({ input }) => {
+      const gesucht = [...new Set(input.logIds.map(normalizeLogId).filter(Boolean))];
+      if (gesucht.length === 0) return { treffer: [] };
+
+      const rows = await prisma.pickupPosition.findMany({
+        where:  { logId: { in: gesucht }, auftrag: { status: "offen" } },
+        select: { logId: true, status: true, auftrag: { select: { id: true, name: true } } },
+      });
+
+      return {
+        treffer: rows.map((r) => ({
+          logId:      r.logId,
+          auftragId:  r.auftrag.id,
+          auftrag:    r.auftrag.name,
+          // GEFUNDEN heißt: liegt schon auf dem Wagen. OFFEN heißt: eingeplant,
+          // aber noch nicht geholt. Beides ist ein Grund, nicht neu einzuplanen.
+          schonGefunden: r.status === "GEFUNDEN",
+        })),
+      };
+    }),
+
   erstellen: pickupManage
     .input(z.object({
       name:       z.string().trim().min(1).max(200),

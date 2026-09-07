@@ -112,6 +112,12 @@ export default function PickupListePage() {
             🛒 Lagerwagen-Zuordnung
           </Link>
           <Link
+            href="/admin/pickup/technik"
+            className="inline-flex items-center gap-2 px-5 rounded-xl bg-white dark:bg-[#242526] border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] text-sm font-bold hover:border-[#008BD2] transition-colors shadow-sm min-h-[56px]"
+          >
+            🔧 Abholung aus der Technik
+          </Link>
+          <Link
             href="/admin/pickup/neu"
             className="inline-flex items-center gap-2 px-5 rounded-xl bg-[#008BD2] text-white text-sm font-bold hover:bg-[#0077b5] transition-colors shadow-sm min-h-[56px]"
           >
