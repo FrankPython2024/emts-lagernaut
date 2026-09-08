@@ -9,6 +9,7 @@ import { StepLosesTeil }   from "./StepLosesTeil";
 import { StepFotoErkennen, type ErkanntesTeil } from "./StepFotoErkennen";
 import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
 import { useStandortFilter } from "@/lib/standort/standortContext";
+import { printKartonSchilder, schildAusName } from "@/lib/print/kartonSchild";
 import {
   HERKUNFT_ARTEN, HERKUNFT_LABEL, HERKUNFT_ICON, HERKUNFT_HILFE,
   type HerkunftArt,
@@ -2090,6 +2091,87 @@ function StepBestaetigung({
   );
 }
 
+// ── Karton-Schild im Abschluss-Schritt ───────────────────────────────────────
+//
+// Sagt zuerst, ob es für dieses Modell schon ein Schild gibt. Ein Nachdruck
+// bleibt trotzdem möglich — Schilder reißen ab, Kartons werden geteilt, und wer
+// vor dem Regal steht, sieht besser als die Datenbank, ob eines fehlt.
+function KartonSchildBlock({ geraetName, fach }: { geraetName: string; fach?: string }) {
+  const schild = schildAusName(geraetName, null, fach);
+  const eingabe = {
+    hersteller: schild.hersteller,
+    serie:      schild.serie,
+    modell:     schild.modell,
+    zusatz:     schild.zusatz ?? "",
+  };
+
+  const vorhanden = api.kartonSchild.pruefe.useQuery(eingabe, {
+    enabled: (schild.modell || schild.serie).trim() !== "",
+  });
+  const vermerken = api.kartonSchild.vermerkeDruck.useMutation({
+    onSuccess: () => void vorhanden.refetch(),
+  });
+
+  function drucken() {
+    printKartonSchilder([schild]);
+    // Erst drucken, dann vermerken: Das Druckfenster muss synchron zum Klick
+    // aufgehen, sonst greift der Popup-Blocker.
+    vermerken.mutate({ schilder: [{ ...eingabe, fach: fach ?? null }] });
+  }
+
+  const gibtEs = vorhanden.data != null;
+
+  return (
+    <div style={{ textAlign: "left", marginBottom: "1.5rem" }}>
+      <div style={{ fontWeight: 800, fontSize: "1.05rem", marginBottom: 10 }}>
+        🏷️ Karton-Schild
+      </div>
+
+      {vorhanden.isLoading ? (
+        <div style={{ fontSize: "0.85rem", color: "var(--text-dim)" }}>Wird geprüft…</div>
+      ) : gibtEs ? (
+        <div style={{
+          padding: "0.8rem 1rem", borderRadius: 10, marginBottom: 10,
+          border: "1px solid rgba(4,180,117,0.4)", background: "rgba(4,180,117,0.06)",
+        }}>
+          <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text)" }}>
+            ✓ Schild gibt es schon
+          </div>
+          <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", marginTop: 2 }}>
+            Zuletzt gedruckt am{" "}
+            {new Date(vorhanden.data!.zuletztAm).toLocaleDateString("de-DE", {
+              day: "2-digit", month: "2-digit", year: "numeric",
+            })}
+            {vorhanden.data!.zuletztVon && <> von {vorhanden.data!.zuletztVon}</>}
+            {vorhanden.data!.anzahlDrucke > 1 && <> · {vorhanden.data!.anzahlDrucke}× gedruckt</>}
+            {vorhanden.data!.fach && <> · Fach {vorhanden.data!.fach}</>}
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          padding: "0.8rem 1rem", borderRadius: 10, marginBottom: 10,
+          border: "1px solid rgba(186,117,23,0.4)", background: "rgba(186,117,23,0.07)",
+        }}>
+          <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text)" }}>
+            Für dieses Modell gibt es noch kein Schild
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={drucken}
+        style={{ ...S.bigBtn(gibtEs ? "var(--afb-navy)" : "var(--afb-cyan)") }}
+      >
+        🖨️ {gibtEs ? "Noch eins drucken" : `Schild für „${geraetName}" drucken`}
+      </button>
+      <div style={{ fontSize: "0.78rem", color: "var(--text-dim)", marginTop: 6 }}>
+        150 × 37 mm mit Schnittrahmen. Mehrere auf einmal gibt es unter
+        „Karton-Beschriftungen".
+      </div>
+    </div>
+  );
+}
+
 // ── Step 4: Fertig + Einlager-Anweisungen ────────────────────────────────────
 
 function StepFertig({
@@ -2183,6 +2265,15 @@ function StepFertig({
             ))}
           </div>
         </div>
+
+        {/* Karton-Schild — nur wenn das Gerät bekannt ist. Beim losen Teil ohne
+            Gerät gibt es nichts zu beschriften. */}
+        {geraetName.trim() !== "" && (
+          <KartonSchildBlock
+            geraetName={geraetName}
+            fach={ergebnisse.find((e) => e.etlLagerplatz)?.etlLagerplatz ?? undefined}
+          />
+        )}
 
         {/* Einlager-Anweisungen */}
         <div style={{ textAlign: "left", marginBottom: "2rem" }}>

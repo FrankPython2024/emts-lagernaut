@@ -1,11 +1,33 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, adminProcedure } from "@/server/trpc";
+import { createTRPCRouter, adminProcedure, permissionProcedure } from "@/server/trpc";
 import { getOrCreateModell } from "@/lib/geraete/getOrCreateModell";
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
 import { gruppiereNachBasis } from "@/lib/format/basisModell";
 
 export const modellRouter = createTRPCRouter({
+
+  /**
+   * Freitext-Suche über aktive Gerätemodelle — für Auswahllisten.
+   *
+   * Gesucht wird in Hersteller UND Modell, damit sowohl „EliteBook 840" als
+   * auch „HP 840" trifft. ARTIKEL_VIEW statt adminProcedure: Wer Kartons
+   * beschriftet, braucht keine vollen Adminrechte.
+   */
+  suche: permissionProcedure("ARTIKEL_VIEW")
+    .input(z.object({ q: z.string().trim().min(2).max(100), limit: z.number().int().min(1).max(50).default(25) }))
+    .query(async ({ ctx, input }) => {
+      const q = input.q;
+      return ctx.prisma.geraeteModell.findMany({
+        where: {
+          aktiv: true,
+          OR: [{ modell: { contains: q } }, { hersteller: { contains: q } }],
+        },
+        select:  { id: true, hersteller: true, modell: true },
+        orderBy: [{ hersteller: "asc" }, { modell: "asc" }],
+        take:    input.limit,
+      });
+    }),
 
   /**
    * Modelle nach Basis-Modell gruppiert — { basisName, varianten[], anzahl }.

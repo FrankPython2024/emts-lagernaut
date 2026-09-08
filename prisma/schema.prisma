@@ -1470,3 +1470,32 @@ model EntsorgungPosition {
   @@index([auftragId, position])
   @@index([nummer])
 }
+
+// ── Karton-Beschriftungen fürs Ersatzteil-Regal ──────────────────────────────
+//
+// Hält fest, für welche Modelle bereits ein Schild gedruckt wurde. Zweck ist
+// NICHT die Bestandsführung, sondern die Frage am Regal: „Gibt es das Schild
+// schon?" — damit niemand ein zweites druckt, ohne es zu wissen, und damit ein
+// verlorenes Schild trotzdem jederzeit nachgedruckt werden kann.
+model KartonSchild {
+  id           Int      @id @default(autoincrement())
+  // Erkennungsschlüssel aus Hersteller+Serie+Modell+Zusatz (klein, nur
+  // Buchstaben/Ziffern) — siehe schildSchluessel() in src/lib/geraete/schildName.ts.
+  // ⚠️ Ohne das Fach: ein Umzug macht aus einem Schild kein neues.
+  schluessel   String   @unique @db.VarChar(191)
+  hersteller   String?  @db.VarChar(64)
+  serie        String   @db.VarChar(120)
+  modell       String   @db.VarChar(191)
+  zusatz       String?  @db.VarChar(64)
+  // Zuletzt aufs Schild gedrucktes Fach. Darf sich ändern, ohne dass daraus ein
+  // anderes Schild wird.
+  fach         String?  @db.VarChar(64)
+  // Wie oft gedruckt — ein zweiter Druck ist normal (Schild abgerissen,
+  // zweiter Karton), aber es soll sichtbar sein.
+  anzahlDrucke Int      @default(1)
+  erstmalsAm   DateTime @default(now())
+  zuletztAm    DateTime @updatedAt
+  zuletztVon   String?  @db.VarChar(50)
+
+  @@index([modell])
+}

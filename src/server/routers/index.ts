@@ -43,6 +43,7 @@ import { teilenummernRouter }        from "./teilenummern";
 import { geraeteFotosRouter }        from "./geraeteFotos";
 import { bestellanfragenRouter }     from "./bestellanfragen";
 import { impactRouter }              from "./impact";
+import { kartonSchildRouter }        from "./kartonSchild";
 import { erne }                      from "./ernte";
 
 export const appRouter = createTRPCRouter({
@@ -91,6 +92,7 @@ export const appRouter = createTRPCRouter({
   geraeteFotos:       geraeteFotosRouter,
   bestellanfragen:    bestellanfragenRouter,
   impact:             impactRouter,
+  kartonSchild:       kartonSchildRouter,
 });
 
 export type AppRouter = typeof appRouter;
