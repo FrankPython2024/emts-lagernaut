@@ -66,25 +66,34 @@ function logoUrl(datei: string): string {
   return `${origin}/logos/${datei}`;
 }
 
-/** Dateiname für ein Herstellerlogo: "Dell" → "dell.svg". */
-function herstellerDatei(hersteller: string): string {
-  return `${hersteller.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")}.svg`;
+/** Dateibasis für ein Herstellerlogo: "Dell" → "dell". */
+function herstellerBasis(hersteller: string): string {
+  return hersteller.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
 /**
- * Herstellerlogo — mit Rückfall auf den Namen als Schrift.
+ * Herstellerlogo — dreistufig, ohne dass am Code etwas geändert werden muss.
  *
- * ⚠️ Liegt unter /public/logos/<hersteller>.svg keine Datei, blendet `onerror`
- * das Bild aus und der Schriftzug erscheint. Damit lässt sich ein Logo später
- * einfach hineinlegen, ohne dass am Code etwas geändert werden muss — und ohne
- * dass vorher ein kaputtes Bildsymbol auf dem Schild steht.
+ *   1. /logos/<hersteller>.svg   (bevorzugt: skaliert verlustfrei)
+ *   2. /logos/<hersteller>.png   (Rückfall, weil Logos oft nur als PNG vorliegen)
+ *   3. der Herstellername als Schriftzug
+ *
+ * ⚠️ Der Rückfall läuft über `onerror`. Fehlt eine Datei, wird still die
+ * nächste Stufe versucht — es steht nie ein kaputtes Bildsymbol auf dem Schild.
+ * Ein Logo lässt sich damit einfach nach public/logos/ legen und erscheint beim
+ * nächsten Druck.
  */
 function herstellerBlock(hersteller: string | null): string {
   if (!hersteller || hersteller.trim() === "") return `<div class="logo links"></div>`;
-  const name = escapeHtml(hersteller.trim());
-  const url  = escapeHtml(logoUrl(herstellerDatei(hersteller)));
+  const name  = escapeHtml(hersteller.trim());
+  const basis = herstellerBasis(hersteller);
+  const svg   = escapeHtml(logoUrl(`${basis}.svg`));
+  const png   = escapeHtml(logoUrl(`${basis}.png`));
+  const fallback =
+    "if(this.dataset.alt){this.src=this.dataset.alt;this.dataset.alt='';}" +
+    "else{this.style.display='none';this.nextElementSibling.style.display='block';}";
   return `<div class="logo links">
-    <img src="${url}" alt="${name}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+    <img src="${svg}" data-alt="${png}" alt="${name}" onerror="${fallback}">
     <span class="logo-text" style="display:none">${name}</span>
   </div>`;
 }
