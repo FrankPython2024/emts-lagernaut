@@ -618,9 +618,23 @@ export default function PickupScanPage() {
 
       {/* ── KOPF — scrollt mit der Seite mit (nicht mehr gepinnt) ── */}
       <div className="space-y-2">
-        {/* Zeile: Zurück · Auftragsname · Aktion */}
+        {/* Zurück — eigene Zeile ganz oben, beschriftet und in Handheld-Größe.
+            Vorher stand hier nur ein „←" ohne Wort neben dem Auftragsnamen; das
+            ging zwischen Titel und Aktionsknopf unter. Ein Symbol allein ist
+            außerdem kein Ziel, das man mit Handschuhen sicher trifft. */}
+        {/* ⚠️ Das Ziel hängt am Recht. Wer den Auftrag verwaltet, will zurück in
+            die Admin-Übersicht; wer nur pickt, hat dort keinen Zutritt
+            (PICKUP_MANAGE) und liefe in eine Rechte-Meldung. */}
+        <Link
+          href={has("PICKUP_MANAGE") ? "/admin/pickup" : "/pickup"}
+          className="inline-flex items-center gap-2 px-5 rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#202F61] dark:text-[#e4e6eb] text-base font-bold hover:border-[#008BD2] hover:text-[#008BD2] transition-colors min-h-[56px]"
+        >
+          <span aria-hidden className="text-xl">←</span>
+          Zurück zur Auftragsliste
+        </Link>
+
+        {/* Zeile: Auftragsname · Aktion */}
         <div className="flex items-center gap-2">
-          <Link href="/pickup" aria-label="Zurück zur Auftragsliste" className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg text-xl font-bold text-[#65676b] dark:text-[#b0b3b8] hover:text-[#008BD2] hover:bg-white dark:hover:bg-[#3e4042] transition-colors">←</Link>
           <h1 className="flex-1 min-w-0 text-base font-black text-[#202F61] dark:text-[#e4e6eb] truncate">
             {isLoading ? "Lade…" : (data?.name ?? "Pickup")}
           </h1>
