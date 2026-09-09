@@ -416,9 +416,6 @@ function AnfragenPageInner() {
   // "Nicht verfügbar"-Bestätigung
   const [nvCandidate, setNvCandidate] = useState<{ id: number; label: string } | null>(null);
 
-  // "Mit LogID erledigen"-Bestätigung
-  const [logIdCandidate, setLogIdCandidate] = useState<{ id: number; label: string } | null>(null);
-
   // Freigeben-Dialog
   const [freigebenDialog, setFreigebenDialog] = useState<{
     anfrageIds: number[]; bearbeitetVon: string; seit: Date | null;
@@ -601,17 +598,6 @@ function AnfragenPageInner() {
   const resetMutation = api.anfragen.reset.useMutation({
     onSuccess: (r) => {
       show(`↻ Anfrage #${r.id} zurückgesetzt. Buchung gelöscht, Statistik korrigiert`, "success");
-      refetch();
-      refetchChatBadges();
-    },
-    onError: (e) => show(e.message, "error"),
-  });
-
-  // ── Mit LogID erledigen ────────────────────────────────────────────────────────
-  const erledigenMitLogIdMutation = api.anfragen.erledigenMitLogId.useMutation({
-    onSuccess: (r) => {
-      show(`✅ Anfrage mit LogID erledigt`, "success");
-      setLogIdCandidate(null);
       refetch();
       refetchChatBadges();
     },
@@ -1136,18 +1122,6 @@ function AnfragenPageInner() {
                           </button>
                         )}
 
-                        {/* Mit LogID erledigen — nur für BEDARF */}
-                        {canEdit && a.status === AnfrageStatus.BEDARF && (
-                          <button
-                            onClick={() => setLogIdCandidate({ id: a.id, label: a.beschreibung ?? a.teil })}
-                            disabled={isBusy}
-                            title="Mit Spender-LogID erledigen"
-                            className="px-2 py-2 text-xs bg-[#008bd2]/10 text-[#008bd2] rounded hover:bg-[#008bd2]/20 font-bold disabled:opacity-40 transition-colors min-h-[36px]"
-                          >
-                            📍
-                          </button>
-                        )}
-
                         {/* Erledigen */}
                         {canEdit && a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT && (
                           <button
@@ -1234,48 +1208,6 @@ function AnfragenPageInner() {
 
       {/* ── Modals ── */}
       {tagesModal && <TagesuebersichtModal onClose={() => setTagesModal(false)} />}
-
-      {/* "Mit LogID erledigen"-Bestätigung */}
-      {logIdCandidate && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="logid-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => !erledigenMitLogIdMutation.isPending && setLogIdCandidate(null)}
-        >
-          <div className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md border-2 border-[#008bd2] dark:border-[#0066aa]" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 pt-6 pb-4 space-y-3">
-              <div className="text-center text-4xl">📍</div>
-              <h2 id="logid-modal-title" className="font-black text-lg text-center text-[#1a1a1a] dark:text-[#e4e6eb]">
-                Mit Spender-LogID erledigen?
-              </h2>
-              <div className="px-4 py-3 bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl text-sm text-center text-[#1a1a1a] dark:text-[#e4e6eb] font-semibold">
-                {logIdCandidate.label}
-              </div>
-              <p className="text-sm text-center text-[#65676b] dark:text-[#b0b3b8]">
-                Wird ein Ersatzteil mit Spender-LogID an den Techniker gesendet?
-              </p>
-            </div>
-            <div className="flex gap-3 px-6 pb-6">
-              <button
-                onClick={() => setLogIdCandidate(null)}
-                disabled={erledigenMitLogIdMutation.isPending}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] font-semibold text-sm hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[44px]"
-              >
-                Abbrechen
-              </button>
-              <button
-                onClick={() => erledigenMitLogIdMutation.mutate({ id: logIdCandidate.id, logId: "" })}
-                disabled={erledigenMitLogIdMutation.isPending}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-[#008bd2] hover:bg-[#0066aa] text-white font-bold text-sm disabled:opacity-50 transition-colors min-h-[44px]"
-              >
-                {erledigenMitLogIdMutation.isPending ? "…" : "Ja"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* "Nicht verfügbar"-Bestätigung */}
       {nvCandidate && (
