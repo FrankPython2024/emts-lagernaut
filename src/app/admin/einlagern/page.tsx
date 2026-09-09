@@ -2479,12 +2479,31 @@ export default function EinlagernPage() {
     });
   }
 
-  function resetWizard() {
+  /** Alles aus dem letzten Vorgang wegräumen. */
+  function leereVorgang() {
     setGeraet(null);
     setItems([]);
     setErgebnisse([]);
     setSelectedLagerplatzId(null);
     setFreierLagerplatzCode(null); // sonst wirkt der Platz im nächsten Vorgang weiter
+  }
+
+  function resetWizard() {
+    leereVorgang();
+    setStep(1);
+  }
+
+  /**
+   * Vom Startbildschirm in den Geräte-Weg.
+   *
+   * ⚠️ Muss leeren. `resetWizard()` war der EINZIGE Weg, der das tat, und der
+   * ist nur über „Noch ein Gerät" im Fertig-Schritt erreichbar. Wer stattdessen
+   * mit „← Zurück" bis zum Start lief und neu anfing, bekam in Schritt 3 die
+   * Teile des vorherigen Geräts vorausgewählt — und buchte sie mitsamt Grading
+   * auf das neue Gerät, inklusive neuer Kompatibilitäts-Einträge.
+   */
+  function starteGeraeteWeg() {
+    leereVorgang();
     setStep(1);
   }
 
@@ -2521,7 +2540,7 @@ export default function EinlagernPage() {
 
       {step === 0 && (
         <StepWillkommen
-          onStart={() => setStep(1)}
+          onStart={starteGeraeteWeg}
           onKomponenten={() => setStep(6)}
           onLosesTeil={() => { setErkannt(null); setStep(7); }}
           onKomplettGeraet={() => setStep(9)}
@@ -2565,7 +2584,18 @@ export default function EinlagernPage() {
           initial={geraet}
           standortId={einlagerStandortId}
           onBack={() => setStep(0)}
-          onWeiter={(g) => { setGeraet(g); setStep(2); }}
+          onWeiter={(g) => {
+            // ⚠️ Anderes Gerät als vorher → Auswahl verwerfen. Sonst wandern die
+            // Teile des vorigen Geräts mit, wenn jemand in Schritt 1 zurückgeht
+            // und eine andere LogID scannt.
+            if (geraet && g.name !== geraet.name) {
+              setItems([]);
+              setSelectedLagerplatzId(null);
+              setFreierLagerplatzCode(null);
+            }
+            setGeraet(g);
+            setStep(2);
+          }}
         />
       )}
 

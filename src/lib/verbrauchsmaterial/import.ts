@@ -4,21 +4,36 @@
 // Lagerwagen-Import. Reines Vorbereiten für die Vorschau; das Schreiben passiert
 // serverseitig (tRPC).
 
+/**
+ * Eine Zeile aus der Bestandsliste.
+ *
+ * ⚠️ Alle Felder außer `name` sind OPTIONAL, und `undefined` heißt „stand nicht
+ * in der Datei" — nicht „ist leer". Vorher lieferte der Parser bei fehlender
+ * Spalte `0` bzw. `null`, und der Import schrieb das durch: Hieß die Spalte in
+ * der nächsten Excel „Bestand aktuell" statt „Aktueller Bestand", standen
+ * danach ALLE Bestände auf null. Ohne Rückfrage, ohne Hinweis.
+ */
 export type VMImportZeile = {
-  name:             string;        // Pflicht — sonst übersprungen
-  merkmale:         string | null;
-  kategorie:        string | null;
-  mindestbestand:   number;        // >= 0
-  aktuellerBestand: number;        // >= 0
-  aan:              string | null;
-  gebindegroesse:   number | null;
-  bemerkung:        string | null;
+  name:              string;        // Pflicht — sonst übersprungen
+  merkmale?:         string | null;
+  kategorie?:        string | null;
+  mindestbestand?:   number;        // >= 0
+  aktuellerBestand?: number;        // >= 0
+  aan?:              string | null;
+  gebindegroesse?:   number | null;
+  bemerkung?:        string | null;
 };
 
 export type VMImportResult = {
   zeilen:  VMImportZeile[];
   total:   number; // erkannte Zeilen (mit Name)
   skipped: number; // Zeilen ohne Artikelname
+  /**
+   * Spalten, die in der Datei nicht gefunden wurden. Die zugehörigen Werte
+   * bleiben unangetastet — die Oberfläche muss das sagen, sonst wundert sich
+   * jemand, warum sich nichts geändert hat.
+   */
+  fehlendeSpalten: string[];
 };
 
 const SHEET_NAME = "Lager";
@@ -74,20 +89,32 @@ function rowsToResult(rows: Record<string, unknown>[], fields: string[]): VMImpo
     const name = hName ? clean(row[hName]) : null;
     if (!name) { skipped++; continue; } // Header-/Leerzeile ohne Artikelname
 
+    // ⚠️ Fehlende Spalte = Feld gar nicht setzen. Ein `null`/`0` an dieser
+    // Stelle würde den gepflegten Wert im Bestand überschreiben.
     zeilen.push({
       name,
-      merkmale:         hMerkmal ? clean(row[hMerkmal]) : null,
-      kategorie:        hKateg   ? clean(row[hKateg])   : null,
-      mindestbestand:   hMindest ? toInt(row[hMindest]) : 0,
-      aktuellerBestand: hBestand ? toInt(row[hBestand]) : 0,
-      aan:              hAan     ? clean(row[hAan])     : null,
-      gebindegroesse:   hStueck  ? toIntOrNull(row[hStueck]) : null,
-      bemerkung:        hBemerk  ? clean(row[hBemerk])  : null,
+      ...(hMerkmal && { merkmale:         clean(row[hMerkmal]) }),
+      ...(hKateg   && { kategorie:        clean(row[hKateg]) }),
+      ...(hMindest && { mindestbestand:   toInt(row[hMindest]) }),
+      ...(hBestand && { aktuellerBestand: toInt(row[hBestand]) }),
+      ...(hAan     && { aan:              clean(row[hAan]) }),
+      ...(hStueck  && { gebindegroesse:   toIntOrNull(row[hStueck]) }),
+      ...(hBemerk  && { bemerkung:        clean(row[hBemerk]) }),
       // Standort: in der Excel nicht enthalten → bleibt leer (im Admin pflegbar).
     });
   }
 
-  return { zeilen, total: zeilen.length, skipped };
+  const fehlendeSpalten = [
+    hMerkmal ? null : "Merkmale",
+    hKateg   ? null : "Kategorie",
+    hMindest ? null : "Mindestbestand",
+    hBestand ? null : "Aktueller Bestand",
+    hAan     ? null : "AAN",
+    hStueck  ? null : "Stückzahl",
+    hBemerk  ? null : "Bemerkung",
+  ].filter((s): s is string => s !== null);
+
+  return { zeilen, total: zeilen.length, skipped, fehlendeSpalten };
 }
 
 export async function parseVerbrauchsmaterialDatei(file: File): Promise<VMImportResult> {

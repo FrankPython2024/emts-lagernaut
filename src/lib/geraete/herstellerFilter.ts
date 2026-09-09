@@ -38,6 +38,11 @@ const TYPO_FIX: Record<string, ErlaubterHersteller> = {
   "fujjtsu":           "Fujitsu",
   "fsc":               "Fujitsu",
   "fujitsu siemens":   "Fujitsu",
+  // Der volle frühere Firmenname, wie er in echten Exporten vorkommt. Die
+  // Tabelle vergleicht EXAKT — ohne diesen Eintrag fiel „Fujitsu Siemens
+  // Computers" durch und das Gerät wurde beim Import als unbekannter
+  // Hersteller abgewiesen.
+  "fujitsu siemens computers": "Fujitsu",
   "ibm lenovo":        "Lenovo",
 };
 

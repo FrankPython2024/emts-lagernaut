@@ -408,9 +408,16 @@ export async function getByGeraetMitStandard(args: {
   // Standort-Filter (Techniker = eigener Standort, Admin = ohne Filter).
   // Artikel ohne passenden Standort fallen aus der Verknüpfung raus — das Teil
   // erscheint dann als "nicht erfasst" (Zustand C) statt fremden Bestand zu zeigen.
-  const artikelFilter = args.standortIds && args.standortIds.length > 0
-    ? { standortId: { in: args.standortIds } }
-    : undefined;
+  // ⚠️ Drei Fälle, und der mittlere war falsch:
+  //   null/undefined = Wildcard (Admin sieht alles)  → kein Filter
+  //   []             = KEIN Standort zugewiesen      → darf NICHTS treffen
+  //   [1, 2]         = Zugriffsliste                 → filtern
+  // Vorher galt `length > 0`, also fiel `[]` in den Wildcard-Zweig: Ein Konto
+  // ohne Standort sah den Bestand ALLER Standorte und fragte Teile an, die hier
+  // gar nicht liegen. `standortWhere()` macht daraus korrekt `IN ()`.
+  const artikelFilter = args.standortIds == null
+    ? undefined
+    : { standortId: { in: args.standortIds } };
 
   // Teiltyp-Liste laden: Standards + (falls Modell identifizierbar) modell-spezifische Custom-Teile.
   // Auflösung: GeraeteModell-Reihe wird gesucht, deren "hersteller modell" (lowercased)

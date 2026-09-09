@@ -21,6 +21,7 @@ import {
   markiereNichtVerfuegbar,
 } from "@/modules/anfragen/service";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 import { waehleQuelle } from "@/lib/artikel/pool";
 import { naechsteBelegNr } from "@/core/infra/belegnr";
 import { emitToAdmins, emitToUser, emitToAll, emitToBackoffice } from "@/modules/realtime/socket";
@@ -398,44 +399,74 @@ export const anfragenRouter = createTRPCRouter({
         });
       }
 
-      // Transaktional: Buchung löschen + Bestand neu berechnen
-      await ctx.prisma.$transaction(async (tx) => {
-        // Finde die AUSGANG-Buchung für diese Anfrage
-        const buchung = await tx.buchung.findFirst({
-          where: {
-            typ:     BuchungsTyp.AUSGANG,
-            notiz:   `Anfrage #${input.id}`,
-            artikelId: anfrage.artikelId || undefined,
-          },
-        });
-
-        if (buchung) {
-          // Buchung löschen
-          await tx.buchung.delete({ where: { id: buchung.id } });
-          console.log(`[reset] Buchung #${buchung.id} (Anfrage #${input.id}) gelöscht`);
-        }
+      // ── Zugehörige Buchungen finden ──────────────────────────────────────
+      //
+      // ⚠️ Der Schlüssel ist `Buchung.anfrageId`, NICHT der Notiztext. Bis
+      // 09.09.2026 wurde hier auf `notiz === "Anfrage #123"` verglichen — die
+      // Notiz trägt aber immer noch die Gruppe („Anfrage #123 | Gruppe: …") oder
+      // den Pool-Hinweis. Gemessen: 40 von 40 Buchungen passten NICHT, der Knopf
+      // hat also nie etwas gelöscht. Der Bestand blieb reduziert, die Anfrage
+      // ging trotzdem auf NEU zurück — bei erneuter Ausgabe war dasselbe Stück
+      // zweimal abgebucht, während die Meldung „Buchung gelöscht" versprach.
+      //
+      // Zusätzlich alt und falsch: `artikelId: anfrage.artikelId` hätte eine
+      // Pool-Entnahme nie gefunden (die läuft auf den Partner-Artikel), und
+      // DIREKT-Buchungen wurden gar nicht gesucht — sie ändern zwar keinen
+      // Bestand, zählen aber in „Wert ausgegeben" und wären doppelt gelandet.
+      //
+      // Die beiden Notiz-Bedingungen sind der Rückfall für Altdaten, deren
+      // `anfrageId` nie nachgetragen wurde. Das Trennzeichen " |" im
+      // `startsWith` ist wichtig: ohne es würde „Anfrage #1" auch „Anfrage #12"
+      // treffen.
+      const buchungen = await ctx.prisma.buchung.findMany({
+        where: {
+          typ: { in: [BuchungsTyp.AUSGANG, BuchungsTyp.DIREKT] },
+          OR: [
+            { anfrageId: input.id },
+            { notiz: `Anfrage #${input.id}` },
+            { notiz: { startsWith: `Anfrage #${input.id} |` } },
+          ],
+        },
+        select: { id: true, artikelId: true },
       });
 
-      // Bestand korrigieren + Status setzen (NEU wenn Bestand > 0, sonst BEDARF)
-      let restBestand: number | null = null;
-      let neuerStatus: AnfrageStatus = AnfrageStatus.BEDARF; // Default: nicht verfügbar
-
-      if (anfrage.artikelId) {
-        restBestand = await syncBestandAusHistorie(anfrage.artikelId);
-        if (restBestand > 0) {
-          neuerStatus = AnfrageStatus.NEU; // Bestand vorhanden → neue Anfrage
-        }
-        emitToAll(EVENTS.BESTAND_UPDATED, { artikelId: anfrage.artikelId, bestand: restBestand });
+      // Alle berührten Artikel — bei einer Pool-Entnahme ist das der Partner,
+      // nicht der angefragte Artikel. Beide Bestände müssen nachgezogen werden.
+      const betroffeneArtikel = [...new Set(buchungen.map((b) => b.artikelId))];
+      if (anfrage.artikelId && !betroffeneArtikel.includes(anfrage.artikelId)) {
+        betroffeneArtikel.push(anfrage.artikelId);
       }
 
-      // Status aktualisieren
+      if (buchungen.length > 0) {
+        await ctx.prisma.buchung.deleteMany({ where: { id: { in: buchungen.map((b) => b.id) } } });
+      }
+
+      // Bestand nachziehen. ⚠️ NACH dem Löschen und außerhalb einer Transaktion:
+      // `syncBestandAusHistorie` arbeitet mit dem globalen Client und sähe eine
+      // noch offene Transaktion nicht.
+      let restBestand: number | null = null;
+      for (const artikelId of betroffeneArtikel) {
+        const stand = await syncBestandAusHistorie(artikelId);
+        emitToAll(EVENTS.BESTAND_UPDATED, { artikelId, bestand: stand });
+        if (artikelId === anfrage.artikelId) restBestand = stand;
+      }
+
+      // Status: Bestand vorhanden → NEU, sonst BEDARF.
+      const neuerStatus = (restBestand ?? 0) > 0 ? AnfrageStatus.NEU : AnfrageStatus.BEDARF;
+
       await ctx.prisma.anfrage.update({
-        where:  { id: input.id },
-        data:   { status: neuerStatus },
+        where: { id: input.id },
+        // Ein hängender Bearbeiter-Vermerk würde die Gruppe für alle anderen
+        // gesperrt aussehen lassen — beim Zurücksetzen gehört er weg.
+        data:  { status: neuerStatus, bearbeitetVon: null, bearbeitetSeit: null },
       });
 
-      console.log(`[reset] Anfrage #${input.id} zurückgesetzt auf ${neuerStatus} (Bestand: ${restBestand})`);
-      return { id: input.id, status: neuerStatus, restBestand };
+      meilisearchSync.anfrage(input.id);
+      const payload = { id: input.id, status: neuerStatus, techniker: anfrage.techniker, logId: anfrage.logId };
+      emitToBackoffice(EVENTS.ANFRAGE_UPDATED, payload);
+      emitToUser(anfrage.techniker, EVENTS.ANFRAGE_UPDATED, payload);
+
+      return { id: input.id, status: neuerStatus, restBestand, geloeschteBuchungen: buchungen.length };
     }),
 
   // Gruppenansicht — read (ANFRAGE_VIEW_ALL)

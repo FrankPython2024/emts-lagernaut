@@ -10,6 +10,7 @@ import { getOrCreateModell }   from "@/lib/geraete/getOrCreateModell";
 import { type HerkunftArt }    from "@/lib/einlagern/herkunft";
 import {
   findeOderLegeAn, artikelZuNummer, verknuepfeArtikel, merkeSpendermodell,
+  istPlausibel, normalisiere,
 } from "@/modules/teilenummern/service";
 
 /**
@@ -341,6 +342,29 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
   // Rückwärts-Compat: alle Namensformen für die Artikel-Suche (bestehende DB-Einträge)
   const geraetNamen = [...new Set([geraetVoll, sauberModellName, input.geraetName])];
 
+  // ── Vorprüfung: ALLES beanstanden, bevor irgendetwas gebucht wird ─────────
+  //
+  // ⚠️ Die Schleife unten bucht Teil für Teil ohne umschließende Transaktion.
+  // Wirft sie beim dritten von fünf Teilen, liegen zwei bereits im Bestand, der
+  // Nutzer sieht nur „Fehler beim Einbuchen" — und der zweite Versuch bucht sie
+  // ein zweites Mal. Eine echte Transaktion über den ganzen Vorgang wäre ein
+  // großer Umbau (Teilenummern, Modelle, Buchungen laufen alle über den
+  // globalen Client). Stattdessen fangen wir die beiden Dinge vorher ab, die
+  // hier tatsächlich werfen können — dann bleibt die Schleife heil.
+  for (const item of input.items) {
+    // Wirft bei fehlendem Freitext (siehe teiltypKeyFuer).
+    teiltypKeyFuer(item.teiltyp, item.verschiedenesText);
+
+    const roh = item.teilenummer?.trim();
+    if (roh && !istPlausibel(normalisiere(roh))) {
+      throw new TRPCError({
+        code:    "BAD_REQUEST",
+        message: `„${roh}" sieht nicht wie eine Teilenummer aus (5 bis 40 Zeichen, Buchstaben und Ziffern). `
+               + `Es wurde noch nichts eingebucht — bitte die Nummer berichtigen oder das Feld leeren.`,
+      });
+    }
+  }
+
   for (const item of input.items) {
     let istNeu = false;
 
@@ -385,9 +409,17 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
     }
 
     // 1. Exakter Artikel via Kompatibilitaet (canonical + alt für Backward-Compat)
+    //
+    // ⚠️ `standortId` MUSS mit. Ohne den Filter fand diese Stufe den Artikel
+    // eines FREMDEN Standorts und buchte dorthin — während die Vorschau (die
+    // filtert, siehe preview()) „✨ Neu" anzeigte. Alle folgenden Stufen filtern
+    // ebenfalls; hier fehlte es als einziger Stelle.
     if (!artikel) {
       artikel = await prisma.artikel.findFirst({
-        where: { kompatibel: { some: { geraet: { in: geraetNamen }, teiltyp: teiltypKey } } },
+        where: {
+          standortId: sId,
+          kompatibel: { some: { geraet: { in: geraetNamen }, teiltyp: teiltypKey } },
+        },
       });
     }
 

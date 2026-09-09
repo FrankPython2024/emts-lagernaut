@@ -484,7 +484,11 @@ export async function getAnfragenByTechniker(data: {
     // Standort-Filter (Techniker = nur eigener Standort, Admin = ohne Filter).
     // Anfragen ohne Artikel (BEDARF/Sonderanfrage) bleiben sichtbar — sie sind
     // (noch) nicht standort-zugeordnet.
-    ...(data.standortIds && data.standortIds.length > 0 && {
+    // ⚠️ `[]` heißt „kein Standort zugewiesen" und muss filtern, nicht öffnen.
+    // Mit der alten Bedingung `length > 0` fiel der leere Fall in den
+    // Wildcard-Zweig — ein Konto ohne Standort sah die Anfragen aller Standorte.
+    // null/undefined bleibt der echte Wildcard-Fall (Admin).
+    ...(data.standortIds != null && {
       OR: [
         { artikel: { standortId: { in: data.standortIds } } },
         { artikelId: null },

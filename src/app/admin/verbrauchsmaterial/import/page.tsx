@@ -113,6 +113,25 @@ export default function VerbrauchsmaterialImportPage() {
               <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{res.skipped} übersprungen (kein Artikelname)</span>
             </div>
 
+            {/* Fehlende Spalten sichtbar machen. Die zugehörigen Werte bleiben
+                stehen — ohne diesen Hinweis wundert sich sonst jemand, warum
+                sich nach dem Import nichts geändert hat. */}
+            {res.fehlendeSpalten.length > 0 && (
+              <div className="rounded-xl border-2 border-[#f7b928] bg-[#f7b928]/8 p-4">
+                <div className="font-black text-[#8A5A00] dark:text-[#f7b928]">
+                  ⚠ {res.fehlendeSpalten.length} Spalte{res.fehlendeSpalten.length === 1 ? "" : "n"} nicht in der Datei
+                </div>
+                <p className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] mt-1">
+                  {res.fehlendeSpalten.join(", ")}
+                </p>
+                <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
+                  Diese Werte bleiben bei bestehenden Artikeln unverändert. Neue Artikel
+                  bekommen sie leer. Ist das nicht gewollt, prüfe die Spaltenüberschriften
+                  in der Excel und lies die Datei erneut ein.
+                </p>
+              </div>
+            )}
+
             {res.zeilen.length > 0 && (
               <div className="border border-[#ced4da] dark:border-[#3e4042] rounded-xl overflow-hidden">
                 <div className="max-h-80 overflow-y-auto">

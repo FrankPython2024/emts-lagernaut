@@ -201,6 +201,26 @@ EOF
      `components/ui/Modal.tsx` und wirkt damit überall, wo `<Modal>` benutzt wird.
 - **Schleifen über Dateien brauchen den try je Datei, nicht um die Schleife.** Ein unlesbares Bild
   (HEIC vom iPhone) brach die Mehrfachauswahl ab und alle dahinter fielen still weg.
+- ⚠️ **Buchungen NIE über den Notiztext suchen — immer über `Buchung.anfrageId`.** `anfragen.reset`
+  verglich auf `notiz === "Anfrage #123"`; die Notiz trägt aber immer die Gruppe dahinter
+  („Anfrage #123 | Gruppe: …") oder den Pool-Hinweis. Gemessen am 09.09.2026: **40 von 40**
+  Buchungen passten nicht — der Knopf hat nie etwas gelöscht, der Bestand blieb reduziert, die
+  Anfrage ging trotzdem auf NEU. Bei erneuter Ausgabe war dasselbe Stück zweimal abgebucht.
+  Ebenfalls beachten: eine Pool-Entnahme läuft auf den **Partner-Artikel** (`artikelId` der
+  Anfrage trifft sie nicht), und DIREKT-Buchungen gehören mitgelöscht (kein Bestandseffekt, aber
+  sie zählen in „Wert ausgegeben").
+- ⚠️ **Leere Standortliste heißt „nichts", nicht „alles".** `getZugaenglicheStandortIds` liefert
+  `null` für den Wildcard (Admin) und `[]` für „kein Standort zugewiesen". Wer `length > 0` prüft,
+  wirft beide in einen Topf — `[]` fiel dadurch in den Wildcard-Zweig und ein Techniker ohne
+  Standort sah den Bestand **aller** Standorte. Richtig ist `standortIds == null` als einzige
+  Wildcard-Bedingung; `standortWhere()` macht es korrekt.
+- ⚠️ **Import-Parser: fehlende Spalte ≠ leerer Wert.** Der Verbrauchsmaterial-Excel-Import lieferte
+  bei nicht gefundener Überschrift `0`/`null` und schrieb das durch — eine umbenannte Spalte hätte
+  **alle Bestände auf null** gesetzt. Regel: `undefined` = „stand nicht in der Datei" = nicht
+  anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
+- **Verify-Gate sind SECHS Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
+  `technik`, `ocr`, `bezeichnung` (zusammen 284) plus `tsc --noEmit`. `test:bezeichnung` war
+  monatelang rot, weil es niemand lief.
 - **Socket.io-Panel ≠ Auth-State.** Sockets bestehen bis Tab-Reload, unabhängig vom Token.
 - **Geräte-Import:** nur HP, Lenovo, Dell, Fujitsu (typo-tolerant; HPE explizit abgelehnt =
   Server). Modellnummern bleiben erhalten ("Precision 7530"); Marketing-Text raus.

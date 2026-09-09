@@ -580,8 +580,27 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
   //   neu        → anlegen (+ automatischer Code)
   // Freitext wird in bereinige() aufs Spaltenlimit gekappt → eine lange Zelle
   // kann den Import nie sprengen. Standort kommt aus der Excel nicht und bleibt.
+  /**
+   * Bestandsliste aus Excel übernehmen.
+   *
+   * ⚠️ Eigenes Eingabeschema statt `positionInput`. Dessen `.default(0)` machte
+   * aus einer FEHLENDEN Spalte eine gemeldete Null — hieß die Spalte in der
+   * nächsten Datei anders, standen danach alle Bestände auf 0. Hier gilt
+   * durchgehend: `undefined` = „stand nicht in der Datei" = nicht anfassen.
+   */
   importBestand: manage
-    .input(z.object({ zeilen: z.array(positionInput).min(1) }))
+    .input(z.object({
+      zeilen: z.array(z.object({
+        name:             z.string().trim().min(1),
+        merkmale:         z.string().nullish(),
+        kategorie:        z.string().nullish(),
+        mindestbestand:   z.number().int().min(0).optional(),
+        aktuellerBestand: z.number().int().min(0).optional(),
+        aan:              z.string().nullish(),
+        gebindegroesse:   z.number().int().positive().nullish(),
+        bemerkung:        z.string().nullish(),
+      })).min(1),
+    }))
     .mutation(async ({ input }) => {
       // Bestehende einmal laden, nach normalisiertem Namen indexieren.
       const bestehende = await prisma.verbrauchsArtikel.findMany({
@@ -594,18 +613,39 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
 
       await prisma.$transaction(async (tx) => {
         for (const zeile of input.zeilen) {
-          const data = bereinige(zeile);
-          if (!data.name) { uebersprungen++; continue; }
+          const name = cap(zeile.name, LIM.name) ?? "";
+          if (!name) { uebersprungen++; continue; }
 
-          const match = byName.get(data.name.toLowerCase());
+          const match = byName.get(name.toLowerCase());
           if (match) {
-            // Standort aus Excel ist leer → bestehenden Standort NICHT überschreiben.
-            const { standort: _ignored, ...rest } = data;
-            await tx.verbrauchsArtikel.update({ where: { id: match.id }, data: rest });
+            // ⚠️ NUR Felder schreiben, die in der Datei standen. Standort kommt
+            // aus der Excel nie und bleibt deshalb ohnehin unberührt.
+            const aenderung = nurGesetzte({
+              name,
+              merkmale:         zeile.merkmale        === undefined ? undefined : cap(zeile.merkmale, LIM.merkmale),
+              kategorie:        zeile.kategorie       === undefined ? undefined : cap(zeile.kategorie, LIM.kategorie),
+              mindestbestand:   zeile.mindestbestand,
+              aktuellerBestand: zeile.aktuellerBestand,
+              aan:              zeile.aan             === undefined ? undefined : cap(zeile.aan, LIM.aan),
+              gebindegroesse:   zeile.gebindegroesse,
+              bemerkung:        zeile.bemerkung       === undefined ? undefined : cap(zeile.bemerkung, LIM.bemerkung),
+            });
+            await tx.verbrauchsArtikel.update({ where: { id: match.id }, data: aenderung });
             aktualisiert++;
           } else {
-            const created = await createMitCode(tx, data);
-            byName.set(data.name.toLowerCase(), { id: created.id, standort: created.standort });
+            // Neuer Artikel: hier sind die Vorgabewerte richtig — es gibt nichts
+            // zu überschreiben.
+            const created = await createMitCode(tx, bereinige({
+              name,
+              merkmale:         zeile.merkmale ?? null,
+              kategorie:        zeile.kategorie ?? null,
+              mindestbestand:   zeile.mindestbestand ?? 0,
+              aktuellerBestand: zeile.aktuellerBestand ?? 0,
+              aan:              zeile.aan ?? null,
+              gebindegroesse:   zeile.gebindegroesse ?? null,
+              bemerkung:        zeile.bemerkung ?? null,
+            }));
+            byName.set(name.toLowerCase(), { id: created.id, standort: created.standort });
             neu++;
           }
         }
