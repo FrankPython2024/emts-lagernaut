@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
+import { useHintergrundSchliessen } from "@/components/ui/hintergrundSchliessen";
 
 // Wiederverwendbare Mobil-Anfragen-Liste (Admin). Wird sowohl auf der eigenen Seite
 // /admin/mobil/anfragen als auch als Reiter „📱 Mobil" in /admin/anfragen gerendert.
@@ -192,6 +193,8 @@ function AusgebenModal({
   onDone: () => void;
   show: (msg: string, typ?: "success" | "error" | "info" | "warning") => void;
 }) {
+  // Schließt nur bei Drücken UND Loslassen auf dem Hintergrund.
+  const hintergrund = useHintergrundSchliessen(onClose);
   const bereich = anfrage.bereich === "DIGITAL_EDUCATION" ? "DIGITAL_EDUCATION" : "STANDARD";
   const teileQ = api.mobilAnfrage.verfuegbareTeile.useQuery({ modellId: anfrage.modellId, teiltyp: anfrage.teiltyp, bereich, farbe: anfrage.farbe });
   const erledigen = api.mobilAnfrage.erledigen.useMutation({
@@ -205,7 +208,7 @@ function AusgebenModal({
   const teile = teileQ.data ?? [];
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4" {...hintergrund}>
       <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}
         className="w-full max-w-lg bg-white dark:bg-[#242526] rounded-2xl shadow-2xl border border-[#ced4da] dark:border-[#3e4042] max-h-[90vh] flex flex-col">
         <div className="px-5 py-4 border-b border-[#ced4da] dark:border-[#3e4042]">

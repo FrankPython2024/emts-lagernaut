@@ -63,7 +63,10 @@ function bereinige(f: RoheFelder) {
 // Artikel anlegen + Code aus der frischen id ableiten (2-Schritt, transaktional).
 async function createMitCode(
   tx: Prisma.TransactionClient,
-  data: ReturnType<typeof bereinige> & { zaehlpflichtig?: boolean },
+  data: ReturnType<typeof bereinige> & {
+    zaehlpflichtig?: boolean;
+    laengeMm?: number | null; breiteMm?: number | null; hoeheMm?: number | null;
+  },
 ) {
   const created = await tx.verbrauchsArtikel.create({
     // temporär eindeutiger Platzhalter, sofort durch vmCode(id) ersetzt
@@ -117,7 +120,19 @@ const positionInput = z.object({
   // Import alle von der Zählung ausgenommenen Positionen still zurücksetzen.
   // undefined heißt hier „nicht angefasst", nicht „true".
   zaehlpflichtig:   z.boolean().optional(),
+  // Maße in Millimetern. Aus demselben Grund wie oben `.optional()` statt
+  // `.nullish()`: Die Import-Excel kennt keine Maße — mit nullish würde jeder
+  // Bestands-Import gepflegte Maße stillschweigend leeren. `null` ist hier
+  // erlaubt und heißt „bewusst geleert", `undefined` heißt „nicht angefasst".
+  laengeMm:         z.number().int().min(0).max(100000).nullable().optional(),
+  breiteMm:         z.number().int().min(0).max(100000).nullable().optional(),
+  hoeheMm:          z.number().int().min(0).max(100000).nullable().optional(),
 });
+
+/** Nur die Felder übernehmen, die das Formular wirklich mitgeschickt hat. */
+function nurGesetzte<T extends object>(obj: T): Partial<T> {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
 
 export const verbrauchsmaterialRouter = createTRPCRouter({
 
@@ -421,7 +436,11 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
       const data = bereinige(input);
       if (!data.name) throw new TRPCError({ code: "BAD_REQUEST", message: "Name fehlt" });
       const artikel = await prisma.$transaction((tx) =>
-        createMitCode(tx, { ...data, zaehlpflichtig: input.zaehlpflichtig ?? true }),
+        createMitCode(tx, {
+          ...data,
+          zaehlpflichtig: input.zaehlpflichtig ?? true,
+          ...nurGesetzte({ laengeMm: input.laengeMm, breiteMm: input.breiteMm, hoeheMm: input.hoeheMm }),
+        }),
       );
       return { id: artikel.id, code: artikel.code };
     }),
@@ -435,10 +454,17 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
       if (!data.name) throw new TRPCError({ code: "BAD_REQUEST", message: "Name fehlt" });
       await prisma.verbrauchsArtikel.update({
         where: { id },
-        // Nur setzen, wenn das Formular es mitgeschickt hat (siehe positionInput).
-        data: rest.zaehlpflichtig === undefined
-          ? data
-          : { ...data, zaehlpflichtig: rest.zaehlpflichtig },
+        // Nur setzen, was das Formular wirklich mitgeschickt hat (siehe
+        // positionInput) — sonst leert der Bestands-Import gepflegte Werte.
+        data: {
+          ...data,
+          ...nurGesetzte({
+            zaehlpflichtig: rest.zaehlpflichtig,
+            laengeMm:       rest.laengeMm,
+            breiteMm:       rest.breiteMm,
+            hoeheMm:        rest.hoeheMm,
+          }),
+        },
       });
       return { ok: true };
     }),

@@ -1012,6 +1012,14 @@ model VerbrauchsArtikel {
   aktuellerBestand Int                     @default(0)
   aan              String?                 @db.VarChar(100)
   gebindegroesse   Int?
+  // ── Maße in MILLIMETERN ───────────────────────────────────────────────────
+  // Bewusst ganzzahlig in mm statt Komma-Zentimeter: Ein Karton mit 30 cm ist
+  // 300, ein Etikett mit 1,5 cm ist 15 — beides ohne Rundungsfragen. Wer in cm
+  // denkt, hängt eine Null an.
+  // Alle drei einzeln optional: oft ist nur eine Kante bekannt oder wichtig.
+  laengeMm         Int?
+  breiteMm         Int?
+  hoeheMm          Int?
   standort         String?                 @db.VarChar(191)
   bemerkung        String?                 @db.Text
   aktiv            Boolean                 @default(true)

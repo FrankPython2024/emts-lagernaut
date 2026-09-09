@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { printVerbrauchsmaterialEtiketten } from "@/lib/print/verbrauchsmaterialEtikett";
 import { printLagerplatzSchild } from "@/lib/print/lagerplatzSchild";
+import { useHintergrundSchliessen } from "@/components/ui/hintergrundSchliessen";
 
 const CYAN = "#008BD2";
 
@@ -21,6 +22,9 @@ type Artikel = {
   aktuellerBestand: number;
   aan:              string | null;
   gebindegroesse:   number | null;
+  laengeMm:         number | null;
+  breiteMm:         number | null;
+  hoeheMm:          number | null;
   standort:         string | null;
   bemerkung:        string | null;
   aktiv:            boolean;
@@ -34,6 +38,19 @@ type Artikel = {
 // kein Foto hinterlegt ist. Für Liste-Thumbnail, A5-Schild, Info-Vorschau.
 function bildUrl(a: Pick<Artikel, "id" | "hatBild" | "bildStand">): string | null {
   return a.hatBild ? `/api/verbrauchsmaterial/bild/${a.id}?v=${a.bildStand ?? 0}` : null;
+}
+
+/**
+ * Maße als eine lesbare Zeile: „300 × 200 × 150 mm".
+ *
+ * Fehlende Kanten werden als „?" gezeigt statt weggelassen — sonst liest sich
+ * „300 × 150 mm" wie Länge und Breite, obwohl Länge und Höhe gemeint sind.
+ * Ist gar nichts gepflegt, kommt null zurück und die Zeile entfällt ganz.
+ */
+function masseText(a: Pick<Artikel, "laengeMm" | "breiteMm" | "hoeheMm">): string | null {
+  const werte = [a.laengeMm, a.breiteMm, a.hoeheMm];
+  if (werte.every((v) => v == null)) return null;
+  return `${werte.map((v) => (v == null ? "?" : v.toLocaleString("de-DE"))).join(" × ")} mm`;
 }
 
 // Ausliefer-URL eines EINZELNEN Galerie-Fotos (nach fotoId) inkl. Cache-Buster.
@@ -492,6 +509,9 @@ function ArtikelForm({
 }) {
   const { show } = useToast();
   const istNeu = !artikel;
+  // Schließt nur bei Drücken UND Loslassen auf dem Hintergrund — sonst klappt
+  // der Dialog beim Markieren von Text zu und die Eingaben sind weg.
+  const hintergrund = useHintergrundSchliessen(onClose);
 
   const [name, setName]                 = useState(artikel?.name ?? "");
   const [merkmale, setMerkmale]         = useState(artikel?.merkmale ?? "");
@@ -503,6 +523,10 @@ function ArtikelForm({
   const [zaehlpflichtig, setZaehlpflichtig] = useState(artikel?.zaehlpflichtig ?? true);
   const [aktuellerBestand, setBestand]  = useState(String(artikel?.aktuellerBestand ?? 0));
   const [gebindegroesse, setGebinde]    = useState(artikel?.gebindegroesse != null ? String(artikel.gebindegroesse) : "");
+  // Maße in Millimetern, jede Kante für sich optional.
+  const [laengeMm, setLaenge]           = useState(artikel?.laengeMm != null ? String(artikel.laengeMm) : "");
+  const [breiteMm, setBreite]           = useState(artikel?.breiteMm != null ? String(artikel.breiteMm) : "");
+  const [hoeheMm,  setHoehe]            = useState(artikel?.hoeheMm  != null ? String(artikel.hoeheMm)  : "");
   const [bemerkung, setBemerkung]       = useState(artikel?.bemerkung ?? "");
 
   // Foto-Galerie (Reihenfolge = Anzeige; erstes = Titelbild). Bestehende Fotos
@@ -592,6 +616,10 @@ function ArtikelForm({
       mindestbestand:   toNum(mindestbestand),
       aktuellerBestand: toNum(aktuellerBestand),
       gebindegroesse:   gebindegroesse.trim() ? toNum(gebindegroesse) : null,
+      // Leeres Feld = null („bewusst nichts eingetragen"), nicht 0.
+      laengeMm:         laengeMm.trim() ? toNum(laengeMm) : null,
+      breiteMm:         breiteMm.trim() ? toNum(breiteMm) : null,
+      hoeheMm:          hoeheMm.trim()  ? toNum(hoeheMm)  : null,
       bemerkung:        bemerkung.trim() || null,
       zaehlpflichtig,
     };
@@ -632,7 +660,7 @@ function ArtikelForm({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" {...hintergrund}>
       <div
         className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
@@ -712,6 +740,32 @@ function ArtikelForm({
             <span className={labelCls}>Gebindegröße (Stückzahl)</span>
             <input type="number" inputMode="numeric" min={0} value={gebindegroesse} onChange={(e) => setGebinde(e.target.value)} className={inputCls} placeholder="optional" />
           </label>
+          {/* Maße — als eigener Block mit einer Einheit für alle drei, statt
+              dreimal „mm" an den Feldnamen zu hängen. */}
+          <div className="sm:col-span-2">
+            <span className={labelCls}>Maße in Millimeter (optional)</span>
+            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))" }}>
+              <label className="block">
+                <span className="block text-xs text-[#65676b] dark:text-[#b0b3b8] mb-1">Länge</span>
+                <input type="number" inputMode="numeric" min={0} value={laengeMm}
+                  onChange={(e) => setLaenge(e.target.value)} className={inputCls} placeholder="z. B. 300" />
+              </label>
+              <label className="block">
+                <span className="block text-xs text-[#65676b] dark:text-[#b0b3b8] mb-1">Breite</span>
+                <input type="number" inputMode="numeric" min={0} value={breiteMm}
+                  onChange={(e) => setBreite(e.target.value)} className={inputCls} placeholder="z. B. 200" />
+              </label>
+              <label className="block">
+                <span className="block text-xs text-[#65676b] dark:text-[#b0b3b8] mb-1">Höhe</span>
+                <input type="number" inputMode="numeric" min={0} value={hoeheMm}
+                  onChange={(e) => setHoehe(e.target.value)} className={inputCls} placeholder="z. B. 150" />
+              </label>
+            </div>
+            <span className="block text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
+              30 cm sind 300 mm. Es müssen nicht alle drei ausgefüllt sein.
+            </span>
+          </div>
+
           <label className="sm:col-span-2 block">
             <span className={labelCls}>Bemerkung</span>
             <textarea value={bemerkung} onChange={(e) => setBemerkung(e.target.value)} rows={3} className={inputCls.replace("min-h-[56px]", "min-h-[80px] py-2")} placeholder="optional" />
@@ -773,6 +827,7 @@ function ArtikelInfo({
   onSchild: (a: Artikel) => void;
 }) {
   const { show } = useToast();
+  const hintergrund = useHintergrundSchliessen(onClose);
   const fotosQ = api.verbrauchsmaterial.fotos.useQuery({ artikelId: artikel.id });
   const fotos = fotosQ.data ?? [];
   const [vollbildIdx, setVollbildIdx] = useState<number | null>(null);
@@ -788,7 +843,7 @@ function ArtikelInfo({
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" {...hintergrund}>
       <div
         className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
@@ -854,6 +909,7 @@ function ArtikelInfo({
               label="Wochenzählung"
               wert={artikel.zaehlpflichtig ? "wird gezählt" : "⃠ ausgenommen"}
             />
+            <InfoFeld label="Maße (L × B × H)" wert={masseText(artikel)} />
           </dl>
         </div>
 

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import FocusTrap from "focus-trap-react";
+import { useHintergrundSchliessen } from "@/components/ui/hintergrundSchliessen";
 
 type ModalProps = {
   open:     boolean;
@@ -11,6 +12,10 @@ type ModalProps = {
 };
 
 export function Modal({ open, onClose, title, children, width = "max-w-lg" }: ModalProps) {
+  // Schließt nur, wenn Drücken UND Loslassen auf dem Hintergrund passieren —
+  // sonst klappt der Dialog beim Markieren von Text zu.
+  const hintergrund = useHintergrundSchliessen(onClose);
+
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -30,7 +35,7 @@ export function Modal({ open, onClose, title, children, width = "max-w-lg" }: Mo
     >
       <div
         className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
+        {...hintergrund}
       >
         <div
           role="dialog"
