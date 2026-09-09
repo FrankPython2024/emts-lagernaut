@@ -525,7 +525,9 @@ function ArtikelForm({
   const [fotoBusy, setFotoBusy] = useState(false);
   const ursprungIds = useRef<number[]>([]);
   const neuCounter  = useRef(0);
-  const geladen     = useRef(false);
+  // ⚠️ Bewusst State, nicht Ref: Die Oberfläche muss darauf reagieren können
+  // (Foto-Knopf und Speichern bleiben gesperrt, bis der Bestand geladen ist).
+  const [galerieGeladen, setGalerieGeladen] = useState(false);
 
   const fotosQ = api.verbrauchsmaterial.fotos.useQuery(
     { artikelId: artikel?.id ?? 0 },
@@ -533,14 +535,23 @@ function ArtikelForm({
   );
   // Einmalig aus der DB in den Bearbeitungszustand übernehmen.
   useEffect(() => {
-    if (geladen.current) return;
-    if (!artikel) { geladen.current = true; return; } // neuer Artikel → leer
+    if (galerieGeladen) return;
+    if (!artikel) { setGalerieGeladen(true); return; } // neuer Artikel → leer
     if (fotosQ.data) {
-      setFotos(fotosQ.data.map((f) => ({ key: `v${f.id}`, kind: "vorhanden" as const, fotoId: f.id, stand: f.stand })));
+      const ausDb = fotosQ.data.map((f) => ({
+        key: `v${f.id}`, kind: "vorhanden" as const, fotoId: f.id, stand: f.stand,
+      }));
+      // ⚠️ NICHT überschreiben, sondern zusammenführen. Wer ein Foto aufnimmt,
+      // bevor diese Abfrage zurück ist, hängt es an eine noch leere Liste — ein
+      // stumpfes setFotos(ausDb) hat es danach spurlos verworfen. Genau daran
+      // lag „manchmal wird das Bild gespeichert, manchmal nicht": Das Foto kam
+      // nie am Server an, deshalb war in der DB auch nichts Kaputtes zu finden.
+      // Bestehende zuerst, frisch aufgenommene dahinter — so, wie sie entstanden.
+      setFotos((prev) => [...ausDb, ...prev.filter((f) => f.kind === "neu")]);
       ursprungIds.current = fotosQ.data.map((f) => f.id);
-      geladen.current = true;
+      setGalerieGeladen(true);
     }
-  }, [artikel, fotosQ.data]);
+  }, [artikel, fotosQ.data, galerieGeladen]);
 
   const anlegen        = api.verbrauchsmaterial.anlegen.useMutation();
   const bearbeiten     = api.verbrauchsmaterial.bearbeiten.useMutation();
@@ -548,7 +559,11 @@ function ArtikelForm({
   const fotoLoeschen   = api.verbrauchsmaterial.fotoLoeschen.useMutation();
   const fotosNeuOrdnen = api.verbrauchsmaterial.fotosNeuOrdnen.useMutation();
   const isPending = anlegen.isPending || bearbeiten.isPending || fotoBusy
-    || fotoHinzufuegen.isPending || fotoLoeschen.isPending || fotosNeuOrdnen.isPending;
+    || fotoHinzufuegen.isPending || fotoLoeschen.isPending || fotosNeuOrdnen.isPending
+    // ⚠️ Solange der Foto-Bestand nicht geladen ist, weiß `ursprungIds` nicht,
+    // was in der DB liegt. Ein Speichern in diesem Moment vergäbe Position 0
+    // doppelt, und welches Bild dann Titelbild ist, wäre Zufall.
+    || !galerieGeladen;
 
   function toNum(s: string): number { const n = parseInt(s, 10); return Number.isFinite(n) && n > 0 ? n : 0; }
 
@@ -558,17 +573,33 @@ function ArtikelForm({
     e.target.value = ""; // erlaubt erneutes Wählen derselben Datei
     if (files.length === 0) return;
     setFotoBusy(true);
+    // ⚠️ Je Datei einzeln absichern. Vorher lag der try um die ganze Schleife —
+    // ein unlesbares Bild (z. B. HEIC vom iPhone) brach sie ab, und alle
+    // dahinter fielen still weg. Jetzt kommt jedes lesbare Bild durch und die
+    // Meldung sagt, wie viele es nicht waren.
+    const misslungen: string[] = [];
     try {
       for (const file of files) {
-        const { base64, mime, dataUrl } = await verkleinereBild(file);
-        neuCounter.current += 1;
-        const key = `n${neuCounter.current}`;
-        setFotos((prev) => [...prev, { key, kind: "neu", base64, mime, dataUrl }]);
+        try {
+          const { base64, mime, dataUrl } = await verkleinereBild(file);
+          if (!base64) { misslungen.push(file.name); continue; }
+          neuCounter.current += 1;
+          const key = `n${neuCounter.current}`;
+          setFotos((prev) => [...prev, { key, kind: "neu", base64, mime, dataUrl }]);
+        } catch {
+          misslungen.push(file.name);
+        }
       }
-    } catch {
-      show("Ein Bild konnte nicht verarbeitet werden.", "error");
     } finally {
       setFotoBusy(false);
+    }
+    if (misslungen.length > 0) {
+      show(
+        misslungen.length === files.length
+          ? `Kein Bild konnte gelesen werden (${misslungen.join(", ")}).`
+          : `${misslungen.length} von ${files.length} Bildern nicht lesbar: ${misslungen.join(", ")}`,
+        "error",
+      );
     }
   }
 
@@ -689,11 +720,16 @@ function ArtikelForm({
                   </div>
                 </div>
               ))}
-              {/* Hinzufügen-Kachel (mehrere Dateien möglich) */}
-              <label className={`w-28 h-28 rounded-lg border-2 border-dashed border-[#008BD2]/50 flex flex-col items-center justify-center cursor-pointer text-[#0064d2] dark:text-[#45bdff] hover:bg-[#008BD2]/5 ${fotoBusy ? "opacity-50 pointer-events-none" : ""}`}>
+              {/* Hinzufügen-Kachel (mehrere Dateien möglich).
+                  ⚠️ Gesperrt, solange die vorhandenen Fotos noch geladen werden.
+                  Sonst entsteht wieder der Zustand, in dem ein frisch
+                  aufgenommenes Foto auf eine noch leere Liste trifft. */}
+              <label className={`w-28 h-28 rounded-lg border-2 border-dashed border-[#008BD2]/50 flex flex-col items-center justify-center cursor-pointer text-[#0064d2] dark:text-[#45bdff] hover:bg-[#008BD2]/5 ${fotoBusy || !galerieGeladen ? "opacity-50 pointer-events-none" : ""}`}>
                 <span className="text-3xl" aria-hidden>📷</span>
-                <span className="text-xs font-bold mt-1">{fotoBusy ? "verkleinere…" : "Hinzufügen"}</span>
-                <input type="file" accept="image/*" capture="environment" multiple onChange={onDateienGewaehlt} disabled={fotoBusy} className="sr-only" />
+                <span className="text-xs font-bold mt-1 text-center px-1">
+                  {!galerieGeladen ? "lädt…" : fotoBusy ? "verkleinere…" : "Hinzufügen"}
+                </span>
+                <input type="file" accept="image/*" capture="environment" multiple onChange={onDateienGewaehlt} disabled={fotoBusy || !galerieGeladen} className="sr-only" />
               </label>
             </div>
           </div>
