@@ -433,8 +433,12 @@ function TechnikerHeader() {
       }}>
         {/* Logo + Title */}
         <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+          {/* ⚠️ Aus dem PROJEKT, nicht aus dem Netz. Vorher hing hier die
+              Shop-URL: Ändert der Shop den Pfad oder ist die Leitung im Lager
+              gerade schlecht, steht im Kopf des Techniker-Portals ein kaputtes
+              Bild. Die Datei liegt lokal unter public/, wie auf /start. */}
           <img
-            src="https://www.afbshop.de/media/ca/1f/fe/1760428029/logo.svg"
+            src="/afb-logo-svg.svg"
             alt="AfB"
             className="dark:bg-white/90 dark:rounded dark:p-0.5"
             style={{ height: "2.2rem", marginRight: "1rem" }}

@@ -165,7 +165,7 @@ export default function TechnikPickupPage() {
         <ol className="list-decimal ml-5 space-y-0.5 text-[#65676b] dark:text-[#b0b3b8]">
           <li><b className="text-[#8A5A00] dark:text-[#f7b928]">Zustand H</b> — kommt zuerst, unabhängig vom Prozessor.</li>
           <li><b className="text-[#0064d2] dark:text-[#45bdff]">Generation bis 9</b> — von den übrigen Geräten.</li>
-          <li><b className="text-[#038F5C] dark:text-[#04B475]">Generation ab 10</b> — der Rest.</li>
+          <li><b className="text-[#037A4F] dark:text-[#04B475]">Generation ab 10</b> — der Rest.</li>
         </ol>
         <p className="mt-2 text-xs text-[#65676b] dark:text-[#b0b3b8]">
           Jedes Gerät steht auf genau einer Liste. Ein Gerät kann nur einmal abgeholt werden.
@@ -257,7 +257,7 @@ export default function TechnikPickupPage() {
                 {[...schonEingeplant.entries()].slice(0, 15).map(([logId, t]) => (
                   <li key={logId}>
                     <span className="font-mono">{formatLogId(logId)}</span> — {t.auftrag}
-                    {t.schonGefunden && <b className="text-[#038F5C] dark:text-[#04B475]"> · liegt schon auf dem Wagen</b>}
+                    {t.schonGefunden && <b className="text-[#037A4F] dark:text-[#04B475]"> · liegt schon auf dem Wagen</b>}
                   </li>
                 ))}
               </ul>
@@ -317,7 +317,7 @@ export default function TechnikPickupPage() {
               <button
                 onClick={() => void auftraegeAnlegen()}
                 disabled={laeuft || gesamtAnzulegen === 0 || praefix.trim().length < 2}
-                className="px-6 py-3 rounded-xl bg-[#04B475] text-white font-bold text-base min-h-[56px] disabled:opacity-50"
+                className="px-6 py-3 rounded-xl bg-[#037A4F] text-white font-bold text-base min-h-[56px] disabled:opacity-50"
               >
                 {laeuft ? "Wird angelegt…" : `${gesamtAnzulegen} Gerät(e) auf Aufträge verteilen`}
               </button>
@@ -332,7 +332,7 @@ export default function TechnikPickupPage() {
           {/* ── Ergebnis ────────────────────────────────────────────────── */}
           {angelegt && (
             <div className="rounded-xl border-2 border-[#04B475] bg-[#04B475]/8 p-5 space-y-2">
-              <div className="font-black text-[#038F5C] dark:text-[#04B475]">✅ Aufträge angelegt</div>
+              <div className="font-black text-[#037A4F] dark:text-[#04B475]">✅ Aufträge angelegt</div>
               <ul className="space-y-1">
                 {angelegt.map((a) => (
                   <li key={a.id}>

@@ -471,7 +471,7 @@ export default function VerbrauchsmaterialPage() {
 function StatusBadge({ status }: { status: "OK" | "NACHBESTELLEN" }) {
   if (status === "OK") {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-[#04B475]/15 text-[#04B475]">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-[#04B475]/15 text-[#037A4F]">
         ✓ OK
       </span>
     );

@@ -352,7 +352,7 @@ function Report({ agg, risiko, fidelity, onDownload }: { agg: Agg; risiko: Detai
           B = ERKANNT, aber knapper Score. Mögliche Fehltreffer. Hier lohnt eine manuelle Kontrolle.
         </p>
         {risiko.length === 0 ? (
-          <p className="text-sm text-[#04B475] font-semibold">✅ Keine knappen B-Treffer.</p>
+          <p className="text-sm text-[#037A4F] font-semibold">✅ Keine knappen B-Treffer.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm border-collapse">
@@ -386,7 +386,7 @@ function Report({ agg, risiko, fidelity, onDownload }: { agg: Agg; risiko: Detai
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Keine vergleichbaren Zeilen in der Stichprobe.</p>
         ) : (
           <>
-            <p className={`text-sm font-bold ${fidelity.abweichungen.length === 0 ? "text-[#04B475]" : "text-[#fa3e3e]"}`}>
+            <p className={`text-sm font-bold ${fidelity.abweichungen.length === 0 ? "text-[#037A4F]" : "text-[#fa3e3e]"}`}>
               {fidelity.abweichungen.length === 0 ? "✅" : "⚠️"} {nf.format(fidelity.uebereinstimmungen)} / {nf.format(fidelity.geprueft)} Zeilen stimmen mit der echten getOrCreateModell-Logik überein
             </p>
             {fidelity.abweichungen.length > 0 && (

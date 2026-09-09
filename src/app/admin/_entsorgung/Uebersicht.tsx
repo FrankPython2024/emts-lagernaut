@@ -14,7 +14,7 @@ import { ladungsEinheiten, type BereichInfo } from "@/lib/entsorgung/bereiche";
 const STATUS_TEXT = {
   OFFEN:     { label: "offen",     cls: "bg-[#0064d2]/12 text-[#0064d2] dark:text-[#45bdff]" },
   VERSENDET: { label: "versendet", cls: "bg-[#f7b928]/18 text-[#8A5A00] dark:text-[#f7b928]" },
-  ERLEDIGT:  { label: "erledigt",  cls: "bg-[#04B475]/15 text-[#038F5C] dark:text-[#04B475]" },
+  ERLEDIGT:  { label: "erledigt",  cls: "bg-[#04B475]/15 text-[#037A4F] dark:text-[#04B475]" },
 } as const;
 
 function heuteText(): string {
@@ -73,14 +73,18 @@ export function EntsorgungUebersicht({ bereich }: { bereich: BereichInfo }) {
               <input type="date" value={datum} onChange={(e) => setDatum(e.target.value)} className={eingabe} />
             </div>
           </div>
+          {/* ⚠️ Das Datumsfeld ist leerbar. `new Date("T12:00:00")` ist ein
+              Invalid Date, und `.toISOString()` wirft dann einen RangeError
+              MITTEN im onClick — der Knopf tat sichtbar gar nichts, ohne
+              Meldung. Deshalb ist das Datum jetzt Teil der Sperre. */}
           <button
             onClick={() => anlegen.mutate({
               bereich:     bereich.key,
               bezeichnung: bezeichnung.trim(),
               datum:       new Date(`${datum}T12:00:00`).toISOString(),
             })}
-            disabled={bezeichnung.trim().length < 2 || anlegen.isPending}
-            className="px-5 py-3 rounded-xl bg-[#04B475] text-white font-bold text-base min-h-[56px] disabled:opacity-50"
+            disabled={bezeichnung.trim().length < 2 || !datum || anlegen.isPending}
+            className="px-5 py-3 rounded-xl bg-[#037A4F] text-white font-bold text-base min-h-[56px] disabled:opacity-50"
           >
             {anlegen.isPending ? "…" : "Auftrag anlegen"}
           </button>

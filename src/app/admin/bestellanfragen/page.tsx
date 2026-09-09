@@ -34,7 +34,7 @@ const STATUS_KURZ: Record<string, string> = {
 const STATUS_STIL: Record<string, string> = {
   OFFEN:           "bg-[#f7b928]/15 text-[#a67908] dark:text-[#f7b928] border-[#f7b928]/40",
   BESTELLT:        "bg-[#0064d2]/10 text-[#0064d2] dark:text-[#45bdff] border-[#0064d2]/30",
-  GELIEFERT:       "bg-[#04B475]/10 text-[#038F5C] dark:text-[#04B475] border-[#04B475]/30",
+  GELIEFERT:       "bg-[#04B475]/10 text-[#037A4F] dark:text-[#04B475] border-[#04B475]/30",
   NICHT_GENEHMIGT: "bg-[#fa3e3e]/10 text-[#c62828] dark:text-[#ff8a80] border-[#fa3e3e]/30",
   STORNIERT:       "bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] border-[#ced4da] dark:border-[#3e4042]",
 };
@@ -248,7 +248,7 @@ export default function BestellanfragenPage() {
             <button
               onClick={() => versendet.mutate({ ids: zuVersenden.map((b) => b.id) })}
               disabled={versendet.isPending}
-              className="px-4 py-2 text-sm font-bold rounded-xl bg-[#04B475]/10 text-[#038F5C] dark:text-[#04B475] border border-[#04B475]/30 hover:bg-[#04B475]/20 disabled:opacity-50">
+              className="px-4 py-2 text-sm font-bold rounded-xl bg-[#04B475]/10 text-[#037A4F] dark:text-[#04B475] border border-[#04B475]/30 hover:bg-[#04B475]/20 disabled:opacity-50">
               ✓ Ist raus: als bestellt markieren
             </button>
             <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
@@ -387,7 +387,7 @@ export default function BestellanfragenPage() {
                           läuft über die Status-Auswahl links. */}
                       {b.status === "BESTELLT" && (
                         <button onClick={() => aendern.mutate({ id: b.id, status: "GELIEFERT" })}
-                          className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#04B475]/10 text-[#038F5C] dark:text-[#04B475] border border-[#04B475]/30 hover:bg-[#04B475]/20">
+                          className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#04B475]/10 text-[#037A4F] dark:text-[#04B475] border border-[#04B475]/30 hover:bg-[#04B475]/20">
                           ✓ Geliefert
                         </button>
                       )}

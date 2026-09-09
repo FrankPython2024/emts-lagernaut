@@ -126,7 +126,7 @@ export default function TeilenummernPage() {
                 <span className="font-mono font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{t.nummer}</span>
 
                 {t.geprueft
-                  ? <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#04B475]/15 text-[#038F5C] dark:text-[#04B475] uppercase">geprüft</span>
+                  ? <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#04B475]/15 text-[#037A4F] dark:text-[#04B475] uppercase">geprüft</span>
                   : <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#f7b928]/15 text-[#a67908] dark:text-[#f7b928] uppercase">offen</span>}
 
                 {t.istSeriennummer && (
@@ -177,7 +177,7 @@ export default function TeilenummernPage() {
                           <li key={m.modellId}
                             className={`text-xs px-2 py-1 rounded border ${
                               m.quelle === "SPENDER"
-                                ? "bg-[#04B475]/10 text-[#038F5C] dark:text-[#04B475] border-[#04B475]/30"
+                                ? "bg-[#04B475]/10 text-[#037A4F] dark:text-[#04B475] border-[#04B475]/30"
                                 : "bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] border-[#ced4da] dark:border-[#3e4042]"
                             }`}
                             title={m.quelle === "SPENDER" ? "Aus einem echten Spendergerät (sicher)" : m.quelle}
@@ -213,8 +213,19 @@ export default function TeilenummernPage() {
                         <label className="block text-xs font-bold uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8] mb-1">
                           Teilenummer korrigieren
                         </label>
+                        {/* ⚠️ Gespeichert wird der GETRIMMTE Wert, und nur wenn er
+                            mindestens 3 Zeichen hat — das verlangt das Schema.
+                            Vorher ging der ungetrimmte Rohwert raus: Feld leeren
+                            und wegklicken warf jedes Mal einen Fehler, ohne dass
+                            man einen Knopf gedrückt hätte. Ist das Feld leer oder
+                            zu kurz, wird der alte Wert zurückgesetzt. */}
                         <input type="text" defaultValue={t.nummer}
-                          onBlur={(e) => e.target.value.trim().toUpperCase() !== t.nummer && aendern.mutate({ id: t.id, nummer: e.target.value })}
+                          onBlur={(e) => {
+                            const neu = e.target.value.trim().toUpperCase();
+                            if (neu === t.nummer) return;
+                            if (neu.length < 3) { e.target.value = t.nummer; return; }
+                            aendern.mutate({ id: t.id, nummer: neu });
+                          }}
                           className={`${feld} w-full font-mono max-w-md`} />
                         <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
                           Steht auf dem Etikett mehr als eine Nummer, nimm die kurze
@@ -257,7 +268,7 @@ export default function TeilenummernPage() {
                           className={`px-4 py-2 rounded-lg font-bold text-sm min-h-[44px] ${
                             t.geprueft
                               ? "border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"
-                              : "bg-[#04B475] text-white"
+                              : "bg-[#037A4F] text-white"
                           }`}>
                           {t.geprueft ? "Wieder als offen markieren" : "✓ Geprüft: Liste stimmt"}
                         </button>

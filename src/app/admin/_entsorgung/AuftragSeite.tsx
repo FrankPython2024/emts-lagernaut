@@ -135,19 +135,38 @@ export function EntsorgungAuftragSeite({ bereich, auftragId }: { bereich: Bereic
       ? `${anzahl} ${bereich.einheitMehrzahl} auf ${ladung} ${bereich.ladungName}`
       : `${anzahl} ${bereich.ladungName}`;
 
+    // Spaltenindizes der beiden Gewichtsspalten (rechtsbündig + Summenzeile).
     const zahlSpalten = bereich.mitUnNummer ? [4, 5] : [3, 4];
+    const bruttoSpalte = zahlSpalten[0]!;
+
+    // ⚠️ Die Summenzeile muss UNTER ihren eigenen Überschriften stehen.
+    // Vorher: `colspan = bruttoSpalte` für die Beschriftung, dann „Gesamtgewicht"
+    // — das landete in der Brutto-Spalte, die Brutto-Summe unter „Nettogewicht"
+    // und die Netto-Summe unter „Abfallart". Diese Tabelle geht an den Entsorger.
+    // Jetzt: Beschriftung deckt alles VOR der Brutto-Spalte ab, dann Brutto,
+    // dann Netto, dann Leerzellen bis zum Zeilenende.
+    const restSpalten = kopf.length - (bruttoSpalte + 2);
+
     const text = [
       kopf.join("\t"),
       ...daten.map((r) => r.join("\t")),
       "",
-      `${schluss}\tGesamtgewicht\t${gesamtBrutto}\t${gesamtNetto}`,
+      // Auch die Textfassung braucht die volle Spaltenzahl, sonst rutschen die
+      // Summen beim Einfügen in Excel in die falschen Spalten.
+      [
+        `${schluss} · Gesamtgewicht`,
+        ...Array(bruttoSpalte - 1).fill(""),
+        String(gesamtBrutto),
+        String(gesamtNetto),
+        ...Array(Math.max(0, restSpalten)).fill(""),
+      ].join("\t"),
     ].join("\n");
 
     const td = "padding:4px 8px;border:1px solid #999;";
     const html = `<table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11pt">
 <tr>${kopf.map((h) => `<th style="${td}background:#008BD2;color:#fff;text-align:left">${h}</th>`).join("")}</tr>
 ${daten.map((r) => `<tr>${r.map((c, i) => `<td style="${td}${zahlSpalten.includes(i) ? "text-align:right" : ""}">${c}</td>`).join("")}</tr>`).join("\n")}
-<tr><td colspan="${zahlSpalten[0]}" style="${td}font-weight:bold">${schluss}</td><td style="${td}font-weight:bold">Gesamtgewicht</td><td style="${td}text-align:right;font-weight:bold">${gesamtBrutto}</td><td style="${td}text-align:right;font-weight:bold">${gesamtNetto}</td><td style="${td}"></td></tr>
+<tr><td colspan="${bruttoSpalte}" style="${td}font-weight:bold">${schluss} &middot; Gesamtgewicht</td><td style="${td}text-align:right;font-weight:bold">${gesamtBrutto}</td><td style="${td}text-align:right;font-weight:bold">${gesamtNetto}</td>${"<td style=\"" + td + "\"></td>".repeat(Math.max(0, restSpalten))}</tr>
 </table>`;
 
     try {
@@ -249,7 +268,7 @@ ${daten.map((r) => `<tr>${r.map((c, i) => `<td style="${td}${zahlSpalten.include
                 unNummer: bereich.mitUnNummer ? unNummer : null,
               })}
               disabled={!bereit || hinzufuegen.isPending}
-              className="px-5 py-3 rounded-xl bg-[#04B475] text-white font-bold text-base min-h-[56px] disabled:opacity-50"
+              className="px-5 py-3 rounded-xl bg-[#037A4F] text-white font-bold text-base min-h-[56px] disabled:opacity-50"
             >
               {hinzufuegen.isPending ? "…" : `+ ${bereich.einheit} hinzufügen`}
             </button>

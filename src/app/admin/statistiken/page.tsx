@@ -1,4 +1,5 @@
 "use client";
+import { klickbareZeile } from "@/lib/ui/klickbareZeile";
 import { useEffect, useState } from "react";
 import { AnfrageStatus } from "@prisma/client";
 import { api } from "@/trpc/react";
@@ -289,7 +290,7 @@ function ErntePanel({ tage, standortId }: { tage: number; standortId: number | n
       {q.data && (
         <>
           <div className="mb-4">
-            <div className="text-3xl font-black tabular-nums text-[#04B475]">{euro(q.data.wert)}</div>
+            <div className="text-3xl font-black tabular-nums text-[#037A4F]">{euro(q.data.wert)}</div>
             <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
               📦 {q.data.geraete.toLocaleString("de-DE")} Spendergeräte · 🧩 {q.data.mengeGesamt.toLocaleString("de-DE")} Teile gewonnen
               {q.data.geraete > 0 && <> · Ø {q.data.proGeraet.toLocaleString("de-DE")} Teile je Gerät</>}
@@ -868,16 +869,21 @@ function JahresArchivSektion({ kuerzel }: { kuerzel: string }) {
                   return (
                     <tr
                       key={m.monat}
-                      onClick={() => hatDaten && setMonatsModal(m.monat)}
+                      {...klickbareZeile(() => { if (hatDaten) setMonatsModal(m.monat); })}
                       className={`transition-colors ${hatDaten ? "cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a]" : ""} ${istAktuell ? "bg-[#0064d2]/5 font-bold" : ""}`}
                     >
                       <td className={`py-2 pr-3 ${istAktuell ? "text-[#0064d2] font-black" : istZukunft ? "text-[#65676b] dark:text-[#b0b3b8]" : "text-[#1a1a1a] dark:text-[#e4e6eb]"}`}>
                         {MONATE[m.monat - 1]}
                         {istAktuell && <span className="ml-1 text-[10px] bg-[#0064d2] text-white px-1 rounded">lfd.</span>}
                       </td>
-                      <td className="text-center py-2 px-3">{m.gesamt ?? <span className="text-[#65676b]">—</span>}</td>
-                      <td className="text-center py-2 px-3 text-[#00a400]">{m.erledigt ?? <span className="text-[#65676b]">—</span>}</td>
-                      <td className="text-center py-2 px-3 text-[#f7b928]">{m.bedarf ?? <span className="text-[#65676b]">—</span>}</td>
+                      <td className="text-center py-2 px-3 text-[#1a1a1a] dark:text-[#e4e6eb]">{m.gesamt ?? <span className="text-[#65676b] dark:text-[#b0b3b8]">—</span>}</td>
+                      {/* ⚠️ Kennzahlen brauchen lesbaren Kontrast, nicht nur eine
+                          hübsche Farbe. #00a400 lag auf Weiß bei 3,3:1, das
+                          Gelb #f7b928 bei 1,76:1 — praktisch unlesbar. Jetzt
+                          #037A4F (5,4:1) und #8A5A00 (5,3:1), im Dunkelmodus die
+                          hellen Töne. */}
+                      <td className="text-center py-2 px-3 text-[#037A4F] dark:text-[#04B475]">{m.erledigt ?? <span className="text-[#65676b] dark:text-[#b0b3b8]">—</span>}</td>
+                      <td className="text-center py-2 px-3 text-[#8A5A00] dark:text-[#f7b928]">{m.bedarf ?? <span className="text-[#65676b] dark:text-[#b0b3b8]">—</span>}</td>
                       <td className={`text-center py-2 pl-3 font-bold ${rateColor(m.erledigungsrate)}`}>
                         {m.erledigungsrate !== null ? `${m.erledigungsrate}%` : <span className="text-[#65676b]">—</span>}
                       </td>

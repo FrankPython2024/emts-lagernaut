@@ -128,7 +128,7 @@ export function StepLosesTeil({
         <TeilenummerFeld wert={nummer} onChange={setNummer} autoFocus onTreffer={ausTreffer} />
 
         {uebernommen && (
-          <div className="rounded-lg border border-[#04B475]/40 bg-[#04B475]/8 px-3 py-2 text-sm text-[#038F5C] dark:text-[#04B475]">
+          <div className="rounded-lg border border-[#04B475]/40 bg-[#04B475]/8 px-3 py-2 text-sm text-[#037A4F] dark:text-[#04B475]">
             Aus der Nummer übernommen: {uebernommen}. Du kannst es unten ändern.
           </div>
         )}
@@ -237,7 +237,7 @@ export function StepLosesTeil({
               <li key={i} className="text-sm border-b border-[#f0f2f5] dark:border-[#3e4042] pb-2 last:border-0">
                 <div className="text-[#1a1a1a] dark:text-[#e4e6eb]">✅ {e.text}</div>
                 {e.modelle.length > 0 && (
-                  <div className="text-xs text-[#038F5C] dark:text-[#04B475]">
+                  <div className="text-xs text-[#037A4F] dark:text-[#04B475]">
                     passt in {e.modelle.length} Modell{e.modelle.length === 1 ? "" : "e"}: {e.modelle.slice(0, 3).join(", ")}
                     {e.modelle.length > 3 && ` und ${e.modelle.length - 3} weitere`}
                   </div>

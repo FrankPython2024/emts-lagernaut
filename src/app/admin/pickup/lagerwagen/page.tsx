@@ -103,7 +103,7 @@ export default function LagerwagenPage() {
         ) : (
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="px-3 py-1.5 rounded-lg bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff] font-bold">{statusQ.data!.wagen} Wagen</span>
-            <span className="px-3 py-1.5 rounded-lg bg-[#04B475]/10 text-[#04B475] font-bold">{statusQ.data!.untercollis} Untercollis</span>
+            <span className="px-3 py-1.5 rounded-lg bg-[#04B475]/10 text-[#037A4F] font-bold">{statusQ.data!.untercollis} Untercollis</span>
             {statusQ.data!.aktualisiertAm && (
               <span className="text-xs text-[#90939a] dark:text-[#6b6e73]">Stand: {fmtDatum(statusQ.data!.aktualisiertAm)}</span>
             )}
@@ -142,7 +142,7 @@ export default function LagerwagenPage() {
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2 text-sm">
               <span className="px-3 py-1.5 rounded-lg bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff] font-bold">{res.wagen} Wagen</span>
-              <span className="px-3 py-1.5 rounded-lg bg-[#04B475]/10 text-[#04B475] font-bold">{res.untercollis} Untercollis</span>
+              <span className="px-3 py-1.5 rounded-lg bg-[#04B475]/10 text-[#037A4F] font-bold">{res.untercollis} Untercollis</span>
               <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{res.skipped} übersprungen (keine Nummer/Hauptcolli)</span>
               <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{res.duplicates} Duplikate entfernt</span>
             </div>

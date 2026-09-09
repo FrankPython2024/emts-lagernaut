@@ -249,7 +249,7 @@ export default function AbgabenPage() {
         {auswertung.data && (
           <>
             <div className="mb-4">
-              <div className="text-3xl font-black text-[#04B475]">{euro(auswertung.data.gesamtWert)}</div>
+              <div className="text-3xl font-black text-[#037A4F]">{euro(auswertung.data.gesamtWert)}</div>
               <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
                 {nf(auswertung.data.gesamtMenge)} Stück abgegeben · statistischer Wert, keine Forderung
                 {auswertung.data.ohnePreis > 0 && (

@@ -107,7 +107,7 @@ export function TeilenummerFeld({
                 />
               )}
               <div className="min-w-0">
-              <div className="font-bold text-[#038F5C] dark:text-[#04B475]">
+              <div className="font-bold text-[#037A4F] dark:text-[#04B475]">
                 ✓ Bekannt: {treffer.nummer}
               </div>
               <div className="text-[#65676b] dark:text-[#b0b3b8] mt-0.5">

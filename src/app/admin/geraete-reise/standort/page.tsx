@@ -1,4 +1,5 @@
 "use client";
+import { klickbareZeile } from "@/lib/ui/klickbareZeile";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDebounce } from "use-debounce";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -378,7 +379,7 @@ export default function StellplatzAnalysePage() {
                 {listeQ.data?.zeilen.map((g: Zeile) => (
                   <tr
                     key={g.logId}
-                    onClick={() => oeffneGeraet(g.logId)}
+                    {...klickbareZeile(() => oeffneGeraet(g.logId))}
                     className="border-t border-[#ced4da] dark:border-[#3e4042] cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
                     style={{ minHeight: 56 }}
                   >

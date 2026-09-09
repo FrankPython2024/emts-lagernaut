@@ -111,7 +111,7 @@ function Dialog({ onClose }: { onClose: () => void }) {
             // ── Erfolg ───────────────────────────────────────────────────────
             <div className="text-center py-6 space-y-4">
               <div className="text-5xl" aria-hidden>✅</div>
-              <h3 className="text-xl font-black text-[#04B475]">Passwort geändert</h3>
+              <h3 className="text-xl font-black text-[#037A4F]">Passwort geändert</h3>
               <p className="text-base text-[#65676b] dark:text-[#b0b3b8]">
                 Dein neues Passwort gilt ab dem <strong>nächsten Anmelden</strong>.
                 Merke es dir gut.
@@ -172,7 +172,7 @@ function Dialog({ onClose }: { onClose: () => void }) {
                 type="button"
                 onClick={pruefenUndSenden}
                 disabled={aendern.isPending}
-                className="w-full rounded-xl bg-[#04B475] text-white text-lg font-black hover:opacity-90 disabled:opacity-50 transition-opacity"
+                className="w-full rounded-xl bg-[#037A4F] text-white text-lg font-black hover:opacity-90 disabled:opacity-50 transition-opacity"
                 style={{ minHeight: 56 }}
               >
                 {aendern.isPending ? "Speichere…" : "💾 Passwort speichern"}

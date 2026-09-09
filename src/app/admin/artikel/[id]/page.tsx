@@ -204,7 +204,7 @@ export default function ArtikelDetailPage() {
               <span className="text-[#65676b] dark:text-[#b0b3b8]">
                 Partner: <strong className="text-[#1a1a1a] dark:text-[#e4e6eb]">{artikel.poolPartner.bestand}</strong>
               </span>
-              <span className="text-[#04B475] font-bold">
+              <span className="text-[#037A4F] font-bold">
                 Gemeinsam verfügbar: {artikel.poolBestand}
               </span>
             </div>

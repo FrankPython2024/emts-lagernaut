@@ -235,7 +235,7 @@ export function StepFotoErkennen({
                   hat, ist verlässlicher als jede frische Erkennung. */}
               {ergebnis.bekannt && (
                 <div className="rounded-lg border-2 border-[#04B475] bg-[#04B475]/8 p-4">
-                  <div className="font-bold text-[#038F5C] dark:text-[#04B475]">
+                  <div className="font-bold text-[#037A4F] dark:text-[#04B475]">
                     ✓ Diese Nummer kennt Lagernaut schon: {ergebnis.bekannt.nummer}
                   </div>
                   <div className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
@@ -352,7 +352,7 @@ export function StepFotoErkennen({
             <>
               {lesen.data.bekannt && (
                 <div className="rounded-lg border-2 border-[#04B475] bg-[#04B475]/8 p-4">
-                  <div className="font-bold text-[#038F5C] dark:text-[#04B475]">
+                  <div className="font-bold text-[#037A4F] dark:text-[#04B475]">
                     ✓ Diese Nummer kennt Lagernaut schon: {lesen.data.bekannt.nummer}
                   </div>
                   <div className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
@@ -446,7 +446,7 @@ export function StepFotoErkennen({
                 <>
                   {zuNummer.data.bekannt && zuNummer.data.bekannt.gesichert.length > 0 && (
                     <div>
-                      <div className="text-sm font-bold text-[#038F5C] dark:text-[#04B475]">
+                      <div className="text-sm font-bold text-[#037A4F] dark:text-[#04B475]">
                         Gesichert: passt in {zuNummer.data.bekannt.gesichert.length} Modelle
                       </div>
                       <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
@@ -527,7 +527,7 @@ export function StepFotoErkennen({
                   {zuNummer.data.plaetze.filter((p) => p.stufe === 0).map((p) => (
                     <div key={p.lagerplatz}
                       className="rounded-lg border-2 border-[#04B475] bg-[#04B475]/8 p-4">
-                      <div className="text-sm font-bold text-[#038F5C] dark:text-[#04B475]">
+                      <div className="text-sm font-bold text-[#037A4F] dark:text-[#04B475]">
                         Für dieses Gerät gibt es schon ein Fach
                       </div>
                       <div className="text-lg font-black font-mono text-[#1a1a1a] dark:text-[#e4e6eb] mt-1">
@@ -543,8 +543,8 @@ export function StepFotoErkennen({
                         <button onClick={() => setPlatz(p.lagerplatz)}
                           className={`px-5 py-3 rounded-lg font-bold text-base min-h-[56px] ${
                             platz === p.lagerplatz
-                              ? "bg-[#04B475] text-white"
-                              : "border-2 border-[#04B475] text-[#038F5C] dark:text-[#04B475]"
+                              ? "bg-[#037A4F] text-white"
+                              : "border-2 border-[#04B475] text-[#037A4F] dark:text-[#04B475]"
                           }`}>
                           {platz === p.lagerplatz ? "✓ Ja, hierhin" : "Ja, hierhin"}
                         </button>
@@ -572,7 +572,7 @@ export function StepFotoErkennen({
                             onClick={() => setPlatz(platz === p.lagerplatz ? null : p.lagerplatz)}
                             className={`px-3 py-2 rounded-lg border-2 text-sm min-h-[48px] text-left ${
                               platz === p.lagerplatz
-                                ? "border-[#04B475] bg-[#04B475]/10 text-[#038F5C] dark:text-[#04B475] font-bold"
+                                ? "border-[#04B475] bg-[#04B475]/10 text-[#037A4F] dark:text-[#04B475] font-bold"
                                 : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"
                             }`}>
                             <div className="font-mono font-bold">

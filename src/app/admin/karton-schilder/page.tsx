@@ -270,7 +270,7 @@ export default function KartonSchilderPage() {
           <button
             onClick={drucken}
             disabled={!kannDrucken}
-            className="px-6 py-3 rounded-xl bg-[#04B475] text-white font-bold text-base min-h-[56px] disabled:opacity-50"
+            className="px-6 py-3 rounded-xl bg-[#037A4F] text-white font-bold text-base min-h-[56px] disabled:opacity-50"
           >
             🖨️ {zeilen.length} Schild{zeilen.length === 1 ? "" : "er"} drucken
           </button>

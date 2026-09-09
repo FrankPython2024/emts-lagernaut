@@ -52,7 +52,7 @@ export function Geraeteakte({ logId }: { logId: string }) {
         <div className={karte}>
           <div className={titel}>
             <span>🔧 In dieses Gerät eingebaut</span>
-            <span className="px-2 py-0.5 rounded-full bg-[#04B475]/15 text-[#038F5C] dark:text-[#04B475] text-xs font-black">
+            <span className="px-2 py-0.5 rounded-full bg-[#04B475]/15 text-[#037A4F] dark:text-[#04B475] text-xs font-black">
               {verbaut.length} belegt
             </span>
           </div>
@@ -120,7 +120,7 @@ export function Geraeteakte({ logId }: { logId: string }) {
         <div className={karte}>
           <div className={titel}>
             <span>🪛 Aus diesem Gerät geerntet</span>
-            <span className="px-2 py-0.5 rounded-full bg-[#04B475]/15 text-[#038F5C] dark:text-[#04B475] text-xs font-black">
+            <span className="px-2 py-0.5 rounded-full bg-[#04B475]/15 text-[#037A4F] dark:text-[#04B475] text-xs font-black">
               {geerntet.length} belegt
             </span>
           </div>

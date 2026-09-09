@@ -20,7 +20,7 @@ function StatusBadge({ status, nichtGefunden }: { status: string; nichtGefunden:
     return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff]">Offen</span>;
   }
   if (nichtGefunden === 0) {
-    return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#04B475]/10 text-[#04B475]">Vollständig</span>;
+    return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#04B475]/10 text-[#037A4F]">Vollständig</span>;
   }
   return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: "rgba(186,117,23,0.15)", color: "#BA7517" }}>Nicht komplett</span>;
 }
@@ -150,7 +150,7 @@ export default function PickupListePage() {
           {abgeschlossene.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-black uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">
-                Abgeschlossen: Nachweis-Archiv <span className="text-[#04B475]">({abgeschlossene.length})</span>
+                Abgeschlossen: Nachweis-Archiv <span className="text-[#037A4F]">({abgeschlossene.length})</span>
               </h2>
               <div className={gridCls} style={gridStyle}>
                 {abgeschlossene.map((a) => <AuftragKarte key={a.id} a={a} />)}

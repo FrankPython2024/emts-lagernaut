@@ -641,7 +641,7 @@ export default function PickupScanPage() {
           {data && vollstaendig ? (
             <button
               onClick={() => setAbschlussDialog(true)}
-              className="inline-flex items-center gap-1 px-4 rounded-lg bg-[#04B475] text-white text-sm font-bold hover:bg-[#039c64] transition-colors min-h-[44px] flex-shrink-0"
+              className="inline-flex items-center gap-1 px-4 rounded-lg bg-[#037A4F] text-white text-sm font-bold hover:bg-[#039c64] transition-colors min-h-[44px] flex-shrink-0"
             >
               ✓ Abschließen
             </button>
@@ -905,7 +905,7 @@ export default function PickupScanPage() {
                 Abbrechen
               </button>
               <button onClick={() => abschliessen.mutate({ id })} disabled={abschliessen.isPending}
-                className="flex-1 bg-[#04B475] text-white text-sm font-bold rounded-xl hover:bg-[#039c64] disabled:opacity-50 transition-colors min-h-[56px]">
+                className="flex-1 bg-[#037A4F] text-white text-sm font-bold rounded-xl hover:bg-[#039c64] disabled:opacity-50 transition-colors min-h-[56px]">
                 {abschliessen.isPending ? "Schließe ab…" : "Ja, abschließen"}
               </button>
             </div>

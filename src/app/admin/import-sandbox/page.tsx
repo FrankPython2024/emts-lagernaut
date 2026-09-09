@@ -163,7 +163,7 @@ function Auswertung({ data, rohHersteller }: { data: Vorschau; rohHersteller: st
                 <span className="font-mono px-2 py-1 rounded bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] break-all">
                   {rohHersteller || "∅"}
                 </span>
-                <span aria-hidden className="text-[#04B475] font-bold">→</span>
+                <span aria-hidden className="text-[#037A4F] font-bold">→</span>
                 <span className="font-mono px-2 py-1 rounded font-bold text-white" style={{ background: "#04B475" }}>
                   {hersteller.kanonisch}
                 </span>
@@ -341,7 +341,7 @@ function TorC({ katalog }: { katalog: Katalog }) {
               {anzahl === 1 ? (
                 <>
                   <span aria-hidden>✅</span>
-                  <span className="text-[#04B475]">Erkanntes Modell:</span>
+                  <span className="text-[#037A4F]">Erkanntes Modell:</span>
                   <span className="font-mono">{kandidaten[0].modell}</span>
                 </>
               ) : (

@@ -1,4 +1,5 @@
 "use client";
+import { klickbareZeile } from "@/lib/ui/klickbareZeile";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -259,7 +260,7 @@ export default function GeraeteReiseAuswertungenPage() {
                       return (
                         <tr
                           key={s.verbleib}
-                          onClick={() => router.push(listeHrefStufe(s.verbleib))}
+                          {...klickbareZeile(() => router.push(listeHrefStufe(s.verbleib)))}
                           className="border-t border-[#ced4da] dark:border-[#3e4042] cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
                         >
                           <td className="px-4 py-2 font-medium text-[#0064d2] dark:text-[#45bdff]">{s.verbleib}</td>

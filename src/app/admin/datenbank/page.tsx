@@ -1206,7 +1206,7 @@ function KompatibilitaetModal({ artikelId, onClose }: { artikelId: number; onClo
           </span>
         )}
         {data && data.anzahl > 0 && (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#04B475]/15 text-[#04B475] border border-[#04B475]/30">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#04B475]/15 text-[#037A4F] border border-[#04B475]/30">
             passt in {data.anzahl} {data.anzahl === 1 ? "Gerät" : "Geräte"}
           </span>
         )}

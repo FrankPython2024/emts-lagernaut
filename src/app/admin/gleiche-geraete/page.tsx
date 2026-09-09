@@ -229,7 +229,7 @@ export default function GleicheGeraetePage() {
             </div>
           ) : (
             <div className="rounded-xl border-2 border-[#038F5C] bg-[#04B475]/8 p-5">
-              <div className="text-lg font-black text-[#038F5C] dark:text-[#04B475]">
+              <div className="text-lg font-black text-[#037A4F] dark:text-[#04B475]">
                 {daten.gesamt === 1 ? "1 gleiches Gerät im Lager" : `${daten.gesamt} gleiche Geräte im Lager`}
               </div>
               <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-0.5">

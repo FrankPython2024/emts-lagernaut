@@ -193,7 +193,7 @@ export default function SonderanfragenPage() {
 
 function StatusText({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
-    ABGESCHLOSSEN:   { label: "Abgeschlossen", cls: "bg-[#04B475]/15 text-[#04B475]" },
+    ABGESCHLOSSEN:   { label: "Abgeschlossen", cls: "bg-[#04B475]/15 text-[#037A4F]" },
     BEDARF:          { label: "Bedarf",        cls: "bg-[#f7b928]/20 text-[#a97a00]" },
     NEU:             { label: "Neu",           cls: "bg-[#008BD2]/15 text-[#0064d2]" },
     IN_BEARBEITUNG:  { label: "In Arbeit",     cls: "bg-[#008BD2]/15 text-[#0064d2]" },

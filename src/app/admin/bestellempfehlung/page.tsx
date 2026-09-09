@@ -1,4 +1,5 @@
 "use client";
+import { klickbareZeile } from "@/lib/ui/klickbareZeile";
 import { useState, useMemo, useEffect, Fragment } from "react";
 import { useSession } from "next-auth/react";
 import { api } from "@/trpc/react";
@@ -216,7 +217,7 @@ export default function BestellempfehlungPage() {
               return (
                 <Fragment key={z.key}>
                   <tr
-                    onClick={() => setExpanded(isOpen ? null : z.key)}
+                    {...klickbareZeile(() => setExpanded(isOpen ? null : z.key))}
                     className="cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
                   >
                     <td className="px-3 py-2.5 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">{z.hersteller ?? "—"}</td>

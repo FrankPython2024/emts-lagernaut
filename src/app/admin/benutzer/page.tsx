@@ -51,7 +51,7 @@ export default function BenutzerPage() {
   });
 
   const loeschen = api.benutzer.loeschen.useMutation({
-    onSuccess: (r) => { show(`User „${r.geloescht}" gelöscht`, "success"); setConfirm(null); refetch(); },
+    onSuccess: (r) => { show(`Benutzer „${r.geloescht}" gelöscht`, "success"); setConfirm(null); refetch(); },
     onError:   (e) => { show(e.message, "error"); setConfirm(null); },
   });
 

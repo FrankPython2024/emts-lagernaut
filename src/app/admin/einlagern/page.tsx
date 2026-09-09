@@ -1917,7 +1917,14 @@ function StepBestaetigung({
   }
 
   const isLoading = previewQuery.isLoading || vorschlaegeQuery.isLoading;
-  const canSubmit = !isLoading;
+  // ⚠️ Serverseitige Obergrenze: `einlagern.preview` und `execute` nehmen
+  // höchstens 13 Teile je Aufruf. Das Raster bietet 22 Kacheln an — ohne diese
+  // Prüfung lehnte Zod schon die Vorschau ab (leere Liste, ohne sichtbaren
+  // Grund), „Jetzt einbuchen!" blieb aktiv und warf danach einen kryptischen
+  // Fehler. Jetzt sagt der Bildschirm es vorher und sperrt den Knopf.
+  const MAX_TEILE = 13;
+  const zuVieleTeile = localItems.length > MAX_TEILE;
+  const canSubmit = !isLoading && !zuVieleTeile && !previewQuery.isError;
 
   return (
     <div style={{ maxWidth: 660, margin: "0 auto" }}>
@@ -2088,6 +2095,21 @@ function StepBestaetigung({
                 <div key={line} style={{ fontSize: "0.9rem", color: "var(--text-dim)", marginTop: 4 }}>{line}</div>
               ))}
             </div>
+
+            {zuVieleTeile && (
+              <div style={{
+                padding: "0.9rem 1rem", marginBottom: 10, borderRadius: 12,
+                border: "2px solid #BA7517", background: "rgba(186,117,23,0.08)",
+                color: "#8A5A00", fontWeight: 700, textAlign: "left",
+              }}>
+                Zu viele Teile auf einmal: {localItems.length} gewählt, {MAX_TEILE} sind möglich.
+                <div style={{ fontWeight: 500, fontSize: "0.85rem", marginTop: 4 }}>
+                  Geh einen Schritt zurück und nimm {localItems.length - MAX_TEILE} Teil
+                  {localItems.length - MAX_TEILE === 1 ? "" : "e"} heraus. Den Rest kannst du
+                  danach in einem zweiten Durchgang einbuchen.
+                </div>
+              </div>
+            )}
 
             <button
               onClick={() => onEinbuchen(localItems, herkunft)}

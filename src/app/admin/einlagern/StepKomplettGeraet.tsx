@@ -225,7 +225,7 @@ export function StepKomplettGeraet({
             <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
               <div className="font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">3. Was ist noch drin?</div>
               <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
-                <b className="text-[#038F5C] dark:text-[#04B475]">{anzahlDrin} drin</b>
+                <b className="text-[#037A4F] dark:text-[#04B475]">{anzahlDrin} drin</b>
                 {anzahlFehlt > 0 && <> · <b className="text-[#8A5A00] dark:text-[#f7b928]">{anzahlFehlt} fehlt</b></>}
               </div>
             </div>
@@ -255,7 +255,7 @@ export function StepKomplettGeraet({
                     <span className="min-w-0">
                       <span className="block font-bold text-sm text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{t.label}</span>
                       {/* Wort statt nur Farbe — Zustand nie allein über Farbe. */}
-                      <span className={`block text-xs font-bold ${an ? "text-[#038F5C] dark:text-[#04B475]" : "text-[#8A5A00] dark:text-[#f7b928]"}`}>
+                      <span className={`block text-xs font-bold ${an ? "text-[#037A4F] dark:text-[#04B475]" : "text-[#8A5A00] dark:text-[#f7b928]"}`}>
                         {an ? "ist drin" : "fehlt schon"}
                       </span>
                     </span>
@@ -310,7 +310,7 @@ export function StepKomplettGeraet({
             <button
               onClick={speichern}
               disabled={!grading || anlegen.isPending || !teiltypen.data}
-              className={`${knopf} w-full bg-[#04B475] text-white disabled:opacity-50`}>
+              className={`${knopf} w-full bg-[#037A4F] text-white disabled:opacity-50`}>
               {anlegen.isPending ? "Wird gespeichert…" : "Gerät einlagern"}
             </button>
             <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-2 text-center">

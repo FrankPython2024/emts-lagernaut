@@ -19,13 +19,13 @@ import { useStandortFilter } from "@/lib/standort/standortContext";
 const PRO_BUCHUNG = 13;
 
 const STATUS_TEXT = {
-  EINGELAGERT:       { label: "vollständig",       cls: "bg-[#04B475]/15 text-[#038F5C] dark:text-[#04B475]" },
+  EINGELAGERT:       { label: "vollständig",       cls: "bg-[#04B475]/15 text-[#037A4F] dark:text-[#04B475]" },
   TEILWEISE_ZERLEGT: { label: "teilweise zerlegt", cls: "bg-[#f7b928]/18 text-[#8A5A00] dark:text-[#f7b928]" },
   ZERLEGT:           { label: "zerlegt",           cls: "bg-[#65676b]/15 text-[#65676b] dark:text-[#b0b3b8]" },
 } as const;
 
 const ZUSTAND_TEXT = {
-  VORHANDEN:     { label: "ist drin",     icon: "✓", cls: "text-[#038F5C] dark:text-[#04B475]" },
+  VORHANDEN:     { label: "ist drin",     icon: "✓", cls: "text-[#037A4F] dark:text-[#04B475]" },
   FEHLT_BEREITS: { label: "fehlte schon", icon: "—", cls: "text-[#8A5A00] dark:text-[#f7b928]" },
   ENTNOMMEN:     { label: "entnommen",    icon: "↗", cls: "text-[#65676b] dark:text-[#b0b3b8]" },
 } as const;
@@ -298,7 +298,7 @@ function GeraetDetail({
             <button
               onClick={() => void entnehmen()}
               disabled={gewaehlt.size === 0 || laeuft}
-              className="px-6 py-3 rounded-xl bg-[#04B475] text-white font-bold text-base min-h-[56px] disabled:opacity-50">
+              className="px-6 py-3 rounded-xl bg-[#037A4F] text-white font-bold text-base min-h-[56px] disabled:opacity-50">
               {laeuft ? "Wird gebucht…" : `${gewaehlt.size} Teil${gewaehlt.size === 1 ? "" : "e"} entnehmen`}
             </button>
           </div>

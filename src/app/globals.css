@@ -17,6 +17,15 @@
   --afb-green:        #04B475;   /* Rechter Halbkreis im Logo */
   --afb-green-dark:   #038F5C;
   --afb-green-light:  #1AC98D;
+  /* ⚠️ Grün, das TEXT trägt — als Schriftfarbe auf Hell ODER als Knopffläche
+     unter weißer Schrift. Das Marken-Grün #04B475 kommt auf Weiß nur auf
+     2,7:1, --afb-green-dark auf 4,1:1; WCAG AA verlangt 4,5:1. #037A4F
+     erreicht 5,4:1 in beide Richtungen.
+     Flächen OHNE Text (Fortschrittsbalken, Rahmen, getönte Hintergründe wie
+     bg-[#04B475]/15) bleiben beim Marken-Grün — dort gilt kein Textkontrast.
+     Im DUNKELMODUS bleibt #04B475 als Schrift richtig: auf #242526 sind das
+     5,7:1. */
+  --afb-green-text:   #037A4F;
 
   /* System-Farben — mapped auf AfB Brand */
   --primary:    var(--afb-navy);

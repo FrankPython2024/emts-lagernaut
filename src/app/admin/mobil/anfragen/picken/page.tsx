@@ -102,7 +102,7 @@ export default function MobilPickListePage() {
       <header className="mb-3 flex items-center gap-3 flex-wrap">
         <Link href="/admin/mobil/anfragen" className="text-sm font-semibold text-[#65676b] hover:text-[#008BD2] dark:text-[#b0b3b8]">← Anfragen</Link>
         <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">📲 Pick-Liste</h1>
-        {d && <span className="rounded-full bg-[#04B475] text-white text-sm font-bold px-3 py-1 tabular-nums">{d.komplett} / {d.gesamt} fertig</span>}
+        {d && <span className="rounded-full bg-[#037A4F] text-white text-sm font-bold px-3 py-1 tabular-nums">{d.komplett} / {d.gesamt} fertig</span>}
       </header>
 
       {/* Bereich-Reiter */}
@@ -159,7 +159,7 @@ export default function MobilPickListePage() {
                   onClick={() => setGef.mutate({ id: z.id, gefunden: !z.manuell })}
                   aria-label="Manuell als komplett markieren"
                   className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-lg font-black ${
-                    z.komplett ? "bg-[#04B475] text-white" : "border-2 border-[#ced4da] dark:border-[#3e4042] text-transparent"
+                    z.komplett ? "bg-[#037A4F] text-white" : "border-2 border-[#ced4da] dark:border-[#3e4042] text-transparent"
                   }`}
                 >✓</button>
                 <div className="flex-1 min-w-0">
@@ -170,7 +170,7 @@ export default function MobilPickListePage() {
                     {bezLabel(z.bereich)} · {z.techniker}{z.kommentar ? ` · ${z.kommentar}` : ""}
                   </div>
                 </div>
-                <span className={`flex-shrink-0 text-xl font-black tabular-nums ${z.gefundenAnzahl >= z.menge ? "text-[#04B475]" : "text-[#202F61] dark:text-[#e4e6eb]"}`}>
+                <span className={`flex-shrink-0 text-xl font-black tabular-nums ${z.gefundenAnzahl >= z.menge ? "text-[#037A4F]" : "text-[#202F61] dark:text-[#e4e6eb]"}`}>
                   {z.gefundenAnzahl}/{z.menge}
                 </span>
               </div>

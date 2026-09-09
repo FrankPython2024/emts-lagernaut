@@ -1,5 +1,6 @@
 "use client";
 
+import { klickbareZeile } from "@/lib/ui/klickbareZeile";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import FocusTrap from "focus-trap-react";
@@ -277,7 +278,7 @@ export default function MobilStatistikPage() {
                 {(unter?.gruppen ?? []).map((g) => (
                   <tr
                     key={`${g.modellId}-${g.teiltyp}`}
-                    onClick={() => setDrill({ titel: `${g.modell} · ${g.teiltyp} · ${nf(g.ist)}/${nf(g.soll)} (Ist/Soll)`, modellId: g.modellId, teiltyp: g.teiltyp })}
+                    {...klickbareZeile(() => setDrill({ titel: `${g.modell} · ${g.teiltyp} · ${nf(g.ist)}/${nf(g.soll)} (Ist/Soll)`, modellId: g.modellId, teiltyp: g.teiltyp }))}
                     className="border-t border-[#ced4da] dark:border-[#3e4042] cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
                   >
                     <td className="px-4 py-2 font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">{g.modell}</td>

@@ -362,15 +362,30 @@ export default function ArtikelPage() {
               </button>
             ))}
           </div>
-          <input type="text" placeholder="Mitarbeiter *" value={buchMitarb} onChange={(e) => setBuchMitarb(e.target.value)}
-            className={`w-full ${INPUT_CLS}`} />
-          <input type="number" min={1} value={buchMenge} onChange={(e) => setBuchMenge(Number(e.target.value))}
-            className={`w-full ${INPUT_CLS}`} />
-          <input type="text" placeholder="Notiz (optional)" value={buchNotiz} onChange={(e) => setBuchNotiz(e.target.value)}
-            className={`w-full ${INPUT_CLS}`} />
+          {/* ⚠️ Jedes Feld braucht eine Beschriftung, nicht nur einen Platzhalter:
+              Der verschwindet beim Tippen, und ein Screenreader sagte beim
+              Mengenfeld bisher nur „Zahleneingabe, leer" — in einem Formular,
+              das den Bestand verändert. */}
+          <label className="block">
+            <span className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1">Mitarbeiter *</span>
+            <input type="text" value={buchMitarb} onChange={(e) => setBuchMitarb(e.target.value)}
+              className={`w-full ${INPUT_CLS}`} />
+          </label>
+          <label className="block">
+            <span className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1">Menge *</span>
+            <input type="number" min={1} value={buchMenge} onChange={(e) => setBuchMenge(Number(e.target.value))}
+              className={`w-full ${INPUT_CLS}`} />
+          </label>
+          <label className="block">
+            <span className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1">Notiz (optional)</span>
+            <input type="text" value={buchNotiz} onChange={(e) => setBuchNotiz(e.target.value)}
+              className={`w-full ${INPUT_CLS}`} />
+          </label>
           <button
-            disabled={!buchMitarb || buchen.isPending}
-            onClick={() => buchModal && buchen.mutate({ artikelId: buchModal.id, menge: buchMenge, typ: buchTyp, mitarbeiter: buchMitarb, notiz: buchNotiz || undefined })}
+            // ⚠️ Menge muss mindestens 1 sein — das Schema verlangt `positive()`.
+            // Ein leeres Feld liefert `Number("") = 0` und der Server lehnte ab.
+            disabled={!buchMitarb.trim() || !Number.isFinite(buchMenge) || buchMenge < 1 || buchen.isPending}
+            onClick={() => buchModal && buchen.mutate({ artikelId: buchModal.id, menge: buchMenge, typ: buchTyp, mitarbeiter: buchMitarb.trim(), notiz: buchNotiz || undefined })}
             className="w-full py-2.5 bg-[#0064d2] text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50">
             {buchen.isPending ? "..." : "Buchen"}
           </button>

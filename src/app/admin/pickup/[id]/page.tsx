@@ -17,7 +17,7 @@ function PosStatusBadge({ status }: { status: string }) {
   const gefunden = status === "GEFUNDEN";
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${gefunden
-      ? "bg-[#04B475]/10 text-[#04B475]"
+      ? "bg-[#04B475]/10 text-[#037A4F]"
       : "bg-[#65676b]/10 text-[#65676b] dark:text-[#b0b3b8]"}`}>
       {gefunden ? "Gefunden" : "Offen"}
     </span>
@@ -236,7 +236,7 @@ export default function PickupDetailPage() {
             <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb] truncate">{data.name}</h1>
             {abgeschlossen && (
               nichtGefundene.length === 0
-                ? <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#04B475]/10 text-[#04B475]">Vollständig</span>
+                ? <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[#04B475]/10 text-[#037A4F]">Vollständig</span>
                 : <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: "rgba(186,117,23,0.15)", color: "#BA7517" }}>Nicht komplett</span>
             )}
           </div>
@@ -304,7 +304,7 @@ export default function PickupDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: "Gesamt",         value: gesamt,                color: "text-[#202F61] dark:text-[#e4e6eb]" },
-                { label: "Gefunden",       value: gefunden,              color: "text-[#04B475]" },
+                { label: "Gefunden",       value: gefunden,              color: "text-[#037A4F]" },
                 { label: "Nicht gefunden", value: nichtGefundene.length, color: "text-[#b3261e]" },
                 { label: "Quote",          value: `${pct}%`,             color: "text-[#202F61] dark:text-[#e4e6eb]" },
               ].map((k) => (
@@ -339,7 +339,7 @@ export default function PickupDetailPage() {
           {[
             { label: "Gesamt",   value: gesamt,   color: "text-[#202F61] dark:text-[#e4e6eb]" },
             { label: "Offen",    value: offen,    color: "text-[#65676b] dark:text-[#b0b3b8]" },
-            { label: "Gefunden", value: gefunden, color: "text-[#04B475]" },
+            { label: "Gefunden", value: gefunden, color: "text-[#037A4F]" },
           ].map((k) => (
             <div key={k.label} className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-4 text-center">
               <div className={`text-2xl font-black ${k.color}`}>{k.value}</div>
@@ -569,7 +569,7 @@ function CsvUpdateCard({
       {vorschau && (
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2 text-sm">
-            <span className="px-3 py-1.5 rounded-lg bg-[#04B475]/10 text-[#04B475] font-bold">{vorschau.neu} neu</span>
+            <span className="px-3 py-1.5 rounded-lg bg-[#04B475]/10 text-[#037A4F] font-bold">{vorschau.neu} neu</span>
             <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{vorschau.bereitsVorhanden} bereits vorhanden</span>
             <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{vorschau.nichtInCsv} nicht in CSV (bleiben)</span>
           </div>

@@ -82,7 +82,7 @@ export default function KameraTestPage() {
   });
 
   const alleLoeschen = api.kameratest.alleLoeschen.useMutation({
-    onSuccess: (r) => { show(`${r.geloescht} Bilder geloescht`, "success"); void utils.kameratest.liste.invalidate(); },
+    onSuccess: (r) => { show(`${r.geloescht} Bilder gelöscht`, "success"); void utils.kameratest.liste.invalidate(); },
     onError:   (e) => show(e.message, "error"),
   });
 
@@ -292,7 +292,7 @@ export default function KameraTestPage() {
               </button>
             ) : (
               <>
-                <button onClick={ausVorschau} className={`${knopf} bg-[#04B475] text-white`}>
+                <button onClick={ausVorschau} className={`${knopf} bg-[#037A4F] text-white`}>
                   Standbild nehmen
                 </button>
                 <button onClick={vorschauStoppen}

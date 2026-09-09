@@ -1,4 +1,5 @@
 "use client";
+import { klickbareZeile } from "@/lib/ui/klickbareZeile";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -140,7 +141,7 @@ function GeraeteListe() {
           <button
             onClick={() => { window.location.href = exportUrl("xlsx"); }}
             disabled={gesamt === 0}
-            className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#04B475] text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+            className="px-3 py-1.5 text-sm font-bold rounded-lg bg-[#037A4F] text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
             title="Gefilterte Liste als Excel exportieren"
           >
             ⬇ Excel
@@ -182,7 +183,7 @@ function GeraeteListe() {
               {data?.zeilen.map((g: Zeile) => (
                 <tr
                   key={g.logId}
-                  onClick={() => oeffne(g.logId)}
+                  {...klickbareZeile(() => oeffne(g.logId))}
                   className="border-t border-[#ced4da] dark:border-[#3e4042] cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
                 >
                   <td className="px-4 py-2.5 font-mono font-bold text-[#0064d2] dark:text-[#45bdff] whitespace-nowrap">{g.logId}</td>

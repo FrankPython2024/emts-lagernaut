@@ -214,8 +214,8 @@ export default function PickupNeuPage() {
         {typ === "LOGID" && logRes && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2 text-sm">
-              <span className="px-3 py-1.5 rounded-lg bg-[#04B475]/10 text-[#04B475] font-bold">{logRes.total} Positionen</span>
-              <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{logRes.skipped} übersprungen (kein LogId)</span>
+              <span className="px-3 py-1.5 rounded-lg bg-[#04B475]/10 text-[#037A4F] font-bold">{logRes.total} Positionen</span>
+              <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{logRes.skipped} übersprungen (keine LogID)</span>
               <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{logRes.duplicates} Duplikate entfernt</span>
               <span className="px-3 py-1.5 rounded-lg bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff] font-bold">{colliAnzahlLog} Colli</span>
             </div>
@@ -255,7 +255,7 @@ export default function PickupNeuPage() {
         {typ === "COLLI" && colliRes && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2 text-sm">
-              <span className="px-3 py-1.5 rounded-lg bg-[#04B475]/10 text-[#04B475] font-bold">{colliRes.total} Collis</span>
+              <span className="px-3 py-1.5 rounded-lg bg-[#04B475]/10 text-[#037A4F] font-bold">{colliRes.total} Collis</span>
               <span className="px-3 py-1.5 rounded-lg bg-[#7c3aed]/10 text-[#7c3aed] dark:text-[#b794f6] font-bold">{colliRes.stellplaetze.length} Stellplatz/-plätze</span>
               <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{colliRes.skipped} übersprungen (keine Nummer)</span>
               <span className="px-3 py-1.5 rounded-lg bg-[#f0f2f5] dark:bg-[#18191a] text-[#65676b] dark:text-[#b0b3b8] font-semibold">{colliRes.duplicates} Duplikate entfernt</span>

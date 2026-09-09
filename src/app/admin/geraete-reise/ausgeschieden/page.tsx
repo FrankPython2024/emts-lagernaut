@@ -1,4 +1,5 @@
 "use client";
+import { klickbareZeile } from "@/lib/ui/klickbareZeile";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
@@ -181,7 +182,7 @@ export default function AusgeschiedenePage() {
                     {data.liste.map((g) => (
                       <tr
                         key={g.logId}
-                        onClick={() => oeffneGeraet(g.logId)}
+                        {...klickbareZeile(() => oeffneGeraet(g.logId))}
                         className="border-t border-[#ced4da] dark:border-[#3e4042] cursor-pointer hover:bg-[#f0f2f5] dark:hover:bg-[#18191a] transition-colors"
                       >
                         <td className="px-4 py-2.5 font-mono font-bold text-[#0064d2] dark:text-[#45bdff] whitespace-nowrap">{g.logId}</td>

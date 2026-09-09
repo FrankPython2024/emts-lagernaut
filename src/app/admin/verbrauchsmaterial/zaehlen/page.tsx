@@ -490,7 +490,7 @@ export default function ZaehlenPage() {
           <ul className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042] max-h-72 overflow-y-auto">
             {dieseWocheQ.data!.erfasst.map((e) => (
               <li key={e.artikelId} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="text-[#04B475]" aria-hidden>✓</span>
+                <span className="text-[#037A4F]" aria-hidden>✓</span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb] truncate">
                     {e.name}

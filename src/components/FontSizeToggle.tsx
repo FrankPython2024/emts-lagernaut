@@ -44,12 +44,16 @@ export function FontSizeToggle({ className }: { className?: string }) {
             onClick={() => setSize(key)}
             aria-label={`Schriftgröße: ${label}`}
             aria-pressed={active}
-            className={`flex items-center justify-center w-9 h-9 rounded-lg font-black transition-colors ${
+            // ⚠️ 44×44 px sind das WCAG-Mindestmaß (2.5.5) und hier besonders
+            // wichtig: Wer die Schrift vergrößern muss, trifft kleine Ziele am
+            // schlechtesten — ausgerechnet dieser Knopf war mit 36 px das
+            // kleinste Bedienelement der ganzen Anwendung.
+            className={`flex items-center justify-center w-12 h-12 rounded-lg font-black transition-colors ${
               active
-                ? "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 ring-1 ring-cyan-500/20"
-                : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
+                ? "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 ring-2 ring-cyan-600"
+                : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
             }`}
-            style={{ fontSize: px, minHeight: 36, minWidth: 36 }}
+            style={{ fontSize: px, minHeight: 48, minWidth: 48 }}
           >
             A
           </button>

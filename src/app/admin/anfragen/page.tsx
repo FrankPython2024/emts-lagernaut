@@ -314,7 +314,7 @@ function FreigebenDialog({
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mb-4">
             <strong className="text-[#1a1a1a] dark:text-[#e4e6eb]">{bearbeitetVon}</strong> bearbeitet diese Anfrage
             {seit && <span> seit <strong>{uhrzeitStr(seit)}</strong></span>}.
-            <br />Die Anfrage wird auf <strong>NEU</strong> zurückgesetzt.
+            <br />Die Anfrage wird wieder <strong>offen</strong> und kann von jemand anderem übernommen werden.
           </p>
           <div>
             <label className="block text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] mb-1 uppercase tracking-wider">
@@ -1138,7 +1138,7 @@ function AnfragenPageInner() {
                         {canEdit && a.status === AnfrageStatus.ABGESCHLOSSEN && (
                           <button
                             onClick={() => {
-                              if (window.confirm(`Anfrage zurücksetzen? Die Buchung wird gelöscht. Der Status wird auf NEU (wenn Bestand) oder BEDARF (kein Bestand) gesetzt.`)) {
+                              if (window.confirm(`Anfrage zurücksetzen?\n\nDie Ausgabe wird rückgängig gemacht: Die Buchung wird gelöscht und das Teil ist wieder im Bestand.\n\nDie Anfrage ist danach wieder offen — als „neu", wenn ein Teil im Regal liegt, sonst als „Bedarf".`)) {
                                 resetMutation.mutate({ id: a.id });
                               }
                             }}

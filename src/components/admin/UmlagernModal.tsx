@@ -154,7 +154,7 @@ export function UmlagernModal({ modellId, modellName, hersteller, aktuellesFachC
               type="button"
               onClick={() => zielId && umlagern.mutate({ modellId, neuerLagerplatzId: zielId })}
               disabled={!zielId || umlagern.isPending}
-              className="flex-1 rounded-xl bg-[#04B475] text-white font-bold hover:bg-[#039c64] disabled:opacity-40 transition-colors min-h-[56px]"
+              className="flex-1 rounded-xl bg-[#037A4F] text-white font-bold hover:bg-[#039c64] disabled:opacity-40 transition-colors min-h-[56px]"
             >
               {umlagern.isPending ? "Lagere um…" : "Umlagern"}
             </button>

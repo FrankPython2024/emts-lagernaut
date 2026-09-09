@@ -648,6 +648,15 @@ function AnfrageFlow({
       show("Bitte mindestens ein Teil auswählen", "warning");
       return;
     }
+    // ⚠️ VOR dem ersten Server-Aufruf prüfen. Der Server verlangt für eine
+    // Sonderanfrage mindestens 5 Zeichen. Wurde das erst dort bemerkt, lagen
+    // die Standard-Teile bereits im Korb (`addItemsBulk` läuft davor) — der
+    // zweite Versuch scheiterte dann an „Teil ist bereits in der Anfrage", und
+    // aus der Sackgasse half nur ein Neuladen der Seite.
+    if (sonderBeschr.trim() && sonderBeschr.trim().length < 5) {
+      show("Bitte beschreibe das gesuchte Teil mit mindestens 5 Zeichen.", "warning");
+      return;
+    }
     setStep("sending");
     try {
       const logId = selectedGeraet.logId === "---" ? "unbekannt" : selectedGeraet.logId;

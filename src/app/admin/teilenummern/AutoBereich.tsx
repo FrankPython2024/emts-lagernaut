@@ -130,7 +130,7 @@ export function AutoBereich({
           <button
             onClick={() => onUebernehmen(Array.from(auswahl))}
             disabled={auswahl.size === 0 || uebernahmeLaeuft}
-            className="px-4 py-2 rounded-lg bg-[#04B475] text-white font-bold text-sm disabled:opacity-50 min-h-[44px]">
+            className="px-4 py-2 rounded-lg bg-[#037A4F] text-white font-bold text-sm disabled:opacity-50 min-h-[44px]">
             {uebernahmeLaeuft ? "…" : `${auswahl.size} Modelle übernehmen`}
           </button>
         </>
