@@ -186,6 +186,21 @@ EOF
   ⚠️ `einlagern.execute` nimmt **max. 13 Teile** je Aufruf — die Entnahme teilt größere Auswahlen
   in Pakete. Der Admin-Hinweis in `/admin/anfragen` (BEDARF → „Spendergerät hat das Teil noch")
   ist **bewusst nur dort**: Im Techniker-Portal wäre er ein Verfügbarkeits-Versprechen.
+- ⚠️ **Zwei Formular-Fallen, beide 09.09.2026 real aufgetreten — bei neuen Dialogen mitprüfen:**
+  1. **Nachgeladene Daten dürfen Nutzereingaben nie überschreiben.** Im Verbrauchsmaterial hat
+     `setFotos(ausDb)` ein Foto verworfen, das aufgenommen wurde, bevor die Bestandsabfrage zurück
+     war — spurlos, das Bild erreichte den Server nie (in der DB war deshalb nichts Kaputtes zu
+     finden). Richtig: **zusammenführen** (`[...ausDb, ...prev.filter(neu)]`) UND die Eingabe
+     sperren, solange geladen wird. Am Schreibtisch fällt so etwas nie auf, auf dem Handheld im
+     Lager-WLAN dauernd.
+  2. **`onClick={onClose}` am Overlay schließt beim Markieren von Text.** Wer im Dialog markiert
+     und die Maus über den Rand zieht, drückt innen und lässt draußen los — der Klick landet auf
+     dem gemeinsamen Elternteil. `stopPropagation` innen hilft nicht (das Ziel IST der Hintergrund).
+     Lösung: `useHintergrundSchliessen()` aus `src/components/ui/hintergrundSchliessen.ts` —
+     schließt nur, wenn Drücken UND Loslassen auf dem Hintergrund passieren. Steckt bereits in
+     `components/ui/Modal.tsx` und wirkt damit überall, wo `<Modal>` benutzt wird.
+- **Schleifen über Dateien brauchen den try je Datei, nicht um die Schleife.** Ein unlesbares Bild
+  (HEIC vom iPhone) brach die Mehrfachauswahl ab und alle dahinter fielen still weg.
 - **Socket.io-Panel ≠ Auth-State.** Sockets bestehen bis Tab-Reload, unabhängig vom Token.
 - **Geräte-Import:** nur HP, Lenovo, Dell, Fujitsu (typo-tolerant; HPE explizit abgelehnt =
   Server). Modellnummern bleiben erhalten ("Precision 7530"); Marketing-Text raus.
