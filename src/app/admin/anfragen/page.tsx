@@ -460,6 +460,25 @@ function AnfragenPageInner() {
     );
   }, [rawData, meinFilter, ersteller]);
 
+  // ── Spendergeräte-Hinweis ─────────────────────────────────────────────────
+  // Für Anfragen ohne loses Teil: Steckt es noch in einem eingelagerten Gerät?
+  // Eine Sammelabfrage über alle sichtbaren BEDARF-Anfragen statt einer je Zeile.
+  const bedarfIds = useMemo(() => {
+    const ids: number[] = [];
+    for (const g of data ?? []) {
+      for (const a of g.anfragen) {
+        if (a.status === AnfrageStatus.BEDARF && !a.istSonderAnfrage) ids.push(a.id);
+      }
+    }
+    return ids.slice(0, 200);
+  }, [data]);
+
+  const spenderQ = api.spenderGeraet.hinweiseFuerAnfragen.useQuery(
+    { anfrageIds: bedarfIds },
+    { enabled: bedarfIds.length > 0, staleTime: 30_000 },
+  );
+  const spenderHinweise = spenderQ.data ?? {};
+
   // ── Auto-Refresh ──────────────────────────────────────────────────────────
   useEffect(() => {
     const interval = setInterval(() => { refetch(); }, 5_000);
@@ -1056,6 +1075,19 @@ function AnfragenPageInner() {
                         ))}
                         {a.istSonderAnfrage && (
                           <div className="text-xs text-orange-600/70 dark:text-orange-400/70 mt-0.5">⚠️ Kein Standard-Artikel · Bitte manuell prüfen</div>
+                        )}
+                        {/* Kein loses Teil im Regal, aber ein Spendergerät hat es
+                            noch drin. Nur hier im Admin — der Techniker soll das
+                            nicht als Verfügbarkeit lesen. */}
+                        {spenderHinweise[a.id] && (
+                          <div className="text-xs text-[#8A5A00] dark:text-[#f7b928] mt-0.5 font-semibold">
+                            🖥️ {spenderHinweise[a.id]!.length} Spendergerät
+                            {spenderHinweise[a.id]!.length === 1 ? "" : "e"} mit diesem Teil:{" "}
+                            {spenderHinweise[a.id]!.slice(0, 3).map((s) => (
+                              `${s.lagerplatz ?? "ohne Platz"} · ${s.grading}`
+                            )).join("  |  ")}
+                            {spenderHinweise[a.id]!.length > 3 && " …"}
+                          </div>
                         )}
                         {a.kommentar && <span className="ml-2 text-xs text-[#0064d2] dark:text-[#45bdff]">⌨️ {a.kommentar}</span>}
                         {technikerStorniert.has(a.id) && (

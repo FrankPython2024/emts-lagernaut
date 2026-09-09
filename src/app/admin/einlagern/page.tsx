@@ -6,6 +6,7 @@ import { api }          from "@/trpc/react";
 import { useToast }     from "@/components/ui/Toast";
 import { TeilenummerFeld } from "@/components/TeilenummerFeld";
 import { StepLosesTeil }   from "./StepLosesTeil";
+import { StepKomplettGeraet } from "./StepKomplettGeraet";
 import { StepFotoErkennen, type ErkanntesTeil } from "./StepFotoErkennen";
 import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
 import { useStandortFilter } from "@/lib/standort/standortContext";
@@ -33,7 +34,7 @@ import {
 // 7 einzelnes Teil ohne Gerät. 6 und 7 sind eigenständige Zweige, keine
 // Zwischenschritte — deshalb hinten angehängt statt einsortiert.
 // 8 = Foto-Erkennung, muendet in 7 (Erfassung ohne Geraet).
-type WizardStep = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+type WizardStep = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 type GeraetState = {
   name:  string;
@@ -447,7 +448,7 @@ function TeilKonfigurator({
 
 // ── Step 0: Willkommen ────────────────────────────────────────────────────────
 
-function StepWillkommen({ onStart, onKomponenten, onLosesTeil, onFoto }: { onStart: () => void; onKomponenten: () => void; onLosesTeil: () => void; onFoto?: () => void }) {
+function StepWillkommen({ onStart, onKomponenten, onLosesTeil, onFoto, onKomplettGeraet }: { onStart: () => void; onKomponenten: () => void; onLosesTeil: () => void; onFoto?: () => void; onKomplettGeraet: () => void }) {
   return (
     <div style={{ maxWidth: 560, margin: "0 auto" }}>
       <div style={{ ...S.card, textAlign: "center" }}>
@@ -544,6 +545,23 @@ function StepWillkommen({ onStart, onKomponenten, onLosesTeil, onFoto }: { onSta
               📷 Ersatzteil erkennen lassen
             </button>
           )}
+        </div>
+
+        {/* Weg D: Das ganze Gerät bleibt erst mal zusammen und wird später
+            zerlegt. Bis dahin ist es ein Teilevorrat, der auffindbar sein muss.
+            Bucht bewusst nichts auf den Bestand — siehe StepKomplettGeraet. */}
+        <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border)" }}>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginBottom: "0.8rem" }}>
+            Du hast ein ganzes Gerät, das erst später zerlegt wird?
+          </div>
+          <button
+            onClick={onKomplettGeraet}
+            style={{ ...S.bigBtn("var(--afb-navy)"), fontSize: "1.05rem" }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = "")}
+          >
+            🖥️ Komplettes Gerät einlagern
+          </button>
         </div>
       </div>
     </div>
@@ -2506,6 +2524,7 @@ export default function EinlagernPage() {
           onStart={() => setStep(1)}
           onKomponenten={() => setStep(6)}
           onLosesTeil={() => { setErkannt(null); setStep(7); }}
+          onKomplettGeraet={() => setStep(9)}
           onFoto={
             // Der Fotoweg trägt sich auch ohne Bilderkennung: Die Texterkennung
             // auf unserem Server liest gedruckte Etiketten allein. Deshalb
@@ -2535,6 +2554,10 @@ export default function EinlagernPage() {
           onBack={() => setStep(0)}
           onWeiter={(t) => { setErkannt(t); setStep(7); }}
         />
+      )}
+
+      {step === 9 && (
+        <StepKomplettGeraet standortId={einlagerStandortId} onBack={() => setStep(0)} />
       )}
 
       {step === 1 && (

@@ -145,10 +145,11 @@ model Standort {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  lagerplaetze Lagerplatz[]
-  users        User[]
-  artikel      Artikel[]
-  userAccess   UserStandortAccess[]
+  lagerplaetze  Lagerplatz[]
+  users         User[]
+  artikel       Artikel[]
+  userAccess    UserStandortAccess[]
+  SpenderGeraet SpenderGeraet[]
 }
 
 model Artikel {
@@ -485,6 +486,7 @@ model GeraeteModell {
   belegung         LagerplatzBelegung?
   modellTeiltypen  ModellTeiltyp[]
   teilenummern     TeilenummerModell[]
+  SpenderGeraet    SpenderGeraet[]
 
   @@unique([hersteller, modell])
   @@index([aktiv])
@@ -1506,4 +1508,80 @@ model KartonSchild {
   zuletztVon   String?  @db.VarChar(50)
 
   @@index([modell])
+}
+
+// ── Spendergeräte: komplette Geräte auf Lager, die später zerlegt werden ─────
+//
+// Ein Gerät, das nicht in den Verkauf geht, kann als Ganzes eingelagert und
+// später ausgeschlachtet werden. Bis dahin ist es ein Teilevorrat, den man
+// nachschlagen können muss: Welche Geräte liegen wo, in welchem Zustand, und
+// was steckt noch drin.
+//
+// ⚠️ Ein Spendergerät zählt NICHT auf den Bestand seiner Teile. Der Bestand
+// entsteht ausschließlich aus EINGANG-/AUSGANG-Buchungen und wird von
+// `syncBestandAusHistorie()` daraus nachgerechnet. Würde ein Gerät mitzählen,
+// startete eine Anfrage als NEU statt BEDARF, das Auslagern fände nichts und
+// der Bestand wäre rechnerisch kaputt. Erst das Zerlegen erzeugt echte
+// EINGANG-Buchungen — dann ist das Teil wirklich im Regal.
+enum SpenderGeraetStatus {
+  EINGELAGERT
+  TEILWEISE_ZERLEGT
+  ZERLEGT
+}
+
+enum SpenderKomponenteZustand {
+  // Beim Einlagern als vorhanden angehakt — steht noch im Gerät.
+  VORHANDEN
+  // Beim Einlagern abgewählt: war schon draußen, als das Gerät ankam.
+  FEHLT_BEREITS
+  // Von uns entnommen und eingebucht. Trägt Zeitpunkt und Person.
+  ENTNOMMEN
+}
+
+model SpenderGeraet {
+  id          Int                       @id @default(autoincrement())
+  // Normalisiert mit Punkten (212.965.142), wie überall im Projekt.
+  logId       String                    @unique @db.VarChar(32)
+  // Punktfreie Fassung für Scanner-Eingaben.
+  logIdClean  String                    @db.VarChar(32)
+  hersteller  String?                   @db.VarChar(64)
+  // OHNE Hersteller-Präfix, wie Artikel.bezeichnung und Kompatibilitaet.geraet.
+  bezeichnung String                    @db.VarChar(255)
+  // Optionale Verknüpfung ins Modell-Verzeichnis. Bleibt null, wenn das Modell
+  // dort (noch) nicht steht — das Gerät liegt trotzdem im Regal.
+  modellId    Int?
+  modell      GeraeteModell?            @relation(fields: [modellId], references: [id])
+  grading     String                    @db.VarChar(4)
+  lagerplatz  String?                   @db.VarChar(64)
+  standortId  Int                       @default(1)
+  standort    Standort                  @relation(fields: [standortId], references: [id])
+  status      SpenderGeraetStatus       @default(EINGELAGERT)
+  notiz       String?                   @db.Text
+  erfasstVon  String                    @db.VarChar(50)
+  erfasstAm   DateTime                  @default(now())
+  zerlegtAm   DateTime?
+  komponenten SpenderGeraetKomponente[]
+
+  @@index([status])
+  @@index([modellId])
+  @@index([standortId])
+  @@index([logIdClean])
+  @@index([bezeichnung])
+}
+
+model SpenderGeraetKomponente {
+  id           Int                      @id @default(autoincrement())
+  geraetId     Int
+  geraet       SpenderGeraet            @relation(fields: [geraetId], references: [id], onDelete: Cascade)
+  // Teiltyp-NAME als String, nicht als Fremdschlüssel. Bewusst: Ein gelöschter
+  // oder umbenannter Teiltyp darf die Historie eines Geräts nicht verändern —
+  // was drin war, war drin.
+  teiltyp      String                   @db.VarChar(100)
+  zustand      SpenderKomponenteZustand @default(VORHANDEN)
+  entnommenAm  DateTime?
+  entnommenVon String?                  @db.VarChar(50)
+
+  @@unique([geraetId, teiltyp])
+  // Trägt die Admin-Rückfrage „welches Gerät hat noch eine Tastatur?".
+  @@index([teiltyp, zustand])
 }

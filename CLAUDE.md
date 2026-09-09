@@ -176,6 +176,16 @@ EOF
   Artikels und ist dort nicht mehr unterscheidbar. Im UI (`Geraeteakte.tsx`) sind belegte und
   geratene Blöcke deshalb getrennt und unterschiedlich gekennzeichnet — wer das zusammenzieht,
   behauptet mehr, als die Daten hergeben.
+- **Spendergeräte zählen NICHT auf den Bestand.** `SpenderGeraet` ist ein ganzes Gerät auf Lager,
+  das später zerlegt wird — ein eigenes Register NEBEN dem Bestand, kein Teil davon. Der Bestand
+  entsteht ausschließlich aus EINGANG-/AUSGANG-Buchungen (`syncBestandAusHistorie()` rechnet ihn
+  daraus nach); ein mitzählendes Gerät bräuchte Schein-Buchungen, eine Anfrage startete als NEU
+  statt BEDARF und das Auslagern fände nichts. Erst `spendergeraete` → „Teile entnehmen" ruft
+  `einlagern.execute` (herkunftArt SPENDER) und hakt danach über `komponentenEntnommen` ab —
+  **in dieser Reihenfolge**: Lieber ein nicht abgehaktes Teil als ein abgehaktes ohne Bestand.
+  ⚠️ `einlagern.execute` nimmt **max. 13 Teile** je Aufruf — die Entnahme teilt größere Auswahlen
+  in Pakete. Der Admin-Hinweis in `/admin/anfragen` (BEDARF → „Spendergerät hat das Teil noch")
+  ist **bewusst nur dort**: Im Techniker-Portal wäre er ein Verfügbarkeits-Versprechen.
 - **Socket.io-Panel ≠ Auth-State.** Sockets bestehen bis Tab-Reload, unabhängig vom Token.
 - **Geräte-Import:** nur HP, Lenovo, Dell, Fujitsu (typo-tolerant; HPE explizit abgelehnt =
   Server). Modellnummern bleiben erhalten ("Precision 7530"); Marketing-Text raus.

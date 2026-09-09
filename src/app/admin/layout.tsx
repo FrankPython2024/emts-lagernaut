@@ -34,6 +34,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/admin/anfragen",    label: "Anfragen",        icon: "🔔", permission: "ANFRAGE_VIEW_ALL" },
       { href: "/admin/einlagern",   label: "Teile einlagern", icon: "📦", permission: "ARTIKEL_EINLAGERN" },
+      { href: "/admin/spendergeraete", label: "Spendergeräte", icon: "🖥️", permission: "ARTIKEL_VIEW" },
       { href: "/admin/buchungen",   label: "Buchungen",       icon: "📋", permission: "BUCHUNG_VIEW" },
       { href: "/admin/colli-etiketten", label: "Label Tool", icon: "🏷️", permission: "COLLI_ETIKETTEN_VIEW" },
       { href: "/admin/karton-schilder", label: "Karton-Beschriftungen", icon: "🗃️", permission: "ARTIKEL_VIEW" },
