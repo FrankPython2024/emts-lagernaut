@@ -331,9 +331,14 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
                               {t.grading}
                             </span>
                           )}
+                          {/* „Ohne Artikel · DIREKT" umfasst zwei Fälle: die echte
+                              Sonderanfrage und eine BEDARF-Anfrage, zu deren Teiltyp
+                              es noch keinen Artikel gibt. Beide werden gleich
+                              behandelt — deshalb eine Beschriftung, die für beide
+                              stimmt, statt „Sonderanfrage" auf einem Thermalmodul. */}
                           {isSonder ? (
                             <span className="text-[11px] font-bold px-1.5 py-0.5 rounded text-white" style={{ background: "#008BD2" }}>
-                              Sonderanfrage · DIREKT
+                              Ohne Artikel · DIREKT
                             </span>
                           ) : isDirekt && (
                             <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-[#f59e0b]/15 text-[#b45309] dark:text-[#fbbf24]">
@@ -384,7 +389,8 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
                   <div className="flex items-start gap-2 p-3 rounded-xl text-sm bg-[#008BD2]/10 border border-[#008BD2]/30">
                     <span className="flex-shrink-0">ℹ️</span>
                     <span className="text-[#1a1a1a] dark:text-[#e4e6eb]">
-                      {selectedTeile.filter((t) => t.istSonderanfrage).length} Sonderanfrage(n) werden als{" "}
+                      {selectedTeile.filter((t) => t.istSonderanfrage).length} Position(en) ohne Artikel
+                      (Sonderanfragen und Teiltypen, für die es noch keinen Artikel gibt) werden als{" "}
                       <strong style={{ color: "#008BD2" }}>DIREKT-Buchung</strong> verarbeitet — kein Bestand-Effekt,
                       Auslagerung wird manuell quittiert.
                     </span>

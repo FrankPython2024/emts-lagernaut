@@ -221,6 +221,15 @@ EOF
 - **Verify-Gate sind SECHS Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung` (zusammen 284) plus `tsc --noEmit`. `test:bezeichnung` war
   monatelang rot, weil es niemand lief.
+- ⚠️ **Leseseite und Schreibseite müssen denselben Fall gleich einordnen.** `gruppeDetails` meldete
+  für `artikelId === null` bereits `istSonderanfrage: true` („wird als DIREKT-Buchung verarbeitet"),
+  `auslagern.teile` warf für denselben Datensatz `„Anfrage #N hat keinen Artikel"`, weil es aufs
+  **Kennzeichen** `istSonderAnfrage` schaute. Ergebnis: Das Fenster versprach etwas, das der Klick
+  darauf jedes Mal verweigerte — eine BEDARF-Anfrage zu einem Teiltyp ohne Artikel (normal, z. B.
+  Thermalmodul an einem Modell ohne angelegten Artikel) war nicht abschließbar. Beide Seiten prüfen
+  jetzt `istSonderAnfrage || !artikelId` und behandeln es als DIREKT ohne Bestandseffekt, so wie
+  `anfragen.setStatus` es längst tat. **Bei jeder Vorschau-/Ausführungs-Paarung gegenprüfen:
+  Kann die Vorschau etwas anbieten, das die Ausführung ablehnt?**
 - **Socket.io-Panel ≠ Auth-State.** Sockets bestehen bis Tab-Reload, unabhängig vom Token.
 - **Geräte-Import:** nur HP, Lenovo, Dell, Fujitsu (typo-tolerant; HPE explizit abgelehnt =
   Server). Modellnummern bleiben erhalten ("Precision 7530"); Marketing-Text raus.

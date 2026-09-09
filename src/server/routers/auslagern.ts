@@ -311,12 +311,26 @@ export const auslagernRouter = createTRPCRouter({
             continue;
           }
 
-          // ── Sonderanfrage: DIREKT-Übergabe ohne Bestand-Effekt (kein Artikel,
-          //    keine Buchung — DIREKT-Regel per Konstruktion erfüllt) ─────────
+          // ── Ohne Artikel: DIREKT-Übergabe ohne Bestand-Effekt ──────────────
+          //
+          // Zwei Fälle landen hier, und sie werden gleich behandelt:
+          //   • echte Sonderanfrage (`istSonderAnfrage`) — hatte nie einen Artikel
+          //   • BEDARF-Anfrage, zu deren Teiltyp es (noch) keinen Artikel gibt
+          //
+          // Keine Buchung, kein Bestand-Effekt — die DIREKT-Regel ist hier per
+          // Konstruktion erfüllt, es gibt schlicht nichts abzubuchen.
+          //
+          // ⚠️ Hier stand bis 09.09.2026 ein `throw` für den zweiten Fall
+          // („Anfrage #N hat keinen Artikel"). Das war eine Sackgasse: Die
+          // Leseseite `gruppeDetails` meldet für `artikelId === null` bereits
+          // `istSonderanfrage: true`, das Fenster versprach also „wird als
+          // DIREKT-Buchung verarbeitet" — und der Klick darauf scheiterte jedes
+          // Mal. Eine BEDARF-Anfrage ohne Artikel ist der Normalfall (Teiltyp
+          // ohne passenden Artikel, z. B. Thermalmodul an einem Modell, für das
+          // noch keiner angelegt wurde) und war damit gar nicht abschließbar.
+          // `anfragen.setStatus` behandelt denselben Fall längst als „ohne Teil
+          // erledigt".
           if (anfrage.istSonderAnfrage || !anfrage.artikelId || !anfrage.artikel) {
-            if (!anfrage.istSonderAnfrage) {
-              throw new TRPCError({ code: "BAD_REQUEST", message: `Anfrage #${anfrageId} hat keinen Artikel` });
-            }
             await tx.anfrage.update({
               where: { id: anfrageId },
               data:  { status: AnfrageStatus.ABGESCHLOSSEN, bearbeitetVon: user.kuerzel, bearbeitetSeit: new Date() },
@@ -327,7 +341,12 @@ export const auslagernRouter = createTRPCRouter({
               buchungId:    null,
               buchungsTyp:  "DIREKT",
               artikel:      anfrage.beschreibung ?? anfrage.teil,
-              kategorie:    anfrage.sonderKategorie ?? "Sonderanfrage",
+              // Ehrlich beschriften: Nur eine echte Sonderanfrage heißt so. Eine
+              // BEDARF-Anfrage ohne Artikel behält ihren Teiltyp als Kategorie,
+              // sonst stünde „Sonderanfrage" auf dem Beleg für ein Thermalmodul.
+              kategorie:    anfrage.istSonderAnfrage
+                ? (anfrage.sonderKategorie ?? "Sonderanfrage")
+                : anfrage.teil,
               lagerplatz:   null,
               menge:        anfrage.menge,
               neuerBestand: 0,
@@ -335,7 +354,7 @@ export const auslagernRouter = createTRPCRouter({
               logId:        anfrage.logId,
               geraeteName:  anfrage.geraeteName ?? null,
               grading:      null,
-              istSonderanfrage: true,
+              istSonderanfrage: anfrage.istSonderAnfrage,
             });
             continue;
           }
