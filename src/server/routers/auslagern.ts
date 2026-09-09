@@ -249,6 +249,17 @@ export const auslagernRouter = createTRPCRouter({
         const ausgabe: {
           anfrageId:    number;
           artikelId:    number | null;
+          /**
+           * Der Artikel, aus dem TATSÄCHLICH entnommen wurde.
+           *
+           * ⚠️ Bei einer Pool-Entnahme ist das der Partner, nicht `artikelId`.
+           * `neuerBestand` gehört zu DIESEM Artikel. Vorher liefen Suchindex und
+           * das BESTAND_UPDATED-Ereignis auf `artikelId` — also auf den Artikel,
+           * der sich gar nicht geändert hatte, während der Partner mit veraltetem
+           * Wert stehen blieb. Auf dem Beleg bleibt `artikelId` richtig: Dort
+           * steht, was der Techniker angefragt hat.
+           */
+          quelleArtikelId: number | null;
           buchungId:    number | null;
           buchungsTyp:  "AUSGANG" | "DIREKT";
           artikel:      string;
@@ -278,8 +289,42 @@ export const auslagernRouter = createTRPCRouter({
           if (!anfrage) {
             throw new TRPCError({ code: "NOT_FOUND",   message: `Anfrage #${anfrageId} nicht gefunden` });
           }
-          if (anfrage.status === AnfrageStatus.ABGESCHLOSSEN || anfrage.status === AnfrageStatus.STORNIERT || anfrage.status === AnfrageStatus.NICHT_VERFUEGBAR) {
-            throw new TRPCError({ code: "BAD_REQUEST", message: `Anfrage #${anfrageId} ist bereits ${anfrage.status}` });
+
+          // ── Anfrage ATOMAR beanspruchen ───────────────────────────────────
+          //
+          // ⚠️ Das `findUnique` oben nimmt KEINEN Row-Lock — ein einfaches SELECT
+          // ist unter InnoDB ein nicht-sperrender Lesevorgang. Zwei parallele
+          // Auslagerungen derselben Anfrage (zwei Admins, zweiter Tab, oder der
+          // eigenständige Assistent neben der Anfragen-Seite) lasen deshalb
+          // beide „NEU", buchten beide und zogen den Bestand ZWEIMAL ab. Das
+          // bedingte Dekrement weiter unten schützt nur vor negativem Bestand,
+          // nicht vor der Doppelausgabe.
+          //
+          // Das `updateMany` mit Status-Bedingung ist die Sperre: Es trifft nur,
+          // solange die Anfrage noch offen ist. Der zweite Aufruf bekommt
+          // count === 0 und bricht ab — bevor irgendetwas gebucht wurde.
+          //
+          // ⚠️ `bearbeitetVon` wird hier bewusst GELEERT, nicht gesetzt. Vorher
+          // stand danach der Ausgebende drin; die Gruppe sah für alle anderen
+          // dauerhaft „gesperrt von X" aus, und „Freigeben" half nicht, weil
+          // `gruppeFreigeben` nur Zeilen im Status IN_BEARBEITUNG anfasst.
+          // Eine erledigte Anfrage hat keinen Bearbeiter mehr.
+          const beansprucht = await tx.anfrage.updateMany({
+            where: {
+              id:     anfrageId,
+              status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG] },
+            },
+            data: {
+              status:         AnfrageStatus.ABGESCHLOSSEN,
+              bearbeitetVon:  null,
+              bearbeitetSeit: null,
+            },
+          });
+          if (beansprucht.count === 0) {
+            throw new TRPCError({
+              code:    "CONFLICT",
+              message: `Anfrage #${anfrageId} ist bereits ${anfrage.status} — sie wurde inzwischen von jemand anderem erledigt.`,
+            });
           }
 
           // ── TEST-MODUS: Sicherheitsgurt (analog DIREKT/Sonderanfrage) ────────
@@ -288,13 +333,13 @@ export const auslagernRouter = createTRPCRouter({
           //    keine Buchung. So lässt sich der Auslager-Workflow live durchspielen
           //    ohne den echten Lagerbestand zu verfälschen.
           if (anfrage.testModus) {
-            await tx.anfrage.update({
-              where: { id: anfrageId },
-              data:  { status: AnfrageStatus.ABGESCHLOSSEN, bearbeitetVon: user.kuerzel, bearbeitetSeit: new Date() },
-            });
+            // Status steht schon: oben atomar beansprucht (ABGESCHLOSSEN,
+            // Bearbeiter geleert). Hier nichts mehr setzen — ein erneutes
+            // `bearbeitetVon` ließe die Gruppe für alle anderen gesperrt aussehen.
             ausgabe.push({
               anfrageId,
               artikelId:    anfrage.artikelId,
+              quelleArtikelId: null,   // Test bucht nichts
               buchungId:    null,                       // KEINE Buchung (Test)
               buchungsTyp:  "DIREKT",
               artikel:      anfrage.artikel?.bezeichnung ?? anfrage.beschreibung ?? anfrage.teil,
@@ -331,14 +376,14 @@ export const auslagernRouter = createTRPCRouter({
           // `anfragen.setStatus` behandelt denselben Fall längst als „ohne Teil
           // erledigt".
           if (anfrage.istSonderAnfrage || !anfrage.artikelId || !anfrage.artikel) {
-            await tx.anfrage.update({
-              where: { id: anfrageId },
-              data:  { status: AnfrageStatus.ABGESCHLOSSEN, bearbeitetVon: user.kuerzel, bearbeitetSeit: new Date() },
-            });
+            // Status steht schon: oben atomar beansprucht (ABGESCHLOSSEN,
+            // Bearbeiter geleert). Hier nichts mehr setzen — ein erneutes
+            // `bearbeitetVon` ließe die Gruppe für alle anderen gesperrt aussehen.
             ausgabe.push({
               anfrageId,
               artikelId:    null,
               buchungId:    null,
+              quelleArtikelId: null,   // ohne Artikel gibt es keine Quelle
               buchungsTyp:  "DIREKT",
               artikel:      anfrage.beschreibung ?? anfrage.teil,
               // Ehrlich beschriften: Nur eine echte Sonderanfrage heißt so. Eine
@@ -443,14 +488,9 @@ export const auslagernRouter = createTRPCRouter({
           });
 
           // ── Anfrage → ABGESCHLOSSEN ───────────────────────────────────────
-          await tx.anfrage.update({
-            where: { id: anfrageId },
-            data:  {
-              status:         AnfrageStatus.ABGESCHLOSSEN,
-              bearbeitetVon:  user.kuerzel,
-              bearbeitetSeit: new Date(),
-            },
-          });
+          // Status steht schon: oben atomar beansprucht (siehe dort). Ein
+          // erneutes Setzen würde nur den geleerten Bearbeiter-Vermerk
+          // wiederherstellen und die Gruppe gesperrt aussehen lassen.
 
           // ── Grading aus letzter EINGANG-Buchung (für Beleg) ───────────────
           // Vom Artikel, aus dem entnommen wurde — dessen Zustand ist der, den
@@ -465,6 +505,7 @@ export const auslagernRouter = createTRPCRouter({
             anfrageId,
             artikelId:   anfrage.artikelId,
             buchungId:   buchung.id,
+            quelleArtikelId: quelleId,  // bei Pool-Entnahme der Partner
             buchungsTyp: buchungsTyp as "AUSGANG" | "DIREKT",
             // Kam das Teil aus dem Pool-Partner, steht das auf dem Beleg — sonst
             // passt der ausgewiesene Restbestand nicht zum genannten Artikel.
@@ -490,7 +531,10 @@ export const auslagernRouter = createTRPCRouter({
       for (const item of txResult.ausgabe) {
         meilisearchSync.anfrage(item.anfrageId);
         // Sonderanfragen haben keinen Artikel/keine Buchung → nichts zu syncen
-        if (item.artikelId !== null) meilisearchSync.artikel(item.artikelId);
+        // ⚠️ Den Artikel abgleichen, aus dem WIRKLICH entnommen wurde. Bei einer
+        // Pool-Entnahme ist das der Partner; `artikelId` hat sich gar nicht
+        // geändert und stünde danach mit veraltetem Bestand im Index.
+        if (item.quelleArtikelId !== null) meilisearchSync.artikel(item.quelleArtikelId);
         if (item.buchungId !== null) meilisearchSync.buchung(item.buchungId);
       }
 
@@ -518,9 +562,14 @@ export const auslagernRouter = createTRPCRouter({
             neuerBestand: item.neuerBestand,
           });
           // BESTAND_UPDATED nur bei AUSGANG — DIREKT lässt Bestand unverändert (heilige Regel)
-          if (item.buchungsTyp === "AUSGANG") {
+          //
+          // ⚠️ `neuerBestand` gehört zum QUELL-Artikel. Vorher ging der Wert
+          // unter `artikelId` hinaus: Bei einer Pool-Entnahme bekam damit jeder
+          // Client den Partner-Bestand unter der falschen Artikel-Nummer
+          // angezeigt — und der Partner blieb auf seinem alten Wert stehen.
+          if (item.buchungsTyp === "AUSGANG" && item.quelleArtikelId !== null) {
             emitToAll(EVENTS.BESTAND_UPDATED, {
-              artikelId: item.artikelId,
+              artikelId: item.quelleArtikelId,
               bestand:   item.neuerBestand,
             });
           }

@@ -2,7 +2,7 @@ import { AnfrageStatus, BuchungsTyp, type Anfrage } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { normalizeLogId } from "@/lib/format/logId";
-import { poolBestand } from "@/lib/artikel/pool";
+import { poolBestand, waehleQuelle } from "@/lib/artikel/pool";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { sendeSystemNachricht } from "@/modules/nachrichten/service";
 import { senden as sendeChatNachricht } from "@/modules/chat/service";
@@ -412,12 +412,42 @@ export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
     include: { artikel: { select: { id: true, bezeichnung: true, lagerplatz: true, kategorie: true } } },
   });
   if (!anfrage) throw new TRPCError({ code: "NOT_FOUND", message: "Anfrage nicht gefunden." });
-  if (anfrage.status === AnfrageStatus.ABGESCHLOSSEN) throw new TRPCError({ code: "BAD_REQUEST", message: "Anfrage bereits abgeschlossen." });
+
+  // ⚠️ ALLE toten Zustände sperren, nicht nur ABGESCHLOSSEN. Vorher ließ sich
+  // eine **stornierte** oder als nicht beschaffbar markierte Anfrage hier
+  // abschließen — und verbrauchte dabei echten Bestand für ein Teil, das
+  // niemand mehr wollte. Erlaubt sind nur die offenen Zustände, dieselben wie
+  // in `auslagern.teile` und `anfragen.setStatus`.
+  const OFFEN: AnfrageStatus[] = [
+    AnfrageStatus.NEU, AnfrageStatus.BEDARF, AnfrageStatus.IN_BEARBEITUNG,
+  ];
+  if (!OFFEN.includes(anfrage.status)) {
+    throw new TRPCError({
+      code:    "BAD_REQUEST",
+      message: `Anfrage #${id} ist ${anfrage.status} und kann nicht abgeschlossen werden.`,
+    });
+  }
 
   // Test-Anfragen: Sicherheitsgurt — keine AUSGANG-Buchung, kein Bestand-Effekt.
   if (anfrage.artikelId && !anfrage.testModus) {
+    // ⚠️ Pool VOR der Buchung auflösen — wie an allen anderen Buchungsstellen.
+    // Ohne das bucht dieser Weg stur auf den angefragten Artikel und scheitert,
+    // obwohl das baugleiche Teil beim Partner liegt.
+    const quelleId = await waehleQuelle(anfrage.artikelId, anfrage.menge);
+    const buchenAuf = quelleId ?? anfrage.artikelId;
     // anfrageId: Kette zum Zielgerät (siehe Buchung.anfrageId im Schema).
-    await bucheLager({ artikelId: anfrage.artikelId, menge: anfrage.menge, typ: BuchungsTyp.AUSGANG, mitarbeiter, notiz: `Anfrage #${id}`, anfrageId: id });
+    await bucheLager({
+      artikelId: buchenAuf,
+      menge:     anfrage.menge,
+      typ:       BuchungsTyp.AUSGANG,
+      mitarbeiter,
+      notiz:     buchenAuf === anfrage.artikelId
+        ? `Anfrage #${id}`
+        : `Anfrage #${id} | aus Pool-Partner entnommen`,
+      anfrageId: id,
+    });
+    // Partner-Bestand nachziehen, sonst steht er überall veraltet.
+    if (buchenAuf !== anfrage.artikelId) await syncBestandAusHistorie(anfrage.artikelId);
   }
   await prisma.anfrage.update({
     where: { id },
