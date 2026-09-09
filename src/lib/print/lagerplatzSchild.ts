@@ -17,6 +17,7 @@
 // der Auto-Print wartet auf das window.load-Event, damit das Foto mitgedruckt wird.
 
 import QRCode from "qrcode";
+import { masseText } from "@/lib/verbrauchsmaterial/masse";
 
 export type SchildArtikel = {
   code:       string;         // QR-Inhalt + Klartext, z.B. "VM-0001"
@@ -26,6 +27,11 @@ export type SchildArtikel = {
   standort?:  string | null;
   kategorie?: string | null;
   bildUrl?:   string | null;  // /api/verbrauchsmaterial/bild/[id]?v=… (null = kein Foto)
+  // Maße in Millimetern. Erscheinen nur, wenn mindestens eine Kante gepflegt
+  // ist — ein „? × ? × ? mm" auf dem Schild wäre nur Lärm.
+  laengeMm?:  number | null;
+  breiteMm?:  number | null;
+  hoeheMm?:   number | null;
 };
 
 // QR als SVG-Data-URI — gestochen scharf im Druck. Roher Code als Inhalt (kein
@@ -105,6 +111,14 @@ export async function printLagerplatzSchild(artikel: SchildArtikel[]): Promise<v
     const metaTeile: string[] = [];
     if (a.standort && a.standort.trim())  metaTeile.push(`<span class="lbl">Standort:</span> ${escapeHtml(a.standort.trim())}`);
     if (a.kategorie && a.kategorie.trim()) metaTeile.push(`<span class="lbl">Kategorie:</span> ${escapeHtml(a.kategorie.trim())}`);
+    // Maße nur, wenn etwas gepflegt ist. Beschriftet „L × B × H", damit am Regal
+    // klar ist, welche Zahl welche Kante meint.
+    const masse = masseText({
+      laengeMm: a.laengeMm ?? null,
+      breiteMm: a.breiteMm ?? null,
+      hoeheMm:  a.hoeheMm  ?? null,
+    });
+    if (masse) metaTeile.push(`<span class="lbl">Maße (L × B × H):</span> ${escapeHtml(masse)}`);
     const metaHtml = metaTeile.map((t) => `<div class="meta">${t}</div>`).join("");
 
     return `<div class="sheet">

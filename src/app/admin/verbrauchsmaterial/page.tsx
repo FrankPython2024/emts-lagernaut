@@ -9,6 +9,7 @@ import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { printVerbrauchsmaterialEtiketten } from "@/lib/print/verbrauchsmaterialEtikett";
 import { printLagerplatzSchild } from "@/lib/print/lagerplatzSchild";
 import { useHintergrundSchliessen } from "@/components/ui/hintergrundSchliessen";
+import { masseText } from "@/lib/verbrauchsmaterial/masse";
 
 const CYAN = "#008BD2";
 
@@ -38,19 +39,6 @@ type Artikel = {
 // kein Foto hinterlegt ist. Für Liste-Thumbnail, A5-Schild, Info-Vorschau.
 function bildUrl(a: Pick<Artikel, "id" | "hatBild" | "bildStand">): string | null {
   return a.hatBild ? `/api/verbrauchsmaterial/bild/${a.id}?v=${a.bildStand ?? 0}` : null;
-}
-
-/**
- * Maße als eine lesbare Zeile: „300 × 200 × 150 mm".
- *
- * Fehlende Kanten werden als „?" gezeigt statt weggelassen — sonst liest sich
- * „300 × 150 mm" wie Länge und Breite, obwohl Länge und Höhe gemeint sind.
- * Ist gar nichts gepflegt, kommt null zurück und die Zeile entfällt ganz.
- */
-function masseText(a: Pick<Artikel, "laengeMm" | "breiteMm" | "hoeheMm">): string | null {
-  const werte = [a.laengeMm, a.breiteMm, a.hoeheMm];
-  if (werte.every((v) => v == null)) return null;
-  return `${werte.map((v) => (v == null ? "?" : v.toLocaleString("de-DE"))).join(" × ")} mm`;
 }
 
 // Ausliefer-URL eines EINZELNEN Galerie-Fotos (nach fotoId) inkl. Cache-Buster.
@@ -168,6 +156,7 @@ export default function VerbrauchsmaterialPage() {
     return {
       code: a.code, name: a.name, merkmale: a.merkmale, aan: a.aan,
       standort: a.standort, kategorie: a.kategorie, bildUrl: bildUrl(a),
+      laengeMm: a.laengeMm, breiteMm: a.breiteMm, hoeheMm: a.hoeheMm,
     };
   }
   function druckeSchild(a: Artikel) {
