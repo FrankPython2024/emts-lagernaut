@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Trash2, Sparkles, Square, LoaderCircle, SquareCheckBig, PackageX, type LucideIcon } from "lucide-react";
 import { api } from "@/trpc/react";
+import { SpenderPanel } from "@/components/teilespender/SpenderPanel";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS }    from "@/modules/realtime/events";
 import { ChatModal } from "@/components/ui/ChatModal";
@@ -359,6 +360,9 @@ function AnfragenPageInner() {
   // reine Lese-Sicht). Der Server erzwingt das ohnehin (adminProcedure).
   const canEdit   = has("ANFRAGE_EDIT");
   const canDelete = has("ANFRAGE_DELETE");
+  // Ohne dieses Recht bleibt der Teilespender komplett aus — sonst liefe alle
+  // 30 Sekunden eine Abfrage in einen 403.
+  const canSpender = has("TEILESPENDER_VIEW");
   const { activeStandortId } = useStandortFilter();
   const { on, off } = useSocket();
   const { data: session } = useSession();
@@ -475,6 +479,21 @@ function AnfragenPageInner() {
     { enabled: bedarfIds.length > 0, staleTime: 30_000 },
   );
   const spenderHinweise = spenderQ.data ?? {};
+
+  // ── Teilespender-Hinweis ──────────────────────────────────────────────────
+  // Dieselbe Frage, andere Quelle: Steckt das Teil noch in einem Gerät, das es
+  // nicht in den Verkauf geschafft hat? Ebenfalls eine Sammelabfrage — die
+  // Liste lädt alle fünf Sekunden neu, je Zeile eine Abfrage wären hunderte.
+  const teilespenderQ = api.teilespender.hinweiseFuerAnfragen.useQuery(
+    { anfrageIds: bedarfIds },
+    { enabled: canSpender && bedarfIds.length > 0, staleTime: 30_000, retry: false },
+  );
+  const teilespenderHinweise = teilespenderQ.data ?? {};
+
+  // Welche Gruppe hat gerade das Spender-Panel offen?
+  const [spenderPanel, setSpenderPanel] = useState<
+    { geraeteName: string; teiltypen: string[]; logId: string | null } | null
+  >(null);
 
   // ── Auto-Refresh ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -848,6 +867,25 @@ function AnfragenPageInner() {
             .filter((a) => a.status !== AnfrageStatus.ABGESCHLOSSEN && a.status !== AnfrageStatus.STORNIERT && a.status !== AnfrageStatus.NICHT_VERFUEGBAR)
             .map((a) => a.id);
 
+          // ── Teilespender ────────────────────────────────────────────────
+          // Die noch offenen Teiltypen dieser Gruppe. Sonderanfragen bleiben
+          // draußen — sie haben keinen Teiltyp, den man in einem Gerät suchen
+          // könnte. Erledigte und stornierte ebenso: Wer die mitnimmt, schickt
+          // jemanden für ein Teil los, das schon verbaut ist.
+          const offeneTeiltypen = [...new Set(
+            anfragenTyped
+              .filter((a) =>
+                !a.istSonderAnfrage &&
+                (a.status === AnfrageStatus.NEU ||
+                 a.status === AnfrageStatus.BEDARF ||
+                 a.status === AnfrageStatus.IN_BEARBEITUNG),
+              )
+              .map((a) => a.teil),
+          )];
+          const spenderMoeglich = canSpender && Boolean(gruppe.geraeteName) && offeneTeiltypen.length > 0;
+          // Wie viele der offenen Teile hat die Sammelabfrage schon bestätigt?
+          const spenderTreffer = anfragenTyped.filter((a) => teilespenderHinweise[a.id]).length;
+
           // ── Chat-Button ─────────────────────────────────────────────────
           const firstId   = anfragenTyped[0]?.id;
           const chatCount = firstId ? ((ungelesenData ?? []).find((x) => x.anfrageId === firstId)?.count ?? 0) : 0;
@@ -965,6 +1003,22 @@ function AnfragenPageInner() {
                     </button>
                   )}
 
+                  {/* Teilespender: das angefragte Gerät plus alle offenen Teile,
+                      ohne dass jemand etwas abtippen muss. */}
+                  {spenderMoeglich && (
+                    <button
+                      onClick={() => setSpenderPanel({
+                        geraeteName: gruppe.geraeteName!,
+                        teiltypen:   offeneTeiltypen,
+                        logId:       gruppe.logId !== "unbekannt" ? gruppe.logId : null,
+                      })}
+                      title={`Ersatzteile für ${gruppe.geraeteName} in Verwertungsgeräten suchen`}
+                      className="px-3 py-2.5 bg-[#202F61] text-white text-xs font-bold rounded-lg hover:bg-[#2b3f80] transition-colors min-h-[44px]"
+                    >
+                      🔍 Spender suchen{spenderTreffer > 0 && ` (${spenderTreffer})`}
+                    </button>
+                  )}
+
                   {/* Chat-Button */}
                   <button
                     onClick={() => firstId && setChatModal({ anfrageId: firstId, bezugInfo, partnerName: gruppe.techniker })}
@@ -1073,6 +1127,19 @@ function AnfragenPageInner() {
                               `${s.lagerplatz ?? "ohne Platz"} · ${s.grading}`
                             )).join("  |  ")}
                             {spenderHinweise[a.id]!.length > 3 && " …"}
+                          </div>
+                        )}
+                        {/* Dasselbe für Verwertungsgeräte: Das Teil steckt noch
+                            in einem Gerät, das es nicht in den Verkauf geschafft
+                            hat. Fundort steht dabei — das ist der Punkt. */}
+                        {teilespenderHinweise[a.id] && (
+                          <div className="text-xs text-[#0a4275] dark:text-[#9ec5fe] mt-0.5 font-semibold">
+                            🔍 {teilespenderHinweise[a.id]!.anzahl} Verwertungsgerät
+                            {teilespenderHinweise[a.id]!.anzahl === 1 ? "" : "e"} mit diesem Teil:{" "}
+                            {teilespenderHinweise[a.id]!.vorschau
+                              .map((v) => `${v.stellplatz ?? "ohne Platz"} · Colli ${v.colli ?? "—"}`)
+                              .join("  |  ")}
+                            {teilespenderHinweise[a.id]!.anzahl > 3 && " …"}
                           </div>
                         )}
                         {a.kommentar && <span className="ml-2 text-xs text-[#0064d2] dark:text-[#45bdff]">⌨️ {a.kommentar}</span>}
@@ -1340,6 +1407,18 @@ function AnfragenPageInner() {
           anzahl={gruppenBelege.length}
           onDrucken={() => printMehrereAuslagerBelege(gruppenBelege)}
           onSchliessen={() => setGruppenBelege(null)}
+        />
+      )}
+
+      {/* Teilespender — vorbelegt mit dem angefragten Gerät und allen offenen
+          Teilen der Gruppe. */}
+      {spenderPanel && (
+        <SpenderPanel
+          open
+          onClose={() => setSpenderPanel(null)}
+          geraeteName={spenderPanel.geraeteName}
+          teiltypen={spenderPanel.teiltypen}
+          zielLogId={spenderPanel.logId}
         />
       )}
 

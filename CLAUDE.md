@@ -218,9 +218,9 @@ EOF
   bei nicht gefundener Überschrift `0`/`null` und schrieb das durch — eine umbenannte Spalte hätte
   **alle Bestände auf null** gesetzt. Regel: `undefined` = „stand nicht in der Datei" = nicht
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
-- **Verify-Gate sind SECHS Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
-  `technik`, `ocr`, `bezeichnung` (zusammen 284) plus `tsc --noEmit`. `test:bezeichnung` war
-  monatelang rot, weil es niemand lief.
+- **Verify-Gate sind NEUN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
+  `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl` (zusammen 371) plus
+  `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Leseseite und Schreibseite müssen denselben Fall gleich einordnen.** `gruppeDetails` meldete
   für `artikelId === null` bereits `istSonderanfrage: true` („wird als DIREKT-Buchung verarbeitet"),
   `auslagern.teile` warf für denselben Datensatz `„Anfrage #N hat keinen Artikel"`, weil es aufs
@@ -756,6 +756,56 @@ Der Router muss dafür `modellIds` mitgeben.
     (`navigator.clipboard`), Kategorie/Standort/Bestände + Schnellzugriff „📄 Schild"/„Bearbeiten"
     (Foto-Metadaten via `fotos`-Query). Klick auf ein Foto → **bildschirmfüllende** Lightbox mit
     Blättern (‹ ›, Zähler; Klick auf Rand/× schließt).
+
+### Teilespender — Ersatzteile in Verwertungsgeräten finden (Sep 2026)
+
+**Das Problem:** „Wir verschwenden zu viel Zeit, um Ersatzteile zu finden." Geräte, die es nicht in
+den Verkauf geschafft haben, stehen im Haus und werden verwertet — sie sind die naheliegendste
+Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
+
+- **Quelle:** ReForm-**Verwertungs-Export** (57 Spalten). Erkennungsmerkmal: Spalten `Defekte` und
+  `Refurbishment nicht möglich`, **keine** Spalte `Verbleib`. Am 09.09.2026: 7.357 Geräte, alle
+  Notebooks, alle Sömmerda.
+- **Schema:** `VerwertungsGeraet` (logId @id, modellKey, defekteRoh, verwertungFrei, stellplatz,
+  colli, Snapshot-Felder), `VerwertungsImport`, `VerwertungsEntnahme` + Enum
+  `VerwertungsEntnahmeArt`. **Getrennt von `LogIdStand`**, obwohl sich 90 % der LogIDs überschneiden:
+  716 Geräte stehen dort gar nicht, der Verwertungs-Export ist für diese Geräte die frischere
+  Ortsangabe, und `Defekte` gibt es dort nicht.
+- ⚠️ **Der Modellschlüssel trägt die ganze Suche.** Der Export schreibt
+  „ThinkPad L14 Gen 2 20X1S3T400", die Anfrage heißt „Lenovo - ThinkPad L14 Gen 2". Gemessen an
+  **934 echten Anfragen**: über `schildSchluessel(zerlegeGeraetename(...))` **97,3 %** Treffer,
+  über den rohen Namen **0,1 %**. Bekannte Lücke: Restnummern unter 8 Zeichen bleiben hängen
+  (6 von 7.357 Geräten) — die Grenze zu senken würde echte Modellnamen wie „T14s" zerschneiden.
+- ⚠️ **`Defekte` wird ROH gespeichert, nie abgeleitet.** Die Zuordnung Begriff → Teiltyp lebt in
+  `src/lib/teilespender/defekte.ts` (53 Begriffe, an der Produktion kalibriert) und wird bei jeder
+  Suche frisch angewandt. Eine abgeleitete Spalte würde veralten, sobald die Tabelle korrigiert wird.
+  **Unbekannte Begriffe werden nicht verschluckt**, sondern im Import-Protokoll gemeldet — ReForm
+  kann die Auswahlliste erweitern, und ein still ignorierter Begriff würde ein Gerät als Spender
+  ausweisen, obwohl genau das gesuchte Teil hin ist.
+- ⚠️ **„Kein Defekt vermerkt" ≠ „geprüft in Ordnung".** Negativbeleg. Steht so auch im UI, nicht im
+  Kleingedruckten. Der Defekt-Filter siebt 14,7 % der Kandidaten weg; die Treffer bringt der
+  Modellschlüssel.
+- ⚠️ **Nur `verwertungFrei` (Spalte „Refurbishment nicht möglich" = 1) darf zerlegt werden.** Leerer
+  Wert gilt bewusst als NICHT freigegeben (14 Fälle) — lieber ein Spender zu wenig als ein zerlegtes
+  Verkaufsgerät.
+- **Entnommene Teile werden AUTOMATISCH erkannt**, ohne dass jemand abhakt: `Buchung.herkunftLogId`
+  + `herkunftArt = "SPENDER"`, Teiltyp = `Artikel.kategorie` (an 77 Ernte-Buchungen verifiziert).
+  Gefiltert wird **je Teiltyp**, nicht je Gerät — das Display desselben Geräts bleibt sichtbar.
+  `VerwertungsEntnahme` deckt nur ab, was dort nicht ankommt („Karton auf, Teil war schon weg").
+- **Einstieg ist die Anfragen-Liste**, nicht die eigene Seite: Knopf „🔍 Spender suchen" je Gruppe
+  (vorbelegt mit Gerät **und allen offenen Teiltypen**) plus Zeilen-Hinweis mit Fundort bei
+  BEDARF-Anfragen — beides über **Sammelabfragen**, die Liste lädt alle 5 s neu.
+  `SpenderPanel` sortiert nach **Abdeckung**: Ein Spendergerät hat meist mehrere angefragte Teile,
+  wer je Teil sucht läuft dreimal. „Wenigste Wege vorschlagen" =
+  `waehleWenigsteWege()` in `src/lib/teilespender/auswahl.ts` (greedy, bewusst nicht optimal;
+  **stabil**, sonst springen bei jedem Neuladen die Häkchen).
+- **Import:** eigener Endpoint `/api/teilespender/upload` + BullMQ (teilt sich die Queue
+  `logid-import`, Job-Name unterscheidet). Voll-Snapshot mit Abgangs-Erkennung und **50-%-Sicherung**.
+  Kopfzeile wird geprüft, **bevor** geschrieben wird. Der Lagerfuchs-Import **lehnt diese Datei jetzt
+  ausdrücklich ab** (sie hat keine `Verbleib`-Spalte und wäre sonst als Voll-Snapshot durchgelaufen).
+- **Rechte:** `TEILESPENDER_VIEW` / `TEILESPENDER_IMPORT` (getrennt wie bei „Gleiches Gerät finden").
+  **Braucht `seed-rbac`.**
+- **Tests:** `test:defekte` (45), `test:teilespender` (27), `test:auswahl` (15).
 
 ### Weitere Module (live)
 - Admin-Portal (Artikel, Buchungen, Anfragen mit Lock-System, Modelle/Kompatibilität, Benutzer,

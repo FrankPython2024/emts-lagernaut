@@ -203,6 +203,236 @@ export async function sucheSpender(args: {
   };
 }
 
+/** Ein Spender-Kurzhinweis, wie er neben einer Anfrage steht. */
+export type SpenderHinweis = {
+  /** Wie viele Geräte kämen in Frage? */
+  anzahl: number;
+  /** Die ersten paar davon, in Laufreihenfolge — für die Vorschau in der Liste. */
+  vorschau: {
+    logId: string;
+    stellplatz: string | null;
+    colli: string | null;
+    sicherheit: Sicherheit;
+  }[];
+  /** Der aufgelöste Gerätename, mit dem gesucht wurde (für den Link). */
+  geraeteName: string;
+  teiltyp: string;
+};
+
+/**
+ * Für mehrere Anfragen auf einmal: Steckt das gesuchte Teil noch in einem
+ * Verwertungsgerät?
+ *
+ * ⚠️ Bewusst als EIN Zug über alle Anfragen gebaut, nicht als Schleife über
+ * `sucheSpender`. Die Anfragenliste zeigt regelmäßig 50+ Zeilen; je Zeile eine
+ * eigene Abfrage wären hunderte Rundreisen zur Datenbank, und die Seite lädt
+ * ohnehin alle fünf Sekunden neu.
+ */
+export async function hinweiseFuerAnfragen(
+  anfrageIds: number[],
+): Promise<Record<number, SpenderHinweis>> {
+  if (anfrageIds.length === 0) return {};
+
+  const anfragen = await prisma.anfrage.findMany({
+    where: { id: { in: anfrageIds }, istSonderAnfrage: false },
+    select: { id: true, geraeteName: true, geraet: true, teil: true },
+  });
+  if (anfragen.length === 0) return {};
+
+  // Name → Schlüssel einmal je verschiedenem Namen berechnen.
+  const nameFuer = new Map<number, string>();
+  const keyFuer = new Map<number, string>();
+  const keyCache = new Map<string, string>();
+  for (const a of anfragen) {
+    const name = (a.geraeteName ?? a.geraet ?? "").trim();
+    if (!name) continue;
+    let key = keyCache.get(name);
+    if (key === undefined) {
+      key = modellSchluessel(name);
+      keyCache.set(name, key);
+    }
+    if (!key) continue;
+    nameFuer.set(a.id, name);
+    keyFuer.set(a.id, key);
+  }
+
+  const keys = [...new Set(keyFuer.values())];
+  if (keys.length === 0) return {};
+
+  const geraete = await prisma.verwertungsGeraet.findMany({
+    where: { modellKey: { in: keys }, ausgeschieden: false, verwertungFrei: true },
+    select: {
+      logId: true, modellKey: true, stellplatz: true, colli: true, defekteRoh: true,
+    },
+  });
+  if (geraete.length === 0) return {};
+
+  const entnommen = await entnommeneTeile(geraete.map((g) => g.logId));
+
+  // Nach Modellschlüssel bündeln, damit je Anfrage nur noch gefiltert wird.
+  const proKey = new Map<string, typeof geraete>();
+  for (const g of geraete) {
+    const a = proKey.get(g.modellKey) ?? [];
+    a.push(g);
+    proKey.set(g.modellKey, a);
+  }
+
+  const raus: Record<number, SpenderHinweis> = {};
+  for (const a of anfragen) {
+    const key = keyFuer.get(a.id);
+    const name = nameFuer.get(a.id);
+    if (!key || !name) continue;
+
+    const passend: SpenderTreffer[] = [];
+    for (const g of proKey.get(key) ?? []) {
+      const defekte = zerlegeDefekte(g.defekteRoh);
+      const zustand = zustandFuerTeiltyp(defekte, a.teil);
+      if (zustand !== "FREI" && zustand !== "KOSMETISCH") continue;
+      if (entnommen.get(g.logId)?.has(a.teil)) continue;
+      passend.push({
+        logId: g.logId,
+        bezeichnung: null,
+        hersteller: null,
+        zustand: null,
+        stellplatz: g.stellplatz,
+        colli: g.colli,
+        lager: null,
+        defekte,
+        unbekannteDefekte: [],
+        sicherheit: zustand === "KOSMETISCH" ? "GEBRAUCHTSPUREN" : "KEIN_DEFEKT_VERMERKT",
+        verweildauerTage: null,
+      });
+    }
+    if (passend.length === 0) continue;
+
+    passend.sort(nachLaufweg);
+    raus[a.id] = {
+      anzahl: passend.length,
+      vorschau: passend.slice(0, 3).map((t) => ({
+        logId: t.logId,
+        stellplatz: t.stellplatz,
+        colli: t.colli,
+        sicherheit: t.sicherheit,
+      })),
+      geraeteName: name,
+      teiltyp: a.teil,
+    };
+  }
+  return raus;
+}
+
+export type GruppenSpender = {
+  logId: string;
+  bezeichnung: string | null;
+  stellplatz: string | null;
+  colli: string | null;
+  zustand: string | null;
+  /** Welche der angefragten Teiltypen dieses Gerät vermutlich noch hat. */
+  deckt: string[];
+  /** Davon die, bei denen Gebrauchsspuren vermerkt sind. */
+  mitSpuren: string[];
+  /** Alle vermerkten Defekte des Geräts, im Original-Wortlaut. */
+  defekte: string[];
+};
+
+export type GruppenErgebnis = {
+  geraeteName: string;
+  /** Die angefragten Teiltypen, in der Reihenfolge der Anfrage. */
+  teiltypen: string[];
+  /** Wie viele Spender es je Teiltyp gibt — auch 0, damit Lücken sichtbar sind. */
+  proTeiltyp: { teiltyp: string; anzahl: number }[];
+  /** Geräte, nach Abdeckung sortiert: das ergiebigste zuerst. */
+  geraete: GruppenSpender[];
+};
+
+/**
+ * Alle Teile EINER Anfrage-Gruppe auf einmal.
+ *
+ * Der eigentliche Zeitgewinn steckt hier: Ein Techniker fragt für dasselbe
+ * Notebook oft Tastatur, Touchpad und D-Cover zusammen an — und ein einziges
+ * Spendergerät desselben Modells hat meist alle drei. Wer stattdessen je Teil
+ * sucht, läuft dreimal los.
+ *
+ * Deshalb ist die Liste nach **Abdeckung** sortiert, nicht nach Laufweg: Das
+ * Gerät, das die meisten offenen Teile erschlägt, steht oben. Bei gleicher
+ * Abdeckung entscheidet der Laufweg.
+ */
+export async function spenderFuerGruppe(args: {
+  geraeteName: string;
+  teiltypen: string[];
+}): Promise<GruppenErgebnis> {
+  const teiltypen = [...new Set(args.teiltypen.filter((t) => t.trim().length > 0))];
+  const leer: GruppenErgebnis = {
+    geraeteName: args.geraeteName,
+    teiltypen,
+    proTeiltyp: teiltypen.map((t) => ({ teiltyp: t, anzahl: 0 })),
+    geraete: [],
+  };
+
+  const key = modellSchluessel(args.geraeteName);
+  if (!key || teiltypen.length === 0) return leer;
+
+  const geraete = await prisma.verwertungsGeraet.findMany({
+    where: { modellKey: key, ausgeschieden: false, verwertungFrei: true },
+    select: {
+      logId: true, bezeichnung: true, stellplatz: true, colli: true,
+      zustand: true, defekteRoh: true,
+    },
+  });
+  if (geraete.length === 0) return leer;
+
+  const entnommen = await entnommeneTeile(geraete.map((g) => g.logId));
+
+  const treffer: GruppenSpender[] = [];
+  const zaehler = new Map<string, number>(teiltypen.map((t) => [t, 0]));
+
+  for (const g of geraete) {
+    const defekte = zerlegeDefekte(g.defekteRoh);
+    const raus = entnommen.get(g.logId);
+    const deckt: string[] = [];
+    const mitSpuren: string[] = [];
+
+    for (const t of teiltypen) {
+      if (raus?.has(t)) continue;
+      const z = zustandFuerTeiltyp(defekte, t);
+      if (z !== "FREI" && z !== "KOSMETISCH") continue;
+      deckt.push(t);
+      if (z === "KOSMETISCH") mitSpuren.push(t);
+      zaehler.set(t, (zaehler.get(t) ?? 0) + 1);
+    }
+
+    if (deckt.length === 0) continue;
+    treffer.push({
+      logId: g.logId,
+      bezeichnung: g.bezeichnung,
+      stellplatz: g.stellplatz,
+      colli: g.colli,
+      zustand: g.zustand,
+      deckt,
+      mitSpuren,
+      defekte,
+    });
+  }
+
+  treffer.sort((a, b) => {
+    if (b.deckt.length !== a.deckt.length) return b.deckt.length - a.deckt.length;
+    // Bei gleicher Abdeckung das nehmen, das weniger Gebrauchsspuren hat …
+    if (a.mitSpuren.length !== b.mitSpuren.length) return a.mitSpuren.length - b.mitSpuren.length;
+    // … und erst dann nach Laufweg.
+    const s = (a.stellplatz ?? "").localeCompare(b.stellplatz ?? "", "de", { numeric: true });
+    if (s !== 0) return s;
+    const c = (a.colli ?? "").localeCompare(b.colli ?? "", "de", { numeric: true });
+    return c !== 0 ? c : a.logId.localeCompare(b.logId, "de", { numeric: true });
+  });
+
+  return {
+    geraeteName: args.geraeteName,
+    teiltypen,
+    proTeiltyp: teiltypen.map((t) => ({ teiltyp: t, anzahl: zaehler.get(t) ?? 0 })),
+    geraete: treffer,
+  };
+}
+
 /**
  * Welche Modelle gibt es überhaupt als Spender? Für die Auswahl auf der Seite.
  *

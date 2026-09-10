@@ -36,6 +36,7 @@
     "test:schild": "tsx tests/schildName.test.ts",
     "test:defekte": "tsx tests/defekte.test.ts",
     "test:teilespender": "tsx tests/teilespender.test.ts",
+    "test:auswahl": "tsx tests/auswahl.test.ts",
     "seed:entsorgung": "tsx prisma/scripts/seed-entsorgung-abfallarten.ts"
   },
   "dependencies": {

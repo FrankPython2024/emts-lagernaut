@@ -8,6 +8,8 @@ import {
   spenderModelle,
   geraeteAkte,
   modellSchluessel,
+  hinweiseFuerAnfragen,
+  spenderFuerGruppe,
 } from "@/modules/teilespender/service";
 import type { SessionUser } from "@/core/types";
 
@@ -49,6 +51,27 @@ export const teilespenderRouter = createTRPCRouter({
         limit: input.limit,
       }),
     ),
+
+  /**
+   * Für die Anfragen-Liste: Zu welchen Anfragen steckt das Teil noch in einem
+   * Verwertungsgerät? Eine Abfrage für die ganze Liste.
+   */
+  hinweiseFuerAnfragen: suchen
+    .input(z.object({ anfrageIds: z.array(z.number().int().positive()).min(1).max(200) }))
+    .query(({ input }) => hinweiseFuerAnfragen(input.anfrageIds)),
+
+  /**
+   * Alle Teile einer Anfrage-Gruppe auf einmal — sortiert nach dem Gerät, das
+   * die meisten offenen Teile abdeckt.
+   */
+  fuerGruppe: suchen
+    .input(
+      z.object({
+        geraeteName: z.string().trim().min(1).max(300),
+        teiltypen: z.array(z.string().trim().min(1).max(191)).min(1).max(30),
+      }),
+    )
+    .query(({ input }) => spenderFuerGruppe(input)),
 
   /** Suchschlüssel zu einem Gerätenamen — damit die Oberfläche vorbelegen kann. */
   schluessel: suchen
