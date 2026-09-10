@@ -791,6 +791,14 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   ⚠️ **Broker-Geräte bleiben BEWUSST drin** (169 Stück, Stellplatz „Broker" / Lager „AfB Sömmerda
   Verkaufslager"). Entscheidung von Frank am 10.09.2026: Sie dienen ebenfalls als Teilespender.
   Sie sehen aus wie ein Filterfehler — sind aber keiner. **Nicht ausschließen.**
+- ⚠️ **Das ZIELGERÄT einer Anfrage darf sich nie selbst als Spender vorschlagen.** Am 10.09.2026
+  real: Drei offene P17-Anfragen hatten Zielgeräte, die selbst im Verwertungsbestand standen
+  (dieselben LogIDs!) — die Suche bot für jede davon Tastatur, Display, D Cover und Mainboard
+  **aus dem Gerät auf der Werkbank** an. Wer dem folgt, sucht im Regal, was er in der Hand hält.
+  Gesperrt wird in allen drei Wegen: `sucheSpender({ ausschliessen })`,
+  `spenderFuerGruppe({ zielLogId })` und `hinweiseFuerAnfragen` (nimmt `Anfrage.logId` selbst).
+  Verglichen wird über `normalizeLogId` (reine Ziffern) — der Export schreibt „212.652.351", eine
+  Anfrage kann dieselbe LogID ohne Punkte tragen.
 - **Entnommene Teile:** zwei Quellen, beide in `entnommeneTeile()` zusammengeführt.
   Gefiltert wird **je Teiltyp, nicht je Gerät** — ein T490 ohne Display kommt für eine Tastatur
   weiter in Frage. Am 10.09.2026 gegen die Produktion durchgespielt: Display-Spender 91 → 90,

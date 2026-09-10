@@ -41,6 +41,8 @@ export const teilespenderRouter = createTRPCRouter({
         hersteller: z.string().trim().max(64).nullish(),
         teiltyp: z.string().trim().min(1).max(191),
         limit: z.number().int().positive().max(500).optional(),
+        /** Bei Suche aus einer Anfrage heraus: das Zielgerät ausschließen. */
+        ausschliessen: z.array(z.string().trim().max(100)).max(20).optional(),
       }),
     )
     .query(({ input }) =>
@@ -50,6 +52,7 @@ export const teilespenderRouter = createTRPCRouter({
         hersteller: input.hersteller,
         teiltyp: input.teiltyp,
         limit: input.limit,
+        ausschliessen: input.ausschliessen,
       }),
     ),
 
@@ -70,6 +73,8 @@ export const teilespenderRouter = createTRPCRouter({
       z.object({
         geraeteName: z.string().trim().min(1).max(300),
         teiltypen: z.array(z.string().trim().min(1).max(191)).min(1).max(30),
+        // Zielgerät der Anfrage — es darf sich nicht selbst vorschlagen.
+        zielLogId: z.string().trim().max(100).nullish(),
       }),
     )
     .query(async ({ input }) => {

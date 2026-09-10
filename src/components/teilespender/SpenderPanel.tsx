@@ -42,7 +42,8 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
   const [gewaehlt, setGewaehlt] = useState<Set<string>>(new Set());
 
   const q = api.teilespender.fuerGruppe.useQuery(
-    { geraeteName, teiltypen },
+    // zielLogId mitgeben: Das Gerät auf der Werkbank ist kein Spender für sich.
+    { geraeteName, teiltypen, zielLogId: zielLogId ?? null },
     { enabled: open && teiltypen.length > 0 && geraeteName.trim().length > 0 },
   );
   const pickupErstellen = api.pickup.erstellen.useMutation();

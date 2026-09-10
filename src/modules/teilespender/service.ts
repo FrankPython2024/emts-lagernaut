@@ -159,6 +159,34 @@ export async function orteFuer(
   return raus;
 }
 
+/**
+ * Menge von LogIDs, die als Spender ausscheiden — schreibweisen-tolerant.
+ *
+ * ⚠️ Das ZIELGERÄT einer Anfrage darf sich nie selbst als Spender vorschlagen.
+ * Real aufgetreten am 10.09.2026: Drei offene P17-Anfragen hatten Zielgeräte,
+ * die selbst im Verwertungsbestand standen — das System hätte für jede von
+ * ihnen Tastatur, Display, D Cover und Mainboard **aus dem Gerät auf der
+ * Werkbank** vorgeschlagen. Wer dem folgt, sucht im Regal ein Gerät, das er in
+ * der Hand hält.
+ *
+ * Verglichen wird über die reinen Ziffern: Der Export schreibt „212.652.351",
+ * eine Anfrage kann dieselbe LogID ohne Punkte tragen.
+ */
+function sperrMenge(logIds: (string | null | undefined)[]): Set<string> {
+  const raus = new Set<string>();
+  for (const id of logIds) {
+    // normalizeLogId ist die Projekt-Regel für „nur Ziffern" (verträgt auch
+    // Excel-Artefakte wie „209761402.0"). Keine zweite Regel daneben stellen.
+    const z = normalizeLogId(id ?? "");
+    if (z) raus.add(z);
+  }
+  return raus;
+}
+
+function istGesperrt(sperre: Set<string>, logId: string): boolean {
+  return sperre.size > 0 && sperre.has(normalizeLogId(logId));
+}
+
 /** Laufreihenfolge: erst das Regal, dann der Karton, dann die LogID. */
 function nachLaufweg(a: SpenderTreffer, b: SpenderTreffer): number {
   const s = (a.stellplatz ?? "").localeCompare(b.stellplatz ?? "", "de", { numeric: true });
@@ -180,6 +208,8 @@ export async function sucheSpender(args: {
   hersteller?: string | null;
   teiltyp: string;
   limit?: number;
+  /** LogIDs, die nicht als Spender gelten — vor allem das Zielgerät selbst. */
+  ausschliessen?: (string | null | undefined)[];
 }): Promise<SpenderSuchErgebnis> {
   const key = args.modellKey ?? modellSchluessel(args.geraeteName ?? "", args.hersteller);
   const leer: SpenderSuchErgebnis = {
@@ -210,7 +240,13 @@ export async function sucheSpender(args: {
   const aussortiert = { nichtFreigegeben: 0, teilDefekt: 0, totalschaden: 0, bereitsEntnommen: 0 };
   const treffer: SpenderTreffer[] = [];
 
+  const sperre = sperrMenge(args.ausschliessen ?? []);
+
   for (const g of geraete) {
+    // Das eigene Zielgerät fällt still raus — es taucht in keiner Zählung auf,
+    // weil es nie ein Kandidat war.
+    if (istGesperrt(sperre, g.logId)) continue;
+
     const defekte = zerlegeDefekte(g.defekteRoh);
     const zustand: TeilZustand = zustandFuerTeiltyp(defekte, args.teiltyp);
 
@@ -307,7 +343,7 @@ export async function hinweiseFuerAnfragen(
 
   const anfragen = await prisma.anfrage.findMany({
     where: { id: { in: anfrageIds }, istSonderAnfrage: false },
-    select: { id: true, geraeteName: true, geraet: true, teil: true },
+    select: { id: true, geraeteName: true, geraet: true, teil: true, logId: true },
   });
   if (anfragen.length === 0) return {};
 
@@ -382,8 +418,12 @@ export async function hinweiseFuerAnfragen(
     const name = nameFuer.get(a.id);
     if (!key || !name) continue;
 
+    // Das Gerät, das repariert wird, ist kein Spender für sich selbst.
+    const sperre = sperrMenge([a.logId]);
+
     const passend: SpenderTreffer[] = [];
     for (const g of proKey.get(key) ?? []) {
+      if (istGesperrt(sperre, g.logId)) continue;
       const defekte = zerlegeDefekte(g.defekteRoh);
       const zustand = zustandFuerTeiltyp(defekte, a.teil);
       if (zustand !== "FREI" && zustand !== "KOSMETISCH") continue;
@@ -469,6 +509,8 @@ export type GruppenErgebnis = {
 export async function spenderFuerGruppe(args: {
   geraeteName: string;
   teiltypen: string[];
+  /** LogID des Zielgeräts — es darf sich nicht selbst als Spender vorschlagen. */
+  zielLogId?: string | null;
 }): Promise<GruppenErgebnis> {
   const teiltypen = [...new Set(args.teiltypen.filter((t) => t.trim().length > 0))];
   const leer: GruppenErgebnis = {
@@ -520,8 +562,10 @@ export async function spenderFuerGruppe(args: {
 
   const treffer: GruppenSpender[] = [];
   const zaehler = new Map<string, number>(teiltypen.map((t) => [t, 0]));
+  const sperre = sperrMenge([args.zielLogId]);
 
   for (const g of geraete) {
+    if (istGesperrt(sperre, g.logId)) continue;
     const defekte = zerlegeDefekte(g.defekteRoh);
     const raus = entnommen.get(g.logId);
     const deckt: string[] = [];
