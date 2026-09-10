@@ -11,7 +11,7 @@ import { prisma } from "@/core/db/prisma";
 import { zerlegeGeraetename, schildSchluessel } from "@/lib/geraete/schildName";
 import { normalizeLogId, formatLogId } from "@/lib/pickup/logId";
 import { besterOrt, type Ort } from "@/lib/teilespender/ort";
-import { bewerteDeckung, type Deckung } from "@/lib/teilespender/bedarf";
+import { bewerteDeckung, verteileSpender, type Deckung } from "@/lib/teilespender/bedarf";
 import { AnfrageStatus } from "@prisma/client";
 import {
   zerlegeDefekte,
@@ -305,6 +305,11 @@ export type SpenderHinweis = {
   geraeteName: string;
   teiltyp: string;
   /**
+   * Es gäbe Geräte, aber sie sind bei Knappheit älteren Anfragen zugeteilt.
+   * null = kein Engpass. Sonst die Anfrage, die das Gerät bekommt.
+   */
+  zugeteiltAn: number | null;
+  /**
    * Reichen die Geräte für ALLE offenen Anfragen auf dieses Teil?
    * Zwei Anfragen auf denselben einzigen Akku sind sonst nicht zu erkennen.
    */
@@ -372,11 +377,15 @@ export async function hinweiseFuerAnfragen(
   // ist immer ein Ausschnitt (Filter, Seitenwechsel, 200er-Deckel). Wer nur den
   // Ausschnitt zählt, meldet je nach Filter mal einen Engpass und mal nicht.
   // Test-Anfragen zählen nicht mit — sie holen nie ein Teil ab.
+  // Sortiert nach Alter: Bei Knappheit bekommt die älteste Anfrage das Gerät.
   const alleOffenen = await prisma.anfrage.findMany({
     where: { status: { in: OFFENE_STATUS }, istSonderAnfrage: false, testModus: false },
-    select: { geraeteName: true, geraet: true, teil: true },
+    select: { id: true, geraeteName: true, geraet: true, teil: true, datum: true },
+    orderBy: [{ datum: "asc" }, { id: "asc" }],
   });
   const bedarfProTeil = new Map<string, number>();
+  /** Alle konkurrierenden Anfragen je Modell+Teil, älteste zuerst. */
+  const anfragenProTeil = new Map<string, number[]>();
   for (const a of alleOffenen) {
     const name = (a.geraeteName ?? a.geraet ?? "").trim();
     if (!name) continue;
@@ -388,6 +397,7 @@ export async function hinweiseFuerAnfragen(
     if (!key) continue;
     const k = `${key}|${a.teil}`;
     bedarfProTeil.set(k, (bedarfProTeil.get(k) ?? 0) + 1);
+    anfragenProTeil.set(k, [...(anfragenProTeil.get(k) ?? []), a.id]);
   }
 
   const geraete = await prisma.verwertungsGeraet.findMany({
@@ -447,10 +457,35 @@ export async function hinweiseFuerAnfragen(
     if (passend.length === 0) continue;
 
     passend.sort(nachLaufweg);
+
+    // ── Zuteilung ───────────────────────────────────────────────────────────
+    // Reicht es nicht für alle, bekommt die älteste Anfrage das Gerät und die
+    // übrigen sehen nichts. Drei Zeilen, die alle dasselbe eine Gerät
+    // anpreisen, sind für den, der sie abarbeitet, wertlos.
+    const teilSchluessel = `${key}|${a.teil}`;
+    const konkurrenten = anfragenProTeil.get(teilSchluessel) ?? [a.id];
+    const zuteilung = verteileSpender(konkurrenten, passend);
+    const meine = zuteilung.get(a.id) ?? passend;
+
+    if (meine.length === 0) {
+      // Es GÄBE ein Gerät, nur nicht für diese Anfrage. Das gehört gesagt —
+      // sonst wirkt es, als sei nichts im Haus, und jemand bestellt neu.
+      raus[a.id] = {
+        anzahl: 0,
+        deckung: bewerteDeckung(passend.length, bedarfProTeil.get(teilSchluessel) ?? 1),
+        vorschau: [],
+        geraeteName: name,
+        teiltyp: a.teil,
+        zugeteiltAn: konkurrenten.find((id) => (zuteilung.get(id) ?? []).length > 0) ?? null,
+      };
+      continue;
+    }
+
     raus[a.id] = {
-      anzahl: passend.length,
-      deckung: bewerteDeckung(passend.length, bedarfProTeil.get(`${key}|${a.teil}`) ?? 1),
-      vorschau: passend.slice(0, VORSCHAU_MAX).map((t) => ({
+      anzahl: meine.length,
+      deckung: bewerteDeckung(passend.length, bedarfProTeil.get(teilSchluessel) ?? 1),
+      zugeteiltAn: null,
+      vorschau: meine.slice(0, VORSCHAU_MAX).map((t) => ({
         logId: t.logId,
         stellplatz: t.stellplatz,
         colli: t.colli,

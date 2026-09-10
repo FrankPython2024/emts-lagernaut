@@ -63,3 +63,47 @@ export function bewerteDeckung(spender: number, bedarf: number): Deckung {
 export function warntDeckung(d: Deckung): boolean {
   return d.text !== "";
 }
+
+
+/**
+ * Wer bekommt welches Spendergerät, wenn es nicht für alle reicht?
+ *
+ * ⚠️ Anlass (10.09.2026): Drei offene Anfragen für einen P17-Akku, ein einziges
+ * Spendergerät — und alle drei Zeilen priesen dasselbe Gerät an. Für den, der
+ * die Anfragen abarbeitet, ist das wertlos: Er sieht dreimal eine Zusage, die
+ * nur einmal eingelöst werden kann.
+ *
+ * **Regel: Erst bei echter Knappheit wird zugeteilt.**
+ *   • Geräte ≥ Anfragen → jede Anfrage sieht ALLE Geräte. Es ist genug da, und
+ *     wer auswählt, greift ohnehin zu verschiedenen. Eine Zuteilung würde hier
+ *     nur Auswahl wegnehmen.
+ *   • Geräte < Anfragen → die ältesten Anfragen bekommen je EIN Gerät, die
+ *     übrigen gehen leer aus. Das ist die ehrliche Abbildung: Für sie ist
+ *     nichts da.
+ *
+ * ⚠️ Die Reihenfolge muss **stabil** sein — dieselbe Eingabe, dasselbe
+ * Ergebnis. Sonst springt die Zuteilung bei jedem Neuladen der Liste (die alle
+ * fünf Sekunden aktualisiert) und niemand traut ihr.
+ *
+ * `anfrageIds` kommt bereits sortiert herein (ältester Bedarf zuerst).
+ */
+export function verteileSpender<T>(
+  anfrageIds: number[],
+  spender: T[],
+): Map<number, T[]> {
+  const raus = new Map<number, T[]>();
+  if (anfrageIds.length === 0) return raus;
+
+  // Genug für alle → keine Zuteilung, jeder sieht alles.
+  if (spender.length >= anfrageIds.length) {
+    for (const id of anfrageIds) raus.set(id, spender);
+    return raus;
+  }
+
+  // Knapp → je ein Gerät, älteste Anfrage zuerst. Der Rest bekommt nichts.
+  anfrageIds.forEach((id, i) => {
+    const s = spender[i];
+    raus.set(id, s === undefined ? [] : [s]);
+  });
+  return raus;
+}

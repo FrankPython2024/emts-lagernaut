@@ -880,8 +880,17 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   ⚠️ **Gruppiert wird über den Modellschlüssel, nie über `geraeteName`.** Die beiden echten
   Anfragen hießen „Lenovo ThinkPad P17 Gen 1" und „Lenovo Thin**k**pad P17 Gen 1" — über den Namen
   gruppiert wäre der Engpass unsichtbar geblieben.
-  Der Hinweis wird **angezeigt statt versteckt**: Ihn nur bei einer der beiden Anfragen zu zeigen
-  wäre willkürlich, und der andere Techniker stünde ohne Information da.
+- ⚠️ **Bei echter Knappheit wird ZUGETEILT, nicht allen dasselbe Gerät angeboten.**
+  `verteileSpender()` in `bedarf.ts`: Geräte ≥ Anfragen → jede Anfrage sieht alle (kein Engpass,
+  eine Zuteilung nähme nur Auswahl weg). Geräte < Anfragen → die **ältesten** Anfragen bekommen je
+  eines, die übrigen zeigen „🔒 zugeteilt an #<id>". Drei Zeilen, die dasselbe eine Gerät
+  anpreisen, helfen dem nicht, der sie abarbeitet — die erste Fassung machte genau das, Frank hat
+  zweimal widersprochen und hatte recht.
+  ⚠️ Die leer ausgehenden Anfragen zeigen **nicht einfach nichts**, sondern nennen die Anfrage, die
+  das Gerät bekommt — sonst wirkt es, als sei nichts im Haus, und jemand bestellt neu.
+  ⚠️ Zuteilung muss **stabil** sein (die Liste lädt alle 5 s neu), deshalb feste Sortierung nach
+  `datum, id`. Am 10.09.2026 an drei echten P17-Anfragen geprüft: #27172 (07:33) bekommt das Gerät,
+  #27173 und #27174 zeigen die Zuteilung; nach dem Entnahme-Vermerk zeigen alle drei nichts.
 - **Tests:** `test:defekte` (45), `test:teilespender` (27), `test:auswahl` (15), `test:frische` (19),
   `test:ort` (25), `test:bedarf` (18).
 

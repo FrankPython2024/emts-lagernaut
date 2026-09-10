@@ -884,7 +884,11 @@ function AnfragenPageInner() {
           )];
           const spenderMoeglich = canSpender && Boolean(gruppe.geraeteName) && offeneTeiltypen.length > 0;
           // Wie viele der offenen Teile hat die Sammelabfrage schon bestätigt?
-          const spenderTreffer = anfragenTyped.filter((a) => teilespenderHinweise[a.id]).length;
+          // Nur Positionen zählen, für die wirklich ein Gerät frei ist — ein
+          // „zugeteilt an eine ältere Anfrage" ist kein Treffer für diese Gruppe.
+          const spenderTreffer = anfragenTyped.filter(
+            (a) => (teilespenderHinweise[a.id]?.anzahl ?? 0) > 0,
+          ).length;
 
           // ── Chat-Button ─────────────────────────────────────────────────
           const firstId   = anfragenTyped[0]?.id;
@@ -1132,19 +1136,29 @@ function AnfragenPageInner() {
                         {/* Dasselbe für Verwertungsgeräte: Das Teil steckt noch
                             in einem Gerät, das es nicht in den Verkauf geschafft
                             hat. Fundort steht dabei — das ist der Punkt. */}
-                        {teilespenderHinweise[a.id] && (
+                        {/* ⚠️ Reicht es nicht für alle, bekommt die ÄLTESTE Anfrage
+                            das Gerät — die übrigen sehen es gar nicht erst. Drei
+                            Zeilen, die dasselbe eine Gerät anpreisen, helfen dem
+                            nicht, der sie abarbeitet. */}
+                        {teilespenderHinweise[a.id]?.zugeteiltAn != null && (
+                          <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
+                            🔒 Kein freies Verwertungsgerät — das vorhandene ist Anfrage{" "}
+                            #{teilespenderHinweise[a.id]!.zugeteiltAn} zugeteilt (ältere Anfrage).
+                          </div>
+                        )}
+                        {teilespenderHinweise[a.id] && teilespenderHinweise[a.id]!.anzahl > 0 && (
                           <div className="text-xs text-[#0a4275] dark:text-[#9ec5fe] mt-0.5 font-semibold">
                             🔍 {teilespenderHinweise[a.id]!.anzahl} Verwertungsgerät
                             {teilespenderHinweise[a.id]!.anzahl === 1 ? "" : "e"} mit diesem Teil:{" "}
                             {teilespenderHinweise[a.id]!.vorschau
+                              .slice(0, 3)
                               .map((v) =>
                                 `${v.ortUnsicher ? "⚠ " : ""}${v.stellplatz ?? "ohne Platz"} · Colli ${v.colli ?? "—"}`,
                               )
                               .join("  |  ")}
                             {teilespenderHinweise[a.id]!.anzahl > 3 && " …"}
-                            {/* ⚠️ Mehrere Anfragen können auf DASSELBE Gerät zeigen.
-                                Ein Notebook hat einen Akku — ohne diesen Satz sähen
-                                beide Zeilen versorgt aus und eine ginge leer aus. */}
+                            {/* Knapp, aber diese Anfrage bekommt eines: trotzdem
+                                sagen, dass keine Reserve da ist. */}
                             {teilespenderHinweise[a.id]!.deckung.text && (
                               <div className="text-[#8A5A00] dark:text-[#f7b928] mt-0.5">
                                 ⚠️ {teilespenderHinweise[a.id]!.deckung.text}

@@ -47,6 +47,22 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
     { enabled: open && teiltypen.length > 0 && geraeteName.trim().length > 0 },
   );
   const pickupErstellen = api.pickup.erstellen.useMutation();
+  const entnahmeMelden = api.teilespender.entnahmeMeldenViele.useMutation();
+
+  // Welcher Teiltyp soll beim Abhaken vermerkt werden? Bei genau einem
+  // gesuchten Teil ist es eindeutig, sonst muss der Mensch es sagen.
+  const [abhaken, setAbhaken] = useState<{ logId: string; deckt: string[] } | null>(null);
+
+  async function alsEntnommenMelden(logId: string, teiltyp: string): Promise<void> {
+    try {
+      await entnahmeMelden.mutateAsync({ eintraege: [{ logId, teiltyp }], art: "ENTNOMMEN" });
+      show(`${teiltyp} aus ${logId} vermerkt — erscheint dafür nicht mehr`, "success");
+      setAbhaken(null);
+      await q.refetch();
+    } catch (e) {
+      show(e instanceof Error ? e.message : "Konnte nicht vermerkt werden", "error");
+    }
+  }
 
   // Beim Schließen die Auswahl vergessen — sonst trägt das nächste Gerät die
   // Häkchen des vorigen und es entsteht ein Auftrag mit fremden LogIDs.
@@ -265,6 +281,22 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
                     {/* Beide Ortsquellen widersprechen sich. Das gehört genannt,
                         nicht geglättet — sonst läuft jemand einmal umsonst und
                         traut der Liste beim nächsten Mal nicht mehr. */}
+                    {/* Teil ist schon heraus — nachtragen, ohne die Seite zu
+                        wechseln. Deckt den Fall ab, dass jemand das Teil außerhalb
+                        des Auslager-Dialogs geholt hat. */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        g.deckt.length === 1
+                          ? void alsEntnommenMelden(g.logId, g.deckt[0]!)
+                          : setAbhaken({ logId: g.logId, deckt: g.deckt })
+                      }
+                      disabled={entnahmeMelden.isPending}
+                      className="mt-2 text-xs px-2 py-1.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] disabled:opacity-40 min-h-[36px]"
+                    >
+                      Teil ist raus
+                    </button>
+
                     {g.ort?.abweichung && (
                       <div className="mt-1.5 text-xs text-[#664d03] dark:text-[#ffda6a] font-semibold text-right">
                         ⚠ Zweite Angabe:{" "}
@@ -283,6 +315,35 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
           </>
         )}
       </div>
+
+      {/* Deckt das Gerät mehrere gesuchte Teile, muss gesagt werden, welches
+          heraus ist — sonst verschwände es für alle auf einmal. */}
+      {abhaken && (
+        <div className="mt-4 p-3 rounded-xl bg-[#fff3cd] dark:bg-[#3d3016] border border-[#ffe69c] dark:border-[#665012]">
+          <div className="text-sm font-semibold text-[#664d03] dark:text-[#ffda6a] mb-2">
+            Welches Teil ist aus {abhaken.logId} heraus?
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {abhaken.deckt.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => void alsEntnommenMelden(abhaken.logId, t)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-[#242526] border border-[#ced4da] dark:border-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] min-h-[36px]"
+              >
+                {t}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setAbhaken(null)}
+              className="px-3 py-1.5 rounded-lg text-xs text-[#65676b] dark:text-[#b0b3b8] min-h-[36px]"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

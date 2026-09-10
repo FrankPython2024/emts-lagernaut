@@ -10,7 +10,7 @@
  * Reine Logik, kein Netz, keine Datenbank.
  */
 
-import { bewerteDeckung, warntDeckung } from "../src/lib/teilespender/bedarf";
+import { bewerteDeckung, warntDeckung, verteileSpender } from "../src/lib/teilespender/bedarf";
 
 let passed = 0;
 let failed = 0;
@@ -66,6 +66,43 @@ check("negative Zahlen werden abgefangen", bewerteDeckung(-3, -1).spender, 0);
 check("Kommazahlen werden abgeschnitten", bewerteDeckung(2.9, 1.2).spender, 2);
 check("kein Bedarf, keine Meldung", warntDeckung(bewerteDeckung(4, 0)), false);
 check("alles null", warntDeckung(bewerteDeckung(0, 0)), false);
+
+console.log("\n── Zuteilung bei Knappheit ──");
+
+check("nichts zu verteilen", [...verteileSpender([], ["A"]).entries()], []);
+check("keine Geraete", [...verteileSpender([1, 2], []).values()], [[], []]);
+
+// Genug fuer alle → jeder sieht alles. Wer auswaehlt, greift ohnehin zu
+// verschiedenen; eine Zuteilung wuerde hier nur Auswahl wegnehmen.
+check(
+  "Ueberfluss: jeder sieht alle",
+  [...verteileSpender([1, 2], ["A", "B", "C"]).values()],
+  [["A", "B", "C"], ["A", "B", "C"]],
+);
+check(
+  "genau aufgehend: jeder sieht alle",
+  [...verteileSpender([1, 2], ["A", "B"]).values()],
+  [["A", "B"], ["A", "B"]],
+);
+
+// ⚠️ Der gemeldete Fall: 3 Anfragen, 1 Geraet.
+check(
+  "Knappheit: nur die aelteste bekommt es",
+  [...verteileSpender([27172, 27173, 27174], ["A"]).values()],
+  [["A"], [], []],
+);
+check(
+  "Knappheit: zwei Geraete auf drei Anfragen",
+  [...verteileSpender([1, 2, 3], ["A", "B"]).values()],
+  [["A"], ["B"], []],
+);
+// Stabilitaet: zweimal aufgerufen dasselbe — sonst springt die Zuteilung bei
+// jedem Neuladen der Liste.
+check(
+  "zweiter Aufruf liefert dasselbe",
+  [...verteileSpender([1, 2, 3], ["A"]).values()],
+  [...verteileSpender([1, 2, 3], ["A"]).values()],
+);
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);
