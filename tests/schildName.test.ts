@@ -112,6 +112,48 @@ console.log("\n── Erkennungsschlüssel ──");
   check("leeres Schild → leerer Schlüssel", schildSchluessel({ hersteller: null, serie: "", modell: "", zusatz: "" }), "");
 }
 
+
+// ── Maschinennummern MIT Bindestrich ────────────────────────────────────────
+//
+// Real aufgefallen am 10.09.2026: Eine Anfrage für „Lenovo ThinkPad T14s Gen 3
+// 21BS-S49A00" fand keinen Spender, obwohl 15 Geräte des Modells im Lager
+// standen. Die Nummer mit Bindestrich galt nicht als Maschinennummer, blieb im
+// Modellnamen hängen und der Schlüssel passte auf nichts.
+console.log("\n── Maschinennummern mit Bindestrich ──");
+
+check("21BS-S49A00 ist eine Maschinennummer", istMaschinennummer("21BS-S49A00"), true);
+check("20W5-S65S00 ebenso", istMaschinennummer("20W5-S65S00"), true);
+check("20T1S32-300 ebenso", istMaschinennummer("20T1S32-300"), true);
+check("20N3-S3GW00 ebenso", istMaschinennummer("20N3-S3GW00"), true);
+
+// ⚠️ Die Gegenprobe ist der eigentliche Punkt: Bindestriche stehen auch mitten
+// in echten Modellnamen. Für sie gilt die härtere Grenze 10 statt 8, sonst
+// verlieren diese Geräte ihren Namen.
+check("Portege X20W-E-10D bleibt Modellname", istMaschinennummer("X20W-E-10D"), false);
+check("Portege Z30-E-13J bleibt Modellname", istMaschinennummer("Z30-E-13J"), false);
+check("IdeaPad S145-15IIL bleibt Modellname", istMaschinennummer("S145-15IIL"), false);
+check("Blade Pro RZ09-0329 bleibt Modellname", istMaschinennummer("RZ09-0329"), false);
+
+// Der ganze Name, wie er aus der Anfrage kommt.
+check(
+  "Anfrage-Name mit Bindestrich-Nummer",
+  s("Lenovo ThinkPad T14s Gen 3 21BS-S49A00"),
+  ["Lenovo", "ThinkPad", "T14s Gen 3", ""],
+);
+// Und der Export-Name desselben Modells — beide müssen denselben Schlüssel geben.
+check(
+  "Export und Anfrage treffen sich",
+  schildSchluessel(zerlegeGeraetename("- ThinkPad T14s Gen 3 21BSS49A00", "Lenovo")) ===
+    schildSchluessel(zerlegeGeraetename("Lenovo ThinkPad T14s Gen 3 21BS-S49A00")),
+  true,
+);
+// Der führende Bindestrich des Exports darf den Schlüssel nicht verändern.
+check(
+  "führender Bindestrich stört nicht",
+  schildSchluessel(zerlegeGeraetename("- ThinkPad T14s Gen 3 21BSS49A00", "Lenovo")),
+  schildSchluessel(zerlegeGeraetename("ThinkPad T14s Gen 3 21BSS49A00", "Lenovo")),
+);
+
 // ── Ergebnis ────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════════");
 console.log(`  📊 ${passed} passed  |  ${failed} failed`);

@@ -64,10 +64,24 @@ const ZUSAETZE = ["Detachable", "Convertible", "Touch", "Tablet", "2-in-1"] as c
  * ⚠️ Die Längengrenze ist der Schutz vor Fehlalarm. Echte Modellnamen wie
  * „T14s", „G5", „840", „5570" oder „X1" liegen alle darunter. Bei 6 oder 7
  * würde „EB840G7" oder ähnliches mitgerissen.
+ *
+ * ⚠️ **Maschinennummern kommen auch MIT Bindestrich vor** — „21BS-S49A00",
+ * „20W5-S65S00", „20T1S32-300". Am 10.09.2026 real aufgefallen: Eine Anfrage
+ * für einen „ThinkPad T14s Gen 3 21BS-S49A00" fand keinen einzigen Spender,
+ * obwohl 15 Geräte des Modells im Lager standen — die Nummer blieb im
+ * Modellnamen hängen und der Schlüssel passte auf nichts.
+ *
+ * ⚠️ Für Bindestrich-Token gilt bewusst die **härtere Grenze 10** statt 8.
+ * Bindestriche stehen auch mitten in echten Modellnamen („Portege X20W-E-10D",
+ * „IdeaPad S145-15IIL", „Blade Pro RZ09-0329"), also braucht so ein Token einen
+ * stärkeren Beleg. An allen 7.357 Export-Bezeichnungen gemessen: Mit 10 bleiben
+ * diese Modellnamen erhalten, mit 8 verlören vier Portege ihren Namen.
  */
 export function istMaschinennummer(wort: string): boolean {
-  const w = wort.trim();
-  if (w.length < 8) return false;
+  const roh = wort.trim();
+  const hatBindestrich = roh.includes("-");
+  const w = roh.replace(/-/g, "");
+  if (w.length < (hatBindestrich ? 10 : 8)) return false;
   if (!/^[A-Z0-9]+$/.test(w)) return false;
   return /[A-Z]/.test(w) && /[0-9]/.test(w);
 }

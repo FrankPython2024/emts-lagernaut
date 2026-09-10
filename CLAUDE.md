@@ -776,6 +776,17 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   **934 echten Anfragen**: über `schildSchluessel(zerlegeGeraetename(...))` **97,3 %** Treffer,
   über den rohen Namen **0,1 %**. Bekannte Lücke: Restnummern unter 8 Zeichen bleiben hängen
   (6 von 7.357 Geräten) — die Grenze zu senken würde echte Modellnamen wie „T14s" zerschneiden.
+- ⚠️ **Maschinennummern gibt es auch MIT Bindestrich** („21BS-S49A00", „20W5-S65S00",
+  „20T1S32-300"). Am 10.09.2026 real: Eine Touchpad-Anfrage für einen „ThinkPad T14s Gen 3
+  21BS-S49A00" fand **null** Spender, obwohl 11 Geräte des Modells im Lager standen — die Nummer
+  blieb im Modellnamen hängen. `istMaschinennummer` entfernt Bindestriche jetzt vor der Prüfung.
+  ⚠️ **Für Bindestrich-Token gilt die härtere Grenze 10 statt 8**, weil Bindestriche auch mitten in
+  echten Modellnamen stehen („Portege X20W-E-10D", „IdeaPad S145-15IIL", „Blade Pro RZ09-0329").
+  An allen 7.357 Bezeichnungen gemessen: Mit 10 bleiben diese Namen erhalten, mit 8 verlören vier
+  Portege ihren.
+  ⚠️ **`modellKey` steht GESPEICHERT in der DB** (beim Import berechnet). Wer die Regel ändert, muss
+  die Bestandszeilen nachziehen — `prisma/scripts/backfill-verwertung-modellkey.ts` (Trockenlauf
+  ist Standard, `--schreiben` wendet an). Beim Regelwechsel am 10.09.2026 betraf das **60 Geräte**.
 - ⚠️ **`Defekte` wird ROH gespeichert, nie abgeleitet.** Die Zuordnung Begriff → Teiltyp lebt in
   `src/lib/teilespender/defekte.ts` (53 Begriffe, an der Produktion kalibriert) und wird bei jeder
   Suche frisch angewandt. Eine abgeleitete Spalte würde veralten, sobald die Tabelle korrigiert wird.
