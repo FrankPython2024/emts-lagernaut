@@ -137,6 +137,59 @@ export const teilespenderRouter = createTRPCRouter({
       return { ok: true };
     }),
 
+  /**
+   * Mehrere Entnahmen auf einmal melden — aus dem Auslager-Dialog heraus.
+   *
+   * ⚠️ Wird NACH der Auslagerung aufgerufen, nie davor. Schlägt das hier fehl,
+   * ist die Anfrage trotzdem abgeschlossen und das Teil beim Techniker. Ein
+   * fehlender Vermerk kostet einen unnötigen Weg; eine abgebrochene Ausgabe
+   * kostet die Reparatur.
+   */
+  entnahmeMeldenViele: suchen
+    .input(
+      z.object({
+        eintraege: z
+          .array(
+            z.object({
+              logId: z.string().trim().min(1).max(100),
+              teiltyp: z.string().trim().min(1).max(191),
+              notiz: z.string().trim().max(500).optional(),
+            }),
+          )
+          .min(1)
+          .max(50),
+        art: z.nativeEnum(VerwertungsEntnahmeArt).default(VerwertungsEntnahmeArt.ENTNOMMEN),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const user = ctx.session.user as SessionUser;
+      const von = user.kuerzel ?? user.name ?? null;
+
+      // Nur LogIDs, die es im Verwertungsbestand wirklich gibt — ein Tippfehler
+      // soll keine Karteileiche anlegen, die nie jemand wiederfindet.
+      const bekannt = await prisma.verwertungsGeraet.findMany({
+        where: { logId: { in: input.eintraege.map((e) => e.logId) } },
+        select: { logId: true },
+      });
+      const gueltig = new Set(bekannt.map((b) => b.logId));
+
+      let gespeichert = 0;
+      const unbekannt: string[] = [];
+      for (const e of input.eintraege) {
+        if (!gueltig.has(e.logId)) {
+          unbekannt.push(e.logId);
+          continue;
+        }
+        await prisma.verwertungsEntnahme.upsert({
+          where: { logId_teiltyp: { logId: e.logId, teiltyp: e.teiltyp } },
+          update: { art: input.art, notiz: e.notiz ?? null, von, am: new Date() },
+          create: { logId: e.logId, teiltyp: e.teiltyp, art: input.art, notiz: e.notiz ?? null, von },
+        });
+        gespeichert++;
+      }
+      return { gespeichert, unbekannt };
+    }),
+
   /** Eine von Hand gemeldete Entnahme zurücknehmen (Fehlklick). */
   entnahmeZuruecknehmen: suchen
     .input(z.object({ logId: z.string().trim().min(1).max(100), teiltyp: z.string().trim().min(1).max(191) }))

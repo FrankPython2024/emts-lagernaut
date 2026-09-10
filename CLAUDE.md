@@ -788,10 +788,23 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
 - ⚠️ **Nur `verwertungFrei` (Spalte „Refurbishment nicht möglich" = 1) darf zerlegt werden.** Leerer
   Wert gilt bewusst als NICHT freigegeben (14 Fälle) — lieber ein Spender zu wenig als ein zerlegtes
   Verkaufsgerät.
-- **Entnommene Teile werden AUTOMATISCH erkannt**, ohne dass jemand abhakt: `Buchung.herkunftLogId`
-  + `herkunftArt = "SPENDER"`, Teiltyp = `Artikel.kategorie` (an 77 Ernte-Buchungen verifiziert).
-  Gefiltert wird **je Teiltyp**, nicht je Gerät — das Display desselben Geräts bleibt sichtbar.
-  `VerwertungsEntnahme` deckt nur ab, was dort nicht ankommt („Karton auf, Teil war schon weg").
+- **Entnommene Teile:** zwei Quellen, beide in `entnommeneTeile()` zusammengeführt.
+  Gefiltert wird **je Teiltyp, nicht je Gerät** — ein T490 ohne Display kommt für eine Tastatur
+  weiter in Frage. Am 10.09.2026 gegen die Produktion durchgespielt: Display-Spender 91 → 90,
+  Tastatur-Spender 101 → 101, Gerät korrekt nur aus der Display-Liste verschwunden.
+  1. **Automatisch** aus `Buchung.herkunftLogId` + `herkunftArt = "SPENDER"`, Teiltyp =
+     `Artikel.kategorie` (an 77 Ernte-Buchungen verifiziert). Greift beim Einlagern.
+  2. **Aus dem Auslager-Dialog** über `VerwertungsEntnahme` — der Block „Aus welchem Spendergerät
+     kam das Teil?" (`components/teilespender/SpenderWahl.tsx`).
+  ⚠️ **Punkt 2 ist der wichtigere, nicht der Sonderfall.** Gemessen über 180 Tage: **798 DIREKT**
+  gegen **51 AUSGANG** und nur **77 Einlagerungen mit Spender-LogID aus 14 Geräten**. 94 % der
+  Teile laufen also über den Weg, bei dem NIE eine Spender-LogID entsteht — ohne den Dialog-Block
+  bliebe ein leergeräumtes Gerät dauerhaft in der Trefferliste.
+  ⚠️ Der Vermerk läuft **nach** der Auslagerung und ohne Fehlerabbruch: Ein fehlender Vermerk
+  kostet einen unnötigen Weg, ein geworfener Fehler sähe aus wie eine fehlgeschlagene Ausgabe.
+  ⚠️ **Freiwillig, kein Pflichtfeld** — sonst blockiert eine fehlende LogID die Reparatur.
+  ⚠️ `VORSCHAU_MAX = 12` in `service.ts`: Die Anfragen-Liste zeigt 3 Kandidaten, der Dialog braucht
+  mehr, weil dort **ausgewählt** wird. Wer sein Gerät nicht findet, kann die LogID auch scannen.
 - **Einstieg ist die Anfragen-Liste**, nicht die eigene Seite: Knopf „🔍 Spender suchen" je Gruppe
   (vorbelegt mit Gerät **und allen offenen Teiltypen**) plus Zeilen-Hinweis mit Fundort bei
   BEDARF-Anfragen — beides über **Sammelabfragen**, die Liste lädt alle 5 s neu.

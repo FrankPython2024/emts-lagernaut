@@ -252,7 +252,11 @@ export async function sucheSpender(args: {
 export type SpenderHinweis = {
   /** Wie viele Geräte kämen in Frage? */
   anzahl: number;
-  /** Die ersten paar davon, in Laufreihenfolge — für die Vorschau in der Liste. */
+  /**
+   * Die ersten Kandidaten in Laufreihenfolge. Die Anfragen-Liste zeigt davon
+   * nur die ersten drei; der Auslager-Dialog braucht mehr, weil dort ausgewählt
+   * wird, welches Gerät tatsächlich benutzt wurde.
+   */
   vorschau: {
     logId: string;
     stellplatz: string | null;
@@ -270,6 +274,15 @@ export type SpenderHinweis = {
    */
   deckung: Deckung;
 };
+
+/**
+ * Wie viele Kandidaten die Sammelabfrage je Anfrage mitliefert.
+ *
+ * ⚠️ Nicht auf 3 lassen: Der Auslager-Dialog lässt daraus wählen, welches Gerät
+ * benutzt wurde. Wer ein Gerät von Platz 5 geholt hat, fände es sonst nicht und
+ * der Spender bliebe für dieses Teil weiter in der Liste.
+ */
+const VORSCHAU_MAX = 12;
 
 /** Offene Zustände — nur die konkurrieren um dieselben Spendergeräte. */
 const OFFENE_STATUS: AnfrageStatus[] = [
@@ -397,7 +410,7 @@ export async function hinweiseFuerAnfragen(
     raus[a.id] = {
       anzahl: passend.length,
       deckung: bewerteDeckung(passend.length, bedarfProTeil.get(`${key}|${a.teil}`) ?? 1),
-      vorschau: passend.slice(0, 3).map((t) => ({
+      vorschau: passend.slice(0, VORSCHAU_MAX).map((t) => ({
         logId: t.logId,
         stellplatz: t.stellplatz,
         colli: t.colli,

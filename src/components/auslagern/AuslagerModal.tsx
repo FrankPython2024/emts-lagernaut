@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import FocusTrap from "focus-trap-react";
 import { api } from "@/trpc/react";
 import { printMehrereAuslagerBelege, type AuslagerBelegData } from "@/components/ui/AuslagerBeleg";
+import { SpenderWahl, type SpenderWahlMap } from "@/components/teilespender/SpenderWahl";
 
 // ── Typen ─────────────────────────────────────────────────────────────────────
 
@@ -125,6 +126,8 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
   const [buchungsTypMap, setBuchungsTypMap] = useState<Record<number, BuchungsTyp>>({});
   const [notiz,          setNotiz]          = useState("");
   const [ergebnis,       setErgebnis]       = useState<AuslagerResult | null>(null);
+  // Welches Spendergerät wurde je Position benutzt? anfrageId → LogID.
+  const [spenderWahl,    setSpenderWahl]    = useState<SpenderWahlMap>({});
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -148,12 +151,25 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
     setBuchungsTypMap(typMap);
   }, [query.data]);
 
+  const entnahmeMelden = api.teilespender.entnahmeMeldenViele.useMutation();
+
   const mutation = api.auslagern.teile.useMutation({
     onSuccess: (data) => {
       const result = data as unknown as AuslagerResult;
       setErgebnis(result);
       setStep(3);
       onSuccess?.(result);
+
+      // ⚠️ Erst NACH der Ausgabe, und bewusst ohne await/Fehlerabbruch: Die
+      // Auslagerung ist gelaufen, das Teil ist beim Techniker. Ein fehlender
+      // Spender-Vermerk kostet später einen unnötigen Weg — ein hier geworfener
+      // Fehler würde dagegen so aussehen, als sei die Ausgabe fehlgeschlagen.
+      const eintraege = teile
+        .filter((t) => ausgewaehlt.has(t.teilId) && spenderWahl[t.teilId])
+        .map((t) => ({ logId: spenderWahl[t.teilId]!, teiltyp: t.teiltyp }));
+      if (eintraege.length > 0) {
+        entnahmeMelden.mutate({ eintraege });
+      }
     },
   });
 
@@ -383,6 +399,21 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
               <div className="space-y-4">
                 {/* Statistik */}
                 <StatBanner ausgangAnz={ausgang.length} direktAnz={direkt.length} />
+
+                {/* Aus welchem Verwertungsgerät kam das Teil? Erscheint nur für
+                    Positionen, zu denen es überhaupt Kandidaten gibt. */}
+                <SpenderWahl
+                  teile={selectedTeile.map((t) => ({ teilId: t.teilId, teiltyp: t.teiltyp }))}
+                  wahl={spenderWahl}
+                  onChange={(teilId, logId) =>
+                    setSpenderWahl((prev) => {
+                      const next = { ...prev };
+                      if (logId) next[teilId] = logId;
+                      else delete next[teilId];
+                      return next;
+                    })
+                  }
+                />
 
                 {/* Sonderanfrage-Hinweis */}
                 {selectedTeile.some((t) => t.istSonderanfrage) && (
