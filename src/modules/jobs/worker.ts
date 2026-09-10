@@ -371,7 +371,16 @@ async function handleReprocessJob(job: any) {
 async function handleLogIdImportJob(job: any) {
   const tmpPath  = job.data.tmpPath  as string;
   const importId = job.data.importId as number;
-  console.log(`[BullMQ:logid-import] Job #${job.id} — Import #${importId}`);
+  console.log(`[BullMQ:logid-import] Job #${job.id} (${job.name}) — Import #${importId}`);
+
+  // Zwei Import-Arten teilen sich diese Queue (concurrency 1), damit sie sich
+  // beim Schreiben nicht überholen. Der Job-Name unterscheidet sie.
+  if (job.name === "teilespender") {
+    const { runTeilespenderImport } = await import("@/modules/teilespender/import");
+    await runTeilespenderImport(tmpPath, importId);
+    return;
+  }
+
   const { runLogIdImport } = await import("@/modules/geraete-reise/import");
   await runLogIdImport(tmpPath, importId);
 }

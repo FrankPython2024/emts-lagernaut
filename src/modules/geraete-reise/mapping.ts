@@ -160,6 +160,21 @@ export function istFehlteilZeile(raw: Record<string, string>): boolean {
   return (spalte(raw, ["Verbleib"]) ?? "").trim().toLowerCase() === FEHLTEILE_MARKER;
 }
 
+// True, wenn diese Zeile aus dem VERWERTUNGS-Export stammt (Geräte, die es nicht
+// in den Verkauf geschafft haben). Erkennungsmerkmal: die Spalten "Defekte" und
+// "Refurbishment nicht möglich" existieren, "Verbleib" dagegen nicht.
+//
+// Der Export gehört NICHT hierher — er ist nur ein Ausschnitt des Bestands und
+// hat eine eigene Tabelle (VerwertungsGeraet). Ohne diese Prüfung liefe er als
+// regulärer Voll-Snapshot durch.
+export function istVerwertungsExport(raw: Record<string, string>): boolean {
+  return (
+    pick(raw, "Defekte") !== undefined &&
+    pick(raw, "Refurbishment nicht möglich") !== undefined &&
+    pick(raw, "Verbleib") === undefined
+  );
+}
+
 // Übersetzt eine CSV-Zeile in { logId, felder }. logId leer → null (Zeile wird
 // vom Importer übersprungen). Jede Spalte wird über eine Prioritätsliste
 // nachgeschlagen (neuer Header-Name zuerst, alter als Fallback).

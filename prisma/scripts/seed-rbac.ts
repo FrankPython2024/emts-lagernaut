@@ -75,6 +75,12 @@ const PERMISSIONS = [
   { key: "GLEICHE_GERAETE_VIEW",   kategorie: "Auswertung", bezeichnung: "Gleiches Gerät finden (LogID suchen)" },
   { key: "GLEICHE_GERAETE_IMPORT", kategorie: "Auswertung", bezeichnung: "Gleiches Gerät finden: CSV importieren" },
 
+  // Teilespender: Ersatzteile in Verwertungsgeräten finden. Gleiche Trennung wie
+  // oben — Suchen ist Alltag, der Import ersetzt den ganzen Spender-Bestand und
+  // entscheidet damit, was das Lager überhaupt noch findet.
+  { key: "TEILESPENDER_VIEW",   kategorie: "Betrieb", bezeichnung: "Ersatzteile in Verwertungsgeräten suchen" },
+  { key: "TEILESPENDER_IMPORT", kategorie: "Betrieb", bezeichnung: "Teilespender: Verwertungs-Export importieren" },
+
   // Entsorgung: Schrottabholung und Batterietransport. Ein Rechtepaar für
   // beide Bereiche — es ist derselbe Vorgang mit denselben Papieren.
   { key: "ENTSORGUNG_VIEW",   kategorie: "Betrieb", bezeichnung: "Schrottabholung und Batterietransport einsehen" },
@@ -127,7 +133,7 @@ const ROLLEN = [
       "DASHBOARD_VIEW", "STATISTIK_VIEW", "AKTIVITAETSLOG_VIEW", "SUCHE_GLOBAL",
       "ANFRAGE_VIEW_ALL",
       "ARTIKEL_VIEW", "LAGERPLATZ_VIEW", "BUCHUNG_VIEW",
-      "MODELL_VIEW", "BESTELLANFRAGE_VIEW",
+      "MODELL_VIEW", "BESTELLANFRAGE_VIEW", "TEILESPENDER_VIEW",
     ],
   },
   {

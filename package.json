@@ -34,6 +34,8 @@
     "test:ocr": "tsx tests/ocrKandidat.test.ts",
     "test:technik": "tsx tests/technikGruppen.test.ts",
     "test:schild": "tsx tests/schildName.test.ts",
+    "test:defekte": "tsx tests/defekte.test.ts",
+    "test:teilespender": "tsx tests/teilespender.test.ts",
     "seed:entsorgung": "tsx prisma/scripts/seed-entsorgung-abfallarten.ts"
   },
   "dependencies": {

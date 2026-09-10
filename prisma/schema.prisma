@@ -1585,3 +1585,127 @@ model SpenderGeraetKomponente {
   // Trägt die Admin-Rückfrage „welches Gerät hat noch eine Tastatur?".
   @@index([teiltyp, zustand])
 }
+
+// ─── Verwertungs-Geräte (Teilespender aus dem ReForm-Verwertungs-Export) ──────
+//
+// Geräte, die es NICHT in den regulären Verkauf geschafft haben. Sie stehen im
+// Haus und werden verwertet — also sind sie die naheliegendste Ersatzteilquelle,
+// und bis jetzt wurde ihr Inhalt von Hand gesucht.
+//
+// ⚠️ Das ist ein eigenes Register NEBEN dem Bestand, wie SpenderGeraet. Diese
+// Geräte zählen auf KEINEN Artikel-Bestand ein. Erst wenn ein Teil tatsächlich
+// ausgebaut und über den Einlager-Assistenten gebucht wird, entsteht Bestand.
+//
+// ⚠️ Getrennt von LogIdStand (Lagerfuchs), obwohl sich 90 % der LogIDs
+// überschneiden. Gründe: 716 Geräte des Exports stehen dort gar nicht; der
+// Verwertungs-Export ist für diese Geräte die frischere Ortsangabe; und
+// `Defekte` / „Refurbishment nicht möglich" gibt es dort nicht. Ein Import in
+// LogIdStand wäre außerdem ein Teil-Snapshot und damit ein Risiko für dessen
+// Abgangs-Erkennung.
+model VerwertungsGeraet {
+  logId String @id
+
+  hersteller  String?
+  bezeichnung String? @db.Text // AfB-Bezeichnungen werden sehr lang
+  // Normalisierter Modellschlüssel aus schildSchluessel(zerlegeGeraetename(...)).
+  // Er trägt die ganze Suche: Über den rohen Namen findet man fast nichts, weil
+  // die Maschinennummer drinhängt („ThinkPad L14 Gen 2 20X1S3T400") und die
+  // Anfrage „Lenovo - ThinkPad L14 Gen 2" heißt. Gemessen am 09.09.2026 an 934
+  // echten Anfragen: über den Schlüssel 97,3 % Treffer, über den rohen Namen 0,1 %.
+  modellKey   String  @db.VarChar(191)
+  geraeteart  String?
+  unterart    String?
+  snr         String?
+
+  zustand        String? // "R-A" | "R-B" | "H"
+  // Rohtext der ReForm-Spalte `Defekte`, kommagetrennt. BEWUSST roh gespeichert:
+  // Die Zuordnung Begriff → Teiltyp lebt in src/lib/teilespender/defekte.ts und
+  // wird bei jeder Suche frisch angewandt. Eine abgeleitete Spalte würde
+  // veralten, sobald die Tabelle dort korrigiert wird — und niemand merkte es.
+  defekteRoh     String? @db.Text
+  bemerkung      String? @db.Text
+  // ReForm-Spalte „Refurbishment nicht möglich" = 1. NUR solche Geräte dürfen
+  // zerlegt werden — die anderen sind noch für den Verkauf vorgesehen.
+  verwertungFrei Boolean @default(false)
+
+  // Fundort. Der Colli ist die genauere Angabe (im Schnitt 2 Geräte je Colli,
+  // gegenüber 142 Stellplätzen für 7.357 Geräte).
+  stellplatz  String?
+  colli       String?
+  lager       String?
+  lagernummer String?
+
+  prozessor         String?
+  prozessorGen      Int?
+  ek                Decimal?  @db.Decimal(12, 2)
+  aufLagerGebuchtAm DateTime?
+  verweildauerTage  Int?
+
+  erstmalsGesehen DateTime
+  zuletztGesehen  DateTime
+  zuletztImportId Int
+  // Fehlt im neuesten Voll-Snapshot → verkauft, verschrottet oder umgebucht.
+  // Ausgeschiedene Geräte tauchen in der Teilesuche nicht mehr auf.
+  ausgeschieden   Boolean   @default(false)
+  ausgeschiedenAm DateTime?
+
+  // Trägt die Hauptabfrage „welche Spender gibt es für dieses Modell?".
+  @@index([modellKey, ausgeschieden, verwertungFrei])
+  @@index([ausgeschieden])
+  @@index([stellplatz])
+  @@index([colli])
+}
+
+// Ein Import-Lauf des Verwertungs-Exports.
+model VerwertungsImport {
+  id                  Int      @id @default(autoincrement())
+  dateiname           String
+  importiertAm        DateTime @default(now())
+  status              String   @default("laeuft") // laeuft | fertig | fehler
+  anzahlZeilen        Int      @default(0)
+  anzahlNeu           Int      @default(0)
+  anzahlAktualisiert  Int      @default(0)
+  anzahlAusgeschieden Int      @default(0)
+  // Begriffe aus `Defekte`, die die Zuordnungstabelle nicht kennt. ReForm kann
+  // die Auswahlliste erweitern; ein still ignorierter Begriff würde ein Gerät
+  // als Spender ausweisen, obwohl genau das gesuchte Teil hin ist.
+  unbekannteBegriffe  String?  @db.Text
+  fehlerText          String?  @db.Text
+  erstelltVon         Int?
+}
+
+// Ein Teil ist aus einem Verwertungsgerät heraus — es darf für diesen Teiltyp
+// nicht noch einmal als Treffer erscheinen, sonst läuft jemand ein zweites Mal
+// zum selben Karton.
+//
+// ⚠️ Der Regelfall steht NICHT hier drin. Wer ein Teil über den Einlager-
+// Assistenten bucht, setzt `Buchung.herkunftLogId` + `herkunftArt = "SPENDER"`;
+// der Teiltyp ist `Artikel.kategorie`. Daraus leitet die Suche die Entnahme
+// automatisch ab — ohne dass jemand etwas zusätzlich abhaken muss, und ohne
+// dass zwei Stellen auseinanderlaufen können.
+//
+// Diese Tabelle deckt nur ab, was dort nicht ankommt:
+//   • Karton geöffnet, Teil war schon weg (ReForm kannte den Defekt nicht)
+//   • vor Lagernaut ausgebaut
+//   • bewusst als „nicht brauchbar" abgehakt, ohne es einzulagern
+// Ein Eintrag hier braucht deshalb einen Menschen, der nachgesehen hat.
+model VerwertungsEntnahme {
+  id      Int                    @id @default(autoincrement())
+  logId   String
+  teiltyp String                 @db.VarChar(191)
+  art     VerwertungsEntnahmeArt
+  notiz   String?                @db.Text
+  von     String?
+  am      DateTime               @default(now())
+
+  // Ein Teiltyp kann je Gerät nur einmal heraus sein.
+  @@unique([logId, teiltyp])
+  @@index([logId])
+}
+
+enum VerwertungsEntnahmeArt {
+  // Ausgebaut, aber nicht über den Assistenten gebucht.
+  ENTNOMMEN
+  // Nachgesehen: war nicht mehr drin.
+  NICHT_VORHANDEN
+}

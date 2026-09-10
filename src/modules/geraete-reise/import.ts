@@ -15,6 +15,7 @@ import {
   mappeZeile,
   mappeFehlteil,
   istFehlteilZeile,
+  istVerwertungsExport,
   logIdRoh,
   feldGleich,
   darstellen,
@@ -108,6 +109,10 @@ export async function runLogIdImport(tmpPath: string, importId: number): Promise
 async function erkenneTyp(tmpPath: string): Promise<{ typ: Typ; gesamt: number; anteil: number }> {
   let gesamt = 0;
   let fehlteil = 0;
+  // Kennzeichen statt Ausnahme: Ein `throw` aus dem papaparse-Callback heraus
+  // landet nicht zuverlässig im error-Handler und kann als unbehandelter
+  // Fehler den Prozess treffen. Also merken und nach dem Lesen auswerten.
+  let istVerwertung = false;
   await new Promise<void>((resolve, reject) => {
     const stream = fs.createReadStream(tmpPath, { encoding: "utf8" });
     Papa.parse<Record<string, string>>(stream, {
@@ -117,8 +122,18 @@ async function erkenneTyp(tmpPath: string): Promise<{ typ: Typ; gesamt: number; 
       // UTF-8-BOM am ersten Header entfernen — sonst heißt die erste Spalte
       // "﻿LogId", die LogId-Spalte ist unauffindbar und JEDE Zeile fällt raus.
       transformHeader: (h: string) => h.replace(/^﻿/, "").trim(),
-      step: (result) => {
+      step: (result, parser) => {
         if (!logIdRoh(result.data)) return; // nur echte Datenzeilen
+        // ⚠️ Den Verwertungs-Export hier abfangen. Er hat keine Spalte
+        // „Verbleib" und gälte damit als regulärer Voll-Snapshot — obwohl er
+        // nur einen Ausschnitt enthält. Die 50-%-Sicherung unten verhindert
+        // zwar die Total-Ausscheidung, aber die 7.000 Zeilen würden trotzdem in
+        // LogIdStand geschrieben. Er gehört auf die Seite „Teilespender".
+        if (gesamt === 0 && istVerwertungsExport(result.data)) {
+          istVerwertung = true;
+          parser.abort();
+          return;
+        }
         gesamt += 1;
         if (istFehlteilZeile(result.data)) fehlteil += 1;
       },
@@ -126,6 +141,14 @@ async function erkenneTyp(tmpPath: string): Promise<{ typ: Typ; gesamt: number; 
       error: (err: Error) => reject(err),
     });
   });
+
+  if (istVerwertung) {
+    throw new Error(
+      "Das ist der Verwertungs-Export (Spalten „Defekte“ und „Refurbishment nicht möglich“). " +
+      "Er gehört auf die Seite „Teilespender“ → Import, nicht in die Geräte-Reise. " +
+      "Es wurde nichts geschrieben.",
+    );
+  }
 
   const anteil = gesamt > 0 ? fehlteil / gesamt : 0;
   if (anteil >= FEHLTEILE_MIN)  return { typ: "FEHLTEILE",  gesamt, anteil };
