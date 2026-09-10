@@ -788,6 +788,9 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
 - ⚠️ **Nur `verwertungFrei` (Spalte „Refurbishment nicht möglich" = 1) darf zerlegt werden.** Leerer
   Wert gilt bewusst als NICHT freigegeben (14 Fälle) — lieber ein Spender zu wenig als ein zerlegtes
   Verkaufsgerät.
+  ⚠️ **Broker-Geräte bleiben BEWUSST drin** (169 Stück, Stellplatz „Broker" / Lager „AfB Sömmerda
+  Verkaufslager"). Entscheidung von Frank am 10.09.2026: Sie dienen ebenfalls als Teilespender.
+  Sie sehen aus wie ein Filterfehler — sind aber keiner. **Nicht ausschließen.**
 - **Entnommene Teile:** zwei Quellen, beide in `entnommeneTeile()` zusammengeführt.
   Gefiltert wird **je Teiltyp, nicht je Gerät** — ein T490 ohne Display kommt für eine Tastatur
   weiter in Frage. Am 10.09.2026 gegen die Produktion durchgespielt: Display-Spender 91 → 90,
