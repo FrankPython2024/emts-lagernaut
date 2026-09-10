@@ -904,6 +904,13 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   eine Anfrage mit nur einem brauchbaren Gerät leer ausgehen, wenn eine andere zuerst greift.
   ⚠️ Der Auslager-Dialog liest **`alleKandidaten`, nie `vorschau`** — sonst kann eine Anfrage mit
   „zugeteilt an #X" nicht vermerken, welches Gerät tatsächlich benutzt wurde.
+- **Suchfeld in beiden Geräte-Listen** (Panel und `/admin/teilespender`, letztere ab 6 Treffern):
+  filtert LogID, Stellplatz, Colli und Bezeichnung; bei getippten LogIDs zählen **nur die Ziffern**
+  („508795" findet „212.508.795").
+  ⚠️ **Der Filter wirkt NUR auf die Anzeige.** Auswahl, „Wenigste Wege vorschlagen", „Alle wählen"
+  und der Pickup-Auftrag rechnen weiter mit der vollen Liste — sonst fiele ein angehaktes Gerät
+  beim Weitertippen still aus dem Auftrag. Ebenso zählt die Kopfzeile die Gesamtzahl: Ein aktiver
+  Filter darf nicht wie „Kein Spendergerät gefunden" aussehen.
 - **Tests:** `test:defekte` (45), `test:teilespender` (27), `test:auswahl` (15), `test:frische` (19),
   `test:ort` (25), `test:bedarf` (18).
 

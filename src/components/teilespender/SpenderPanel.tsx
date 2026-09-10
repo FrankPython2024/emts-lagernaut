@@ -43,6 +43,8 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
   const router = useRouter();
 
   const [gewaehlt, setGewaehlt] = useState<Set<string>>(new Set());
+  /** Filtert die Geräteliste — bei 90 Treffern findet man sonst nichts. */
+  const [filter, setFilter] = useState("");
 
   const q = api.teilespender.fuerGruppe.useQuery(
     // zielLogId mitgeben: Das Gerät auf der Werkbank ist kein Spender für sich.
@@ -76,6 +78,23 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
   const geraete = q.data?.geraete ?? [];
   const proTeiltyp = q.data?.proTeiltyp ?? [];
   const frische = q.data?.frische;
+
+  // ⚠️ Der Filter wirkt NUR auf die Anzeige. Auswahl, Vorschlag und
+  // Pickup-Auftrag rechnen weiter mit der vollen Liste — sonst verschwände ein
+  // angehaktes Gerät beim Tippen still aus dem Auftrag.
+  const gefiltert = useMemo(() => {
+    const roh = filter.trim().toLowerCase();
+    if (!roh) return geraete;
+    // Bei einer getippten LogID zählen nur die Ziffern: „508795" soll
+    // „212.508.795" finden, ohne dass jemand Punkte mitschreibt.
+    const nurZiffern = roh.replace(/\D/g, "");
+    return geraete.filter((g) => {
+      const felder = [g.logId, g.stellplatz ?? "", g.colli ?? "", g.bezeichnung ?? ""];
+      if (felder.some((f) => f.toLowerCase().includes(roh))) return true;
+      if (!nurZiffern) return false;
+      return [g.logId, g.colli ?? ""].some((f) => f.replace(/\D/g, "").includes(nurZiffern));
+    });
+  }, [geraete, filter]);
 
   const gewaehlteGeraete = useMemo(
     () => geraete.filter((g) => gewaehlt.has(g.logId)),
@@ -211,8 +230,42 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
               </div>
             )}
 
+            {/* Suchfeld — ab einer Handvoll Geräten ist Scrollen keine Option
+                mehr. Sucht LogID (auch ohne Punkte), Stellplatz und Colli. */}
+            <div className="flex items-center gap-2">
+              <input
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="LogID, Stellplatz oder Colli suchen…"
+                aria-label="Geräteliste filtern"
+                className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] min-h-[44px] text-sm"
+              />
+              {filter.trim() !== "" && (
+                <button
+                  type="button"
+                  onClick={() => setFilter("")}
+                  className="px-3 min-h-[44px] rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-sm text-[#65676b] dark:text-[#b0b3b8]"
+                >
+                  ✕ Filter
+                </button>
+              )}
+            </div>
+            {filter.trim() !== "" && (
+              <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                {gefiltert.length} von {geraete.length} Geräten
+                {/* Angehakte Geräte bleiben im Auftrag, auch wenn sie der Filter
+                    gerade ausblendet — sonst verschwände die Auswahl unbemerkt. */}
+                {gewaehlt.size > 0 && ` · ${gewaehlt.size} ausgewählt (bleibt erhalten)`}
+              </p>
+            )}
+
             <div className="space-y-2 max-h-[50vh] overflow-auto">
-              {geraete.map((g) => (
+              {gefiltert.length === 0 && (
+                <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] py-2">
+                  Kein Gerät passt zu „{filter.trim()}".
+                </p>
+              )}
+              {gefiltert.map((g) => (
                 <div
                   key={g.logId}
                   className={`${karte} flex flex-wrap items-start gap-3 ${

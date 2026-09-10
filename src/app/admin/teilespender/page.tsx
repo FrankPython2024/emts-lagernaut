@@ -48,6 +48,8 @@ function TeilespenderPageInner() {
   const [pickupOffen, setPickupOffen] = useState(false);
   const [auftragName, setAuftragName] = useState("");
   const [meldeLogId, setMeldeLogId] = useState<string | null>(null);
+  /** Filtert die Trefferliste — bei 90 Geräten findet man sonst nichts. */
+  const [filter, setFilter] = useState("");
 
   // Vorbelegung über die Adresszeile: ?geraet=Lenovo%20ThinkPad%20T580&teil=Tastatur
   // Damit genügt später ein Klick aus einer offenen Anfrage heraus — der Weg
@@ -83,10 +85,26 @@ function TeilespenderPageInner() {
   const pickupErstellen = api.pickup.erstellen.useMutation();
   const entnahmeMelden = api.teilespender.entnahmeMelden.useMutation();
 
-  const liste = treffer.data?.treffer ?? [];
+  const alleTreffer = treffer.data?.treffer ?? [];
+  // ⚠️ Nur die Anzeige filtern. Auswahl und Pickup-Auftrag rechnen weiter mit
+  // der vollen Liste — sonst fiele ein angehaktes Gerät beim Tippen still raus.
+  const liste = useMemo(() => {
+    const roh = filter.trim().toLowerCase();
+    if (!roh) return alleTreffer;
+    // Getippte LogIDs zählen nur mit ihren Ziffern: „508795" findet
+    // „212.508.795", ohne dass jemand Punkte mitschreibt.
+    const nurZiffern = roh.replace(/\D/g, "");
+    return alleTreffer.filter((t) => {
+      const felder = [t.logId, t.stellplatz ?? "", t.colli ?? "", t.bezeichnung ?? ""];
+      if (felder.some((f) => f.toLowerCase().includes(roh))) return true;
+      if (!nurZiffern) return false;
+      return [t.logId, t.colli ?? ""].some((f) => f.replace(/\D/g, "").includes(nurZiffern));
+    });
+  }, [alleTreffer, filter]);
   const aussortiert = treffer.data?.aussortiert;
 
-  const alleGewaehlt = liste.length > 0 && liste.every((t) => gewaehlt.has(t.logId));
+  // „Alle wählen" meint die ganze Trefferliste, nicht nur die gefilterte Sicht.
+  const alleGewaehlt = alleTreffer.length > 0 && alleTreffer.every((t) => gewaehlt.has(t.logId));
 
   function umschalten(logId: string): void {
     setGewaehlt((prev) => {
@@ -98,7 +116,7 @@ function TeilespenderPageInner() {
   }
 
   function alleUmschalten(): void {
-    setGewaehlt(alleGewaehlt ? new Set() : new Set(liste.map((t) => t.logId)));
+    setGewaehlt(alleGewaehlt ? new Set() : new Set(alleTreffer.map((t) => t.logId)));
   }
 
   function modellWaehlen(key: string, name: string): void {
@@ -109,8 +127,8 @@ function TeilespenderPageInner() {
   }
 
   const gewaehlteTreffer = useMemo(
-    () => liste.filter((t) => gewaehlt.has(t.logId)),
-    [liste, gewaehlt],
+    () => alleTreffer.filter((t) => gewaehlt.has(t.logId)),
+    [alleTreffer, gewaehlt],
   );
 
   async function pickupAnlegen(): Promise<void> {
@@ -319,11 +337,13 @@ function TeilespenderPageInner() {
         <>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <h2 className="text-lg font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
-              {liste.length === 0
+              {/* Bewusst die GESAMTZAHL — ein aktiver Filter darf nicht wie
+                  „nichts gefunden" aussehen. Die gefilterte Zahl steht darunter. */}
+              {alleTreffer.length === 0
                 ? "Kein Spendergerät gefunden"
-                : `${liste.length} ${liste.length === 1 ? "Gerät" : "Geräte"} — sortiert nach Laufweg`}
+                : `${alleTreffer.length} ${alleTreffer.length === 1 ? "Gerät" : "Geräte"} — sortiert nach Laufweg`}
             </h2>
-            {liste.length > 0 && darfPickup && (
+            {alleTreffer.length > 0 && darfPickup && (
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -355,7 +375,7 @@ function TeilespenderPageInner() {
             </div>
           )}
 
-          {aussortiert && liste.length === 0 && (
+          {aussortiert && alleTreffer.length === 0 && (
             <div className={`${karte} text-sm text-[#65676b] dark:text-[#b0b3b8]`}>
               <p className="mb-2">
                 Zu diesem Modell gibt es keinen brauchbaren Spender. Aufgeschlüsselt:
@@ -369,7 +389,40 @@ function TeilespenderPageInner() {
             </div>
           )}
 
+          {/* Suchfeld — ab einer Handvoll Geräten ist Scrollen keine Option. */}
+          {alleTreffer.length > 5 && (
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="LogID, Stellplatz oder Colli suchen…"
+                aria-label="Trefferliste filtern"
+                className={eingabe + " flex-1"}
+              />
+              {filter.trim() !== "" && (
+                <button
+                  type="button"
+                  onClick={() => setFilter("")}
+                  className="px-4 min-h-[48px] rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"
+                >
+                  ✕ Filter
+                </button>
+              )}
+            </div>
+          )}
+          {filter.trim() !== "" && (
+            <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-2">
+              {liste.length} von {alleTreffer.length} Geräten
+              {gewaehlt.size > 0 && ` · ${gewaehlt.size} ausgewählt (bleibt erhalten)`}
+            </p>
+          )}
+
           <div className="space-y-2">
+            {filter.trim() !== "" && liste.length === 0 && (
+              <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+                Kein Gerät passt zu „{filter.trim()}".
+              </p>
+            )}
             {liste.map((t) => (
               <div
                 key={t.logId}
