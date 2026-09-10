@@ -36,6 +36,9 @@ const karte =
 export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId }: Props) {
   const { has } = usePermissions();
   const darfPickup = has("PICKUP_MANAGE");
+  // Entnahmen zu vermerken ist ein Schreibvorgang (nimmt ein Gerät für alle aus
+  // der Liste) — deshalb ARTIKEL_EINLAGERN, nicht das Leserecht.
+  const darfVermerken = has("ARTIKEL_EINLAGERN");
   const { show } = useToast();
   const router = useRouter();
 
@@ -284,18 +287,20 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
                     {/* Teil ist schon heraus — nachtragen, ohne die Seite zu
                         wechseln. Deckt den Fall ab, dass jemand das Teil außerhalb
                         des Auslager-Dialogs geholt hat. */}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        g.deckt.length === 1
-                          ? void alsEntnommenMelden(g.logId, g.deckt[0]!)
-                          : setAbhaken({ logId: g.logId, deckt: g.deckt })
-                      }
-                      disabled={entnahmeMelden.isPending}
-                      className="mt-2 text-xs px-2 py-1.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] disabled:opacity-40 min-h-[36px]"
-                    >
-                      Teil ist raus
-                    </button>
+                    {darfVermerken && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          g.deckt.length === 1
+                            ? void alsEntnommenMelden(g.logId, g.deckt[0]!)
+                            : setAbhaken({ logId: g.logId, deckt: g.deckt })
+                        }
+                        disabled={entnahmeMelden.isPending}
+                        className="mt-2 text-xs px-2 py-1.5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] disabled:opacity-40 min-h-[36px]"
+                      >
+                        Teil ist raus
+                      </button>
+                    )}
 
                     {g.ort?.abweichung && (
                       <div className="mt-1.5 text-xs text-[#664d03] dark:text-[#ffda6a] font-semibold text-right">

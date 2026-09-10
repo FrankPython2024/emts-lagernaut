@@ -838,8 +838,13 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   `logid-import`, Job-Name unterscheidet). Voll-Snapshot mit Abgangs-Erkennung und **50-%-Sicherung**.
   Kopfzeile wird geprüft, **bevor** geschrieben wird. Der Lagerfuchs-Import **lehnt diese Datei jetzt
   ausdrücklich ab** (sie hat keine `Verbleib`-Spalte und wäre sonst als Voll-Snapshot durchgelaufen).
-- **Rechte:** `TEILESPENDER_VIEW` / `TEILESPENDER_IMPORT` (getrennt wie bei „Gleiches Gerät finden").
-  **Braucht `seed-rbac`.**
+- **Rechte:** `TEILESPENDER_VIEW` (lesen) / `TEILESPENDER_IMPORT` (Import) — **braucht `seed-rbac`**.
+  ⚠️ **Entnahmen vermerken hängt an `ARTIKEL_EINLAGERN`, NICHT am Leserecht.** Ein Vermerk nimmt ein
+  Gerät für alle aus der Trefferliste — das ist ein Schreibvorgang. Erste Fassung hing an
+  `TEILESPENDER_VIEW`; damit hätte **ADMIN_READONLY (Latifa) Daten ändern können**, obwohl die
+  Rolle ausdrücklich keine Schreibrechte hat. Wiederverwendung statt neuem Recht: Wer Teile aus
+  Spendergeräten ausbaut, bucht sie auch ein. Die drei Oberflächen (Panel, Seite, Auslager-Dialog)
+  blenden ihre Knöpfe ohne das Recht aus, sonst liefen sie in einen 403.
 - ⚠️ **Der Export wird von Hand hochgeladen — automatisches Abholen ist NICHT erlaubt.** Die
   AfB-IT hat den früheren Playwright-Weg beanstandet (Frank bestätigt am 10.09.2026). Die Infra
   im Ordner `reform-export/` liegt still (`reform-watch` disabled, Cron auskommentiert, Image weg)
@@ -891,6 +896,14 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   ⚠️ Zuteilung muss **stabil** sein (die Liste lädt alle 5 s neu), deshalb feste Sortierung nach
   `datum, id`. Am 10.09.2026 an drei echten P17-Anfragen geprüft: #27172 (07:33) bekommt das Gerät,
   #27173 und #27174 zeigen die Zuteilung; nach dem Entnahme-Vermerk zeigen alle drei nichts.
+  ⚠️ **`verteileSpender` bekommt ALLE Bewerber mit ihrer JEWEILIGEN Kandidatenliste** — nicht eine
+  gemeinsame. Die Listen unterscheiden sich, weil das Zielgerät einer Anfrage nur in deren eigener
+  Liste fehlt. Die erste Fassung rechnete je Anfrage gegen deren eigene Liste und sagte dasselbe
+  Gerät zweimal zu (Test „ein Gerät nie doppelt vergeben").
+  ⚠️ Zugeteilt wird ab **Geräte ≤ Anfragen**, nicht erst darunter: Bei genau aufgehender Zahl kann
+  eine Anfrage mit nur einem brauchbaren Gerät leer ausgehen, wenn eine andere zuerst greift.
+  ⚠️ Der Auslager-Dialog liest **`alleKandidaten`, nie `vorschau`** — sonst kann eine Anfrage mit
+  „zugeteilt an #X" nicht vermerken, welches Gerät tatsächlich benutzt wurde.
 - **Tests:** `test:defekte` (45), `test:teilespender` (27), `test:auswahl` (15), `test:frische` (19),
   `test:ort` (25), `test:bedarf` (18).
 

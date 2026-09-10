@@ -23,6 +23,13 @@ import type { SessionUser } from "@/core/types";
 // der Import ersetzt den kompletten Spender-Bestand.
 const suchen = permissionProcedure("TEILESPENDER_VIEW");
 const pflegen = permissionProcedure("TEILESPENDER_IMPORT");
+// ⚠️ Entnahmen zu vermerken ist ein SCHREIBVORGANG: Er nimmt ein Gerät für alle
+// aus der Trefferliste. Er darf deshalb nicht am Leserecht hängen — sonst könnte
+// ADMIN_READONLY (Latifa) Daten verändern, obwohl die Rolle ausdrücklich keine
+// Schreibrechte haben soll. `ARTIKEL_EINLAGERN` ist die passende Wiederverwendung:
+// Wer Teile aus Spendergeräten ausbaut, bucht sie auch ein. Kein neues Recht,
+// kein seed-rbac; ADMIN hat es über die Wildcard.
+const vermerken = permissionProcedure("ARTIKEL_EINLAGERN");
 
 export const teilespenderRouter = createTRPCRouter({
   /** Modelle, für die es überhaupt Spender gibt (für die Auswahl). */
@@ -106,7 +113,7 @@ export const teilespenderRouter = createTRPCRouter({
    * Assistenten bucht, wird automatisch erkannt (`Buchung.herkunftLogId`).
    * Diese Prozedur ist für den Fall „Karton auf, Teil war schon weg".
    */
-  entnahmeMelden: suchen
+  entnahmeMelden: vermerken
     .input(
       z.object({
         logId: z.string().trim().min(1).max(100),
@@ -150,7 +157,7 @@ export const teilespenderRouter = createTRPCRouter({
    * fehlender Vermerk kostet einen unnötigen Weg; eine abgebrochene Ausgabe
    * kostet die Reparatur.
    */
-  entnahmeMeldenViele: suchen
+  entnahmeMeldenViele: vermerken
     .input(
       z.object({
         eintraege: z
@@ -196,7 +203,7 @@ export const teilespenderRouter = createTRPCRouter({
     }),
 
   /** Eine von Hand gemeldete Entnahme zurücknehmen (Fehlklick). */
-  entnahmeZuruecknehmen: suchen
+  entnahmeZuruecknehmen: vermerken
     .input(z.object({ logId: z.string().trim().min(1).max(100), teiltyp: z.string().trim().min(1).max(191) }))
     .mutation(async ({ input }) => {
       // deleteMany statt delete: ein nicht vorhandener Eintrag ist kein Fehler,

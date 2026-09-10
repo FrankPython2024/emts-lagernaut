@@ -16,11 +16,6 @@
  * ein Spendergerät deckt diese Anfrage also trotzdem komplett ab. Über die
  * Menge zu rechnen würde hier einen Engpass erfinden, den es nicht gibt.
  *
- * ⚠️ Der Engpass wird **angezeigt, nicht versteckt.** Naheliegend wäre, den
- * Hinweis nur bei einer der beiden Anfragen zu zeigen — aber welcher? Jede Wahl
- * wäre willkürlich, und der andere Techniker stünde ohne Information da. Wer
- * die Anfragen bearbeitet, soll den Engpass sehen und selbst entscheiden.
- *
  * Reine Logik, kein Netz, keine Datenbank — prüfbar über tests/bedarf.test.ts.
  */
 
@@ -42,7 +37,7 @@ export function bewerteDeckung(spender: number, bedarf: number): Deckung {
   const b = Math.max(0, Math.trunc(bedarf));
 
   const reicht = s >= b;
-  // „Knapp" nur bei echter Konkurrenz: Bei einer einzigen Anfragen ist ein
+  // „Knapp" nur bei echter Konkurrenz: Bei einer einzigen Anfrage ist ein
   // einziges Gerät der Normalfall und keine Meldung wert.
   const knapp = reicht && b > 1 && s === b;
 
@@ -64,6 +59,15 @@ export function warntDeckung(d: Deckung): boolean {
   return d.text !== "";
 }
 
+/** Eine Anfrage samt der Geräte, die für SIE in Frage kommen. */
+export type Bewerber<T> = {
+  id: number;
+  /**
+   * Die Kandidaten dieser Anfrage — bereits um das eigene Zielgerät bereinigt.
+   * Deshalb können sich die Listen zweier Anfragen unterscheiden.
+   */
+  kandidaten: T[];
+};
 
 /**
  * Wer bekommt welches Spendergerät, wenn es nicht für alle reicht?
@@ -73,37 +77,60 @@ export function warntDeckung(d: Deckung): boolean {
  * die Anfragen abarbeitet, ist das wertlos: Er sieht dreimal eine Zusage, die
  * nur einmal eingelöst werden kann.
  *
- * **Regel: Erst bei echter Knappheit wird zugeteilt.**
- *   • Geräte ≥ Anfragen → jede Anfrage sieht ALLE Geräte. Es ist genug da, und
- *     wer auswählt, greift ohnehin zu verschiedenen. Eine Zuteilung würde hier
- *     nur Auswahl wegnehmen.
- *   • Geräte < Anfragen → die ältesten Anfragen bekommen je EIN Gerät, die
- *     übrigen gehen leer aus. Das ist die ehrliche Abbildung: Für sie ist
- *     nichts da.
+ * **Regel: Erst bei echtem Überschuss bleiben die Listen unangetastet.**
+ *   • Geräte > Anfragen → jede Anfrage behält ihre volle Kandidatenliste. Es ist
+ *     Luft da, und wer auswählt, greift ohnehin zu verschiedenen. Eine
+ *     Zuteilung würde hier nur Auswahl wegnehmen.
+ *   • Geräte ≤ Anfragen → der Reihe nach bekommt jede Anfrage das erste ihrer
+ *     Geräte, das noch frei ist. Wer leer ausgeht, geht leer aus.
+ *     ⚠️ Auch bei **genau** aufgehender Zahl wird zugeteilt: Hat eine Anfrage nur
+ *     ein brauchbares Gerät und eine andere greift zuerst danach, stünde die
+ *     erste sonst ohne da.
+ *
+ * ⚠️ **Jede Anfrage bringt ihre EIGENE Kandidatenliste mit.** Das ist kein
+ * Luxus: Steht das Zielgerät einer Anfrage selbst im Spenderbestand, fehlt es in
+ * genau deren Liste und ist für die anderen trotzdem da. Rechnet man die
+ * Zuteilung je Anfrage gegen deren eigene Liste (so lief die erste Fassung),
+ * kommen zwei Anfragen unabhängig zu unterschiedlichen Ergebnissen und dasselbe
+ * Gerät wird zweimal zugesagt — im Test „ein Gerät nie doppelt vergeben"
+ * festgehalten.
  *
  * ⚠️ Die Reihenfolge muss **stabil** sein — dieselbe Eingabe, dasselbe
  * Ergebnis. Sonst springt die Zuteilung bei jedem Neuladen der Liste (die alle
  * fünf Sekunden aktualisiert) und niemand traut ihr.
  *
- * `anfrageIds` kommt bereits sortiert herein (ältester Bedarf zuerst).
+ * `bewerber` kommt bereits sortiert herein (ältester Bedarf zuerst).
  */
 export function verteileSpender<T>(
-  anfrageIds: number[],
-  spender: T[],
+  bewerber: Bewerber<T>[],
+  schluessel: (kandidat: T) => string,
 ): Map<number, T[]> {
   const raus = new Map<number, T[]>();
-  if (anfrageIds.length === 0) return raus;
+  if (bewerber.length === 0) return raus;
 
-  // Genug für alle → keine Zuteilung, jeder sieht alles.
-  if (spender.length >= anfrageIds.length) {
-    for (const id of anfrageIds) raus.set(id, spender);
+  // Wie viele verschiedene Geräte stehen insgesamt zur Verfügung?
+  const alle = new Set<string>();
+  for (const b of bewerber) for (const k of b.kandidaten) alle.add(schluessel(k));
+
+  // ⚠️ Nur bei ECHTEM Überschuss die Listen unangetastet lassen. Bei genau so
+  // vielen Geräten wie Anfragen ist es bereits eng: Hat eine Anfrage nur ein
+  // einziges brauchbares Gerät (weil ihr eigenes Zielgerät wegfällt) und eine
+  // andere greift danach, steht die erste ohne da. Deshalb `>` und nicht `>=`.
+  if (alle.size > bewerber.length) {
+    for (const b of bewerber) raus.set(b.id, b.kandidaten);
     return raus;
   }
 
-  // Knapp → je ein Gerät, älteste Anfrage zuerst. Der Rest bekommt nichts.
-  anfrageIds.forEach((id, i) => {
-    const s = spender[i];
-    raus.set(id, s === undefined ? [] : [s]);
-  });
+  // Knapp → der Reihe nach je ein noch freies Gerät.
+  const vergeben = new Set<string>();
+  for (const b of bewerber) {
+    const frei = b.kandidaten.find((k) => !vergeben.has(schluessel(k)));
+    if (frei === undefined) {
+      raus.set(b.id, []);
+      continue;
+    }
+    vergeben.add(schluessel(frei));
+    raus.set(b.id, [frei]);
+  }
   return raus;
 }

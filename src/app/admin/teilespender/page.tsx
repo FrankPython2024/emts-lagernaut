@@ -34,6 +34,8 @@ function TeilespenderPageInner() {
   const { has, isLoading: permsLoading } = usePermissions();
   const darfSehen = has("TEILESPENDER_VIEW");
   const darfPickup = has("PICKUP_MANAGE");
+  // Schreibvorgang: nimmt das Gerät für alle aus der Liste.
+  const darfVermerken = has("ARTIKEL_EINLAGERN");
   const { show } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -438,13 +440,15 @@ function TeilespenderPageInner() {
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setMeldeLogId(t.logId)}
-                  className="text-xs px-3 min-h-[44px] rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] shrink-0"
-                >
-                  Teil war weg
-                </button>
+                {darfVermerken && (
+                  <button
+                    type="button"
+                    onClick={() => setMeldeLogId(t.logId)}
+                    className="text-xs px-3 min-h-[44px] rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] shrink-0"
+                  >
+                    Teil war weg
+                  </button>
+                )}
               </div>
             ))}
           </div>

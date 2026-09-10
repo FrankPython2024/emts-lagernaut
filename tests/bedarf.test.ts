@@ -1,11 +1,11 @@
 /**
- * Tests für die Engpass-Rechnung
+ * Tests für Engpass-Rechnung und Zuteilung
  * (src/lib/teilespender/bedarf.ts).
  *
  * Ausführen:  npx tsx tests/bedarf.test.ts   (oder: npm run test:bedarf)
  *
- * Anlass: Zwei Anfragen für ein ThinkPad P17 Gen 1 brauchten beide einen Akku,
- * und beide Zeilen meldeten „1 Verwertungsgerät mit diesem Teil" — dasselbe.
+ * Anlass: Drei Anfragen für einen ThinkPad-P17-Akku, ein einziges Spendergerät —
+ * und alle drei Zeilen priesen dasselbe Gerät an.
  *
  * Reine Logik, kein Netz, keine Datenbank.
  */
@@ -29,11 +29,9 @@ function check(label: string, actual: unknown, expected: unknown): void {
 
 console.log("\n── Der Normalfall schweigt ──");
 
-// Eine Anfrage, ein Gerät — daran ist nichts zu melden.
 check("1 Gerät für 1 Anfrage", warntDeckung(bewerteDeckung(1, 1)), false);
 check("viele Geräte für 1 Anfrage", warntDeckung(bewerteDeckung(28, 1)), false);
 check("Reserve vorhanden", warntDeckung(bewerteDeckung(5, 2)), false);
-// Kein Gerät und nur eine Anfrage: Die Zeile erscheint ohnehin nicht.
 check("nichts da, eine Anfrage", warntDeckung(bewerteDeckung(0, 1)), false);
 
 console.log("\n── Der gemeldete Fall ──");
@@ -46,8 +44,16 @@ check(
   p17.text,
   "Nur 1 Gerät für 2 offene Anfragen — reicht nicht für alle.",
 );
-check("Mehrzahl bei mehreren Geräten", bewerteDeckung(2, 5).text, "Nur 2 Geräte für 5 offene Anfragen — reicht nicht für alle.");
-check("gar kein Gerät", bewerteDeckung(0, 3).text, "3 offene Anfragen brauchen dieses Teil — kein Gerät gefunden.");
+check(
+  "Mehrzahl bei mehreren Geräten",
+  bewerteDeckung(2, 5).text,
+  "Nur 2 Geräte für 5 offene Anfragen — reicht nicht für alle.",
+);
+check(
+  "gar kein Gerät",
+  bewerteDeckung(0, 3).text,
+  "3 offene Anfragen brauchen dieses Teil — kein Gerät gefunden.",
+);
 
 console.log("\n── Geht genau auf ──");
 
@@ -67,41 +73,69 @@ check("Kommazahlen werden abgeschnitten", bewerteDeckung(2.9, 1.2).spender, 2);
 check("kein Bedarf, keine Meldung", warntDeckung(bewerteDeckung(4, 0)), false);
 check("alles null", warntDeckung(bewerteDeckung(0, 0)), false);
 
+// ── Zuteilung ───────────────────────────────────────────────────────────────
 console.log("\n── Zuteilung bei Knappheit ──");
 
-check("nichts zu verteilen", [...verteileSpender([], ["A"]).entries()], []);
-check("keine Geraete", [...verteileSpender([1, 2], []).values()], [[], []]);
+/** Kurzschreibweise: Anfrage-Id mit ihren eigenen Kandidaten. */
+const b = (id: number, ...kandidaten: string[]) => ({ id, kandidaten });
+const idOf = (k: string) => k;
 
-// Genug fuer alle → jeder sieht alles. Wer auswaehlt, greift ohnehin zu
-// verschiedenen; eine Zuteilung wuerde hier nur Auswahl wegnehmen.
+check("nichts zu verteilen", [...verteileSpender([], idOf).entries()], []);
+check("keine Geräte", [...verteileSpender([b(1), b(2)], idOf).values()], [[], []]);
+
+// Genug für alle → jede Anfrage behält ihre Liste. Wer auswählt, greift ohnehin
+// zu verschiedenen; eine Zuteilung würde hier nur Auswahl wegnehmen.
 check(
-  "Ueberfluss: jeder sieht alle",
-  [...verteileSpender([1, 2], ["A", "B", "C"]).values()],
+  "Überfluss: jede behält ihre Liste",
+  [...verteileSpender([b(1, "A", "B", "C"), b(2, "A", "B", "C")], idOf).values()],
   [["A", "B", "C"], ["A", "B", "C"]],
 );
+// ⚠️ Genau aufgehend ist NICHT dasselbe wie Überschuss: Wer hier beiden alles
+// zeigt, riskiert, dass der eine dem anderen das letzte Gerät wegnimmt.
 check(
-  "genau aufgehend: jeder sieht alle",
-  [...verteileSpender([1, 2], ["A", "B"]).values()],
-  [["A", "B"], ["A", "B"]],
+  "genau aufgehend: wird zugeteilt",
+  [...verteileSpender([b(1, "A", "B"), b(2, "A", "B")], idOf).values()],
+  [["A"], ["B"]],
 );
 
-// ⚠️ Der gemeldete Fall: 3 Anfragen, 1 Geraet.
+// ⚠️ Der gemeldete Fall: 3 Anfragen, 1 Gerät.
 check(
-  "Knappheit: nur die aelteste bekommt es",
-  [...verteileSpender([27172, 27173, 27174], ["A"]).values()],
+  "Knappheit: nur die älteste bekommt es",
+  [...verteileSpender([b(27172, "A"), b(27173, "A"), b(27174, "A")], idOf).values()],
   [["A"], [], []],
 );
 check(
-  "Knappheit: zwei Geraete auf drei Anfragen",
-  [...verteileSpender([1, 2, 3], ["A", "B"]).values()],
+  "Knappheit: zwei Geräte auf drei Anfragen",
+  [...verteileSpender([b(1, "A", "B"), b(2, "A", "B"), b(3, "A", "B")], idOf).values()],
   [["A"], ["B"], []],
 );
-// Stabilitaet: zweimal aufgerufen dasselbe — sonst springt die Zuteilung bei
+
+// ⚠️ Der Fehler, der die Umstellung ausgelöst hat: Steht das Zielgerät einer
+// Anfrage selbst im Spenderbestand, fehlt es in DEREN Liste und ist für die
+// andere trotzdem da. Wer je Anfrage gegen die eigene Liste rechnet, kommt zu
+// zwei Ergebnissen, die dasselbe Gerät zusagen.
+const zut = verteileSpender([b(1, "D2"), b(2, "D1", "D2")], idOf);
+check("A bekommt D2", zut.get(1), ["D2"]);
+check("B bekommt NICHT auch D2", zut.get(2), ["D1"]);
+
+// Allgemein: kein Gerät darf zweimal vergeben werden.
+const doppelt = verteileSpender([b(1, "A", "B"), b(2, "A"), b(3, "A", "B")], idOf);
+const vergeben = [...doppelt.values()].flat();
+check("ein Gerät nie doppelt vergeben", vergeben.length, new Set(vergeben).size);
+
+// Wer nur ein bereits vergebenes Gerät hätte, geht leer aus — nicht doppelt.
+check(
+  "leer statt Doppelvergabe",
+  [...verteileSpender([b(1, "A"), b(2, "A"), b(3, "B")], idOf).values()],
+  [["A"], [], ["B"]],
+);
+
+// Stabilität: zweimal aufgerufen dasselbe — sonst springt die Zuteilung bei
 // jedem Neuladen der Liste.
 check(
   "zweiter Aufruf liefert dasselbe",
-  [...verteileSpender([1, 2, 3], ["A"]).values()],
-  [...verteileSpender([1, 2, 3], ["A"]).values()],
+  [...verteileSpender([b(1, "A"), b(2, "A"), b(3, "A")], idOf).values()],
+  [...verteileSpender([b(1, "A"), b(2, "A"), b(3, "A")], idOf).values()],
 );
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────

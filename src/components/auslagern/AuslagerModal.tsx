@@ -4,6 +4,7 @@ import FocusTrap from "focus-trap-react";
 import { api } from "@/trpc/react";
 import { printMehrereAuslagerBelege, type AuslagerBelegData } from "@/components/ui/AuslagerBeleg";
 import { SpenderWahl, type SpenderWahlMap } from "@/components/teilespender/SpenderWahl";
+import { usePermissions } from "@/hooks/usePermissions";
 
 // ── Typen ─────────────────────────────────────────────────────────────────────
 
@@ -128,6 +129,8 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
   const [ergebnis,       setErgebnis]       = useState<AuslagerResult | null>(null);
   // Welches Spendergerät wurde je Position benutzt? anfrageId → LogID.
   const [spenderWahl,    setSpenderWahl]    = useState<SpenderWahlMap>({});
+  const { has } = usePermissions();
+  const darfVermerken = has("ARTIKEL_EINLAGERN");
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -404,6 +407,9 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
                     Positionen, zu denen es überhaupt Kandidaten gibt. */}
                 <SpenderWahl
                   teile={selectedTeile.map((t) => ({ teilId: t.teilId, teiltyp: t.teiltyp }))}
+                  // Ohne Schreibrecht liefe der Vermerk in einen 403 — dann gar
+                  // nicht erst danach fragen.
+                  aktiv={darfVermerken}
                   wahl={spenderWahl}
                   onChange={(teilId, logId) =>
                     setSpenderWahl((prev) => {

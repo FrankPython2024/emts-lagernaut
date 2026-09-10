@@ -310,6 +310,20 @@ export type SpenderHinweis = {
    */
   zugeteiltAn: number | null;
   /**
+   * ALLE für diese Anfrage brauchbaren Geräte — ohne Zuteilung.
+   *
+   * ⚠️ Der Auslager-Dialog muss hieraus wählen lassen, nicht aus `vorschau`.
+   * Wer ein Gerät geholt hat, das einer anderen Anfrage zugeteilt war, muss das
+   * trotzdem vermerken können — sonst bleibt der Spender für alle in der Liste.
+   */
+  alleKandidaten: {
+    logId: string;
+    stellplatz: string | null;
+    colli: string | null;
+    sicherheit: Sicherheit;
+    ortUnsicher: boolean;
+  }[];
+  /**
    * Reichen die Geräte für ALLE offenen Anfragen auf dieses Teil?
    * Zwei Anfragen auf denselben einzigen Akku sind sonst nicht zu erkennen.
    */
@@ -380,7 +394,7 @@ export async function hinweiseFuerAnfragen(
   // Sortiert nach Alter: Bei Knappheit bekommt die älteste Anfrage das Gerät.
   const alleOffenen = await prisma.anfrage.findMany({
     where: { status: { in: OFFENE_STATUS }, istSonderAnfrage: false, testModus: false },
-    select: { id: true, geraeteName: true, geraet: true, teil: true, datum: true },
+    select: { id: true, geraeteName: true, geraet: true, teil: true, datum: true, logId: true },
     orderBy: [{ datum: "asc" }, { id: "asc" }],
   });
   const bedarfProTeil = new Map<string, number>();
@@ -422,15 +436,13 @@ export async function hinweiseFuerAnfragen(
     proKey.set(g.modellKey, a);
   }
 
-  const raus: Record<number, SpenderHinweis> = {};
-  for (const a of anfragen) {
-    const key = keyFuer.get(a.id);
-    const name = nameFuer.get(a.id);
-    if (!key || !name) continue;
-
-    // Das Gerät, das repariert wird, ist kein Spender für sich selbst.
+  // ── Kandidaten je Anfrage ─────────────────────────────────────────────────
+  // ⚠️ Erst ALLE Listen bauen, dann zuteilen. Die Listen unterscheiden sich:
+  // Steht das Zielgerät einer Anfrage selbst im Spenderbestand, fehlt es nur in
+  // ihrer eigenen. Wer je Anfrage einzeln zuteilt, sagt dasselbe Gerät zweimal
+  // zu (siehe `verteileSpender`).
+  function kandidatenFuer(a: { id: number; logId: string; teil: string }, key: string): SpenderTreffer[] {
     const sperre = sperrMenge([a.logId]);
-
     const passend: SpenderTreffer[] = [];
     for (const g of proKey.get(key) ?? []) {
       if (istGesperrt(sperre, g.logId)) continue;
@@ -454,46 +466,84 @@ export async function hinweiseFuerAnfragen(
         verweildauerTage: null,
       });
     }
-    if (passend.length === 0) continue;
-
     passend.sort(nachLaufweg);
+    return passend;
+  }
 
-    // ── Zuteilung ───────────────────────────────────────────────────────────
-    // Reicht es nicht für alle, bekommt die älteste Anfrage das Gerät und die
-    // übrigen sehen nichts. Drei Zeilen, die alle dasselbe eine Gerät
-    // anpreisen, sind für den, der sie abarbeitet, wertlos.
+  // Alle offenen Anfragen je Modell+Teil brauchen ihre Liste — auch die, die
+  // gar nicht abgefragt wurden. Sonst rechnet die Zuteilung gegen zu wenige
+  // Bewerber und vergibt ein Gerät, das einer älteren Anfrage gehört.
+  const offeneNachId = new Map(alleOffenen.map((o) => [o.id, o]));
+  const kandidatenCache = new Map<number, SpenderTreffer[]>();
+  function kandidatenVon(anfrageId: number, key: string, teil: string): SpenderTreffer[] {
+    const da = kandidatenCache.get(anfrageId);
+    if (da) return da;
+    const o = offeneNachId.get(anfrageId);
+    const berechnet = kandidatenFuer({ id: anfrageId, logId: o?.logId ?? "", teil }, key);
+    kandidatenCache.set(anfrageId, berechnet);
+    return berechnet;
+  }
+
+  /** Ein Treffer, auf das reduziert, was die Oberfläche braucht. */
+  function kurz(t: SpenderTreffer) {
+    return {
+      logId: t.logId,
+      stellplatz: t.stellplatz,
+      colli: t.colli,
+      sicherheit: t.sicherheit,
+      ortUnsicher: t.ort?.abweichung != null,
+    };
+  }
+
+  const raus: Record<number, SpenderHinweis> = {};
+  for (const a of anfragen) {
+    const key = keyFuer.get(a.id);
+    const name = nameFuer.get(a.id);
+    if (!key || !name) continue;
+
     const teilSchluessel = `${key}|${a.teil}`;
     const konkurrenten = anfragenProTeil.get(teilSchluessel) ?? [a.id];
-    const zuteilung = verteileSpender(konkurrenten, passend);
-    const meine = zuteilung.get(a.id) ?? passend;
+
+    // Für die Zuteilung zählen ALLE konkurrierenden Anfragen, nicht nur die
+    // sichtbaren — die Reihenfolge ist nach Alter sortiert.
+    const bewerber = konkurrenten.map((id) => ({
+      id,
+      kandidaten: id === a.id ? kandidatenFuer(a, key) : kandidatenVon(id, key, a.teil),
+    }));
+    const zuteilung = verteileSpender(bewerber, (t) => t.logId);
+
+    const eigene = bewerber.find((x) => x.id === a.id)?.kandidaten ?? [];
+    if (eigene.length === 0) continue;
+
+    const meine = zuteilung.get(a.id) ?? eigene;
+    const deckung = bewerteDeckung(
+      new Set(bewerber.flatMap((x) => x.kandidaten.map((k) => k.logId))).size,
+      bedarfProTeil.get(teilSchluessel) ?? 1,
+    );
 
     if (meine.length === 0) {
       // Es GÄBE ein Gerät, nur nicht für diese Anfrage. Das gehört gesagt —
       // sonst wirkt es, als sei nichts im Haus, und jemand bestellt neu.
       raus[a.id] = {
         anzahl: 0,
-        deckung: bewerteDeckung(passend.length, bedarfProTeil.get(teilSchluessel) ?? 1),
+        deckung,
         vorschau: [],
         geraeteName: name,
         teiltyp: a.teil,
         zugeteiltAn: konkurrenten.find((id) => (zuteilung.get(id) ?? []).length > 0) ?? null,
+        alleKandidaten: eigene.slice(0, VORSCHAU_MAX).map(kurz),
       };
       continue;
     }
 
     raus[a.id] = {
       anzahl: meine.length,
-      deckung: bewerteDeckung(passend.length, bedarfProTeil.get(teilSchluessel) ?? 1),
+      deckung,
       zugeteiltAn: null,
-      vorschau: meine.slice(0, VORSCHAU_MAX).map((t) => ({
-        logId: t.logId,
-        stellplatz: t.stellplatz,
-        colli: t.colli,
-        sicherheit: t.sicherheit,
-        ortUnsicher: t.ort?.abweichung != null,
-      })),
+      vorschau: meine.slice(0, VORSCHAU_MAX).map(kurz),
       geraeteName: name,
       teiltyp: a.teil,
+      alleKandidaten: eigene.slice(0, VORSCHAU_MAX).map(kurz),
     };
   }
   return raus;

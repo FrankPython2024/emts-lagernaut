@@ -16,6 +16,7 @@
  */
 
 import { mappeSpenderZeile, fehlendeSpalten } from "../src/modules/teilespender/mapping";
+import { istVerwertungsExport, istFehlteilZeile } from "../src/modules/geraete-reise/mapping";
 import { modellSchluessel } from "../src/modules/teilespender/service";
 
 let passed = 0;
@@ -179,6 +180,40 @@ check(
   trifft("ThinkPad T580 20L9S0T800", "Lenovo", "Lenovo ThinkPad P580"),
   false,
 );
+
+// ── Die Weiche zwischen den beiden Importen ────────────────────────────────
+//
+// ⚠️ Der Verwertungs-Export hat KEINE Spalte „Verbleib" und wäre im
+// Lagerfuchs-Import als regulärer Voll-Snapshot durchgegangen — mit 7.357 statt
+// 126.484 Zeilen. Die 50-%-Sicherung dort verhindert zwar die Total-
+// Ausscheidung, aber die Zeilen landeten trotzdem in LogIdStand.
+console.log("\n── Weiche Verwertung gegen Lagerfuchs ──");
+
+check("Verwertungs-Zeile wird erkannt", istVerwertungsExport(zeile()), true);
+check(
+  "Lagerfuchs-Zeile wird NICHT als Verwertung gelesen",
+  istVerwertungsExport({ LogId: "1", Bezeichnung: "x", Verbleib: "Lager", Colli: "2" }),
+  false,
+);
+// Entscheidend ist die SPALTE, nicht ihr Inhalt: Eine leere Verbleib-Spalte
+// heisst „Lagerfuchs mit leerem Feld", nicht „Verwertung".
+check(
+  "leere Verbleib-Spalte zaehlt als vorhanden",
+  istVerwertungsExport({ ...zeile(), Verbleib: "" }),
+  false,
+);
+check(
+  "ohne Defekte-Spalte keine Verwertung",
+  istVerwertungsExport({ LogId: "1", Bezeichnung: "x", "Refurbishment nicht möglich": "1" }),
+  false,
+);
+check(
+  "ohne Refurbishment-Spalte keine Verwertung",
+  istVerwertungsExport({ LogId: "1", Bezeichnung: "x", Defekte: "Akku defekt" }),
+  false,
+);
+// Die Fehlteile-Erkennung darf davon unberuehrt bleiben.
+check("Verwertungs-Zeile ist kein Fehlteil", istFehlteilZeile(zeile()), false);
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);

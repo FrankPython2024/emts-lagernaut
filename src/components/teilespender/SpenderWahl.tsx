@@ -30,24 +30,28 @@ type Props = {
   teile: { teilId: number; teiltyp: string }[];
   wahl: SpenderWahlMap;
   onChange: (teilId: number, logId: string | null) => void;
+  /** false = Nutzer darf keine Entnahme vermerken → Block bleibt ganz aus. */
+  aktiv?: boolean;
 };
 
 const knopf =
   "px-2.5 py-1.5 rounded-lg text-xs font-mono border transition-colors min-h-[36px]";
 
-export function SpenderWahl({ teile, wahl, onChange }: Props) {
+export function SpenderWahl({ teile, wahl, onChange, aktiv = true }: Props) {
   const [freitext, setFreitext] = useState<Record<number, string>>({});
 
   const ids = teile.map((t) => t.teilId);
   const q = api.teilespender.hinweiseFuerAnfragen.useQuery(
     { anfrageIds: ids },
-    { enabled: ids.length > 0, staleTime: 30_000, retry: false },
+    { enabled: aktiv && ids.length > 0, staleTime: 30_000, retry: false },
   );
   const hinweise = q.data ?? {};
 
   // Nur Positionen zeigen, zu denen es überhaupt Kandidaten gibt — sonst stünde
   // die Frage bei jeder Ausgabe im Weg.
-  const relevant = teile.filter((t) => hinweise[t.teilId]);
+  const relevant = aktiv
+    ? teile.filter((t) => (hinweise[t.teilId]?.alleKandidaten.length ?? 0) > 0)
+    : [];
   if (relevant.length === 0) return null;
 
   function freitextUebernehmen(teilId: number): void {
@@ -76,12 +80,17 @@ export function SpenderWahl({ teile, wahl, onChange }: Props) {
             <div className="text-sm font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">
               {t.teiltyp}
               <span className="ml-2 text-xs font-normal text-[#65676b] dark:text-[#b0b3b8]">
-                {h.anzahl} {h.anzahl === 1 ? "Gerät" : "Geräte"} gefunden
+                {h.alleKandidaten.length} {h.alleKandidaten.length === 1 ? "Gerät" : "Geräte"}{" "}
+                gefunden
               </span>
             </div>
 
             <div className="flex flex-wrap gap-1.5">
-              {h.vorschau.map((v) => {
+              {/* ⚠️ `alleKandidaten`, NICHT `vorschau`: Die Vorschau ist bei
+                  Knappheit bereits zugeteilt und kann leer sein. Wer ein Gerät
+                  geholt hat, das einer älteren Anfrage zugeteilt war, muss das
+                  trotzdem vermerken können. */}
+              {h.alleKandidaten.map((v) => {
                 const aktiv = gewaehlt === v.logId;
                 return (
                   <button
@@ -111,7 +120,7 @@ export function SpenderWahl({ teile, wahl, onChange }: Props) {
 
             {/* Ein Gerät, das nicht in der Liste steht (anderer Weg, Nachzügler
                 aus einem älteren Export) — LogID scannen oder tippen. */}
-            {gewaehlt && !h.vorschau.some((v) => v.logId === gewaehlt) && (
+            {gewaehlt && !h.alleKandidaten.some((v) => v.logId === gewaehlt) && (
               <div className="text-xs text-[#04b475] font-semibold">
                 ✓ Eigene Eingabe: <span className="font-mono">{gewaehlt}</span>{" "}
                 <button
