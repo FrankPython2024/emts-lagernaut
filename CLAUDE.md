@@ -218,9 +218,9 @@ EOF
   bei nicht gefundener Überschrift `0`/`null` und schrieb das durch — eine umbenannte Spalte hätte
   **alle Bestände auf null** gesetzt. Regel: `undefined` = „stand nicht in der Datei" = nicht
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
-- **Verify-Gate sind NEUN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
-  `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl` (zusammen 371) plus
-  `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+- **Verify-Gate sind ZWÖLF Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
+  `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`
+  (zusammen 433) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Leseseite und Schreibseite müssen denselben Fall gleich einordnen.** `gruppeDetails` meldete
   für `artikelId === null` bereits `istSonderanfrage: true` („wird als DIREKT-Buchung verarbeitet"),
   `auslagern.teile` warf für denselben Datensatz `„Anfrage #N hat keinen Artikel"`, weil es aufs
@@ -805,7 +805,50 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   ausdrücklich ab** (sie hat keine `Verbleib`-Spalte und wäre sonst als Voll-Snapshot durchgelaufen).
 - **Rechte:** `TEILESPENDER_VIEW` / `TEILESPENDER_IMPORT` (getrennt wie bei „Gleiches Gerät finden").
   **Braucht `seed-rbac`.**
-- **Tests:** `test:defekte` (45), `test:teilespender` (27), `test:auswahl` (15).
+- ⚠️ **Der Export wird von Hand hochgeladen — automatisches Abholen ist NICHT erlaubt.** Die
+  AfB-IT hat den früheren Playwright-Weg beanstandet (Frank bestätigt am 10.09.2026). Die Infra
+  im Ordner `reform-export/` liegt still (`reform-watch` disabled, Cron auskommentiert, Image weg)
+  und bleibt es, bis AfB offiziell etwas freigibt. **Nicht reaktivieren.**
+  Deshalb hängt die Datenqualität an einer Gewohnheit → `src/lib/teilespender/frische.ts` macht das
+  Alter sichtbar: auf der Seite als Badge, im `SpenderPanel` als Warnung genau dort, wo jemand
+  entscheidet loszulaufen.
+  ⚠️ **Die Schwellen (10 / 21 Tage) sind vorläufig.** Grundlage ist die Verweildauer im Export vom
+  09.09.2026 (2.905 Geräte mit Angabe): Median **148 Tage**, nur 2 Geräte höchstens eine Woche im
+  Haus — der Bestand bewegt sich sehr langsam, wöchentlich exportieren reicht. Was diese Messung
+  NICHT sagt: wie schnell Geräte den Bestand *verlassen*. Das liefert der **zweite Import** über
+  `VerwertungsImport.anzahlAusgeschieden` gegen die Tage seit dem letzten — **danach nachrechnen
+  statt raten**.
+- ⚠️ **Der ORT veraltet viel schneller als der Bestand — zwei verschiedene Fragen.** Die
+  Verweildauer sagt nur, ob ein Gerät noch da ist. Gemessen am 10.09.2026 an den 5.376
+  freigegebenen Spendern: **59 % haben in 90 Tagen mindestens einmal den Platz gewechselt**, und
+  Stellplatz und Colli ziehen fast immer gemeinsam um (5.258 von 5.611 Colli-Wechseln am selben
+  Tag) — die Geräte werden **umgepackt**, es gibt keinen „stabilen Karton". Bewegungen kommen in
+  Schüben (18 Bewegungstage in 90 Tagen, Spitze 3.383 an einem Tag).
+- **Antwort darauf: zwei Ortsquellen statt einer.** Alle Spender stehen auch in `LogIdStand`
+  (Lagerfuchs). Beide Quellen führen je Gerät ein `zuletztGesehen` → `orteFuer()` im Service nimmt
+  die **jüngere** und meldet einen Widerspruch, statt ihn zu glätten (`src/lib/teilespender/ort.ts`).
+  Wie nötig das ist: Die beiden Importe lagen nur **2 Tage** auseinander und wichen trotzdem bei
+  **580 von 5.376 Geräten (10,8 %)** ab. Widersprüche stehen im UI als „⚠ Zweite Angabe".
+  ⚠️ **`orteFuer()` ist die EINZIGE Stelle, die den Ort auflöst** — Suche, Gruppen-Panel und
+  Anfragen-Hinweis rufen sie alle auf. Wer daran vorbei den Ort direkt aus `VerwertungsGeraet`
+  liest, zeigt für dieselbe LogID eine andere Adresse als die Nachbarseite.
+- ⚠️ **Ein Spendergerät bedient je Teiltyp nur EINE Anfrage.** Am 10.09.2026 im Betrieb
+  aufgefallen: Zwei Anfragen für ein ThinkPad P17 Gen 1 brauchten beide einen Akku, beide Zeilen
+  meldeten „1 Verwertungsgerät mit diesem Teil" — dasselbe Gerät, ein Akku. Eine wäre leer
+  ausgegangen. `src/lib/teilespender/bedarf.ts` stellt die Zahl der Geräte gegen **alle offenen
+  Anfragen** auf dieselbe Kombination Modell+Teiltyp und meldet den Engpass in Liste und Panel.
+  ⚠️ **Gezählt werden Anfragen, nicht Stückzahlen** — eine Füße-Anfrage mit `menge = 2` wird von
+  EINEM Spendergerät komplett bedient (das hat vorne auch zwei Füße). Über die Menge zu rechnen
+  erfände einen Engpass.
+  ⚠️ **Gezählt wird über ALLE offenen Anfragen, nicht über die sichtbaren** — sonst meldet die
+  Liste je nach Filter mal einen Engpass und mal nicht.
+  ⚠️ **Gruppiert wird über den Modellschlüssel, nie über `geraeteName`.** Die beiden echten
+  Anfragen hießen „Lenovo ThinkPad P17 Gen 1" und „Lenovo Thin**k**pad P17 Gen 1" — über den Namen
+  gruppiert wäre der Engpass unsichtbar geblieben.
+  Der Hinweis wird **angezeigt statt versteckt**: Ihn nur bei einer der beiden Anfragen zu zeigen
+  wäre willkürlich, und der andere Techniker stünde ohne Information da.
+- **Tests:** `test:defekte` (45), `test:teilespender` (27), `test:auswahl` (15), `test:frische` (19),
+  `test:ort` (25), `test:bedarf` (18).
 
 ### Weitere Module (live)
 - Admin-Portal (Artikel, Buchungen, Anfragen mit Lock-System, Modelle/Kompatibilität, Benutzer,

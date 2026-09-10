@@ -1137,9 +1137,19 @@ function AnfragenPageInner() {
                             🔍 {teilespenderHinweise[a.id]!.anzahl} Verwertungsgerät
                             {teilespenderHinweise[a.id]!.anzahl === 1 ? "" : "e"} mit diesem Teil:{" "}
                             {teilespenderHinweise[a.id]!.vorschau
-                              .map((v) => `${v.stellplatz ?? "ohne Platz"} · Colli ${v.colli ?? "—"}`)
+                              .map((v) =>
+                                `${v.ortUnsicher ? "⚠ " : ""}${v.stellplatz ?? "ohne Platz"} · Colli ${v.colli ?? "—"}`,
+                              )
                               .join("  |  ")}
                             {teilespenderHinweise[a.id]!.anzahl > 3 && " …"}
+                            {/* ⚠️ Mehrere Anfragen können auf DASSELBE Gerät zeigen.
+                                Ein Notebook hat einen Akku — ohne diesen Satz sähen
+                                beide Zeilen versorgt aus und eine ginge leer aus. */}
+                            {teilespenderHinweise[a.id]!.deckung.text && (
+                              <div className="text-[#8A5A00] dark:text-[#f7b928] mt-0.5">
+                                ⚠️ {teilespenderHinweise[a.id]!.deckung.text}
+                              </div>
+                            )}
                           </div>
                         )}
                         {a.kommentar && <span className="ml-2 text-xs text-[#0064d2] dark:text-[#45bdff]">⌨️ {a.kommentar}</span>}

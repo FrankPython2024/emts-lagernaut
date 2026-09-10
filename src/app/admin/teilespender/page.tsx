@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 import { STANDARD_TEILTYPEN } from "@/lib/constants/teiltypen";
 import { formatLogId } from "@/lib/pickup/logId";
+import { ortText } from "@/lib/teilespender/ort";
 
 // ── Teilespender — „Wo steckt mein Teil noch drin?" ──────────────────────────
 //
@@ -174,15 +175,35 @@ function TeilespenderPageInner() {
             <strong>{stand.data.modelle.toLocaleString("de-DE")}</strong> verschiedene Modelle
           </span>
           {stand.data.letzterImport && (
-            <span className={`${karte} py-2 px-3 text-[#65676b] dark:text-[#b0b3b8]`}>
+            <span
+              className={
+                `${karte} py-2 px-3 ` +
+                // Nicht nur über die Farbe — das Symbol trägt die Aussage mit.
+                (stand.data.frische.warnen
+                  ? "text-[#664d03] dark:text-[#ffda6a] font-semibold"
+                  : "text-[#65676b] dark:text-[#b0b3b8]")
+              }
+            >
+              {stand.data.frische.warnen ? "⏳ " : "🕒 "}
               Stand:{" "}
               {new Date(stand.data.letzterImport.importiertAm).toLocaleDateString("de-DE", {
                 day: "2-digit",
                 month: "2-digit",
                 year: "numeric",
               })}
+              {stand.data.frische.tage !== null && ` (${stand.data.frische.tage} Tage alt)`}
             </span>
           )}
+        </div>
+      )}
+
+      {stand.data?.frische.warnen && stand.data.gesamt > 0 && (
+        <div className="bg-[#fff3cd] dark:bg-[#3d3016] border border-[#ffe69c] dark:border-[#665012] rounded-xl p-4 mb-6 text-[#664d03] dark:text-[#ffda6a]">
+          ⏳ {stand.data.frische.text}{" "}
+          <a href="/admin/teilespender/import" className="underline font-semibold">
+            Neuen Export einlesen
+          </a>
+          .
         </div>
       )}
 
@@ -400,7 +421,7 @@ function TeilespenderPageInner() {
                 </div>
 
                 {/* Der Fundort — der eigentliche Grund für diese Seite. */}
-                <div className="text-right shrink-0">
+                <div className="text-right shrink-0 max-w-[230px]">
                   <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Stellplatz</div>
                   <div className="font-mono font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
                     {t.stellplatz ?? "—"}
@@ -409,6 +430,12 @@ function TeilespenderPageInner() {
                   <div className="font-mono text-[#1a1a1a] dark:text-[#e4e6eb]">
                     {t.colli ?? "—"}
                   </div>
+                  {t.ort?.abweichung && (
+                    <div className="mt-1.5 text-xs text-[#664d03] dark:text-[#ffda6a] font-semibold">
+                      ⚠ Zweite Angabe:{" "}
+                      <span className="font-mono font-normal">{ortText(t.ort.abweichung)}</span>
+                    </div>
+                  )}
                 </div>
 
                 <button

@@ -11,6 +11,7 @@ import {
   hinweiseFuerAnfragen,
   spenderFuerGruppe,
 } from "@/modules/teilespender/service";
+import { bewerteFrische } from "@/lib/teilespender/frische";
 import type { SessionUser } from "@/core/types";
 
 // ── Teilespender — „Wo steckt mein Teil noch drin?" ──────────────────────────
@@ -71,7 +72,17 @@ export const teilespenderRouter = createTRPCRouter({
         teiltypen: z.array(z.string().trim().min(1).max(191)).min(1).max(30),
       }),
     )
-    .query(({ input }) => spenderFuerGruppe(input)),
+    .query(async ({ input }) => {
+      const [ergebnis, letzter] = await Promise.all([
+        spenderFuerGruppe(input),
+        prisma.verwertungsImport.findFirst({
+          where: { status: "fertig" },
+          orderBy: { importiertAm: "desc" },
+          select: { importiertAm: true },
+        }),
+      ]);
+      return { ...ergebnis, frische: bewerteFrische(letzter?.importiertAm ?? null) };
+    }),
 
   /** Suchschlüssel zu einem Gerätenamen — damit die Oberfläche vorbelegen kann. */
   schluessel: suchen
@@ -154,7 +165,15 @@ export const teilespenderRouter = createTRPCRouter({
       where: { ausgeschieden: false, verwertungFrei: true },
       _count: { _all: true },
     });
-    return { gesamt, freigegeben, modelle: modelle.length, letzterImport };
+    return {
+      gesamt,
+      freigegeben,
+      modelle: modelle.length,
+      letzterImport,
+      // Wie alt sind die Daten? Der Export kommt von Hand — ohne sichtbares
+      // Alter merkt niemand, wenn er zu lange her ist.
+      frische: bewerteFrische(letzterImport?.importiertAm ?? null),
+    };
   }),
 
   /** Import-Protokoll (auch laufende Läufe, für die Fortschrittsanzeige). */

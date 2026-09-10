@@ -10,6 +10,9 @@
 import { prisma } from "@/core/db/prisma";
 import { zerlegeGeraetename, schildSchluessel } from "@/lib/geraete/schildName";
 import { normalizeLogId, formatLogId } from "@/lib/pickup/logId";
+import { besterOrt, type Ort } from "@/lib/teilespender/ort";
+import { bewerteDeckung, type Deckung } from "@/lib/teilespender/bedarf";
+import { AnfrageStatus } from "@prisma/client";
 import {
   zerlegeDefekte,
   bewerte,
@@ -32,6 +35,8 @@ export type SpenderTreffer = {
   stellplatz: string | null;
   colli: string | null;
   lager: string | null;
+  /** Aus welcher Quelle der Ort stammt und wie alt er ist. */
+  ort: Ort | null;
   /** Alle in ReForm vermerkten Defekte des Geräts, im Original-Wortlaut. */
   defekte: string[];
   /** Defekt-Begriffe, die unsere Zuordnungstabelle nicht kennt. */
@@ -120,6 +125,40 @@ export async function entnommeneTeile(logIds: string[]): Promise<Map<string, Set
   return raus;
 }
 
+/**
+ * Wo stehen diese Geräte wirklich?
+ *
+ * Zieht die Ortsangabe aus BEIDEN Quellen (Verwertungs-Export und Lagerfuchs)
+ * und lässt je Gerät die jüngere gewinnen. Ein Widerspruch wird mitgeliefert,
+ * nicht verschluckt — siehe Kopf von `src/lib/teilespender/ort.ts`.
+ *
+ * ⚠️ EINE Stelle für alle Aufrufer. Würden Suche, Gruppen-Panel und
+ * Anfragen-Hinweis den Ort je selbst zusammensuchen, zeigte dieselbe LogID an
+ * drei Stellen drei Adressen.
+ */
+export async function orteFuer(
+  geraete: { logId: string; stellplatz: string | null; colli: string | null; zuletztGesehen: Date }[],
+): Promise<Map<string, Ort>> {
+  const raus = new Map<string, Ort>();
+  if (geraete.length === 0) return raus;
+
+  const stand = await prisma.logIdStand.findMany({
+    where: { logId: { in: geraete.map((g) => g.logId) } },
+    select: { logId: true, stellplatz: true, colli: true, zuletztGesehen: true },
+  });
+  const nachLogId = new Map(stand.map((s) => [s.logId, s]));
+
+  for (const g of geraete) {
+    const l = nachLogId.get(g.logId);
+    const ort = besterOrt(
+      { stellplatz: g.stellplatz, colli: g.colli, standAm: g.zuletztGesehen },
+      l ? { stellplatz: l.stellplatz, colli: l.colli, standAm: l.zuletztGesehen } : null,
+    );
+    if (ort) raus.set(g.logId, ort);
+  }
+  return raus;
+}
+
 /** Laufreihenfolge: erst das Regal, dann der Karton, dann die LogID. */
 function nachLaufweg(a: SpenderTreffer, b: SpenderTreffer): number {
   const s = (a.stellplatz ?? "").localeCompare(b.stellplatz ?? "", "de", { numeric: true });
@@ -158,12 +197,15 @@ export async function sucheSpender(args: {
     select: {
       logId: true, bezeichnung: true, hersteller: true, zustand: true,
       stellplatz: true, colli: true, lager: true, defekteRoh: true,
-      verwertungFrei: true, verweildauerTage: true,
+      verwertungFrei: true, verweildauerTage: true, zuletztGesehen: true,
     },
   });
   if (geraete.length === 0) return leer;
 
-  const entnommen = await entnommeneTeile(geraete.map((g) => g.logId));
+  const [entnommen, orte] = await Promise.all([
+    entnommeneTeile(geraete.map((g) => g.logId)),
+    orteFuer(geraete),
+  ]);
 
   const aussortiert = { nichtFreigegeben: 0, teilDefekt: 0, totalschaden: 0, bereitsEntnommen: 0 };
   const treffer: SpenderTreffer[] = [];
@@ -179,14 +221,17 @@ export async function sucheSpender(args: {
     if (!g.verwertungFrei) { aussortiert.nichtFreigegeben++; continue; }
     if (entnommen.get(g.logId)?.has(args.teiltyp)) { aussortiert.bereitsEntnommen++; continue; }
 
+    const ort = orte.get(g.logId) ?? null;
     treffer.push({
       logId: g.logId,
       bezeichnung: g.bezeichnung,
       hersteller: g.hersteller,
       zustand: g.zustand,
-      stellplatz: g.stellplatz,
-      colli: g.colli,
+      // Der angezeigte Ort kommt aus der jüngeren der beiden Quellen.
+      stellplatz: ort?.stellplatz ?? g.stellplatz,
+      colli: ort?.colli ?? g.colli,
       lager: g.lager,
+      ort,
       defekte,
       unbekannteDefekte: defekte.filter((d) => bewerte(d).unbekannt),
       sicherheit: zustand === "KOSMETISCH" ? "GEBRAUCHTSPUREN" : "KEIN_DEFEKT_VERMERKT",
@@ -213,11 +258,25 @@ export type SpenderHinweis = {
     stellplatz: string | null;
     colli: string | null;
     sicherheit: Sicherheit;
+    /** Die beiden Ortsquellen widersprechen sich — Adresse ist unsicher. */
+    ortUnsicher: boolean;
   }[];
   /** Der aufgelöste Gerätename, mit dem gesucht wurde (für den Link). */
   geraeteName: string;
   teiltyp: string;
+  /**
+   * Reichen die Geräte für ALLE offenen Anfragen auf dieses Teil?
+   * Zwei Anfragen auf denselben einzigen Akku sind sonst nicht zu erkennen.
+   */
+  deckung: Deckung;
 };
+
+/** Offene Zustände — nur die konkurrieren um dieselben Spendergeräte. */
+const OFFENE_STATUS: AnfrageStatus[] = [
+  AnfrageStatus.NEU,
+  AnfrageStatus.BEDARF,
+  AnfrageStatus.IN_BEARBEITUNG,
+];
 
 /**
  * Für mehrere Anfragen auf einmal: Steckt das gesuchte Teil noch in einem
@@ -259,15 +318,42 @@ export async function hinweiseFuerAnfragen(
   const keys = [...new Set(keyFuer.values())];
   if (keys.length === 0) return {};
 
+  // ── Konkurrenz um dieselben Geräte ──────────────────────────────────────
+  // ⚠️ Bewusst über ALLE offenen Anfragen, nicht nur die übergebenen: Sichtbar
+  // ist immer ein Ausschnitt (Filter, Seitenwechsel, 200er-Deckel). Wer nur den
+  // Ausschnitt zählt, meldet je nach Filter mal einen Engpass und mal nicht.
+  // Test-Anfragen zählen nicht mit — sie holen nie ein Teil ab.
+  const alleOffenen = await prisma.anfrage.findMany({
+    where: { status: { in: OFFENE_STATUS }, istSonderAnfrage: false, testModus: false },
+    select: { geraeteName: true, geraet: true, teil: true },
+  });
+  const bedarfProTeil = new Map<string, number>();
+  for (const a of alleOffenen) {
+    const name = (a.geraeteName ?? a.geraet ?? "").trim();
+    if (!name) continue;
+    let key = keyCache.get(name);
+    if (key === undefined) {
+      key = modellSchluessel(name);
+      keyCache.set(name, key);
+    }
+    if (!key) continue;
+    const k = `${key}|${a.teil}`;
+    bedarfProTeil.set(k, (bedarfProTeil.get(k) ?? 0) + 1);
+  }
+
   const geraete = await prisma.verwertungsGeraet.findMany({
     where: { modellKey: { in: keys }, ausgeschieden: false, verwertungFrei: true },
     select: {
       logId: true, modellKey: true, stellplatz: true, colli: true, defekteRoh: true,
+      zuletztGesehen: true,
     },
   });
   if (geraete.length === 0) return {};
 
-  const entnommen = await entnommeneTeile(geraete.map((g) => g.logId));
+  const [entnommen, orte] = await Promise.all([
+    entnommeneTeile(geraete.map((g) => g.logId)),
+    orteFuer(geraete),
+  ]);
 
   // Nach Modellschlüssel bündeln, damit je Anfrage nur noch gefiltert wird.
   const proKey = new Map<string, typeof geraete>();
@@ -289,14 +375,16 @@ export async function hinweiseFuerAnfragen(
       const zustand = zustandFuerTeiltyp(defekte, a.teil);
       if (zustand !== "FREI" && zustand !== "KOSMETISCH") continue;
       if (entnommen.get(g.logId)?.has(a.teil)) continue;
+      const ort = orte.get(g.logId) ?? null;
       passend.push({
         logId: g.logId,
         bezeichnung: null,
         hersteller: null,
         zustand: null,
-        stellplatz: g.stellplatz,
-        colli: g.colli,
+        stellplatz: ort?.stellplatz ?? g.stellplatz,
+        colli: ort?.colli ?? g.colli,
         lager: null,
+        ort,
         defekte,
         unbekannteDefekte: [],
         sicherheit: zustand === "KOSMETISCH" ? "GEBRAUCHTSPUREN" : "KEIN_DEFEKT_VERMERKT",
@@ -308,11 +396,13 @@ export async function hinweiseFuerAnfragen(
     passend.sort(nachLaufweg);
     raus[a.id] = {
       anzahl: passend.length,
+      deckung: bewerteDeckung(passend.length, bedarfProTeil.get(`${key}|${a.teil}`) ?? 1),
       vorschau: passend.slice(0, 3).map((t) => ({
         logId: t.logId,
         stellplatz: t.stellplatz,
         colli: t.colli,
         sicherheit: t.sicherheit,
+        ortUnsicher: t.ort?.abweichung != null,
       })),
       geraeteName: name,
       teiltyp: a.teil,
@@ -326,6 +416,8 @@ export type GruppenSpender = {
   bezeichnung: string | null;
   stellplatz: string | null;
   colli: string | null;
+  /** Aus welcher Quelle der Ort stammt und wie alt er ist. */
+  ort: Ort | null;
   zustand: string | null;
   /** Welche der angefragten Teiltypen dieses Gerät vermutlich noch hat. */
   deckt: string[];
@@ -339,8 +431,12 @@ export type GruppenErgebnis = {
   geraeteName: string;
   /** Die angefragten Teiltypen, in der Reihenfolge der Anfrage. */
   teiltypen: string[];
-  /** Wie viele Spender es je Teiltyp gibt — auch 0, damit Lücken sichtbar sind. */
-  proTeiltyp: { teiltyp: string; anzahl: number }[];
+  /**
+   * Wie viele Spender es je Teiltyp gibt — auch 0, damit Lücken sichtbar sind.
+   * `deckung` stellt das gegen alle offenen Anfragen auf dasselbe Teil: Ein
+   * einzelnes Gerät, auf das zwei Anfragen warten, hat trotzdem nur einen Akku.
+   */
+  proTeiltyp: { teiltyp: string; anzahl: number; deckung: Deckung }[];
   /** Geräte, nach Abdeckung sortiert: das ergiebigste zuerst. */
   geraete: GruppenSpender[];
 };
@@ -365,23 +461,49 @@ export async function spenderFuerGruppe(args: {
   const leer: GruppenErgebnis = {
     geraeteName: args.geraeteName,
     teiltypen,
-    proTeiltyp: teiltypen.map((t) => ({ teiltyp: t, anzahl: 0 })),
+    proTeiltyp: teiltypen.map((t) => ({
+      teiltyp: t,
+      anzahl: 0,
+      deckung: bewerteDeckung(0, 1),
+    })),
     geraete: [],
   };
 
   const key = modellSchluessel(args.geraeteName);
   if (!key || teiltypen.length === 0) return leer;
 
+  // Wie viele offene Anfragen warten auf dasselbe Teil desselben Modells?
+  // Siehe `hinweiseFuerAnfragen` — dieselbe Regel, damit Liste und Panel nicht
+  // unterschiedliche Engpässe melden.
+  const offene = await prisma.anfrage.findMany({
+    where: {
+      status: { in: OFFENE_STATUS },
+      istSonderAnfrage: false,
+      testModus: false,
+      teil: { in: teiltypen },
+    },
+    select: { geraeteName: true, geraet: true, teil: true },
+  });
+  const bedarfProTeil = new Map<string, number>();
+  for (const a of offene) {
+    const name = (a.geraeteName ?? a.geraet ?? "").trim();
+    if (!name || modellSchluessel(name) !== key) continue;
+    bedarfProTeil.set(a.teil, (bedarfProTeil.get(a.teil) ?? 0) + 1);
+  }
+
   const geraete = await prisma.verwertungsGeraet.findMany({
     where: { modellKey: key, ausgeschieden: false, verwertungFrei: true },
     select: {
       logId: true, bezeichnung: true, stellplatz: true, colli: true,
-      zustand: true, defekteRoh: true,
+      zustand: true, defekteRoh: true, zuletztGesehen: true,
     },
   });
   if (geraete.length === 0) return leer;
 
-  const entnommen = await entnommeneTeile(geraete.map((g) => g.logId));
+  const [entnommen, orte] = await Promise.all([
+    entnommeneTeile(geraete.map((g) => g.logId)),
+    orteFuer(geraete),
+  ]);
 
   const treffer: GruppenSpender[] = [];
   const zaehler = new Map<string, number>(teiltypen.map((t) => [t, 0]));
@@ -402,11 +524,13 @@ export async function spenderFuerGruppe(args: {
     }
 
     if (deckt.length === 0) continue;
+    const ort = orte.get(g.logId) ?? null;
     treffer.push({
       logId: g.logId,
       bezeichnung: g.bezeichnung,
-      stellplatz: g.stellplatz,
-      colli: g.colli,
+      stellplatz: ort?.stellplatz ?? g.stellplatz,
+      colli: ort?.colli ?? g.colli,
+      ort,
       zustand: g.zustand,
       deckt,
       mitSpuren,
@@ -428,7 +552,10 @@ export async function spenderFuerGruppe(args: {
   return {
     geraeteName: args.geraeteName,
     teiltypen,
-    proTeiltyp: teiltypen.map((t) => ({ teiltyp: t, anzahl: zaehler.get(t) ?? 0 })),
+    proTeiltyp: teiltypen.map((t) => {
+      const anzahl = zaehler.get(t) ?? 0;
+      return { teiltyp: t, anzahl, deckung: bewerteDeckung(anzahl, bedarfProTeil.get(t) ?? 1) };
+    }),
     geraete: treffer,
   };
 }

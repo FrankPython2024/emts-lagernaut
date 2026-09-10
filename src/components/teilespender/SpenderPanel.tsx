@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/Modal";
 import { usePermissions } from "@/hooks/usePermissions";
 import { formatLogId } from "@/lib/pickup/logId";
 import { waehleWenigsteWege, abgedeckteTeile } from "@/lib/teilespender/auswahl";
+import { ortText } from "@/lib/teilespender/ort";
 
 // ── Spender-Panel für eine Anfrage-Gruppe ────────────────────────────────────
 //
@@ -54,6 +55,7 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
 
   const geraete = q.data?.geraete ?? [];
   const proTeiltyp = q.data?.proTeiltyp ?? [];
+  const frische = q.data?.frische;
 
   const gewaehlteGeraete = useMemo(
     () => geraete.filter((g) => gewaehlt.has(g.logId)),
@@ -111,16 +113,34 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
               key={p.teiltyp}
               className={
                 "text-sm px-2.5 py-1 rounded-lg font-semibold " +
-                (p.anzahl > 0
-                  ? "bg-[#d9f7e6] text-[#00723f] dark:bg-[#10301f] dark:text-[#04B475]"
-                  : "bg-[#ffe0e0] text-[#b3261e] dark:bg-[#3a1414] dark:text-[#ff8a8a]")
+                (p.anzahl === 0
+                  ? "bg-[#ffe0e0] text-[#b3261e] dark:bg-[#3a1414] dark:text-[#ff8a8a]"
+                  : p.deckung.reicht && !p.deckung.knapp
+                    ? "bg-[#d9f7e6] text-[#00723f] dark:bg-[#10301f] dark:text-[#04B475]"
+                    : "bg-[#fff3cd] text-[#664d03] dark:bg-[#3d3016] dark:text-[#ffda6a]")
               }
             >
               {/* Nicht nur über die Farbe — auch ohne Farbsehen lesbar. */}
-              {p.anzahl > 0 ? "✓" : "✕"} {p.teiltyp}: {p.anzahl}
+              {p.anzahl === 0 ? "✕" : p.deckung.reicht && !p.deckung.knapp ? "✓" : "⚠"} {p.teiltyp}:{" "}
+              {p.anzahl}
             </span>
           ))}
         </div>
+
+        {/* ⚠️ Mehrere offene Anfragen können auf dieselben Geräte zeigen. Ein
+            Notebook hat einen Akku — wer das nicht sieht, legt zwei Aufträge auf
+            dasselbe Gerät an. */}
+        {proTeiltyp.some((p) => p.deckung.text) && (
+          <div className="bg-[#fff3cd] dark:bg-[#3d3016] border border-[#ffe69c] dark:border-[#665012] rounded-xl p-3 text-sm text-[#664d03] dark:text-[#ffda6a] space-y-1">
+            {proTeiltyp
+              .filter((p) => p.deckung.text)
+              .map((p) => (
+                <div key={p.teiltyp}>
+                  <strong>{p.teiltyp}:</strong> {p.deckung.text}
+                </div>
+              ))}
+          </div>
+        )}
 
         {q.isLoading && <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Sucht…</p>}
 
@@ -132,9 +152,18 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
 
         {geraete.length > 0 && (
           <>
+            {/* Alter der Daten zuerst — wer gleich losläuft, muss wissen, worauf
+                er sich verlässt. Der Export kommt von Hand aus ReForm. */}
+            {frische?.warnen && (
+              <div className="bg-[#fff3cd] dark:bg-[#3d3016] border border-[#ffe69c] dark:border-[#665012] rounded-xl p-3 text-sm text-[#664d03] dark:text-[#ffda6a] font-semibold">
+                ⏳ {frische.text}
+              </div>
+            )}
+
             <div className="bg-[#e7f0fd] dark:bg-[#11243d] border border-[#b6d4fe] dark:border-[#1c3a5c] rounded-xl p-3 text-sm text-[#0a4275] dark:text-[#9ec5fe]">
               An diesen Geräten ist in ReForm <strong>kein Defekt am jeweiligen Teil vermerkt</strong>.
               Das heißt „gute Chance", nicht „geprüft in Ordnung".
+              {frische && !frische.warnen && <> {frische.text}</>}
             </div>
 
             {darfPickup && (
@@ -223,7 +252,7 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
                     )}
                   </div>
 
-                  <div className="text-right shrink-0">
+                  <div className="text-right shrink-0 max-w-[230px]">
                     <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Stellplatz</div>
                     <div className="font-mono font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
                       {g.stellplatz ?? "—"}
@@ -232,6 +261,20 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
                     <div className="font-mono text-[#1a1a1a] dark:text-[#e4e6eb]">
                       {g.colli ?? "—"}
                     </div>
+                    {/* Beide Ortsquellen widersprechen sich. Das gehört genannt,
+                        nicht geglättet — sonst läuft jemand einmal umsonst und
+                        traut der Liste beim nächsten Mal nicht mehr. */}
+                    {g.ort?.abweichung && (
+                      <div className="mt-1.5 text-xs text-[#664d03] dark:text-[#ffda6a] font-semibold text-right">
+                        ⚠ Zweite Angabe:{" "}
+                        <span className="font-mono font-normal">{ortText(g.ort.abweichung)}</span>
+                        <div className="font-normal">
+                          (
+                          {g.ort.abweichung.quelle === "LAGERFUCHS" ? "Lagerfuchs" : "Verwertungs-Export"},{" "}
+                          {new Date(g.ort.abweichung.standAm).toLocaleDateString("de-DE")})
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
