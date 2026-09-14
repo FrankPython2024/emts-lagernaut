@@ -295,6 +295,14 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
                           Zustand {g.zustand}
                         </span>
                       )}
+                      {/* „Fehlende Komponenten" ist vermerkt: Es fehlt etwas, nur
+                          steht nicht da, was. Kein Ausschluss — aber wer hinläuft,
+                          soll es vorher wissen. */}
+                      {g.unbenannteLuecke && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-[#fff3cd] text-[#664d03] dark:bg-[#3d3016] dark:text-[#ffda6a] font-semibold">
+                          ⚠ Komponenten fehlen (nicht benannt)
+                        </span>
+                      )}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {g.deckt.map((t) => (

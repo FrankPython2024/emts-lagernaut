@@ -62,8 +62,23 @@ export const DEFEKT_REGELN: DefektRegel[] = [
   // ── Ganzes Gerät ──────────────────────────────────────────────────────────
   { begriff: "Keine Funktion / Totalschaden",                   schwere: "TOTAL", teiltypen: [] }, // 376
   { begriff: "Gerät ist ausgeschlachtet / Totalschaden",        schwere: "TOTAL", teiltypen: [] }, // 296
-  // „Fehlende Komponenten" sagt nicht, welche — damit ist kein Teil zugesichert.
-  { begriff: "Fehlende Komponenten",                            schwere: "TOTAL", teiltypen: [] }, // 349
+  // ⚠️ „Fehlende Komponenten" war anfangs ebenfalls TOTAL — das war falsch und
+  // hat 314 brauchbare Spender verschluckt. Am 14.09.2026 aufgefallen: Eine
+  // Anfrage nach **Füßen vorne** für einen Fujitsu LifeBook U7412 fand nichts,
+  // obwohl genau ein freigegebener Spender dastand.
+  //
+  // An den 5.470 freigegebenen Spendern gemessen, wie der Begriff wirklich
+  // benutzt wird:
+  //   • **314×** NEBEN konkreten Defekten („Bios PW | Fehlende Komponenten |
+  //     kein Datenträger vorhanden") — er fasst zusammen, was daneben einzeln
+  //     aufgeführt ist.
+  //   •   **2×** allein, ohne jede weitere Angabe.
+  //   •  30× zusammen mit echtem Totalschaden — die fallen ohnehin raus.
+  //
+  // Also: kein Ausschluss. Der Begriff bleibt aber **sichtbar** und markiert das
+  // Gerät über `hatUnbenannteLuecke()` — es fehlt nachweislich etwas, nur steht
+  // nicht da, was. Wer dort hinläuft, soll das vorher wissen.
+  { begriff: "Fehlende Komponenten",                            schwere: "KEIN_TEIL", teiltypen: [] }, // 349
 
   // ── Gehäuse ───────────────────────────────────────────────────────────────
   { begriff: "Gehäuse beschädigt (Kratzer/Dellen)",             schwere: "KOSMETISCH", teiltypen: ["D Cover"] }, // 1691
@@ -189,6 +204,21 @@ export function zustandFuerTeiltyp(defekte: string[], teiltyp: string): TeilZust
     if (b.schwere === "KOSMETISCH") kosmetisch = true;
   }
   return kosmetisch ? "KOSMETISCH" : "FREI";
+}
+
+/**
+ * Begriffe, die eine Lücke melden, ohne sie zu benennen.
+ *
+ * Sie schließen kein Teil aus (siehe Messung oben), erhöhen aber die Chance,
+ * dass ausgerechnet das gesuchte Teil fehlt. Die Oberfläche kennzeichnet solche
+ * Geräte deshalb — sie zu verschweigen wäre eine Zusage, die die Daten nicht
+ * hergeben.
+ */
+const UNBENANNTE_LUECKE = ["Fehlende Komponenten"].map(normalisiere);
+
+/** Meldet dieses Gerät eine nicht näher benannte Lücke? */
+export function hatUnbenannteLuecke(defekte: string[]): boolean {
+  return defekte.some((d) => UNBENANNTE_LUECKE.includes(normalisiere(d)));
 }
 
 /** Alle Teiltypen, die in diesem Gerät hart defekt sind — für den Import. */

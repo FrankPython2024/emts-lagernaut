@@ -21,6 +21,7 @@ import {
   istTotalschaden,
   zustandFuerTeiltyp,
   harteDefektTeiltypen,
+  hatUnbenannteLuecke,
 } from "../src/lib/teilespender/defekte";
 import { STANDARD_TEILNAMEN } from "../src/lib/constants/teiltypen";
 
@@ -79,7 +80,31 @@ console.log("\n── Totalschaden ──");
 
 check("Totalschaden erkannt", istTotalschaden(["Keine Funktion / Totalschaden"]), true);
 check("ausgeschlachtet erkannt", istTotalschaden(["Gerät ist ausgeschlachtet / Totalschaden"]), true);
-check("fehlende Komponenten zählen mit", istTotalschaden(["Fehlende Komponenten"]), true);
+// ⚠️ „Fehlende Komponenten" ist KEIN Totalschaden. Am 14.09.2026 korrigiert:
+// An 5.470 freigegebenen Spendern gemessen steht der Begriff 314× NEBEN
+// konkreten Defekten und nur 2× allein — er fasst zusammen, was daneben schon
+// einzeln aufgeführt ist. Als Totalschaden gewertet verschluckte er 314
+// brauchbare Spender (aufgefallen an einer Füße-Anfrage für einen U7412).
+check("fehlende Komponenten sind KEIN Totalschaden", istTotalschaden(["Fehlende Komponenten"]), false);
+check(
+  "der U7412-Fall: Füße bleiben brauchbar",
+  zustandFuerTeiltyp(
+    zerlegeDefekte(
+      "Datenträger wurde ausgebaut, Fehlende Komponenten, Gehäuse beschädigt (Risse/Brüche), RAM nicht vorhanden, Volldefekt des Displays/Display fehlt",
+    ),
+    "Füße vorne",
+  ),
+  "FREI",
+);
+// Die konkret genannten Defekte desselben Geräts greifen weiterhin.
+check(
+  "dasselbe Gerät: D Cover bleibt defekt",
+  zustandFuerTeiltyp(
+    zerlegeDefekte("Gehäuse beschädigt (Risse/Brüche), Fehlende Komponenten"),
+    "D Cover",
+  ),
+  "DEFEKT",
+);
 check("normaler Defekt ist keiner", istTotalschaden(["Akku defekt"]), false);
 check("leer ist keiner", istTotalschaden([]), false);
 
@@ -160,6 +185,23 @@ check(
   zustandFuerTeiltyp(zerlegeDefekte("Irgendwas ganz Neues"), "Tastatur"),
   "FREI",
 );
+
+// ── Unbenannte Lücke ────────────────────────────────────────────────────────
+//
+// Der Begriff schließt nichts aus, macht das Gerät aber unsicherer — die
+// Oberfläche kennzeichnet es, statt eine Zusage zu machen, die die Daten nicht
+// hergeben.
+console.log("\n── Nicht benannte Lücke ──");
+
+check("Fehlende Komponenten wird gemeldet", hatUnbenannteLuecke(["Fehlende Komponenten"]), true);
+check(
+  "auch neben anderen Defekten",
+  hatUnbenannteLuecke(zerlegeDefekte("Bios PW, Fehlende Komponenten, kein Datenträger vorhanden")),
+  true,
+);
+check("Groß-/Kleinschreibung egal", hatUnbenannteLuecke(["FEHLENDE KOMPONENTEN"]), true);
+check("ohne den Begriff nichts zu melden", hatUnbenannteLuecke(["Akku defekt"]), false);
+check("leer meldet nichts", hatUnbenannteLuecke([]), false);
 
 // ── harte Defekte sammeln (für den Import) ──────────────────────────────────
 console.log("\n── harte Defekte je Gerät ──");

@@ -466,6 +466,11 @@ function TeilespenderPageInner() {
                         Zustand {t.zustand}
                       </span>
                     )}
+                    {t.unbenannteLuecke && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-[#fff3cd] dark:bg-[#3d3016] text-[#664d03] dark:text-[#ffda6a] font-semibold">
+                        ⚠ Komponenten fehlen (nicht benannt)
+                      </span>
+                    )}
                     {t.sicherheit === "GEBRAUCHTSPUREN" && (
                       // Nicht nur über die Farbe — Status muss auch ohne Farbsehen lesbar sein.
                       <span className="text-xs px-2 py-0.5 rounded bg-[#fff3cd] dark:bg-[#3d3016] text-[#664d03] dark:text-[#ffda6a]">

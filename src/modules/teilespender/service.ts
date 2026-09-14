@@ -17,6 +17,7 @@ import {
   zerlegeDefekte,
   bewerte,
   zustandFuerTeiltyp,
+  hatUnbenannteLuecke,
   type TeilZustand,
 } from "@/lib/teilespender/defekte";
 
@@ -41,6 +42,11 @@ export type SpenderTreffer = {
   defekte: string[];
   /** Defekt-Begriffe, die unsere Zuordnungstabelle nicht kennt. */
   unbekannteDefekte: string[];
+  /**
+   * „Fehlende Komponenten" ist vermerkt — es fehlt nachweislich etwas, nur steht
+   * nicht da, was. Schließt nichts aus, gehört aber sichtbar an die Zeile.
+   */
+  unbenannteLuecke: boolean;
   sicherheit: Sicherheit;
   verweildauerTage: number | null;
 };
@@ -271,6 +277,7 @@ export async function sucheSpender(args: {
       defekte,
       unbekannteDefekte: defekte.filter((d) => bewerte(d).unbekannt),
       sicherheit: zustand === "KOSMETISCH" ? "GEBRAUCHTSPUREN" : "KEIN_DEFEKT_VERMERKT",
+      unbenannteLuecke: hatUnbenannteLuecke(defekte),
       verweildauerTage: g.verweildauerTage,
     });
   }
@@ -300,6 +307,8 @@ export type SpenderHinweis = {
     sicherheit: Sicherheit;
     /** Die beiden Ortsquellen widersprechen sich — Adresse ist unsicher. */
     ortUnsicher: boolean;
+    /** „Fehlende Komponenten" vermerkt — unbenannte Lücke. */
+    unbenannteLuecke: boolean;
   }[];
   /** Der aufgelöste Gerätename, mit dem gesucht wurde (für den Link). */
   geraeteName: string;
@@ -322,6 +331,7 @@ export type SpenderHinweis = {
     colli: string | null;
     sicherheit: Sicherheit;
     ortUnsicher: boolean;
+    unbenannteLuecke: boolean;
   }[];
   /**
    * Reichen die Geräte für ALLE offenen Anfragen auf dieses Teil?
@@ -463,6 +473,7 @@ export async function hinweiseFuerAnfragen(
         defekte,
         unbekannteDefekte: [],
         sicherheit: zustand === "KOSMETISCH" ? "GEBRAUCHTSPUREN" : "KEIN_DEFEKT_VERMERKT",
+        unbenannteLuecke: hatUnbenannteLuecke(defekte),
         verweildauerTage: null,
       });
     }
@@ -492,6 +503,7 @@ export async function hinweiseFuerAnfragen(
       colli: t.colli,
       sicherheit: t.sicherheit,
       ortUnsicher: t.ort?.abweichung != null,
+      unbenannteLuecke: t.unbenannteLuecke,
     };
   }
 
@@ -563,6 +575,8 @@ export type GruppenSpender = {
   mitSpuren: string[];
   /** Alle vermerkten Defekte des Geräts, im Original-Wortlaut. */
   defekte: string[];
+  /** „Fehlende Komponenten" vermerkt — unbenannte Lücke, kein Ausschluss. */
+  unbenannteLuecke: boolean;
 };
 
 export type GruppenErgebnis = {
@@ -677,6 +691,7 @@ export async function spenderFuerGruppe(args: {
       deckt,
       mitSpuren,
       defekte,
+      unbenannteLuecke: hatUnbenannteLuecke(defekte),
     });
   }
 

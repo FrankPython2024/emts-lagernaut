@@ -796,6 +796,17 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
 - ⚠️ **„Kein Defekt vermerkt" ≠ „geprüft in Ordnung".** Negativbeleg. Steht so auch im UI, nicht im
   Kleingedruckten. Der Defekt-Filter siebt 14,7 % der Kandidaten weg; die Treffer bringt der
   Modellschlüssel.
+- ⚠️ **„Fehlende Komponenten" ist KEIN Totalschaden** — anfangs so eingestuft, das war falsch.
+  Am 14.09.2026 aufgefallen: Eine Anfrage nach **Füßen vorne** für einen Fujitsu LifeBook U7412
+  fand nichts, obwohl genau ein freigegebener Spender dastand. An den 5.470 freigegebenen Spendern
+  gemessen, wie der Begriff benutzt wird: **314× NEBEN konkreten Defekten** („Bios PW | Fehlende
+  Komponenten | kein Datenträger vorhanden" — er fasst zusammen, was daneben einzeln steht),
+  **2× allein**, 30× zusammen mit echtem Totalschaden (die fallen ohnehin raus). Als Totalschaden
+  gewertet verschluckte er **316 brauchbare Spender**.
+  Echte Totalschäden bleiben nur „Keine Funktion / Totalschaden" und „Gerät ist ausgeschlachtet".
+  ⚠️ Verschwiegen wird es trotzdem nicht: `hatUnbenannteLuecke()` markiert solche Geräte in Panel
+  und Seite mit **„⚠ Komponenten fehlen (nicht benannt)"** — es fehlt nachweislich etwas, nur steht
+  nicht da, was.
 - ⚠️ **Nur `verwertungFrei` (Spalte „Refurbishment nicht möglich" = 1) darf zerlegt werden.** Leerer
   Wert gilt bewusst als NICHT freigegeben (14 Fälle) — lieber ein Spender zu wenig als ein zerlegtes
   Verkaufsgerät.
