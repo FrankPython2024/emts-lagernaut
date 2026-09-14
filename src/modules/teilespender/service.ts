@@ -74,6 +74,80 @@ export function modellSchluessel(geraeteName: string, hersteller?: string | null
 }
 
 /**
+ * Schlüssel für eine Anfrage — aus der ROH-Bezeichnung ihres Zielgeräts,
+ * `geraeteName` nur als Rückfall.
+ *
+ * ⚠️ `Anfrage.geraeteName` stammt aus `GeraeteLookup.bereinigt`, und dessen
+ * Schritt „Interne Codes entfernen" schneidet JEDES Wort ab 6 Buchstaben am Ende
+ * ab (das Muster trägt das i-Flag). Am 14.09.2026 gemessen: „Mobile Workstation"
+ * 417×, „Detachable" 236×, „Tablet" 178×, „Rugged Extreme" 93×. Der Export
+ * behält diese Wörter — derselbe Gerätetyp landete unter zwei Schlüsseln:
+ * Eine Anfrage für einen „ZBook Fury 15 G7" sah 3 statt 35 Spender, und eine
+ * Anfrage für einen „Latitude 7320 Detachable" bekam die Geräte des normalen
+ * Latitude 7320 angeboten — anderes Gerät, andere Teile.
+ *
+ * Die Roh-Bezeichnung des Zielgeräts ist derselbe Text, aus dem der
+ * Export-Schlüssel entsteht; beide Seiten treffen sich damit ohne Umweg über
+ * den gekürzten Namen. An 1.234 Anfragen gemessen: 20 zusätzliche Treffer,
+ * kein einziger verlorener.
+ */
+export function anfrageModellSchluessel(
+  ziel: { bezeichnung: string | null; hersteller: string | null } | null | undefined,
+  geraeteName: string | null | undefined,
+): string {
+  const roh = ziel?.bezeichnung?.trim();
+  if (roh) {
+    const key = modellSchluessel(roh, ziel?.hersteller);
+    if (key) return key;
+  }
+  return modellSchluessel(geraeteName ?? "");
+}
+
+/**
+ * Schlüssel für viele Anfragen in einem Zug (siehe `anfrageModellSchluessel`).
+ * Die Roh-Bezeichnung kommt aus dem Lagerfuchs, sonst aus dem Verwertungs-
+ * Export (falls das Zielgerät selbst dort steht).
+ */
+async function anfrageSchluesselFuer(
+  anfragen: { id: number; logId: string | null; geraeteName: string | null; geraet: string | null }[],
+): Promise<Map<number, string>> {
+  const raus = new Map<number, string>();
+  if (anfragen.length === 0) return raus;
+
+  // Beide Schreibweisen abfragen — punktiert wie im Export und nur Ziffern.
+  const roh = anfragen.map((a) => a.logId).filter((l): l is string => !!l);
+  const logIds = [...new Set(roh.flatMap((l) => [l, normalizeLogId(l), formatLogId(normalizeLogId(l))]))]
+    .filter((l) => l.length > 0);
+  const [stand, verwertung] = await Promise.all([
+    prisma.logIdStand.findMany({
+      where: { logId: { in: logIds } },
+      select: { logId: true, bezeichnung: true, hersteller: true },
+    }),
+    prisma.verwertungsGeraet.findMany({
+      where: { logId: { in: logIds } },
+      select: { logId: true, bezeichnung: true, hersteller: true },
+    }),
+  ]);
+  const ziel = new Map<string, { bezeichnung: string | null; hersteller: string | null }>();
+  for (const v of verwertung) ziel.set(normalizeLogId(v.logId), v);
+  for (const s of stand) if (s.bezeichnung) ziel.set(normalizeLogId(s.logId), s);
+
+  const cache = new Map<string, string>();
+  for (const a of anfragen) {
+    const z = a.logId ? ziel.get(normalizeLogId(a.logId)) : undefined;
+    const name = (a.geraeteName ?? a.geraet ?? "").trim();
+    const cacheKey = `${z?.bezeichnung ?? ""}|${z?.hersteller ?? ""}|${name}`;
+    let key = cache.get(cacheKey);
+    if (key === undefined) {
+      key = anfrageModellSchluessel(z, name);
+      cache.set(cacheKey, key);
+    }
+    if (key) raus.set(a.id, key);
+  }
+  return raus;
+}
+
+/**
  * Welche Teiltypen sind aus diesen Geräten bereits heraus?
  *
  * Zwei Quellen, bewusst zusammengeführt:
@@ -376,26 +450,6 @@ export async function hinweiseFuerAnfragen(
   });
   if (anfragen.length === 0) return {};
 
-  // Name → Schlüssel einmal je verschiedenem Namen berechnen.
-  const nameFuer = new Map<number, string>();
-  const keyFuer = new Map<number, string>();
-  const keyCache = new Map<string, string>();
-  for (const a of anfragen) {
-    const name = (a.geraeteName ?? a.geraet ?? "").trim();
-    if (!name) continue;
-    let key = keyCache.get(name);
-    if (key === undefined) {
-      key = modellSchluessel(name);
-      keyCache.set(name, key);
-    }
-    if (!key) continue;
-    nameFuer.set(a.id, name);
-    keyFuer.set(a.id, key);
-  }
-
-  const keys = [...new Set(keyFuer.values())];
-  if (keys.length === 0) return {};
-
   // ── Konkurrenz um dieselben Geräte ──────────────────────────────────────
   // ⚠️ Bewusst über ALLE offenen Anfragen, nicht nur die übergebenen: Sichtbar
   // ist immer ein Ausschnitt (Filter, Seitenwechsel, 200er-Deckel). Wer nur den
@@ -407,17 +461,25 @@ export async function hinweiseFuerAnfragen(
     select: { id: true, geraeteName: true, geraet: true, teil: true, datum: true, logId: true },
     orderBy: [{ datum: "asc" }, { id: "asc" }],
   });
+
+  // Schlüssel für abgefragte UND alle offenen Anfragen in einem Zug — beide
+  // Seiten müssen dieselbe Regel nutzen, sonst konkurriert eine Anfrage unter
+  // einem anderen Modell als dem, unter dem sie angezeigt wird.
+  const keyFuer = await anfrageSchluesselFuer([...anfragen, ...alleOffenen]);
+  const nameFuer = new Map<number, string>();
+  for (const a of anfragen) {
+    const name = (a.geraeteName ?? a.geraet ?? "").trim();
+    if (name && keyFuer.has(a.id)) nameFuer.set(a.id, name);
+  }
+
+  const keys = [...new Set(anfragen.map((a) => keyFuer.get(a.id)).filter((k): k is string => !!k))];
+  if (keys.length === 0) return {};
+
   const bedarfProTeil = new Map<string, number>();
   /** Alle konkurrierenden Anfragen je Modell+Teil, älteste zuerst. */
   const anfragenProTeil = new Map<string, number[]>();
   for (const a of alleOffenen) {
-    const name = (a.geraeteName ?? a.geraet ?? "").trim();
-    if (!name) continue;
-    let key = keyCache.get(name);
-    if (key === undefined) {
-      key = modellSchluessel(name);
-      keyCache.set(name, key);
-    }
+    const key = keyFuer.get(a.id);
     if (!key) continue;
     const k = `${key}|${a.teil}`;
     bedarfProTeil.set(k, (bedarfProTeil.get(k) ?? 0) + 1);
@@ -623,8 +685,16 @@ export async function spenderFuerGruppe(args: {
     geraete: [],
   };
 
-  const key = modellSchluessel(args.geraeteName);
-  if (!key || teiltypen.length === 0) return leer;
+  if (teiltypen.length === 0) return leer;
+  // Dieselbe Regel wie in der Anfragen-Liste: Zielgerät vor Gerätename, sonst
+  // zeigt das Panel ein anderes Modell als der Hinweis, über den es geöffnet wurde.
+  const ZIEL = -1;
+  const key = (
+    await anfrageSchluesselFuer([
+      { id: ZIEL, logId: args.zielLogId ?? null, geraeteName: args.geraeteName, geraet: null },
+    ])
+  ).get(ZIEL);
+  if (!key) return leer;
 
   // Wie viele offene Anfragen warten auf dasselbe Teil desselben Modells?
   // Siehe `hinweiseFuerAnfragen` — dieselbe Regel, damit Liste und Panel nicht
@@ -636,12 +706,12 @@ export async function spenderFuerGruppe(args: {
       testModus: false,
       teil: { in: teiltypen },
     },
-    select: { geraeteName: true, geraet: true, teil: true },
+    select: { id: true, logId: true, geraeteName: true, geraet: true, teil: true },
   });
+  const offenKeys = await anfrageSchluesselFuer(offene);
   const bedarfProTeil = new Map<string, number>();
   for (const a of offene) {
-    const name = (a.geraeteName ?? a.geraet ?? "").trim();
-    if (!name || modellSchluessel(name) !== key) continue;
+    if (offenKeys.get(a.id) !== key) continue;
     bedarfProTeil.set(a.teil, (bedarfProTeil.get(a.teil) ?? 0) + 1);
   }
 

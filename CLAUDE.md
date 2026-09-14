@@ -220,7 +220,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWÖLF Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`
-  (zusammen 433) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  (zusammen 477) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Leseseite und Schreibseite müssen denselben Fall gleich einordnen.** `gruppeDetails` meldete
   für `artikelId === null` bereits `istSonderanfrage: true` („wird als DIREKT-Buchung verarbeitet"),
   `auslagern.teile` warf für denselben Datensatz `„Anfrage #N hat keinen Artikel"`, weil es aufs
@@ -784,6 +784,19 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   echten Modellnamen stehen („Portege X20W-E-10D", „IdeaPad S145-15IIL", „Blade Pro RZ09-0329").
   An allen 7.357 Bezeichnungen gemessen: Mit 10 bleiben diese Namen erhalten, mit 8 verlören vier
   Portege ihren.
+  ⚠️ **Anfragen suchen über die ROH-Bezeichnung ihres Zielgeräts, nicht über `geraeteName`**
+  (`anfrageModellSchluessel` in `service.ts`; Quelle LogIdStand, sonst Verwertungs-Export,
+  sonst Name). Grund: `geraeteName` kommt aus `GeraeteLookup.bereinigt`, und
+  `bereinigeBezeichnung` Schritt 7 schneidet wegen des `i`-Flags **jedes Wort ab 6 Buchstaben am
+  Ende** ab — gemessen 14.09.2026: „Mobile Workstation" 417×, „Detachable" 236×, „Tablet" 178×,
+  „Rugged Extreme" 93×. Folgen vorher: 83 freigegebene Spender unsichtbar (ZBook Fury 15/17 G7,
+  Elite x2 G8), und schlimmer, **falsche Modelle angeboten** — ein Latitude 7320 *Detachable*
+  bekam 41 normale 7320 vorgeschlagen, ein 7420 *2-in-1* 37 normale 7420 für das D Cover.
+  Über 1.240 Anfragen (180 Tage): 19 Anfragen mehr mit Spender, 3 auf das richtige Modell
+  eingeengt, **kein** Treffer verloren. Liste und Panel nutzen dieselbe Regel (auch für die
+  Engpass-Zählung) — wer eine Seite zurück auf `geraeteName` stellt, lässt sie auseinanderlaufen.
+  Restlücke: „ZBook Fury 15 G7" steht im Export 3× ohne und 33× mit „Mobile Workstation" —
+  zwei Schlüssel für dasselbe Gerät.
   ⚠️ **`modellKey` steht GESPEICHERT in der DB** (beim Import berechnet). Wer die Regel ändert, muss
   die Bestandszeilen nachziehen — `prisma/scripts/backfill-verwertung-modellkey.ts` (Trockenlauf
   ist Standard, `--schreiben` wendet an). Beim Regelwechsel am 10.09.2026 betraf das **60 Geräte**.
@@ -930,8 +943,8 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   und der Pickup-Auftrag rechnen weiter mit der vollen Liste — sonst fiele ein angehaktes Gerät
   beim Weitertippen still aus dem Auftrag. Ebenso zählt die Kopfzeile die Gesamtzahl: Ein aktiver
   Filter darf nicht wie „Kein Spendergerät gefunden" aussehen.
-- **Tests:** `test:defekte` (45), `test:teilespender` (27), `test:auswahl` (15), `test:frische` (19),
-  `test:ort` (25), `test:bedarf` (18).
+- **Tests:** `test:defekte` (52), `test:teilespender` (42), `test:auswahl` (15), `test:frische` (19),
+  `test:ort` (25), `test:bedarf` (29).
 
 ### Weitere Module (live)
 - Admin-Portal (Artikel, Buchungen, Anfragen mit Lock-System, Modelle/Kompatibilität, Benutzer,

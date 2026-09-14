@@ -17,7 +17,7 @@
 
 import { mappeSpenderZeile, fehlendeSpalten } from "../src/modules/teilespender/mapping";
 import { istVerwertungsExport, istFehlteilZeile } from "../src/modules/geraete-reise/mapping";
-import { modellSchluessel } from "../src/modules/teilespender/service";
+import { modellSchluessel, anfrageModellSchluessel } from "../src/modules/teilespender/service";
 
 let passed = 0;
 let failed = 0;
@@ -179,6 +179,69 @@ check(
   "andere Serie trifft nicht",
   trifft("ThinkPad T580 20L9S0T800", "Lenovo", "Lenovo ThinkPad P580"),
   false,
+);
+
+// ── Anfrage-Schlüssel aus dem Zielgerät ─────────────────────────────────────
+//
+// ⚠️ `Anfrage.geraeteName` kommt aus `GeraeteLookup.bereinigt`, und der schneidet
+// jedes Wort ab 6 Buchstaben am Ende ab („Detachable", „Workstation", „Tablet").
+// Der Export behält sie. Echte Paare vom 14.09.2026 — je LogID links der Name der
+// Anfrage, rechts die Roh-Bezeichnung desselben Geräts.
+console.log("\n── Anfrage-Schlüssel: Zielgerät vor Gerätename ──");
+
+/** Trifft die Anfrage (Zielgerät + Name) den Export-Schlüssel? */
+function anfrageTrifft(exportBez: string, hersteller: string, zielBez: string | null, name: string): boolean {
+  const ausExport = mappeSpenderZeile(zeile({ Bezeichnung: exportBez, Hersteller: hersteller }))?.felder.modellKey;
+  const ziel = zielBez ? { bezeichnung: zielBez, hersteller } : null;
+  return ausExport === anfrageModellSchluessel(ziel, name);
+}
+
+check(
+  "Mobile Workstation: über den Namen verfehlt (so war es)",
+  trifft("ZBook Fury 15 G7 Mobile Workstation", "HP", "HP ZBook Fury 15 G7"),
+  false,
+);
+check(
+  "Mobile Workstation: über das Zielgerät getroffen",
+  anfrageTrifft("ZBook Fury 15 G7 Mobile Workstation", "HP", "ZBook Fury 15 G7 Mobile Workstation", "HP ZBook Fury 15 G7"),
+  true,
+);
+check(
+  "Elite x2 Tablet über das Zielgerät",
+  anfrageTrifft("Elite x2 G8 Tablet", "HP", "Elite x2 G8 Tablet", "HP Elite x2 G8"),
+  true,
+);
+// Die gefährlichere Richtung: Über den gekürzten Namen landete ein Detachable
+// beim normalen Latitude 7320 — anderes Gerät, andere Teile.
+check(
+  "Detachable-Anfrage bekommt NICHT den normalen 7320",
+  anfrageTrifft("Latitude 7320", "Dell", "Latitude 7320 Detachable", "Dell Latitude 7320"),
+  false,
+);
+check(
+  "Detachable-Anfrage trifft den Detachable",
+  anfrageTrifft("Latitude 7320 Detachable", "Dell", "Latitude 7320 Detachable", "Dell Latitude 7320"),
+  true,
+);
+check(
+  "normaler 7320 trifft weiter den normalen 7320",
+  anfrageTrifft("Latitude 7320", "Dell", "Latitude 7320", "Dell Latitude 7320"),
+  true,
+);
+check(
+  "Maschinennummer am Zielgerät stört nicht",
+  anfrageTrifft("ThinkPad L14 Gen 2 20X1S3T400", "Lenovo", "ThinkPad L14 Gen 2 20X1S3T888", "Lenovo - ThinkPad L14 Gen 2"),
+  true,
+);
+check(
+  "Zielgerät unbekannt → Rückfall auf den Namen",
+  anfrageTrifft("ThinkPad T580 20L9S0T800", "Lenovo", null, "Lenovo ThinkPad T580"),
+  true,
+);
+check(
+  "leere Roh-Bezeichnung → Rückfall auf den Namen",
+  anfrageModellSchluessel({ bezeichnung: "  ", hersteller: "Lenovo" }, "Lenovo ThinkPad T580"),
+  modellSchluessel("Lenovo ThinkPad T580"),
 );
 
 // ── Die Weiche zwischen den beiden Importen ────────────────────────────────
