@@ -451,7 +451,12 @@ export default function VerbrauchsmaterialPage() {
         <ArtikelForm
           artikel={editArtikel}
           onClose={() => setFormOffen(false)}
-          onSaved={() => { setFormOffen(false); void listeQ.refetch(); void optionenQ.refetch(); void ohneFotoQ.refetch(); }}
+          onSaved={() => {
+            setFormOffen(false);
+            // Gelöschte Auswahl nicht in Etiketten-/Schilddruck mitschleppen.
+            if (editArtikel) setAuswahl((prev) => { const n = new Set(prev); n.delete(editArtikel.id); return n; });
+            void listeQ.refetch(); void optionenQ.refetch(); void ohneFotoQ.refetch(); void nachbQ.refetch();
+          }}
         />
       )}
 
@@ -564,6 +569,22 @@ function ArtikelForm({
     // was in der DB liegt. Ein Speichern in diesem Moment vergäbe Position 0
     // doppelt, und welches Bild dann Titelbild ist, wäre Zufall.
     || !galerieGeladen;
+
+  const aktivSetzen    = api.verbrauchsmaterial.setAktiv.useMutation();
+  const [loeschOffen, setLoeschOffen] = useState(false);
+
+  // Deaktivieren (Soft-Delete) bzw. zurückholen. Wirkt sofort und schließt den
+  // Dialog — nicht gespeicherte Eingaben im Formular werden dabei NICHT übernommen.
+  async function aktivieren(aktiv: boolean) {
+    if (!artikel) return;
+    try {
+      await aktivSetzen.mutateAsync({ id: artikel.id, aktiv });
+      show(aktiv ? `↩ ${artikel.name} ist wieder aktiv` : `${artikel.name} deaktiviert`, "success");
+      onSaved();
+    } catch (e) {
+      show(e instanceof Error ? e.message : "Fehler beim Ändern", "error");
+    }
+  }
 
   function toNum(s: string): number { const n = parseInt(s, 10); return Number.isFinite(n) && n > 0 ? n : 0; }
 
@@ -820,7 +841,27 @@ function ArtikelForm({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-[#ced4da] dark:border-[#3e4042] sticky bottom-0 bg-white dark:bg-[#242526]">
+        <div className="flex items-center justify-end gap-2 flex-wrap px-5 py-4 border-t border-[#ced4da] dark:border-[#3e4042] sticky bottom-0 bg-white dark:bg-[#242526]">
+          {artikel && (
+            <div className="mr-auto flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setLoeschOffen(true)}
+                disabled={isPending || aktivSetzen.isPending}
+                className="px-4 rounded-lg border-2 border-[#b3261e]/40 text-[#b3261e] dark:text-[#ff8a80] font-bold hover:bg-[#b3261e]/10 disabled:opacity-40 min-h-[48px]"
+              >
+                🗑 Löschen…
+              </button>
+              {!artikel.aktiv && (
+                <button
+                  onClick={() => void aktivieren(true)}
+                  disabled={isPending || aktivSetzen.isPending}
+                  className="px-4 rounded-lg border-2 border-[#04B475]/50 text-[#037A4F] dark:text-[#04B475] font-bold hover:bg-[#04B475]/10 disabled:opacity-40 min-h-[48px]"
+                >
+                  ↩ Wieder aktivieren
+                </button>
+              )}
+            </div>
+          )}
           <button onClick={onClose} className="px-5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] min-h-[48px]">
             Abbrechen
           </button>
@@ -831,6 +872,146 @@ function ArtikelForm({
             style={{ background: CYAN }}
           >
             {isPending ? "Speichere…" : istNeu ? "Anlegen" : "Speichern"}
+          </button>
+        </div>
+      </div>
+
+      {loeschOffen && artikel && (
+        <LoeschDialog
+          artikel={artikel}
+          onClose={() => setLoeschOffen(false)}
+          onDeaktivieren={async () => { setLoeschOffen(false); await aktivieren(false); }}
+          onGeloescht={() => { setLoeschOffen(false); onSaved(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Löschen ──────────────────────────────────────────────────────────────────
+// Zwei Wege mit unterschiedlicher Tragweite, bewusst nebeneinander erklärt:
+//  • Deaktivieren: Artikel verschwindet aus Liste, Zählung und Nachbestellung,
+//    der Verbrauch der vergangenen Wochen bleibt in der Auswertung.
+//  • Endgültig löschen: Artikel, Fotos und Zählungen sind weg. Gedacht für
+//    Fehlanlagen und Doppelte. Hat der Artikel Zählungen, muss das eigens
+//    angehakt werden — der Server verweigert es sonst ebenfalls.
+
+function LoeschDialog({
+  artikel, onClose, onDeaktivieren, onGeloescht,
+}: {
+  artikel: Artikel;
+  onClose: () => void;
+  onDeaktivieren: () => Promise<void>;
+  onGeloescht: () => void;
+}) {
+  const { show } = useToast();
+  const hintergrund = useHintergrundSchliessen(onClose);
+  const vorschau = api.verbrauchsmaterial.loeschVorschau.useQuery({ id: artikel.id });
+  const loeschen = api.verbrauchsmaterial.loeschen.useMutation();
+  const [verlaufBestaetigt, setVerlaufBestaetigt] = useState(false);
+
+  const zaehlungen = vorschau.data?.zaehlungen ?? 0;
+  const fotos = vorschau.data?.fotos ?? 0;
+  const hatVerlauf = zaehlungen > 0;
+  const darfLoeschen = vorschau.isSuccess && (!hatVerlauf || verlaufBestaetigt) && !loeschen.isPending;
+
+  async function endgueltig() {
+    try {
+      const r = await loeschen.mutateAsync({ id: artikel.id, mitVerlauf: hatVerlauf && verlaufBestaetigt });
+      show(`🗑 ${r.name} (${r.code}) gelöscht`, "success");
+      onGeloescht();
+    } catch (e) {
+      show(e instanceof Error ? e.message : "Löschen fehlgeschlagen", "error");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" {...hintergrund}>
+      <div
+        role="alertdialog"
+        aria-labelledby="vm-loeschen-titel"
+        className="bg-white dark:bg-[#242526] rounded-2xl shadow-2xl w-full max-w-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-[#ced4da] dark:border-[#3e4042]">
+          <h2 id="vm-loeschen-titel" className="font-black text-lg text-[#b3261e] dark:text-[#ff8a80]">
+            🗑 Artikel löschen?
+          </h2>
+          <p className="mt-1 font-semibold text-[#1a1a1a] dark:text-[#e4e6eb]">
+            {artikel.name} <span className="font-mono text-sm text-[#008BD2] dark:text-[#45bdff]">{artikel.code}</span>
+          </p>
+        </div>
+
+        <div className="p-5 space-y-4 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+          {vorschau.isLoading ? (
+            <p className="text-[#65676b] dark:text-[#b0b3b8]">Prüfe, was am Artikel hängt…</p>
+          ) : vorschau.isError ? (
+            <p className="text-[#b3261e]">Konnte nicht prüfen, was am Artikel hängt. Bitte erneut versuchen.</p>
+          ) : (
+            <>
+              <ul className="space-y-1">
+                <li>📷 {fotos === 1 ? "1 Foto" : `${fotos} Fotos`}</li>
+                <li>📲 {zaehlungen === 1 ? "1 Zählung" : `${zaehlungen} Zählungen`}</li>
+              </ul>
+
+              {hatVerlauf ? (
+                <>
+                  <p>
+                    Dieser Artikel wurde schon gezählt. Beim endgültigen Löschen verschwindet sein
+                    Verbrauch <strong>auch aus den vergangenen Wochen</strong> in der Auswertung.
+                  </p>
+                  {artikel.aktiv && (
+                    <p className="rounded-xl bg-[#04B475]/10 border border-[#04B475]/30 p-3">
+                      <strong>Empfehlung:</strong> Wird der Artikel nur nicht mehr gebraucht, lieber
+                      <strong> deaktivieren</strong>. Er verschwindet aus Liste, Zählung und
+                      Nachbestellung, die Auswertung bleibt vollständig. Über „Inaktive zeigen“ lässt
+                      er sich jederzeit zurückholen.
+                    </p>
+                  )}
+                  <label className="flex items-start gap-3 cursor-pointer min-h-[56px] rounded-xl border border-[#b3261e]/30 p-3">
+                    <input
+                      type="checkbox"
+                      checked={verlaufBestaetigt}
+                      onChange={(e) => setVerlaufBestaetigt(e.target.checked)}
+                      className="mt-0.5 w-6 h-6 accent-[#b3261e] shrink-0"
+                    />
+                    <span>
+                      Ja, auch die {zaehlungen === 1 ? "Zählung" : `${zaehlungen} Zählungen`} endgültig löschen.
+                    </span>
+                  </label>
+                </>
+              ) : (
+                <p>
+                  Der Artikel wurde noch nie gezählt. Er wird mit seinen Fotos endgültig gelöscht.
+                </p>
+              )}
+              <p className="font-bold">Das lässt sich nicht rückgängig machen.</p>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 flex-wrap px-5 py-4 border-t border-[#ced4da] dark:border-[#3e4042]">
+          <button
+            onClick={onClose}
+            className="px-5 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] min-h-[48px]"
+          >
+            Abbrechen
+          </button>
+          {hatVerlauf && artikel.aktiv && (
+            <button
+              onClick={() => void onDeaktivieren()}
+              className="px-5 rounded-lg font-bold text-white min-h-[48px]"
+              style={{ background: "#04B475" }}
+            >
+              Deaktivieren
+            </button>
+          )}
+          <button
+            onClick={() => void endgueltig()}
+            disabled={!darfLoeschen}
+            className="px-5 rounded-lg font-bold text-white bg-[#b3261e] disabled:opacity-40 min-h-[48px]"
+          >
+            {loeschen.isPending ? "Lösche…" : "Endgültig löschen"}
           </button>
         </div>
       </div>

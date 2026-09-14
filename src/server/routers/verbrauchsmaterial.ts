@@ -562,6 +562,52 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
       return { ok: true };
     }),
 
+  // Was hängt an einem Artikel? Grundlage für die Rückfrage vor dem Löschen.
+  loeschVorschau: manage
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const [zaehlungen, fotos] = await Promise.all([
+        prisma.verbrauchsZaehlung.count({ where: { artikelId: input.id } }),
+        prisma.verbrauchsArtikelFoto.count({ where: { artikelId: input.id } }),
+      ]);
+      return { zaehlungen, fotos };
+    }),
+
+  /**
+   * Artikel endgültig löschen — samt Fotos und Zählungen (Cascade im Schema).
+   *
+   * ⚠️ Zählungen sind die Grundlage von Verbrauch, Top-Verbrauch und Verlauf in
+   * der Auswertung. Wer einen gezählten Artikel löscht, nimmt dessen Verbrauch
+   * rückwirkend aus allen Wochen heraus. Deshalb verweigert der Server das,
+   * solange `mitVerlauf` nicht ausdrücklich gesetzt ist — für „brauchen wir
+   * nicht mehr" ist `setAktiv(false)` der richtige Weg, Löschen ist für
+   * Fehlanlagen und Doppelte gedacht.
+   *
+   * Der Code „VM-…" wird nicht neu vergeben (er hängt an der Auto-Increment-Id),
+   * ein noch hängendes Etikett kann also nie auf einen anderen Artikel zeigen.
+   */
+  loeschen: manage
+    .input(z.object({ id: z.number().int().positive(), mitVerlauf: z.boolean().default(false) }))
+    .mutation(async ({ input }) => {
+      return prisma.$transaction(async (tx) => {
+        const artikel = await tx.verbrauchsArtikel.findUnique({
+          where: { id: input.id },
+          select: { id: true, code: true, name: true },
+        });
+        if (!artikel) throw new TRPCError({ code: "NOT_FOUND", message: "Artikel nicht gefunden." });
+
+        const zaehlungen = await tx.verbrauchsZaehlung.count({ where: { artikelId: input.id } });
+        if (zaehlungen > 0 && !input.mitVerlauf) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `${artikel.name} hat ${zaehlungen} Zählung(en). Endgültig löschen entfernt sie aus der Auswertung — bitte bestätigen oder stattdessen deaktivieren.`,
+          });
+        }
+        await tx.verbrauchsArtikel.delete({ where: { id: input.id } });
+        return { ok: true, code: artikel.code, name: artikel.name, zaehlungen };
+      });
+    }),
+
   // Von der Wochenzählung ausnehmen bzw. wieder aufnehmen. Bewusst getrennt von
   // `setAktiv`: Der Artikel bleibt in Liste, Nachbestell-Vorschlag und
   // Kennzahlen, er taucht nur im wöchentlichen Zählweg nicht mehr auf.

@@ -722,6 +722,19 @@ Der Router muss dafür `modellIds` mitgeben.
   nebenbei Bug, dass erneutes Zählen `vorher` verfälschte. UI: orangenes Banner „schon X
   erfasst" + Buttons ➕Dazuzählen (grün, default bei Re-Scan) / ✏️Ersetzen (blau) + Live-Summe.
   Dazuzählen nur via **Code-Scan**; Suche/Offen-Liste → immer ersetzen.
+- **Löschen / Deaktivieren** (14.09.2026): Knopf **„🗑 Löschen…"** im Bearbeiten-Dialog öffnet
+  `LoeschDialog`, der erst per `loeschVorschau` zählt, was dranhängt. Vorher gab es `setAktiv` nur
+  im Router, **ohne jeden Knopf** — ein Artikel ließ sich über die Oberfläche weder löschen noch
+  ausblenden. Zwei Wege:
+  - **Deaktivieren** (Soft-Delete, `aktiv = false`): weg aus Liste, Zählung, Nachbestellung; der
+    Verbrauch vergangener Wochen bleibt. Zurückholen über „Inaktive zeigen" → Bearbeiten →
+    „↩ Wieder aktivieren".
+  - **Endgültig löschen** (`loeschen`): Artikel + Fotos + Zählungen per Cascade. Für Fehlanlagen
+    und Doppelte. ⚠️ Hat der Artikel Zählungen, **verweigert der Server** ohne `mitVerlauf: true`
+    — sonst verschwände sein Verbrauch rückwirkend aus der Auswertung. Das UI verlangt dafür ein
+    eigenes Häkchen und empfiehlt Deaktivieren.
+  Der `VM-…`-Code hängt an der Auto-Increment-Id und wird **nie neu vergeben** — ein altes Etikett
+  zeigt nach dem Löschen ins Leere, nie auf einen fremden Artikel.
 - **NEU — Foto-Galerie je Artikel (0..n) + A5-Lagerplatz-Schild:**
   - **Schema:** Tabelle `VerbrauchsArtikelFoto` (`id` autoincr, `artikelId`+`@@index`, `position`,
     `mimeType`, `daten Bytes @db.MediumBlob`, Zeitstempel; `onDelete: Cascade`). **Titelbild =
