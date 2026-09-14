@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
@@ -36,6 +37,7 @@ function TeilespenderPageInner() {
   const darfPickup = has("PICKUP_MANAGE");
   // Schreibvorgang: nimmt das Gerät für alle aus der Liste.
   const darfVermerken = has("ARTIKEL_EINLAGERN");
+  const darfImportieren = has("TEILESPENDER_IMPORT");
   const { show } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -182,6 +184,20 @@ function TeilespenderPageInner() {
         title="🔍 Teilespender"
         subtitle="Wo steckt mein Teil noch drin?"
         breadcrumb={[{ label: "Verwaltung", href: "/admin" }, { label: "Teilespender" }]}
+        /* ⚠️ Dauerhaft sichtbar. Die beiden Links weiter unten hängen an
+           Warnkästen (nichts importiert / Daten zu alt) — bei gefülltem,
+           frischem Bestand erscheint keiner davon, und der Import wäre über die
+           Oberfläche gar nicht erreichbar. */
+        action={
+          darfImportieren ? (
+            <Link
+              href="/admin/teilespender/import"
+              className="inline-flex items-center px-4 min-h-[44px] rounded-lg bg-[#202F61] text-white text-sm font-semibold hover:bg-[#2b3f80] transition-colors"
+            >
+              📥 Export einlesen
+            </Link>
+          ) : undefined
+        }
       />
 
       {/* ── Stand ───────────────────────────────────────────────────────── */}

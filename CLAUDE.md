@@ -834,7 +834,15 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   wer je Teil sucht läuft dreimal. „Wenigste Wege vorschlagen" =
   `waehleWenigsteWege()` in `src/lib/teilespender/auswahl.ts` (greedy, bewusst nicht optimal;
   **stabil**, sonst springen bei jedem Neuladen die Häkchen).
-- **Import:** eigener Endpoint `/api/teilespender/upload` + BullMQ (teilt sich die Queue
+- **Import: Seite `/admin/teilespender/import`**, erreichbar über den Knopf **„📥 Export einlesen"**
+  im Kopf von `/admin/teilespender` (nur mit `TEILESPENDER_IMPORT`).
+  ⚠️ **Dieser Knopf ist der EINZIGE dauerhafte Weg dorthin.** Die zwei weiteren Links auf der Seite
+  hängen an Warnkästen („noch nichts importiert" / „Daten zu alt") — bei gefülltem, frischem
+  Bestand erscheint keiner davon. Genau so war es nach dem ersten Import: Die Seite existierte,
+  war aber über die Oberfläche nicht mehr auffindbar (von Frank am 14.09.2026 gemeldet).
+  In der Seitennavigation steht bewusst nur der Teilespender selbst — der Import ist eine
+  gelegentliche Pflegeaufgabe, kein eigener Menüpunkt.
+- **Technisch:** eigener Endpoint `/api/teilespender/upload` + BullMQ (teilt sich die Queue
   `logid-import`, Job-Name unterscheidet). Voll-Snapshot mit Abgangs-Erkennung und **50-%-Sicherung**.
   Kopfzeile wird geprüft, **bevor** geschrieben wird. Der Lagerfuchs-Import **lehnt diese Datei jetzt
   ausdrücklich ab** (sie hat keine `Verbleib`-Spalte und wäre sonst als Voll-Snapshot durchgelaufen).
