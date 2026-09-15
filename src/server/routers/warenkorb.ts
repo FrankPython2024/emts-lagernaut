@@ -144,10 +144,11 @@ export const warenkorbRouter = createTRPCRouter({
       return submit(input);
     }),
 
-  // Alle aktiven Körbe auf einmal absenden
+  // Aktive Körbe absenden — mit logId nur den Korb dieses Geräts (siehe Service).
   submitAlle: protectedProcedure
     .input(z.object({
       techniker:  z.string().min(1).max(50),
+      logId:      z.string().min(1).max(100).optional(),
       zusatzinfo: z.string().max(500).optional(),
       testModus:  z.boolean().default(false),
     }))

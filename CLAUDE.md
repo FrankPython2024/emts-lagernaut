@@ -220,7 +220,20 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWÖLF Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`
-  (zusammen 477) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  (zusammen 479) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+- ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
+  jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
+  sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
+  abgebrochener Stresstest) ging deshalb unbemerkt mit der **nächsten Anfrage für ein anderes
+  Gerät** raus. Real am 15.09.2026 (AB2: Füße für 212.660.463, dazu ein D Cover für 212.889.843,
+  das CR ausgegeben hat) und schon am 30.07.2026 (TH1: 212.902.122 + 212.902.685). Das Portal
+  gibt jetzt `logId` mit; der Service filtert mit derselben `normalizeLogId` wie beim Befüllen.
+- **Pickup-Auftragsnamen sind für den Handscanner, nicht für den Schreibtisch.** Die Abholung aus der
+  Technik (`/admin/pickup/technik`) hieß „Technik 15.09.2026 · Generation bis 9" — auf dem Scanner
+  abgeschnitten, und der unterscheidende Teil stand hinten. Jetzt `kurzname` in
+  `src/lib/pickup/technikGruppen.ts`: **„Zustand H" / „R-B bis 9" / „ab 10"**, ohne Datum; ein
+  Zusatz davor ist optional. „R-B bis 9" stimmt nur, solange die alten Nicht-H-Geräte R-B sind —
+  die Seite warnt, wenn ein anderer Zustand in der Gruppe steckt.
 - ⚠️ **Leseseite und Schreibseite müssen denselben Fall gleich einordnen.** `gruppeDetails` meldete
   für `artikelId === null` bereits `istSonderanfrage: true` („wird als DIREKT-Buchung verarbeitet"),
   `auslagern.teile` warf für denselben Datensatz `„Anfrage #N hat keinen Artikel"`, weil es aufs

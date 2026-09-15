@@ -399,16 +399,32 @@ export async function submit(data: {
 }
 
 /**
- * Alle aktiven Körbe eines Technikers auf einmal absenden.
+ * Aktive Körbe eines Technikers absenden.
+ *
+ * ⚠️ `logId` gesetzt = NUR der Korb dieses Geräts. Das Techniker-Portal muss es
+ * immer mitgeben. Ohne den Filter ging JEDER aktive Korb des Technikers mit raus —
+ * auch Körbe anderer Geräte, die im Portal nirgends angezeigt werden. Am
+ * 15.09.2026 real: AB2 fragte Füße für 212.660.463 an, mit derselben Absendung
+ * ging ein liegengebliebener Korb für 212.889.843 (D Cover) raus und wurde
+ * ausgegeben. Schon am 30.07.2026 bei TH1 (212.902.122 + 212.902.685).
+ * Liegen bleibt ein Korb, wenn das Absenden nach dem Befüllen scheitert
+ * (Netz, Fehler) oder ein Stresstest abbricht.
  */
 export async function submitAlle(data: {
   techniker:   string;
+  /** Nur den Korb dieses Geräts absenden. */
+  logId?:      string;
   zusatzinfo?: string;
   testModus?:  boolean;
 }): Promise<{ anzahl: number; gruppenNrs: string[] }> {
   const techniker = data.techniker.toUpperCase().trim();
   const koerbe    = await prisma.warenkorb.findMany({
-    where:   { techniker, status: KorbStatus.AKTIV },
+    where:   {
+      techniker,
+      status: KorbStatus.AKTIV,
+      // Gleiche Schreibweise wie beim Befüllen (addItem/addItemsBulk).
+      ...(data.logId !== undefined ? { logId: normalizeLogId(data.logId) } : {}),
+    },
     select:  { id: true, items: { select: { id: true } } },
   });
 

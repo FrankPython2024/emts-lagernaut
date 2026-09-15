@@ -696,7 +696,9 @@ function AnfrageFlow({
         });
       }
 
-      await submitMutation.mutateAsync({ techniker: kuerzel, testModus });
+      // ⚠️ logId mitgeben: nur DIESES Gerät absenden. Ohne sie gingen auch
+      // liegengebliebene Körbe anderer Geräte mit raus, die hier niemand sieht.
+      await submitMutation.mutateAsync({ techniker: kuerzel, logId, testModus });
       setStep("done");
     } catch (e) {
       show(`Fehler: ${(e as { message?: string }).message ?? "Unbekannt"}`, "error");
