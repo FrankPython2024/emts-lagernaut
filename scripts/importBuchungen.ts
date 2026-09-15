@@ -25,6 +25,8 @@ async function main() {
   // Erst alle vorhandenen Buchungen löschen
   await prisma.buchung.deleteMany({})
   console.log(`🗑️ Alte Buchungen gelöscht`)
+  // Die neuen Buchungen bekommen neue Ids — alte Dokumente im Suchindex wären tot.
+  console.log(`ℹ️  Danach Suchindex abgleichen: npm run reindex -- --only buchungen --aufraeumen --schreiben`)
 
   let imported = 0
   let skipped = 0

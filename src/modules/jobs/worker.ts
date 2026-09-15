@@ -1,5 +1,8 @@
 import { Queue, Worker, type ConnectionOptions } from "bullmq";
 import Redis from "ioredis";
+import {
+  ARTIKEL_SUCH_SELECT, BUCHUNG_SUCH_SELECT, SUCH_INDIZES, artikelDokument, buchungDokument,
+} from "@/core/infra/meilisearchDokumente";
 
 // ── Redis-Verbindung für BullMQ ───────────────────────────────────────────────
 // Separate Connection — maxRetriesPerRequest: null ist für BullMQ Pflicht
@@ -31,7 +34,13 @@ function initQueues() {
   if (_queues) return _queues;
   _queues = {
     belege:           new Queue("belege",            { connection }),
-    meilisearch:      new Queue("meilisearch",       { connection }),
+    // ⚠️ Ohne removeOnComplete behält BullMQ JEDEN erledigten Job in Redis — am
+    // 15.09.2026 waren es 13.303 `bull:meilisearch:*`-Schlüssel. Die letzten 1.000
+    // reichen für die Zähler im Nerd-Dashboard; fehlgeschlagene bleiben länger zur Diagnose.
+    meilisearch:      new Queue("meilisearch",       { connection, defaultJobOptions: {
+      removeOnComplete: { count: 1_000 },
+      removeOnFail:     { count: 5_000 },
+    } }),
     notify:           new Queue("notify",            { connection }),
     artikelGenerator: new Queue("artikel-generator", { connection }),
     reprocessGeraete: new Queue("reprocess-geraete", { connection }),
@@ -73,15 +82,8 @@ async function handleMeilisearchJob(job: { id?: string | undefined; name: string
 
     // ── Bulk-Reindex (via npm run reindex bevorzugt) ──────────────────────────
     case "reindex-artikel": {
-      const rows = await prisma.artikel.findMany({
-        select: { id: true, bezeichnung: true, kategorie: true, bestand: true, lagerplatz: true },
-      });
-      const docs = rows.map(a => {
-        const t = a.bezeichnung.trim().split(/\s+/);
-        return { id: a.id, bezeichnung: a.bezeichnung, kategorie: a.kategorie, bestand: a.bestand,
-          lagerplatz: a.lagerplatz ?? null, modell: t.length > 1 ? t.slice(0, -1).join(" ") : a.bezeichnung,
-          bestandStatus: a.bestand > 0 ? "vorhanden" : "leer" };
-      });
+      const rows = await prisma.artikel.findMany({ select: ARTIKEL_SUCH_SELECT });
+      const docs = rows.map(artikelDokument);
       await meilisearch.index("artikel").addDocuments(docs, { primaryKey: "id" });
       console.log(`[BullMQ:meilisearch] ${docs.length} Artikel bulk-reindexiert`);
       break;
@@ -100,22 +102,21 @@ async function handleMeilisearchJob(job: { id?: string | undefined; name: string
     // ── Artikel ───────────────────────────────────────────────────────────────
     case "sync-artikel": {
       const artikelId = job.data.artikelId as number;
-      const a = await prisma.artikel.findUnique({
-        where:  { id: artikelId },
-        select: { id: true, bezeichnung: true, kategorie: true, bestand: true, lagerplatz: true, standortId: true },
-      });
+      const a = await prisma.artikel.findUnique({ where: { id: artikelId }, select: ARTIKEL_SUCH_SELECT });
       if (!a) {
         await meilisearch.index("artikel").deleteDocument(artikelId);
         break;
       }
-      const t = a.bezeichnung.trim().split(/\s+/);
-      await meilisearch.index("artikel").addDocuments([{
-        id: a.id, bezeichnung: a.bezeichnung, kategorie: a.kategorie, bestand: a.bestand,
-        lagerplatz: a.lagerplatz ?? null,
-        standortId: a.standortId, // sonst faellt der Datensatz nach Bearbeitung aus der standort-gefilterten Suche
-        modell: t.length > 1 ? t.slice(0, -1).join(" ") : a.bezeichnung,
-        bestandStatus: a.bestand > 0 ? "vorhanden" : "leer",
-      }], { primaryKey: "id" });
+      await meilisearch.index("artikel").addDocuments([artikelDokument(a)], { primaryKey: "id" });
+      break;
+    }
+    case "sync-artikel-mehrere": {
+      const ids  = job.data.artikelIds as number[];
+      const rows = await prisma.artikel.findMany({ where: { id: { in: ids } }, select: ARTIKEL_SUCH_SELECT });
+      const da   = new Set(rows.map((r) => r.id));
+      const weg  = ids.filter((id) => !da.has(id));
+      if (rows.length > 0) await meilisearch.index("artikel").addDocuments(rows.map(artikelDokument), { primaryKey: "id" });
+      if (weg.length > 0)  await meilisearch.index("artikel").deleteDocuments(weg);
       break;
     }
     case "delete-artikel": {
@@ -173,25 +174,37 @@ async function handleMeilisearchJob(job: { id?: string | undefined; name: string
     // ── Buchungen ─────────────────────────────────────────────────────────────
     case "sync-buchung": {
       const buchungId = job.data.buchungId as number;
-      const b = await prisma.buchung.findUnique({
-        where:  { id: buchungId },
-        select: { id: true, typ: true, bezeichnung: true, menge: true,
-                  notiz: true, mitarbeiter: true, datum: true,
-                  artikel: { select: { kategorie: true } } },
-      });
+      const b = await prisma.buchung.findUnique({ where: { id: buchungId }, select: BUCHUNG_SUCH_SELECT });
       if (!b) {
         await meilisearch.index("buchungen").deleteDocument(buchungId);
         break;
       }
-      await meilisearch.index("buchungen").addDocuments([{
-        id: b.id, typ: b.typ, artikelBezeichnung: b.bezeichnung, menge: b.menge,
-        notiz: b.notiz ?? null, ausgefuehrtVon: b.mitarbeiter,
-        artikelKategorie: b.artikel?.kategorie ?? null, datum: b.datum.getTime(),
-      }], { primaryKey: "id" });
+      await meilisearch.index("buchungen").addDocuments([buchungDokument(b)], { primaryKey: "id" });
+      break;
+    }
+    case "sync-buchungen-mehrere": {
+      const ids  = job.data.buchungIds as number[];
+      const rows = await prisma.buchung.findMany({ where: { id: { in: ids } }, select: BUCHUNG_SUCH_SELECT });
+      const da   = new Set(rows.map((r) => r.id));
+      const weg  = ids.filter((id) => !da.has(id));
+      if (rows.length > 0) await meilisearch.index("buchungen").addDocuments(rows.map(buchungDokument), { primaryKey: "id" });
+      if (weg.length > 0)  await meilisearch.index("buchungen").deleteDocuments(weg);
       break;
     }
     case "delete-buchung": {
       await meilisearch.index("buchungen").deleteDocument(job.data.buchungId as number);
+      break;
+    }
+
+    // ── Voll-Reset ────────────────────────────────────────────────────────────
+    case "leere-index": {
+      const index = job.data.index as string;
+      if (!(SUCH_INDIZES as readonly string[]).includes(index)) {
+        console.warn("[BullMQ:meilisearch] leere-index: unbekannter Index", index);
+        break;
+      }
+      await meilisearch.index(index).deleteAllDocuments();
+      console.log(`[BullMQ:meilisearch] Index ${index} geleert`);
       break;
     }
 
@@ -277,6 +290,10 @@ async function handleArtikelGeneratorJob(job: any) {
         data:           artikel.map((a) => ({ geraet: bereinigt, teiltyp: a.kategorie, artikelId: a.id })),
         skipDuplicates: true,
       });
+      // ⚠️ `createMany` meldet sich nirgends beim Suchindex. Genau so fehlten am
+      // 15.09.2026 24.935 Artikel in der Suche. Ein Job je Gerät (≤ 17 Ids).
+      queues.meilisearch.add("sync-artikel-mehrere", { artikelIds: artikel.map((a) => a.id) })
+        .catch((e: unknown) => console.warn("[ArtikelGen] Such-Sync nicht eingereiht:", e));
     }
 
     // Progress alle 10 Modelle oder am Ende

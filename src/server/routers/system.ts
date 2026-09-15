@@ -2,6 +2,7 @@ import { createTRPCRouter, adminProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import { redis } from "@/core/infra/redis";
 import { meilisearch } from "@/core/infra/meilisearch";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 import { getConnectedClients, isSocketIOReady } from "@/modules/realtime/socket";
 import { queues } from "@/modules/jobs/worker";
 
@@ -270,6 +271,11 @@ async function resetAllData() {
              lagerplatzReset: lagerplatzReset.count,
              modelle: modelle.count, lookup: lookup.count };
   }, { timeout: 120_000 });
+
+  // ⚠️ Suchindex mitleeren. Fehlte bis 15.09.2026: Nach dem Reset vom 22.05.2026
+  // zeigten 38.345 Artikel- und 1.425 Modell-Dokumente auf gelöschte Zeilen —
+  // die globale Suche fand fast nur Tote.
+  meilisearchSync.indexLeeren(["artikel", "buchungen", "modelle", "anfragen"]);
 
   // Redis Beleg-Counter zurücksetzen (non-critical)
   let redisKeys = 0;

@@ -170,6 +170,7 @@ export async function bereinigeTestdaten(runId?: string): Promise<BereinigungsEr
   });
   if (buchungen.length > 0) {
     await prisma.buchung.deleteMany({ where: { id: { in: buchungen.map((b) => b.id) } } });
+    meilisearchSync.buchungenGeloescht(buchungen.map((b) => b.id));
   }
   const artikelIds = [...new Set(buchungen.map((b) => b.artikelId))];
   for (const id of artikelIds) await syncBestandAusHistorie(id);

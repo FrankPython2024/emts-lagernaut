@@ -30,7 +30,7 @@ import {
 import { addItem, submit }      from "../src/modules/warenkorb/service";
 import { bucheLager }           from "../src/modules/buchungen/service";
 import { senden as chatSenden } from "../src/modules/chat/service";
-import { TEST_TECHNIKER, TEST_ADMINS, pruefeTestKuerzelFrei } from "../src/modules/stresstest/testdaten";
+import { TEST_TECHNIKER, TEST_ADMINS, pruefeTestKuerzelFrei, bereinigeTestdaten } from "../src/modules/stresstest/testdaten";
 
 // ── Konfiguration ────────────────────────────────────────────────────────────
 
@@ -663,48 +663,15 @@ async function bietCleanup() {
   });
 }
 
+// Dieselbe Funktion wie Web-Knopf und `npm run stresstest:cleanup`. Die frühere
+// eigene Fassung hier kannte weder Warenkörbe noch den Bestand, nahm ALLE Läufe
+// statt nur diesen mit und ließ gelöschte Anfragen/Buchungen im Suchindex stehen.
 async function loescheTestDaten() {
-  // 1. Test-Anfragen finden
-  const testAnfragen = await prisma.anfrage.findMany({
-    where:  { kommentar: { contains: "STRESSTEST" } },
-    select: { id: true },
-  });
-  const ids = testAnfragen.map((a) => a.id);
-
-  if (ids.length === 0) {
-    console.log("  Keine Test-Anfragen gefunden.");
-    return;
-  }
-
-  // 2. Chat-Nachrichten (Nachricht-Tabelle mit chat:-prefix)
-  const chatLogIds = ids.map((id) => `chat:${id}`);
-  const nachrichtenGeloescht = await prisma.$transaction(async (tx) => {
-    const nachrichten = await tx.nachricht.findMany({
-      where:  { logId: { in: chatLogIds } },
-      select: { id: true },
-    });
-    const nachrichtIds = nachrichten.map((n) => n.id);
-    if (nachrichtIds.length > 0) {
-      await tx.nachrichtEmpf.deleteMany({ where: { nachrichtId: { in: nachrichtIds } } });
-      await tx.nachrichtAntwort.deleteMany({ where: { nachrichtId: { in: nachrichtIds } } });
-      await tx.nachricht.deleteMany({ where: { id: { in: nachrichtIds } } });
-    }
-    return nachrichtIds.length;
-  });
-
-  // 3. Buchungen mit STRESSTEST-Notiz
-  const buchungenGeloescht = await prisma.buchung.deleteMany({
-    where: { notiz: { contains: "STRESSTEST" } },
-  });
-
-  // 4. Anfragen löschen
-  const anfragenGeloescht = await prisma.anfrage.deleteMany({
-    where: { id: { in: ids } },
-  });
-
-  console.log(`  ✓ ${anfragenGeloescht.count} Anfragen gelöscht`);
-  console.log(`  ✓ ${nachrichtenGeloescht} Chat-Nachrichten gelöscht`);
-  console.log(`  ✓ ${buchungenGeloescht.count} Buchungen gelöscht`);
+  const r = await bereinigeTestdaten(RUN_ID);
+  console.log(`  ✓ ${r.anfragen} Anfragen gelöscht`);
+  console.log(`  ✓ ${r.nachrichten} Nachrichten gelöscht`);
+  console.log(`  ✓ ${r.buchungen} Buchungen gelöscht (Bestand von ${r.bestandNeuBerechnet} Artikeln neu berechnet)`);
+  console.log(`  ✓ ${r.warenkoerbe} Warenkörbe gelöscht`);
 }
 
 // ── Prompt / Warnung ──────────────────────────────────────────────────────────

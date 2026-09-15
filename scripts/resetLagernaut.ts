@@ -133,6 +133,20 @@ async function main() {
     process.stdout.write("  ⚠️  Redis Reset übersprungen (nicht erreichbar)\n");
   }
 
+  // Suchindex leeren — sonst zeigt die globale Suche auf gelöschte Zeilen
+  // (am 15.09.2026: 38.345 tote Artikel-Dokumente nach dem Reset vom 22.05.2026).
+  // GeraeteModell bleibt bei diesem Reset, daher bleibt auch der Index `modelle`.
+  try {
+    const { MeiliSearch } = await import("meilisearch");
+    const ms = new MeiliSearch({ host: process.env.MEILISEARCH_URL ?? "http://localhost:7700", apiKey: process.env.MEILISEARCH_KEY });
+    for (const index of ["artikel", "buchungen", "anfragen"]) {
+      await ms.index(index).deleteAllDocuments();
+    }
+    process.stdout.write("  ✓ Suchindex artikel/buchungen/anfragen geleert\n");
+  } catch {
+    process.stdout.write("  ⚠️  Suchindex NICHT geleert — danach `npm run reindex -- --aufraeumen --schreiben`\n");
+  }
+
   console.log("\n" + "═".repeat(48));
   console.log("✅ RESET ABGESCHLOSSEN!\n");
   console.log(`  ${r.artikel.count} Artikel gelöscht`);

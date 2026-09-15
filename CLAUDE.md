@@ -239,6 +239,15 @@ EOF
   der globalen Suche. `npm run reindex` hilft dagegen NICHT — es fügt nur hinzu, löscht nie.
   ⚠️ `anfragen.loeschen` lässt Buchungen bewusst stehen („Bestand-Historie") — bei einer
   gelöschten, schon ausgegebenen Phantom-Anfrage bleibt der Bestand damit reduziert.
+- ⚠️ **Dasselbe gilt für JEDES `deleteMany`/`createMany` auf Artikel, Buchung, GeraeteModell.**
+  Gemessen 15.09.2026: Index `artikel` 38.829 Dokumente, davon **38.345 tot** (alle Ids unter der
+  kleinsten DB-Id → `system.resetAllData` vom 22.05.2026 leerte nur die Tabellen), und **24.935
+  Artikel fehlten** (Artikel-Generator per `createMany`). `modelle`: 1.425 von 2.625 tot, selber Reset.
+  Jetzt: `meilisearchSync.artikelMehrere` / `buchungenGeloescht` / `indexLeeren`; Dokumentform zentral in
+  `src/core/infra/meilisearchDokumente.ts`. **Prüfen/Bereinigen:** `npm run reindex -- --aufraeumen`
+  (Trockenlauf, zählt verwaist/fehlend je Index) → `--aufraeumen --schreiben`. Noch ohne Sync (nur
+  „fehlend", nie „tot"): Buchungs-`createMany` in `lagerplaetze/service.ts`, `routers/lagerplatz.ts`
+  und DIREKT in `buchungen.service.ts` — der Aufräumlauf holt sie nach.
 - **Pickup-Auftragsnamen sind für den Handscanner, nicht für den Schreibtisch.** Die Abholung aus der
   Technik (`/admin/pickup/technik`) hieß „Technik 15.09.2026 · Generation bis 9" — auf dem Scanner
   abgeschnitten, und der unterscheidende Teil stand hinten. Jetzt `kurzname` in

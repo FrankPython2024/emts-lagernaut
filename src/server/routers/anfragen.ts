@@ -439,6 +439,7 @@ export const anfragenRouter = createTRPCRouter({
 
       if (buchungen.length > 0) {
         await ctx.prisma.buchung.deleteMany({ where: { id: { in: buchungen.map((b) => b.id) } } });
+        meilisearchSync.buchungenGeloescht(buchungen.map((b) => b.id));
       }
 
       // Bestand nachziehen. ⚠️ NACH dem Löschen und außerhalb einer Transaktion:
