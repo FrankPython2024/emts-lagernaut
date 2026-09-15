@@ -42,9 +42,38 @@ export const meilisearchSync = {
    * aufräumen). Am 15.09.2026 standen 31 so gelöschte Buchungen noch im Index.
    */
   buchungenGeloescht: (ids: number[]) => { if (ids.length > 0) enqueue("sync-buchungen-mehrere", { buchungIds: ids }); },
+  /** Derselbe Job für neu angelegte Buchungen (vorhandene werden geschrieben). */
+  buchungenMehrere: (ids: number[]) => { if (ids.length > 0) enqueue("sync-buchungen-mehrere", { buchungIds: ids }); },
   /**
    * Index komplett leeren — NUR nach einem Voll-Reset, bei dem die Tabelle
    * selbst leer ist. Läuft in der Queue hinter allen vorher eingereihten Jobs.
    */
   indexLeeren: (indizes: SuchIndex[]) => { for (const index of indizes) enqueue("leere-index", { index }); },
 };
+
+/**
+ * Sammelt, was eine Transaktion berührt, und meldet es ERST NACH dem Commit.
+ *
+ * ⚠️ Aus der Transaktion heraus einreihen geht schief: Der Worker liest die DB
+ * selbst und kann schneller sein als der Commit — dann schreibt er den ALTEN
+ * Stand in den Index. `senden()` also hinter das `await prisma.$transaction(...)`.
+ *
+ *   const sync = suchSyncNachCommit();
+ *   const r = await prisma.$transaction(async (tx) => { …; sync.artikel(ids); … });
+ *   sync.senden();
+ */
+export function suchSyncNachCommit() {
+  const artikel   = new Set<number>();
+  const buchungen = new Set<number>();
+  const modelle   = new Set<number>();
+  return {
+    artikel:   (ids: number[]) => { for (const id of ids) artikel.add(id); },
+    buchungen: (ids: number[]) => { for (const id of ids) buchungen.add(id); },
+    modell:    (id: number)    => { modelle.add(id); },
+    senden: () => {
+      meilisearchSync.artikelMehrere([...artikel]);
+      meilisearchSync.buchungenMehrere([...buchungen]);
+      for (const id of modelle) meilisearchSync.modell(id);
+    },
+  };
+}

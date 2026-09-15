@@ -245,9 +245,16 @@ EOF
   Artikel fehlten** (Artikel-Generator per `createMany`). `modelle`: 1.425 von 2.625 tot, selber Reset.
   Jetzt: `meilisearchSync.artikelMehrere` / `buchungenGeloescht` / `indexLeeren`; Dokumentform zentral in
   `src/core/infra/meilisearchDokumente.ts`. **Prüfen/Bereinigen:** `npm run reindex -- --aufraeumen`
-  (Trockenlauf, zählt verwaist/fehlend je Index) → `--aufraeumen --schreiben`. Noch ohne Sync (nur
-  „fehlend", nie „tot"): Buchungs-`createMany` in `lagerplaetze/service.ts`, `routers/lagerplatz.ts`
-  und DIREKT in `buchungen.service.ts` — der Aufräumlauf holt sie nach.
+  (Trockenlauf, zählt verwaist/fehlend je Index) → `--aufraeumen --schreiben`. Am 15.09.2026 so
+  bereinigt, danach alle vier Indizes = DB.
+  ⚠️ **Auch `updateMany` zählt**, nicht nur Anlegen/Löschen: Die Lagerplatz-Aktionen (zuweisen,
+  umziehen, lösen, umlagern, verschieben, umbenennen) schrieben `Artikel.lagerplatz`/`standortId` und
+  die Fachbelegung, ohne den Index zu melden — die Suche zeigte das alte Fach. Muster dafür:
+  `suchSyncNachCommit()` (Ids in der Transaktion sammeln, `senden()` ERST nach dem Commit, sonst
+  liest der Worker den alten Stand). MySQL liefert bei `createMany` keine Ids → wo Buchungen in
+  den Index sollen, einzeln `create`. Einzige verbliebene Stelle: DIREKT-`createMany` in
+  `modules/buchungen/buchungen.service.ts` — toter Code (`modules/buchungen/buchungen.router.ts`
+  ist nicht eingehängt, `server/routers/buchungen.ts` ist der echte).
 - **Pickup-Auftragsnamen sind für den Handscanner, nicht für den Schreibtisch.** Die Abholung aus der
   Technik (`/admin/pickup/technik`) hieß „Technik 15.09.2026 · Generation bis 9" — auf dem Scanner
   abgeschnitten, und der unterscheidende Teil stand hinten. Jetzt `kurzname` in

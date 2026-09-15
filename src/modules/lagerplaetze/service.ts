@@ -1,5 +1,31 @@
 import { TRPCError } from "@trpc/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/core/db/prisma";
+import { meilisearchSync, suchSyncNachCommit } from "@/core/infra/meilisearchSync";
+
+/**
+ * Umlagerungs-Nachweis: je Artikel ein EINGANG + AUSGANG, netto 0 — kein
+ * Bestandseffekt. Einzeln statt `createMany`, weil MySQL bei `createMany` keine
+ * Ids zurückgibt und die Buchungen sonst nie in den Suchindex kämen.
+ */
+async function legeUmlagerPaarAn(
+  tx: Prisma.TransactionClient,
+  artikel: { id: number; bezeichnung: string }[],
+  mitarbeiter: string,
+  notiz: string,
+): Promise<number[]> {
+  const ids: number[] = [];
+  for (const a of artikel) {
+    for (const typ of ["EINGANG", "AUSGANG"] as const) {
+      const b = await tx.buchung.create({
+        data:   { artikelId: a.id, bezeichnung: a.bezeichnung, typ, menge: 1, mitarbeiter, notiz },
+        select: { id: true },
+      });
+      ids.push(b.id);
+    }
+  }
+  return ids;
+}
 
 /**
  * Alle Lagerplätze mit Artikel-Anzahl.
@@ -141,6 +167,13 @@ export async function updateLagerplatz(input: {
     prisma.artikel.updateMany({ where: { lagerplatz: alt }, data: { lagerplatz: neu } }),
   ]);
 
+  // Suchindex: `lagerplatz` steht im Artikel-Dokument. Nach dem Commit gesucht —
+  // der neue Code war vorher nachweislich an keinem Artikel (Prüfung oben).
+  if (neu !== alt && verschobene.count > 0) {
+    const ids = await prisma.artikel.findMany({ where: { lagerplatz: neu }, select: { id: true } });
+    meilisearchSync.artikelMehrere(ids.map((a) => a.id));
+  }
+
   return { code: neu, umbenannt: neu !== alt, artikelVerschoben: verschobene.count };
 }
 
@@ -215,20 +248,18 @@ export async function verschiebeArtikel(input: {
   const alterLagerplatz = artikel.lagerplatz ?? "–";
   const notiz = `Verschiebung von ${alterLagerplatz} nach ${input.neuerLagerplatz}`;
 
+  const sync = suchSyncNachCommit();
   await prisma.$transaction(async (tx) => {
     await tx.artikel.update({
       where: { id: artikel.id },
       data:  { lagerplatz: input.neuerLagerplatz },
     });
+    sync.artikel([artikel.id]);
 
     // DIREKT-Buchung = 2 Einträge (Eingang + Ausgang), Netto 0 → kein Bestandseinfluss
-    await tx.buchung.createMany({
-      data: [
-        { artikelId: artikel.id, bezeichnung: artikel.bezeichnung, typ: "EINGANG", menge: 1, mitarbeiter: input.mitarbeiter, notiz },
-        { artikelId: artikel.id, bezeichnung: artikel.bezeichnung, typ: "AUSGANG", menge: 1, mitarbeiter: input.mitarbeiter, notiz },
-      ],
-    });
+    sync.buchungen(await legeUmlagerPaarAn(tx, [artikel], input.mitarbeiter, notiz));
   });
+  sync.senden();
 
   return { success: true, von: alterLagerplatz, nach: input.neuerLagerplatz };
 }
@@ -256,18 +287,16 @@ export async function verschiebeAlle(input: {
 
   const notiz = `Verschiebung von ${input.alterLagerplatz} nach ${input.neuerLagerplatz}`;
 
+  const sync = suchSyncNachCommit();
   await prisma.$transaction(async (tx) => {
     await tx.artikel.updateMany({
       where: { lagerplatz: input.alterLagerplatz },
       data:  { lagerplatz: input.neuerLagerplatz },
     });
-
-    const buchungen = artikel.flatMap((a) => [
-      { artikelId: a.id, bezeichnung: a.bezeichnung, typ: "EINGANG" as const, menge: 1, mitarbeiter: input.mitarbeiter, notiz },
-      { artikelId: a.id, bezeichnung: a.bezeichnung, typ: "AUSGANG" as const, menge: 1, mitarbeiter: input.mitarbeiter, notiz },
-    ]);
-    await tx.buchung.createMany({ data: buchungen });
+    sync.artikel(artikel.map((a) => a.id));
+    sync.buchungen(await legeUmlagerPaarAn(tx, artikel, input.mitarbeiter, notiz));
   });
+  sync.senden();
 
   return { success: true, verschoben: artikel.length, von: input.alterLagerplatz, nach: input.neuerLagerplatz };
 }

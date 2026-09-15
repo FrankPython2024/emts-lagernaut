@@ -10,6 +10,7 @@ import { extractSerie } from "@/lib/lager/serien";
 import { prisma as _prisma } from "@/core/db/prisma";
 import { standortWhere, getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 import { STANDARD_TEILTYPEN, VERSCHIEDENES_TEILTYP } from "@/lib/constants/teiltypen";
+import { suchSyncNachCommit } from "@/core/infra/meilisearchSync";
 
 type PrismaInstance = typeof _prisma;
 
@@ -21,6 +22,16 @@ const MAX_MODELLE_PRO_FACH = 4;
 // Umlager-Dialog gezeigte Liste EXAKT der tatsächlich verschobenen Menge entspricht.
 function artikelDesModellsWhere(modellName: string) {
   return { OR: [{ bezeichnung: modellName }, { bezeichnung: { startsWith: `${modellName} ` } }] };
+}
+
+// ⚠️ Fach-Änderungen schreiben `Artikel.lagerplatz` (bei umlagern auch `standortId`)
+// per `updateMany` und die Belegung am Modell — beides steht im Suchindex
+// (`artikel.lagerplatz`/`standortId`, `modelle.lagerplatz`). Ohne Meldung zeigte die
+// globale Suche nach jedem Umzug das alte Fach, und ein Artikel mit neuem Standort
+// fiel aus der standort-gefilterten Suche. Ids VOR dem updateMany holen.
+async function artikelIdsDesModells(tx: Pick<PrismaInstance, "artikel">, modellName: string): Promise<number[]> {
+  const rows = await tx.artikel.findMany({ where: artikelDesModellsWhere(modellName), select: { id: true } });
+  return rows.map((r) => r.id);
 }
 
 // ── Lokale Typen ──────────────────────────────────────────────────────────────
@@ -528,7 +539,8 @@ export const lagerplatzRouter = createTRPCRouter({
       lagerplatzId: z.number().int().positive(),
     }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.prisma.$transaction(async (tx) => {
+      const sync = suchSyncNachCommit();
+      const ergebnis = await ctx.prisma.$transaction(async (tx) => {
         const platz = await tx.lagerplatz.findUnique({ where: { id: input.lagerplatzId } });
         if (!platz) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Lagerplatz nicht gefunden" });
@@ -570,6 +582,8 @@ export const lagerplatzRouter = createTRPCRouter({
 
         // Artikel.lagerplatz synchronisieren
         const n = modell.modell;
+        sync.modell(modell.id);
+        sync.artikel(await artikelIdsDesModells(tx, n));
         await tx.artikel.updateMany({
           where: { OR: [{ bezeichnung: n }, { bezeichnung: { startsWith: `${n} ` } }] },
           data:  { lagerplatz: platz.code },
@@ -580,6 +594,8 @@ export const lagerplatzRouter = createTRPCRouter({
           include: { belegungen: { include: { modell: { select: { id: true, modell: true, hersteller: true } } } } },
         });
       });
+      sync.senden();
+      return ergebnis;
     }),
 
   // ── Zuweisen nach Gerätename (für Wizard nach execute) ────────────────────
@@ -600,7 +616,8 @@ export const lagerplatzRouter = createTRPCRouter({
         });
       }
 
-      return ctx.prisma.$transaction(async (tx) => {
+      const sync = suchSyncNachCommit();
+      const ergebnis = await ctx.prisma.$transaction(async (tx) => {
         const platz = await tx.lagerplatz.findUnique({ where: { id: input.lagerplatzId } });
         if (!platz) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Lagerplatz nicht gefunden" });
@@ -636,6 +653,8 @@ export const lagerplatzRouter = createTRPCRouter({
 
         // Artikel.lagerplatz synchronisieren
         const n = modell.modell;
+        sync.modell(modell.id);
+        sync.artikel(await artikelIdsDesModells(tx, n));
         await tx.artikel.updateMany({
           where: { OR: [{ bezeichnung: n }, { bezeichnung: { startsWith: `${n} ` } }] },
           data:  { lagerplatz: platz.code },
@@ -646,6 +665,8 @@ export const lagerplatzRouter = createTRPCRouter({
           include: { belegungen: { include: { modell: { select: { id: true, modell: true, hersteller: true } } } } },
         });
       });
+      sync.senden();
+      return ergebnis;
     }),
 
   // ── Umziehen ───────────────────────────────────────────────────────────────
@@ -656,7 +677,8 @@ export const lagerplatzRouter = createTRPCRouter({
       neuerLagerplatzId: z.number().int().positive(),
     }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.prisma.$transaction(async (tx) => {
+      const sync = suchSyncNachCommit();
+      const ergebnis = await ctx.prisma.$transaction(async (tx) => {
         const modell = await tx.geraeteModell.findUnique({
           where:   { id: input.modellId },
           include: { belegung: { include: { lagerplatz: true } } },
@@ -703,6 +725,8 @@ export const lagerplatzRouter = createTRPCRouter({
           });
 
           // Artikel.lagerplatz auf neuen Code aktualisieren
+          sync.modell(modell.id);
+          sync.artikel(await artikelIdsDesModells(tx, modellName));
           await tx.artikel.updateMany({
             where: { OR: [{ bezeichnung: modellName }, { bezeichnung: { startsWith: `${modellName} ` } }] },
             data:  { lagerplatz: neuerPlatz.code },
@@ -716,6 +740,8 @@ export const lagerplatzRouter = createTRPCRouter({
 
         return { result, von: alterCode, nach: neuerPlatz.code };
       });
+      sync.senden();
+      return ergebnis;
     }),
 
   // ── Lösen (eine Modell-Belegung aus dem Fach entfernen) ─────────────────────
@@ -723,7 +749,8 @@ export const lagerplatzRouter = createTRPCRouter({
   loesen: adminProcedure
     .input(z.object({ modellId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.prisma.$transaction(async (tx) => {
+      const sync = suchSyncNachCommit();
+      const ergebnis = await ctx.prisma.$transaction(async (tx) => {
         const belegung = await tx.lagerplatzBelegung.findUnique({
           where:   { modellId: input.modellId },
           include: { modell: { select: { modell: true } } },
@@ -734,6 +761,8 @@ export const lagerplatzRouter = createTRPCRouter({
 
         // Artikel.lagerplatz leeren
         const n = belegung.modell.modell;
+        sync.modell(input.modellId);
+        sync.artikel(await artikelIdsDesModells(tx, n));
         await tx.artikel.updateMany({
           where: { OR: [{ bezeichnung: n }, { bezeichnung: { startsWith: `${n} ` } }] },
           data:  { lagerplatz: null },
@@ -741,6 +770,8 @@ export const lagerplatzRouter = createTRPCRouter({
 
         return { geloest: true as const };
       });
+      sync.senden();
+      return ergebnis;
     }),
 
   // ── Modell umlagern (Fach A → Fach B) ──────────────────────────────────────
@@ -807,7 +838,8 @@ export const lagerplatzRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const mitarbeiter = (ctx.session.user as SessionUser).kuerzel;
 
-      return ctx.prisma.$transaction(async (tx) => {
+      const sync = suchSyncNachCommit();
+      const ergebnis = await ctx.prisma.$transaction(async (tx) => {
         const modell = await tx.geraeteModell.findUnique({
           where:   { id: input.modellId },
           include: { belegung: { include: { lagerplatz: true } } },
@@ -857,6 +889,7 @@ export const lagerplatzRouter = createTRPCRouter({
           select: { id: true, bezeichnung: true, kategorie: true },
         });
 
+        sync.modell(modell.id);
         if (artikel.length > 0) {
           // (a) Lücke: lagerplatz-String UND standortId auf das Zielfach ziehen
           //     (Lagerplatz = Wahrheit).
@@ -864,20 +897,27 @@ export const lagerplatzRouter = createTRPCRouter({
             where: { id: { in: artikel.map((a) => a.id) } },
             data:  { lagerplatz: neuerPlatz.code, standortId: neuerPlatz.standortId },
           });
+          sync.artikel(artikel.map((a) => a.id));
 
           // (b) Lücke: Nachweis im Activity-Feed. DIREKT = KEIN Bestand-Effekt
           //     (heilige Regel): hier wird KEIN Artikel.bestand verändert.
+          // Einzeln statt `createMany`: Nur so gibt es Ids für den Suchindex
+          // (MySQL liefert bei createMany keine zurück). Ein Modell hat ~17 Artikel.
           const notiz = `Umlagerung: ${alterPlatz.code} → ${neuerPlatz.code}`;
-          await tx.buchung.createMany({
-            data: artikel.map((a) => ({
-              artikelId:   a.id,
-              bezeichnung: a.bezeichnung,
-              typ:         BuchungsTyp.DIREKT,
-              menge:       1,
-              mitarbeiter,
-              notiz,
-            })),
-          });
+          for (const a of artikel) {
+            const b = await tx.buchung.create({
+              data: {
+                artikelId:   a.id,
+                bezeichnung: a.bezeichnung,
+                typ:         BuchungsTyp.DIREKT,
+                menge:       1,
+                mitarbeiter,
+                notiz,
+              },
+              select: { id: true },
+            });
+            sync.buchungen([b.id]);
+          }
         }
 
         return {
@@ -889,6 +929,8 @@ export const lagerplatzRouter = createTRPCRouter({
           artikel:       artikel.map((a) => ({ id: a.id, bezeichnung: a.bezeichnung, kategorie: a.kategorie })),
         };
       });
+      sync.senden();
+      return ergebnis;
     }),
 
   // ── Lagerstruktur-Generator ───────────────────────────────────────────────

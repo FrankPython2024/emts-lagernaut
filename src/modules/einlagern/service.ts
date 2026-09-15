@@ -3,6 +3,7 @@ import { TRPCError }           from "@trpc/server";
 import { prisma }              from "@/core/db/prisma";
 import { bucheLager }          from "@/modules/buchungen/service";
 import { naechsteBelegNr }     from "@/core/infra/belegnr";
+import { meilisearchSync }     from "@/core/infra/meilisearchSync";
 import { STANDARD_TEILE }      from "./constants";
 import { VERSCHIEDENES_TEILTYP, verschiedenesKompatTeiltyp } from "@/lib/constants/teiltypen";
 import { normalisiereHersteller } from "@/lib/geraete/herstellerFilter";
@@ -328,6 +329,8 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult[]> {
         console.log(`[Einlagern] Lagerplatz ${platz.code} → Modell #${mId} (Fach ${belegt + 1}/4)`);
         return platz.code;
       });
+      // Fach steht im Modell-Dokument der Suche (`modelle.lagerplatz`) — nach dem Commit melden.
+      if (etlLagerplatzCode) meilisearchSync.modell(mId);
     }
   }
 
