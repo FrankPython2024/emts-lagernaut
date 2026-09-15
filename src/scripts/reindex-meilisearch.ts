@@ -15,7 +15,8 @@
 import { MeiliSearch } from "meilisearch";
 import { PrismaClient } from "@prisma/client";
 import {
-  ARTIKEL_SUCH_SELECT, BUCHUNG_SUCH_SELECT, SUCH_INDIZES, artikelDokument, buchungDokument, type SuchIndex,
+  ANFRAGE_SUCH_SELECT, ARTIKEL_SUCH_SELECT, BUCHUNG_SUCH_SELECT, SUCH_INDIZES,
+  anfrageDokument, artikelDokument, buchungDokument, type SuchIndex,
 } from "../core/infra/meilisearchDokumente";
 
 const MEILI_URL  = process.env.MEILISEARCH_URL ?? "http://localhost:7700";
@@ -64,11 +65,19 @@ const SETTINGS = {
 // ── Hilfsfunktionen ─────────────────────────────────────────────────────────
 
 async function initIndex(name: string, settings: Record<string, unknown>) {
+  // ⚠️ `createIndex` wirft NICHT, wenn es den Index schon gibt — es reiht nur
+  // einen Auftrag ein, der später mit `index_already_exists` scheitert. Die alte
+  // Fassung meldete deshalb bei jedem Lauf „Index angelegt". Erst nachsehen.
+  let vorhanden = true;
   try {
-    await ms.createIndex(name, { primaryKey: "id" });
-    console.log(`  [${name}] Index angelegt`);
+    await ms.getIndex(name);
   } catch {
-    // bereits vorhanden — ok
+    vorhanden = false;
+  }
+  if (!vorhanden) {
+    const task = await ms.createIndex(name, { primaryKey: "id" });
+    await ms.waitForTask(task.taskUid);
+    console.log(`  [${name}] Index angelegt`);
   }
   const task = await ms.index(name).updateSettings(settings as Parameters<ReturnType<typeof ms.index>["updateSettings"]>[0]);
   await ms.waitForTask(task.taskUid);
@@ -207,26 +216,8 @@ async function reindexAnfragen(): Promise<number> {
   console.log("\n── anfragen ──────────────────────────────────");
   await initIndex("anfragen", SETTINGS.anfragen);
 
-  const rows = await prisma.anfrage.findMany({
-    select: {
-      id: true, gruppenNr: true, teil: true, geraet: true,
-      techniker: true, status: true, kommentar: true, datum: true,
-      artikel: { select: { standortId: true } },
-    },
-  });
-
-  const docs = rows.map(a => ({
-    id:          a.id,
-    gruppenNr:   a.gruppenNr  ?? null,
-    teiltyp:     a.teil,
-    geraet:      a.geraet,
-    hersteller:  a.geraet.split(" ")[0] ?? null,
-    techniker:   a.techniker,
-    status:      a.status,
-    notiz:       a.kommentar ?? null,
-    erstelltAm:  a.datum.getTime(),
-    standortId:  a.artikel?.standortId ?? null,
-  }));
+  const rows = await prisma.anfrage.findMany({ select: ANFRAGE_SUCH_SELECT });
+  const docs = rows.map(anfrageDokument);
 
   await addInBatches("anfragen", docs);
   console.log(`  ✓ ${docs.length} Anfragen`);

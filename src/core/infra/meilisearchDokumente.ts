@@ -53,6 +53,38 @@ export function buchungDokument(b: {
   };
 }
 
+export const ANFRAGE_SUCH_SELECT = {
+  id: true, gruppenNr: true, teil: true, geraet: true, techniker: true, status: true,
+  kommentar: true, datum: true,
+  artikel: { select: { standortId: true } },
+} as const;
+
+/**
+ * ⚠️ `standortId` ist `null` bei Anfragen ohne Artikel (Sonderanfrage, BEDARF
+ * ohne angelegten Artikel) — bewusst `null` und nicht weggelassen: Die Suche
+ * findet sie über `standortId IS NULL`, ein fehlendes Feld träfe das nicht.
+ * Bis 15.09.2026 schrieb `sync-anfrage` das Feld gar nicht, jede geänderte
+ * Anfrage fiel damit für Nutzer mit Standortbindung aus der Suche.
+ */
+export function anfrageDokument(a: {
+  id: number; gruppenNr: string | null; teil: string; geraet: string; techniker: string;
+  status: string; kommentar: string | null; datum: Date;
+  artikel: { standortId: number } | null;
+}) {
+  return {
+    id:         a.id,
+    gruppenNr:  a.gruppenNr ?? null,
+    teiltyp:    a.teil,
+    geraet:     a.geraet,
+    hersteller: a.geraet.split(" ")[0] ?? null,
+    techniker:  a.techniker,
+    status:     a.status,
+    notiz:      a.kommentar ?? null,
+    erstelltAm: a.datum.getTime(),
+    standortId: a.artikel?.standortId ?? null,
+  };
+}
+
 /** Die vier Indizes, die Lagernaut pflegt. */
 export const SUCH_INDIZES = ["artikel", "modelle", "anfragen", "buchungen"] as const;
 export type SuchIndex = (typeof SUCH_INDIZES)[number];

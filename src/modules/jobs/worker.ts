@@ -1,7 +1,8 @@
 import { Queue, Worker, type ConnectionOptions } from "bullmq";
 import Redis from "ioredis";
 import {
-  ARTIKEL_SUCH_SELECT, BUCHUNG_SUCH_SELECT, SUCH_INDIZES, artikelDokument, buchungDokument,
+  ANFRAGE_SUCH_SELECT, ARTIKEL_SUCH_SELECT, BUCHUNG_SUCH_SELECT, SUCH_INDIZES,
+  anfrageDokument, artikelDokument, buchungDokument,
 } from "@/core/infra/meilisearchDokumente";
 
 // ── Redis-Verbindung für BullMQ ───────────────────────────────────────────────
@@ -154,20 +155,12 @@ async function handleMeilisearchJob(job: { id?: string | undefined; name: string
     // ── Anfragen ──────────────────────────────────────────────────────────────
     case "sync-anfrage": {
       const anfrageId = job.data.anfrageId as number;
-      const a = await prisma.anfrage.findUnique({
-        where:  { id: anfrageId },
-        select: { id: true, gruppenNr: true, teil: true, geraet: true,
-                  techniker: true, status: true, kommentar: true, datum: true },
-      });
+      const a = await prisma.anfrage.findUnique({ where: { id: anfrageId }, select: ANFRAGE_SUCH_SELECT });
       if (!a) {
         await meilisearch.index("anfragen").deleteDocument(anfrageId);
         break;
       }
-      await meilisearch.index("anfragen").addDocuments([{
-        id: a.id, gruppenNr: a.gruppenNr ?? null, teiltyp: a.teil, geraet: a.geraet,
-        hersteller: a.geraet.split(" ")[0] ?? null, techniker: a.techniker, status: a.status,
-        notiz: a.kommentar ?? null, erstelltAm: a.datum.getTime(),
-      }], { primaryKey: "id" });
+      await meilisearch.index("anfragen").addDocuments([anfrageDokument(a)], { primaryKey: "id" });
       break;
     }
 

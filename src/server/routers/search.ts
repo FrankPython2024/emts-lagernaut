@@ -39,7 +39,10 @@ export const searchRouter = createTRPCRouter({
           }),
           meilisearch.index("anfragen").search(input.query, {
             limit: input.limit,
-            filter: sFilter,
+            // Anfragen ohne Artikel haben keinen Standort. Die Anfragen-Liste zeigt
+            // sie jedem (`artikelId: null` im OR, `getAnfragenByTechniker`) — die
+            // Suche muss dasselbe tun, sonst fehlten hier am 15.09.2026 187 Stück.
+            filter: sFilter ? `(${sFilter}) OR standortId IS NULL` : undefined,
             attributesToRetrieve: [
               "id", "gruppenNr", "teiltyp", "geraet",
               "techniker", "status", "erstelltAm",
