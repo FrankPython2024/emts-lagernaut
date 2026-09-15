@@ -2,8 +2,12 @@
 /**
  * scripts/stressTestCleanup.ts
  *
- * Löscht ALLE Stress-Test-Daten (alle Läufe).
- * Markierung: kommentar/notiz enthält "STRESSTEST"
+ * Löscht ALLE Stress-Test-Daten (alle Läufe) — über dieselbe Funktion wie der
+ * Knopf auf /admin/system/stresstest (`bereinigeTestdaten`).
+ *
+ * ⚠️ Die frühere Fassung löschte als „System-Nachrichten der Test-Aktionen"
+ * JEDE System-Nachricht ohne LogID — also auch „Teil bereit zur Abholung" an
+ * alle echten Techniker. Und sie kannte weder Warenkörbe noch den Bestand.
  *
  * Verwendung:
  *   npm run stresstest:cleanup
@@ -14,99 +18,49 @@
 
 import * as readline from "readline";
 import { prisma }    from "../src/core/db/prisma";
+import { bereinigeTestdaten, zaehleTestdaten, markerFuer } from "../src/modules/stresstest/testdaten";
 
 const spezifischerRun = process.env.STRESS_RUN;
-const MARKER = spezifischerRun ? `STRESSTEST_${spezifischerRun}` : "STRESSTEST";
-
-async function zaehle() {
-  const [anfragen, buchungen] = await Promise.all([
-    prisma.anfrage.count({ where: { kommentar: { contains: MARKER } } }),
-    prisma.buchung.count({ where: { notiz:     { contains: MARKER } } }),
-  ]);
-  return { anfragen, buchungen };
-}
 
 async function cleanup() {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const stand = await zaehleTestdaten();
 
-  const { anfragen, buchungen } = await zaehle();
-
-  if (anfragen === 0 && buchungen === 0) {
-    console.log(`✅ Keine Test-Daten mit Marker "${MARKER}" gefunden.`);
-    rl.close();
+  if (stand.gesamt === 0) {
+    console.log("✅ Keine Stresstest-Daten gefunden.");
     await prisma.$disconnect();
     return;
   }
 
   console.log(`
 ⚠️  CLEANUP: Folgende Test-Daten werden UNWIDERRUFLICH gelöscht:
-   Marker:    "${MARKER}"
-   Anfragen:  ${anfragen}
-   Buchungen: ${buchungen}
+   Marker:       "${markerFuer(spezifischerRun)}"${spezifischerRun ? "" : " + Kürzel ST01–ST10 / STA1–STA3"}
+   Anfragen:     ${stand.anfragen}
+   Buchungen:    ${stand.buchungen}
+   Nachrichten:  ${stand.nachrichten}
+   Warenkörbe:   ${stand.warenkoerbe}
+   (Zahlen über alle Läufe; der Bestand betroffener Artikel wird danach neu berechnet.)
 `);
 
-  return new Promise<void>((resolve) => {
-    rl.question("Wirklich löschen? [j/N] ", async (antwort) => {
-      rl.close();
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const antwort = await new Promise<string>((resolve) => rl.question("Wirklich löschen? [j/N] ", resolve));
+  rl.close();
 
-      if (antwort.trim().toLowerCase() !== "j") {
-        console.log("Abgebrochen.");
-        await prisma.$disconnect();
-        resolve();
-        return;
-      }
+  if (antwort.trim().toLowerCase() !== "j") {
+    console.log("Abgebrochen.");
+    await prisma.$disconnect();
+    return;
+  }
 
-      console.log("🗑️  Lösche...");
-
-      // 1. Test-Anfragen sammeln
-      const testAnfragen = await prisma.anfrage.findMany({
-        where:  { kommentar: { contains: MARKER } },
-        select: { id: true },
-      });
-      const ids = testAnfragen.map((a) => a.id);
-
-      if (ids.length > 0) {
-        // 2. Chat-Nachrichten löschen
-        const chatLogIds = ids.map((id) => `chat:${id}`);
-        const nachrichten = await prisma.nachricht.findMany({
-          where:  { logId: { in: chatLogIds } },
-          select: { id: true },
-        });
-        const nachrichtIds = nachrichten.map((n) => n.id);
-
-        if (nachrichtIds.length > 0) {
-          await prisma.nachrichtEmpf.deleteMany({ where: { nachrichtId: { in: nachrichtIds } } });
-          await prisma.nachrichtAntwort.deleteMany({ where: { nachrichtId: { in: nachrichtIds } } });
-          await prisma.nachricht.deleteMany({ where: { id: { in: nachrichtIds } } });
-          console.log(`  ✓ ${nachrichtIds.length} Chat-Nachrichten gelöscht`);
-        }
-
-        // 3. System-Nachrichten die von Test-Aktionen kamen
-        const sysNachrichten = await prisma.nachricht.deleteMany({
-          where: { vonKuerzel: { in: ["SYSTEM"] }, logId: null },
-        });
-        if (sysNachrichten.count > 0) {
-          console.log(`  ✓ ${sysNachrichten.count} System-Nachrichten bereinigt`);
-        }
-
-        // 4. Anfragen löschen (korbId wird durch onDelete: SetNull automatisch genullt)
-        const gelöschteAnfragen = await prisma.anfrage.deleteMany({
-          where: { id: { in: ids } },
-        });
-        console.log(`  ✓ ${gelöschteAnfragen.count} Anfragen gelöscht`);
-      }
-
-      // 5. Buchungen löschen
-      const gelöschte = await prisma.buchung.deleteMany({
-        where: { notiz: { contains: MARKER } },
-      });
-      console.log(`  ✓ ${gelöschte.count} Buchungen gelöscht`);
-
-      console.log("\n✅ Cleanup abgeschlossen.");
-      await prisma.$disconnect();
-      resolve();
-    });
-  });
+  const r = await bereinigeTestdaten(spezifischerRun);
+  console.log(`
+✅ Cleanup abgeschlossen.
+   Anfragen:     ${r.anfragen}
+   Buchungen:    ${r.buchungen}
+   Nachrichten:  ${r.nachrichten}
+   Warenkörbe:   ${r.warenkoerbe}
+   Bestand neu:  ${r.bestandNeuBerechnet} Artikel
+`);
+  await prisma.$disconnect();
 }
 
 cleanup().catch((err) => {

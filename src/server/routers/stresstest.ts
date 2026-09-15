@@ -8,6 +8,7 @@ import {
   getErrors,
   cleanupTestData,
 } from "@/modules/stresstest/runner";
+import { zaehleTestdaten } from "@/modules/stresstest/testdaten";
 import { prisma } from "@/core/db/prisma";
 
 export const stresstestRouter = createTRPCRouter({
@@ -45,38 +46,10 @@ export const stresstestRouter = createTRPCRouter({
   getErrors: adminProcedure
     .query(() => getErrors()),
 
-  // Anzahl Test-Daten in DB (für Cleanup-Dialog)
+  // Anzahl Test-Daten in DB (für Cleanup-Dialog) — inkl. Warenkörbe und
+  // Nachrichten an Test-Kürzel, siehe src/modules/stresstest/testdaten.ts.
   getTestDataCount: adminProcedure
-    .query(async () => {
-      const anfragen = await prisma.anfrage.count({
-        where: { kommentar: { contains: "STRESSTEST" } },
-      });
-
-      const buchungen = await prisma.buchung.count({
-        where: { notiz: { contains: "STRESSTEST" } },
-      });
-
-      // Chat-Nachrichten über Test-Anfrage-IDs
-      let nachrichten = 0;
-      if (anfragen > 0) {
-        const ids = await prisma.anfrage.findMany({
-          where:  { kommentar: { contains: "STRESSTEST" } },
-          select: { id: true },
-          take:   500,
-        });
-        const chatLogIds = ids.map((a) => `chat:${a.id}`);
-        nachrichten = await prisma.nachricht.count({
-          where: { logId: { in: chatLogIds } },
-        });
-      }
-
-      return {
-        anfragen,
-        buchungen,
-        nachrichten,
-        gesamt: anfragen + buchungen + nachrichten,
-      };
-    }),
+    .query(() => zaehleTestdaten()),
 
   cleanup: adminProcedure
     .input(z.object({ runId: z.string().optional() }))

@@ -6,8 +6,7 @@
  * Das Scripts/stressTest.ts nutzt realistische 1–3min für Produktions-Simulation.
  */
 
-import { AnfrageStatus, BuchungsTyp, UserRolle } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import { AnfrageStatus, BuchungsTyp } from "@prisma/client";
 import { prisma }        from "@/core/db/prisma";
 import { emitToAdmins }  from "@/modules/realtime/socket";
 import { EVENTS }        from "@/modules/realtime/events";
@@ -25,6 +24,12 @@ import {
 import { addItem, submit }      from "@/modules/warenkorb/service";
 import { bucheLager }           from "@/modules/buchungen/service";
 import { senden as chatSenden } from "@/modules/chat/service";
+import {
+  TEST_TECHNIKER,
+  TEST_ADMINS,
+  pruefeTestKuerzelFrei,
+  bereinigeTestdaten,
+} from "./testdaten";
 
 // ── Typen ─────────────────────────────────────────────────────────────────────
 
@@ -212,29 +217,6 @@ async function messe<T>(actor: string, action: string, fn: () => Promise<T>): Pr
   }
 }
 
-// ── User-Setup ────────────────────────────────────────────────────────────────
-
-async function ensureUser(kuerzel: string, rolle: UserRolle) {
-  try {
-    const ex = await prisma.user.findUnique({ where: { kuerzel } });
-    if (ex) return;
-    const hash = await bcrypt.hash("stress123", 10);
-    await prisma.user.create({
-      data: {
-        kuerzel,
-        name:     `Stress-${kuerzel}`,
-        email:    `${kuerzel.toLowerCase()}@stress.test`,
-        password: hash,
-        rolle,
-        aktiv:    true,
-      },
-    });
-    console.log(`[Stresstest] User angelegt: ${kuerzel} (${rolle})`);
-  } catch (err) {
-    console.warn(`[Stresstest] ensureUser ${kuerzel} → ${err instanceof Error ? err.message : String(err)}`);
-  }
-}
-
 // ── Test-Daten ────────────────────────────────────────────────────────────────
 
 async function ladeTestDaten() {
@@ -276,7 +258,9 @@ async function tkErstellt(kuerzel: string, logIds: { logId: string; bezeichnung:
   }
 
   if (!korbId) return;
-  const r = await submit({ korbId, zusatzinfo: `STRESSTEST_${state!.runId}` });
+  // Test-Modus: kein Bestandsabgleich, keine „Teil bereit"-Nachricht, zählt in
+  // keiner Statistik. Für die Last sind es trotzdem echte Zeilen.
+  const r = await submit({ korbId, zusatzinfo: `STRESSTEST_${state!.runId}`, testModus: true });
   if (state) state.stats.anfrageErstellt += r.anzahl;
 }
 
@@ -344,7 +328,9 @@ async function adChat(kuerzel: string) {
 async function adBuchung(kuerzel: string) {
   const art = await prisma.artikel.findFirst({ where: { bestand: { gt: 0 } }, select: { id: true } });
   if (!art) return;
-  await bucheLager({ artikelId: art.id, menge: 1, typ: BuchungsTyp.EINGANG, mitarbeiter: kuerzel, notiz: `STRESSTEST_${state!.runId}` });
+  // DIREKT statt EINGANG: schreibt eine echte Buchung, ändert aber nie den Bestand.
+  // Mit EINGANG stand „Dell Latitude 7400 Füße vorne" nach dem Aufräumen um 4 zu hoch.
+  await bucheLager({ artikelId: art.id, menge: 1, typ: BuchungsTyp.DIREKT, mitarbeiter: kuerzel, notiz: `STRESSTEST_${state!.runId}` });
   if (state) state.stats.buchungen++;
 }
 
@@ -495,8 +481,10 @@ export async function startRunner(config: TestConfig): Promise<string> {
   if (state?.running) throw new Error("Ein Test läuft bereits.");
 
   const runId     = Date.now().toString(36).toUpperCase();
-  const TECHNIKER = ["FS","VS","MG","HG","AB","AB2","MF","JS2","TH1","WH"].slice(0, config.numTechniker);
-  const ADMINS    = ["FRANK","CHRISTIAN","RONNY"].slice(0, config.numAdmins);
+  // ⚠️ Nie echte Kürzel — siehe Kopf von ./testdaten.ts.
+  await pruefeTestKuerzelFrei();
+  const TECHNIKER = TEST_TECHNIKER.slice(0, config.numTechniker);
+  const ADMINS    = TEST_ADMINS.slice(0, config.numAdmins);
 
   console.log(`[Stresstest] ▶ Start — RunID: ${runId}`);
   console.log(`[Stresstest]   Dauer: ${config.duration / 1000}s | Techniker: ${TECHNIKER.length} | Admins: ${ADMINS.length}`);
@@ -523,12 +511,8 @@ export async function startRunner(config: TestConfig): Promise<string> {
   void (async () => {
     const metricsTimer = startMetricsEmitter();
     try {
-      console.log("[Stresstest] Initialisierung: User-Setup + Daten laden...");
-
-      await Promise.all([
-        ...TECHNIKER.map((k) => ensureUser(k, UserRolle.TECHNIKER)),
-        ...ADMINS.map((k)    => ensureUser(k, UserRolle.ADMIN)),
-      ]);
+      // Bewusst KEINE Konten anlegen — kein Service im Testweg braucht eines.
+      console.log("[Stresstest] Initialisierung: Daten laden...");
 
       const testDaten = await ladeTestDaten();
       const modeIvs  = LOAD_MODES[config.loadMode];
@@ -622,28 +606,7 @@ export async function startRunner(config: TestConfig): Promise<string> {
 
 // ── Cleanup ───────────────────────────────────────────────────────────────────
 
+/** Siehe `bereinigeTestdaten` — erfasst auch Warenkörbe, Nachrichten und Bestand. */
 export async function cleanupTestData(runId?: string) {
-  const marker = runId ? `STRESSTEST_${runId}` : "STRESSTEST";
-
-  const anfragen = await prisma.anfrage.findMany({
-    where:  { kommentar: { contains: marker } },
-    select: { id: true },
-  });
-  const ids = anfragen.map((a) => a.id);
-
-  if (ids.length > 0) {
-    const chatLogIds  = ids.map((id) => `chat:${id}`);
-    const nachrichten = await prisma.nachricht.findMany({ where: { logId: { in: chatLogIds } }, select: { id: true } });
-    const nIds        = nachrichten.map((n) => n.id);
-    if (nIds.length > 0) {
-      await prisma.nachrichtEmpf.deleteMany({ where: { nachrichtId: { in: nIds } } });
-      await prisma.nachrichtAntwort.deleteMany({ where: { nachrichtId: { in: nIds } } });
-      await prisma.nachricht.deleteMany({ where: { id: { in: nIds } } });
-    }
-    await prisma.anfrage.deleteMany({ where: { id: { in: ids } } });
-  }
-
-  const buchungen = await prisma.buchung.deleteMany({ where: { notiz: { contains: marker } } });
-  console.log(`[Stresstest] Cleanup: ${ids.length} Anfragen, ${buchungen.count} Buchungen gelöscht`);
-  return { anfragen: ids.length, buchungen: buchungen.count };
+  return bereinigeTestdaten(runId);
 }

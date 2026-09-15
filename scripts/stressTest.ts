@@ -14,8 +14,7 @@
 
 import * as readline from "readline";
 import * as fs        from "fs";
-import { AnfrageStatus, BuchungsTyp, UserRolle, type Anfrage } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import { AnfrageStatus, BuchungsTyp, type Anfrage } from "@prisma/client";
 
 // ── Service-Imports (direkter Aufruf, kein HTTP) ────────────────────────────
 
@@ -31,6 +30,7 @@ import {
 import { addItem, submit }      from "../src/modules/warenkorb/service";
 import { bucheLager }           from "../src/modules/buchungen/service";
 import { senden as chatSenden } from "../src/modules/chat/service";
+import { TEST_TECHNIKER, TEST_ADMINS, pruefeTestKuerzelFrei } from "../src/modules/stresstest/testdaten";
 
 // ── Konfiguration ────────────────────────────────────────────────────────────
 
@@ -38,15 +38,14 @@ const RUN_ID = Date.now().toString().slice(-6); // 6 Stellen für Markierung
 
 const CONFIG = {
   duration:    parseInt(process.env.TEST_DURATION ?? "") || 60 * 60 * 1000,
-  techniker: ["FS", "VS", "MG", "HG", "AB", "AB2", "MF", "JS2", "TH1", "WH"],
-  admins:    ["FRANK", "CHRISTIAN", "RONNY"],
+  // ⚠️ Nie echte Kürzel und keine Konten — siehe src/modules/stresstest/testdaten.ts.
+  techniker: TEST_TECHNIKER,
+  admins:    TEST_ADMINS,
   technikerInterval: { min: 60_000,  max: 180_000 },   // 1–3 Min
   adminInterval:     { min: 30_000,  max: 90_000  },   // 30 s – 1.5 Min
   raceInterval:      { min: 120_000, max: 300_000 },   // 2–5 Min (Race Tests)
   testPrefix: `STRESSTEST_${RUN_ID}`,
   logFile:    `stresstest-${RUN_ID}.log`,
-  adminPass:  "admin123",
-  techPass:   "techniker123",
 } as const;
 
 const TEILE = [
@@ -200,31 +199,6 @@ async function ladeTestDaten(): Promise<TestData> {
   return { logIds, artikelIds };
 }
 
-// ── User-Setup ───────────────────────────────────────────────────────────────
-
-async function sicherstelleUser(kuerzel: string, rolle: UserRolle, pass: string) {
-  const bestehend = await prisma.user.findUnique({ where: { kuerzel } });
-  if (bestehend?.aktiv) return;
-
-  const hash  = await bcrypt.hash(pass, 10);
-  const email = `${kuerzel.toLowerCase()}@stress.test`;
-
-  await prisma.user.upsert({
-    where:  { kuerzel },
-    update: { aktiv: true },
-    create: {
-      kuerzel,
-      name:  `Stress-${kuerzel}`,
-      email,
-      password: hash,
-      rolle,
-      aktiv: true,
-    },
-  });
-
-  log("INFO", "SETUP", `User angelegt`, { kuerzel, rolle });
-}
-
 // ── Hilfsfunktion: Test-Anfrage finden ────────────────────────────────────────
 
 async function findeEigeneAnfrage(techniker: string, status: AnfrageStatus[]) {
@@ -289,9 +263,11 @@ async function technikerErstelltAnfrage(kuerzel: string, daten: TestData) {
 
   if (!korbId) throw new Error("Warenkorb konnte nicht erstellt werden");
 
+  // Test-Modus: kein Bestandsabgleich, keine „Teil bereit"-Nachricht, keine Statistik.
   const result = await messe(() => submit({
     korbId,
     zusatzinfo: CONFIG.testPrefix,
+    testModus:  true,
   }));
 
   stats.anfrageErstellt += result.anzahl;
@@ -440,7 +416,9 @@ async function adminBucht(kuerzel: string) {
   if (!artikel) return;
 
   const menge = 1 + Math.floor(Math.random() * 3);
-  const typ   = prozent(60) ? BuchungsTyp.EINGANG : BuchungsTyp.AUSGANG;
+  // DIREKT: echte Buchungszeile, aber nie ein Bestandseffekt. EINGANG/AUSGANG
+  // verschoben echten Bestand, und das Aufräumen rechnete ihn nicht zurück.
+  const typ   = BuchungsTyp.DIREKT as BuchungsTyp;
 
   await messe(() => bucheLager({
     artikelId:   artikel.id,
@@ -777,14 +755,8 @@ async function main() {
     runId: RUN_ID,
   });
 
-  // 3. Test-User sicherstellen
-  console.log("\n🔧 Prüfe/erstelle Test-User...");
-  for (const kuerzel of CONFIG.techniker) {
-    await sicherstelleUser(kuerzel, UserRolle.TECHNIKER, CONFIG.techPass);
-  }
-  for (const kuerzel of CONFIG.admins) {
-    await sicherstelleUser(kuerzel, UserRolle.ADMIN, CONFIG.adminPass);
-  }
+  // 3. Test-Kürzel prüfen — bewusst KEINE Konten anlegen
+  await pruefeTestKuerzelFrei();
 
   // 4. Test-Daten laden
   console.log("📦 Lade Test-Daten...");

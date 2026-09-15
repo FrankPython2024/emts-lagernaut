@@ -230,6 +230,19 @@ EOF
   jetzt `istSonderAnfrage || !artikelId` und behandeln es als DIREKT ohne Bestandseffekt, so wie
   `anfragen.setStatus` es längst tat. **Bei jeder Vorschau-/Ausführungs-Paarung gegenprüfen:
   Kann die Vorschau etwas anbieten, das die Ausführung ablehnt?**
+- ⚠️ **Stresstest läuft auf der PRODUKTION — er darf nie unter echten Namen oder auf echtem Bestand
+  arbeiten.** Am 14.09.2026 abgebrochen, am 15.09.2026 aufgefallen: Der Test lief unter den Kürzeln
+  echter Techniker (FS, VS, AB …) auf echten LogIDs. Übrig blieben **9 halb gefüllte Warenkörbe**
+  (Korb = Techniker + LogID → wer die LogID später scannte, schickte Test-Teile mit „STRESSTEST_…"
+  im Kommentar ab; #27358 von AB2 ist so entstanden), 3 falsche „Teil bereit zur Abholung" an
+  echte Techniker, ein um 4 zu hoher Bestand (Buchungen gelöscht, Bestand nie neu berechnet) und
+  **zwei aktive ADMIN-Konten mit Passwort „stress123"**. Das CLI-Aufräumen hätte zudem **jede**
+  System-Nachricht ohne LogID gelöscht. Alles am 15.09.2026 bereinigt (Konten deaktiviert).
+  Jetzt in `src/modules/stresstest/testdaten.ts`: eigene Kürzel **ST01–ST10 / STA1–STA3** (Start
+  bricht ab, falls eines einem echten Konto gehört), **keine Konten**, Anfragen im **Test-Modus**,
+  Buchungen als **DIREKT**, und `bereinigeTestdaten()` für Web-Knopf UND CLI — erfasst Anfragen,
+  Chats, Nachrichten an Test-Kürzel, Warenkörbe, Buchungen und rechnet den Bestand nach.
+  Wer dem Testweg eine neue Schreibstelle gibt, muss sie dort mit aufräumen.
 - **Socket.io-Panel ≠ Auth-State.** Sockets bestehen bis Tab-Reload, unabhängig vom Token.
 - **Geräte-Import:** nur HP, Lenovo, Dell, Fujitsu (typo-tolerant; HPE explizit abgelehnt =
   Server). Modellnummern bleiben erhalten ("Precision 7530"); Marketing-Text raus.

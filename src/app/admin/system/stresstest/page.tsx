@@ -249,7 +249,8 @@ function ConfigScreen({ onStart }: { onStart: (cfg: { duration: number; numTechn
             </div>
           )}
           <div style={{ background: "#ffffff08", border: `1px solid ${C.border}`, borderRadius: 8, padding: "0.6rem 1rem", fontSize: "0.7rem", color: C.dim }}>
-            ⚠️ Test erzeugt echte Daten in der DB. Markierung: <strong style={{ color: C.text }}>STRESSTEST_*</strong>
+            ⚠️ Test erzeugt echte Daten in der DB (als Test-Anfragen, ohne Bestandseffekt). Markierung: <strong style={{ color: C.text }}>STRESSTEST_*</strong>,
+            Kürzel <strong style={{ color: C.text }}>ST01–ST10 / STA1–STA3</strong>. Nach dem Test „Alle Test-Daten löschen“.
           </div>
 
           <button
@@ -807,7 +808,9 @@ function CleanupPanel({ currentRunId }: { currentRunId?: string }) {
     onSuccess: (r) => {
       setConfirm(false); setInput("");
       refetch();
-      alert(`✅ Gelöscht: ${r.anfragen} Anfragen, ${r.buchungen} Buchungen, ${r.anfragen} Chat-Nachrichten`);
+      alert(`✅ Gelöscht: ${r.anfragen} Anfragen, ${r.buchungen} Buchungen, ${r.nachrichten} Nachrichten, ${r.warenkoerbe} Warenkörbe` +
+        (r.bestandNeuBerechnet > 0 ? `
+Bestand neu berechnet: ${r.bestandNeuBerechnet} Artikel` : ""));
     },
   });
 
@@ -826,7 +829,7 @@ function CleanupPanel({ currentRunId }: { currentRunId?: string }) {
           🧹 Test-Daten in DB
         </div>
         <div style={{ display: "flex", gap: "1.5rem", marginBottom: 10 }}>
-          {[["Anfragen", counts.anfragen], ["Buchungen", counts.buchungen], ["Nachrichten", counts.nachrichten]].map(([l, v]) => (
+          {[["Anfragen", counts.anfragen], ["Buchungen", counts.buchungen], ["Nachrichten", counts.nachrichten], ["Warenkörbe", counts.warenkoerbe]].map(([l, v]) => (
             <div key={String(l)}>
               <div style={{ fontSize: "1.2rem", fontWeight: 900, color: C.yellow, ...s }}>{fmtNum(Number(v))}</div>
               <div style={{ fontSize: "0.6rem", color: C.dim, ...s }}>{l}</div>
@@ -850,7 +853,8 @@ function CleanupPanel({ currentRunId }: { currentRunId?: string }) {
               Folgende Daten werden <strong style={{ color: C.text }}>permanent</strong> entfernt:<br />
               • {fmtNum(counts.anfragen)} Test-Anfragen<br />
               • {fmtNum(counts.buchungen)} Test-Buchungen<br />
-              • {fmtNum(counts.nachrichten)} Chat-Nachrichten
+              • {fmtNum(counts.nachrichten)} Nachrichten<br />
+              • {fmtNum(counts.warenkoerbe)} Warenkörbe
             </div>
             <div style={{ fontSize: "0.72rem", color: C.dim, marginBottom: 6 }}>
               Zum Bestätigen <strong style={{ color: C.text }}>LÖSCHEN</strong> eingeben:
