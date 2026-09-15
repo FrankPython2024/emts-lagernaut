@@ -286,10 +286,10 @@ async function technikerStorniertAnfrage(kuerzel: string) {
     return;
   }
 
+  // Über die Id, nie über LogID + Teil — die Variante sucht ohne Test-Marker.
   await messe(() => storniereAnfrage({
+    id:        anfrage.id,
     techniker: kuerzel,
-    logId:     anfrage.logId,
-    teil:      anfrage.teil,
   }));
 
   stats.anfrageStorniert++;

@@ -261,12 +261,18 @@ EOF
   im Kommentar ab; #27358 von AB2 ist so entstanden), 3 falsche „Teil bereit zur Abholung" an
   echte Techniker, ein um 4 zu hoher Bestand (Buchungen gelöscht, Bestand nie neu berechnet) und
   **zwei aktive ADMIN-Konten mit Passwort „stress123"**. Das CLI-Aufräumen hätte zudem **jede**
-  System-Nachricht ohne LogID gelöscht. Alles am 15.09.2026 bereinigt (Konten deaktiviert).
+  System-Nachricht ohne LogID gelöscht. Alles am 15.09.2026 bereinigt (Konten gelöscht, Phantom-Abbuchungen zurückgenommen, Suchindizes
+  Anfragen/Buchungen = DB).
   Jetzt in `src/modules/stresstest/testdaten.ts`: eigene Kürzel **ST01–ST10 / STA1–STA3** (Start
   bricht ab, falls eines einem echten Konto gehört), **keine Konten**, Anfragen im **Test-Modus**,
   Buchungen als **DIREKT**, und `bereinigeTestdaten()` für Web-Knopf UND CLI — erfasst Anfragen,
   Chats, Nachrichten an Test-Kürzel, Warenkörbe, Buchungen und rechnet den Bestand nach.
   Wer dem Testweg eine neue Schreibstelle gibt, muss sie dort mit aufräumen.
+  Nachprüfung beider Läufe (22.05. und 14.09.2026) am 15.09.2026: keine echte Anfrage im Testfenster
+  verändert, alle Bestände = Buchungshistorie, keine verwaisten „Teil bereit"-Nachrichten, keine
+  weiteren Konten. ⚠️ Der Test stornierte über `storniereAnfrage({ logId, teil })` — diese Variante
+  sucht die erste offene Anfrage mit gleicher LogID und gleichem Teil, **ohne Marker**, und hätte
+  unter echten Kürzeln echte Anfragen treffen können (ist nicht passiert). Jetzt über die Id.
 - **Socket.io-Panel ≠ Auth-State.** Sockets bestehen bis Tab-Reload, unabhängig vom Token.
 - **Geräte-Import:** nur HP, Lenovo, Dell, Fujitsu (typo-tolerant; HPE explizit abgelehnt =
   Server). Modellnummern bleiben erhalten ("Precision 7530"); Marketing-Text raus.

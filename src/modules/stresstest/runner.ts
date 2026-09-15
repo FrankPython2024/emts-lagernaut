@@ -271,7 +271,10 @@ async function tkStorno(kuerzel: string) {
     select:  { id: true, logId: true, teil: true },
   });
   if (!a) return;
-  await storniereAnfrage({ techniker: kuerzel, logId: a.logId, teil: a.teil });
+  // Über die Id, nie über LogID + Teil: Die Variante sucht die ERSTE offene
+  // Anfrage mit gleicher LogID und gleichem Teil — ohne Test-Marker. Unter echten
+  // Kürzeln hätte sie eine echte Anfrage stornieren können.
+  await storniereAnfrage({ id: a.id, techniker: kuerzel });
   if (state) state.stats.anfrageStorniert++;
 }
 
