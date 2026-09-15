@@ -37,8 +37,16 @@ export type GruppenSchluessel = "ZUSTAND_H" | "GEN_ALT" | "GEN_NEU";
 
 export type Gruppe = {
   key:      GruppenSchluessel;
-  /** Kurzname für den Auftragsnamen, z. B. „Zustand H". */
+  /** Überschrift auf der Seite, z. B. „Generation bis 9". */
   titel:    string;
+  /**
+   * Name des Pickup-Auftrags, z. B. „R-B bis 9".
+   *
+   * ⚠️ Bewusst so kurz und OHNE Datum: Auf dem Handscanner wurde
+   * „Technik 15.09.2026 · Generation bis 9" abgeschnitten, und der
+   * unterscheidende Teil stand genau hinten. Wunsch von Frank am 15.09.2026.
+   */
+  kurzname: string;
   /** Erklärung für die Oberfläche. */
   erklaerung: string;
   zeilen:   TechnikZeile[];
@@ -105,18 +113,23 @@ export function teileAuf(zeilen: TechnikZeile[]): Aufteilung {
       {
         key:        "ZUSTAND_H",
         titel:      "Zustand H",
+        kurzname:   "Zustand H",
         erklaerung: `Zustand aktuell = ${ZUSTAND_EIGENER_AUFTRAG}, unabhängig von der Prozessorgeneration`,
         zeilen:     h,
       },
       {
         key:        "GEN_ALT",
         titel:      `Generation bis ${GENERATIONS_GRENZE}`,
+        // „R-B", weil die übrigen alten Geräte praktisch immer R-B sind (Export
+        // 07.09.2026: 18 von 18). Die Seite warnt, wenn ein anderer Zustand dabei ist.
+        kurzname:   `R-B bis ${GENERATIONS_GRENZE}`,
         erklaerung: `übrige Geräte mit Prozessorgeneration bis einschließlich ${GENERATIONS_GRENZE}`,
         zeilen:     alt,
       },
       {
         key:        "GEN_NEU",
         titel:      `Generation ab ${GENERATIONS_GRENZE + 1}`,
+        kurzname:   `ab ${GENERATIONS_GRENZE + 1}`,
         erklaerung: `übrige Geräte mit Prozessorgeneration über ${GENERATIONS_GRENZE}`,
         zeilen:     neu,
       },

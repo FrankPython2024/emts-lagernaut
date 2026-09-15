@@ -164,6 +164,15 @@ console.log("\n── Echter Export 07.09.2026 (62 Geräte) ──");
   ]);
 }
 
+// ── Auftragsnamen ───────────────────────────────────────────────────────────
+// Kurz und ohne Datum — auf dem Handscanner wurde der lange Name abgeschnitten.
+console.log("\n── Auftragsnamen für den Handscanner ──");
+{
+  const namen = teileAuf([]).gruppen.map((g) => g.kurzname);
+  check("Kurznamen", namen, ["Zustand H", "R-B bis 9", "ab 10"]);
+  check("kein Name länger als 10 Zeichen", namen.every((n) => n.length <= 10), true);
+}
+
 // ── Ergebnis ────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════════");
 console.log(`  📊 ${passed} passed  |  ${failed} failed`);

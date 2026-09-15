@@ -21,6 +21,7 @@
 
 import { prisma } from "@/core/db/prisma";
 import { syncBestandAusHistorie } from "@/modules/buchungen/service";
+import { meilisearchSync } from "@/core/infra/meilisearchSync";
 
 export const TEST_MARKER = "STRESSTEST";
 
@@ -135,6 +136,8 @@ export async function bereinigeTestdaten(runId?: string): Promise<BereinigungsEr
   }
   if (anfrageIds.length > 0) {
     await prisma.anfrage.deleteMany({ where: { id: { in: anfrageIds } } });
+    // Sonst bleiben sie in der globalen Suche stehen (4.071 Stück am 15.09.2026).
+    meilisearchSync.anfragenGeloescht(anfrageIds);
   }
 
   // 2) Warenkörbe — genau das, was am 14.09.2026 liegen blieb.

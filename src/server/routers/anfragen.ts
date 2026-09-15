@@ -529,6 +529,9 @@ export const anfragenRouter = createTRPCRouter({
         };
       });
 
+      // Auch aus der globalen Suche nehmen — sonst bleibt die Anfrage dort sichtbar.
+      meilisearchSync.anfragenGeloescht(result.ids);
+
       // Admin-UIs live informieren
       emitToBackoffice(EVENTS.ANFRAGE_GELOESCHT, { ids: result.ids });
 

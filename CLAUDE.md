@@ -228,6 +228,17 @@ EOF
   Gerät** raus. Real am 15.09.2026 (AB2: Füße für 212.660.463, dazu ein D Cover für 212.889.843,
   das CR ausgegeben hat) und schon am 30.07.2026 (TH1: 212.902.122 + 212.902.685). Das Portal
   gibt jetzt `logId` mit; der Service filtert mit derselben `normalizeLogId` wie beim Befüllen.
+  Vollständige Rekonstruktion 15.09.2026 (über den Suchindex, der gelöschte Anfragen noch kannte):
+  **drei** Phantom-Absendungen nach dem Stresstest — TH1 14.09. 15:18 (#27349), MG 15.09. 07:03
+  (#27350 + #27351, von CR ausgegeben, danach gelöscht; die AUSGANG-Buchung blieb), AB2 15.09.
+  08:40 (#27358). Der Stresstest hatte Teiltyp und Artikel **zufällig** gepaart — Phantome erkennt
+  man daran, dass `Artikel.kategorie` ≠ `Anfrage.teil` bzw. das Artikel-Modell nicht zum Gerät passt.
+- ⚠️ **Wer Anfragen per `deleteMany` löscht, muss sie auch aus Meilisearch nehmen**
+  (`meilisearchSync.anfragenGeloescht(ids)`). `anfragen.loeschen` und das Stresstest-Aufräumen
+  taten es nicht → am 15.09.2026 standen **4.071** gelöschte Anfragen (3.952 aus Stresstests) in
+  der globalen Suche. `npm run reindex` hilft dagegen NICHT — es fügt nur hinzu, löscht nie.
+  ⚠️ `anfragen.loeschen` lässt Buchungen bewusst stehen („Bestand-Historie") — bei einer
+  gelöschten, schon ausgegebenen Phantom-Anfrage bleibt der Bestand damit reduziert.
 - **Pickup-Auftragsnamen sind für den Handscanner, nicht für den Schreibtisch.** Die Abholung aus der
   Technik (`/admin/pickup/technik`) hieß „Technik 15.09.2026 · Generation bis 9" — auf dem Scanner
   abgeschnitten, und der unterscheidende Teil stand hinten. Jetzt `kurzname` in

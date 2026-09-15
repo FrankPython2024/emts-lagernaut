@@ -22,10 +22,6 @@ import {
 // Der Import läuft immer wieder mit einer frischen Datei. Deshalb wird vor dem
 // Anlegen geprüft, welche Geräte schon auf einem offenen Auftrag stehen.
 
-function heuteISO(): string {
-  return new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
 const FARBE: Record<GruppenSchluessel, { rand: string; flaeche: string; text: string }> = {
   ZUSTAND_H: { rand: "#BA7517", flaeche: "rgba(186,117,23,0.08)", text: "#8A5A00" },
   GEN_ALT:   { rand: "#0064d2", flaeche: "rgba(0,100,210,0.06)",  text: "#0064d2" },
@@ -43,7 +39,9 @@ export default function TechnikPickupPage() {
   const [fileName, setFileName]   = useState<string | null>(null);
   const [parsing, setParsing]     = useState(false);
   const [res, setRes]             = useState<TechnikImportResult | null>(null);
-  const [praefix, setPraefix]     = useState(`Technik ${heuteISO()}`);
+  // Leer ist der Normalfall: Der Auftrag heißt dann nur „Zustand H" / „R-B bis 9" /
+  // „ab 10" — alles Längere wird auf dem Handscanner abgeschnitten.
+  const [praefix, setPraefix]     = useState("");
   const [ueberspringen, setUeberspringen] = useState(true);
   const [laeuft, setLaeuft]       = useState(false);
   const [angelegt, setAngelegt]   = useState<{ id: number; name: string; anzahl: number }[] | null>(null);
@@ -114,7 +112,7 @@ export default function TechnikPickupPage() {
         // Leere Gruppe = kein Auftrag. Ein Abholauftrag ohne Position wäre nur
         // eine Karteileiche in der Liste.
         if (zeilen.length === 0) continue;
-        const name = `${praefix.trim()} · ${g.titel}`;
+        const name = praefix.trim() ? `${praefix.trim()} ${g.kurzname}` : g.kurzname;
         const r = await erstellen.mutateAsync({
           name:      name.slice(0, 200),
           typ:       "LOGID",
@@ -273,6 +271,14 @@ export default function TechnikPickupPage() {
               return (
                 <div key={g.key} className="rounded-xl border-2 p-4" style={{ borderColor: f.rand, background: f.flaeche }}>
                   <div className="font-black text-base" style={{ color: f.text }}>{g.titel}</div>
+                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                    Auftrag: <b className="text-[#1a1a1a] dark:text-[#e4e6eb]">{praefix.trim() ? `${praefix.trim()} ${g.kurzname}` : g.kurzname}</b>
+                  </div>
+                  {g.key === "GEN_ALT" && anzulegen.some((z) => (z.zustand ?? "").trim().toUpperCase() !== "R-B") && (
+                    <div className="mt-1 text-xs font-bold text-[#8A5A00] dark:text-[#f7b928]">
+                      ⚠ Enthält auch Geräte, die nicht R-B sind — der Name „{g.kurzname}" stimmt dann nicht ganz.
+                    </div>
+                  )}
                   <div className="text-3xl font-black tabular-nums mt-1 text-[#1a1a1a] dark:text-[#e4e6eb]">
                     {anzulegen.length}
                   </div>
@@ -304,19 +310,23 @@ export default function TechnikPickupPage() {
           {!angelegt && (
             <div className="rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] p-5 space-y-3">
               <label className="block">
-                <span className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">Name der Aufträge</span>
+                <span className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">
+                  Zusatz vor dem Namen <span className="font-normal text-[#65676b] dark:text-[#b0b3b8]">(optional)</span>
+                </span>
                 <input
                   value={praefix}
                   onChange={(e) => setPraefix(e.target.value)}
+                  placeholder="leer lassen"
                   className="w-full px-4 py-3 rounded-lg border-2 border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2] min-h-[56px]"
                 />
                 <span className="block text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">
-                  Wird je Auftrag ergänzt, z. B. „{praefix.trim() || "Technik"} · Zustand H".
+                  Die Aufträge heißen „{praefix.trim() ? `${praefix.trim()} ` : ""}Zustand H“, „{praefix.trim() ? `${praefix.trim()} ` : ""}R-B bis 9“ und „{praefix.trim() ? `${praefix.trim()} ` : ""}ab 10“.
+                  Kurz halten, der Handscanner schneidet lange Namen ab.
                 </span>
               </label>
               <button
                 onClick={() => void auftraegeAnlegen()}
-                disabled={laeuft || gesamtAnzulegen === 0 || praefix.trim().length < 2}
+                disabled={laeuft || gesamtAnzulegen === 0}
                 className="px-6 py-3 rounded-xl bg-[#037A4F] text-white font-bold text-base min-h-[56px] disabled:opacity-50"
               >
                 {laeuft ? "Wird angelegt…" : `${gesamtAnzulegen} Gerät(e) auf Aufträge verteilen`}

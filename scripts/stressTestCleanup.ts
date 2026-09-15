@@ -61,6 +61,10 @@ async function cleanup() {
    Bestand neu:  ${r.bestandNeuBerechnet} Artikel
 `);
   await prisma.$disconnect();
+  // Die Such-Aufräumjobs laufen über die Queue (Redis) — kurz Zeit geben, dann
+  // hart beenden, sonst hält die offene Queue-Verbindung das Skript am Leben.
+  await new Promise((r) => setTimeout(r, 2000));
+  process.exit(0);
 }
 
 cleanup().catch((err) => {
