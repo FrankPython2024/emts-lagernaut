@@ -1709,3 +1709,40 @@ enum VerwertungsEntnahmeArt {
   // Nachgesehen: war nicht mehr drin.
   NICHT_VORHANDEN
 }
+
+// ── Notizbuch ────────────────────────────────────────────────────────────────
+// Freie Sammellisten für alles, was keinen eigenen Platz hat: mehrere LogIDs
+// hintereinander scannen, Barcodes oder Inventarnummern erfassen. Für alle mit
+// NOTIZBUCH_VIEW sichtbar, schreiben nur mit NOTIZBUCH_EDIT.
+//
+// Bewusst OHNE Bezug zu Artikel/Gerät: Die Einträge sind Rohwerte, genau wie
+// gescannt. Eine Deutung (ist das eine LogID?) gehört nicht in den Speicher.
+model Notiz {
+  id           Int            @id @default(autoincrement())
+  titel        String         @db.VarChar(191)
+  text         String?        @db.Text
+  erstelltVon  String         @db.VarChar(50)
+  geaendertVon String?        @db.VarChar(50)
+  // ⚠️ Eigener Zeitstempel NUR für Titel/Freitext. `updatedAt` rückt auch bei
+  // jedem neuen Scan vor — daran gemessen würde das Speichern des Freitexts bei
+  // jedem Scan einer anderen Person als „inzwischen geändert" abgelehnt.
+  textStand    DateTime       @default(now())
+  eintraege    NotizEintrag[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([updatedAt])
+}
+
+model NotizEintrag {
+  id         Int      @id @default(autoincrement())
+  notizId    Int
+  notiz      Notiz    @relation(fields: [notizId], references: [id], onDelete: Cascade)
+  // 500 statt 191: Sammelbarcodes (Lenovo „8SSN20V43652C3DG1AK01XR…") werden lang.
+  wert       String   @db.VarChar(500)
+  erfasstVon String   @db.VarChar(50)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([notizId])
+}

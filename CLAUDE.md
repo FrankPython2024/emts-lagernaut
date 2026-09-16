@@ -1065,6 +1065,38 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
 - **Tests:** `test:defekte` (52), `test:teilespender` (42), `test:auswahl` (15), `test:frische` (19),
   `test:ort` (25), `test:bedarf` (29).
 
+### Notizbuch (Sep 2026)
+
+Sammellisten für alles, was sonst auf einem Zettel landet: mehrere LogIDs hintereinander
+scannen, Barcodes, Inventarnummern. Seite `/admin/notizbuch` (Nav „📓 Notizbuch", Betrieb),
+Detail `/admin/notizbuch/[id]`. Entscheidungen von Frank am 16.09.2026: **für alle sichtbar**,
+**Scanliste + Freitext**, **Kopieren & CSV/Excel-Export**, **Verwaltungs-Rollen**.
+- **Schema:** `Notiz` (titel, text, erstelltVon, geaendertVon, **textStand**) + `NotizEintrag`
+  (wert VarChar(500) — Sammelbarcodes sind lang, erfasstVon; `onDelete: Cascade`). Einträge sind
+  **Rohwerte**, bewusst ohne Deutung (kein LogID-/Artikel-Bezug im Speicher).
+- **Rechte:** `NOTIZBUCH_VIEW` an BETRACHTER + ADMIN_READONLY geseedet (Lesen, Kopieren, Export
+  ändern nichts), `NOTIZBUCH_EDIT` nur ADMIN (Wildcard) bzw. **pro Person**. Grund: Beide Rollen
+  sind im Seed ausdrücklich ohne Schreibrechte angelegt — gleiches Muster wie Bestellanfragen.
+  **Braucht `db push` UND `seed-rbac`.**
+- **Scanfeld:** Enter schickt ab (der Handscanner sendet es selbst), Umschalt+Enter bricht um;
+  eine **eingefügte Liste** wird je Zeile ein Eintrag (max 500 je Aufruf). Doppelte werden
+  **angenommen, aber gemeldet** und gelb mit „N×" markiert — mitzählen kann gewollt sein.
+  Neueste Einträge stehen oben, damit man beim Scannen sieht, ob der letzte angekommen ist.
+- ⚠️ **Zwei Zeitstempel, nicht einer.** Notizen sind geteilt → zwei Personen können dieselbe
+  offen haben. `speichern` prüft optimistisch gegen `textStand` und lehnt mit Namen ab
+  („inzwischen von XY geändert"), statt still zu überschreiben. `updatedAt` rückt dagegen bei
+  **jedem Scan** vor (sortiert die Übersicht) — daran geprüft würde jeder Scan einer anderen
+  Person das Speichern des Freitexts blockieren.
+- ⚠️ **Formular-Falle 1 gilt hier doppelt:** Die Detailseite lädt alle 10 s neu (Scans anderer
+  sollen erscheinen). Titel/Freitext werden deshalb nur übernommen, solange `geaendert` falsch
+  ist — sonst wäre halb getippter Text nach 10 s weg. Bei Konflikt bleibt der eigene Text im
+  Feld, mit „Meinen Text kopieren" vor „Neueste Fassung laden".
+- **Export** `src/pages/api/notizbuch/export.ts` als echter Link (wie Mobil-Export). Excel
+  schreibt Einträge als **Text** — sonst wird „212569941" zur Zahl und ein langer Barcode zu
+  „2,12E+08", danach nicht mehr scanbar.
+- Einträge einzeln per `create` statt `createMany` (Ids für die Markierung), Transaktion mit
+  30 s Zeitlimit — 500 Inserts sprengen Prismas Standard von 5 s auf dem 4-GB-Server.
+
 ### Weitere Module (live)
 - Admin-Portal (Artikel, Buchungen, Anfragen mit Lock-System, Modelle/Kompatibilität, Benutzer,
   Statistiken, Nerd-Dashboard, Einlager-Assistent, LogID-Lookup, Activity Log, Belege 57×32mm)

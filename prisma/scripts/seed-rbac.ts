@@ -86,6 +86,13 @@ const PERMISSIONS = [
   { key: "ENTSORGUNG_VIEW",   kategorie: "Betrieb", bezeichnung: "Schrottabholung und Batterietransport einsehen" },
   { key: "ENTSORGUNG_MANAGE", kategorie: "Betrieb", bezeichnung: "Behälter erfassen und Abfallarten pflegen" },
 
+  // Notizbuch: freie Sammellisten (LogIDs scannen, Barcodes, Inventarnummern).
+  // Lesen/Kopieren/Exportieren ändert nichts → an alle Verwaltungs-Rollen.
+  // Schreiben getrennt, weil BETRACHTER und ADMIN_READONLY ausdrücklich keine
+  // Schreibrechte haben — wer dort scannen soll, bekommt EDIT pro Person.
+  { key: "NOTIZBUCH_VIEW", kategorie: "Betrieb", bezeichnung: "Notizbuch einsehen, kopieren, exportieren" },
+  { key: "NOTIZBUCH_EDIT", kategorie: "Betrieb", bezeichnung: "Notizbuch: Notizen anlegen, scannen, bearbeiten, löschen" },
+
   // System
   { key: "STRESSTEST_RUN",      kategorie: "System",      bezeichnung: "Stresstest ausführen" },
   { key: "SYSTEM_ADMIN",        kategorie: "System",      bezeichnung: "Voll-Administrator (alle Rechte)" },
@@ -121,6 +128,7 @@ const ROLLEN = [
       // bekommt BESTELLANFRAGE_CREATE zusätzlich pro Person — die Rolle bleibt
       // damit ihrem Namen treu.
       "BESTELLANFRAGE_VIEW",
+      "NOTIZBUCH_VIEW",
     ],
   },
   {
@@ -134,6 +142,7 @@ const ROLLEN = [
       "ANFRAGE_VIEW_ALL",
       "ARTIKEL_VIEW", "LAGERPLATZ_VIEW", "BUCHUNG_VIEW",
       "MODELL_VIEW", "BESTELLANFRAGE_VIEW", "TEILESPENDER_VIEW",
+      "NOTIZBUCH_VIEW",
     ],
   },
   {
