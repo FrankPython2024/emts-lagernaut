@@ -10,6 +10,7 @@ import { StepKomplettGeraet } from "./StepKomplettGeraet";
 import { StepFotoErkennen, type ErkanntesTeil } from "./StepFotoErkennen";
 import { STANDARD_TEILE, GRADING_OPTIONS } from "@/modules/einlagern/constants";
 import { useStandortFilter } from "@/lib/standort/standortContext";
+import { ERLAUBTE_HERSTELLER_LISTE, type ErlaubterHersteller } from "@/lib/geraete/herstellerFilter";
 import { printKartonSchilder, schildAusName } from "@/lib/print/kartonSchild";
 import {
   HERKUNFT_ARTEN, HERKUNFT_LABEL, HERKUNFT_ICON, HERKUNFT_HILFE,
@@ -849,7 +850,9 @@ function StepGeraet({
 
   async function weiterMitPrüfung(geraet: GeraetState) {
     const herstellerRoh = geraet.name.split(" ")[0] ?? "";
-    const BEKANNTE: readonly string[] = ["HP", "Lenovo", "Dell", "Fujitsu"];
+    // Aus der Whitelist, nicht abgetippt — sonst fehlt hier ein neu erlaubter
+    // Hersteller (z. B. Microsoft seit 16.09.2026) und die Prüfung fällt aus.
+    const BEKANNTE: readonly string[] = ERLAUBTE_HERSTELLER_LISTE;
     // Nur prüfen wenn Hersteller sicher erkennbar
     const hersteller = BEKANNTE.find((h) =>
       geraet.name.toLowerCase().startsWith(h.toLowerCase()) ||
@@ -864,7 +867,7 @@ function StepGeraet({
     try {
       const result = await modellLookup.mutateAsync({
         bezeichnung:     geraet.name,
-        hersteller:      hersteller as "HP" | "Lenovo" | "Dell" | "Fujitsu",
+        hersteller:      hersteller as ErlaubterHersteller,
         adminBestaetigt: false,
       });
 
@@ -1192,7 +1195,7 @@ function StepGeraet({
               <button
                 onClick={() => {
                   const herst = prüfModal.aehnliche[0]?.hersteller ?? "";
-                  const h = herst as "HP" | "Lenovo" | "Dell" | "Fujitsu";
+                  const h = herst as ErlaubterHersteller;
                   setPrüfModal((prev) => prev ? { ...prev, lädt: true } : null);
                   modellLookup.mutate(
                     { bezeichnung: prüfModal.geraet.name, hersteller: h, adminBestaetigt: true },

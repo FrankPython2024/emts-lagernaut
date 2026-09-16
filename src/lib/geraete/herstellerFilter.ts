@@ -1,15 +1,19 @@
 // ── Hersteller-Filter ────────────────────────────────────────────────────────
-// Strikte Whitelist: nur HP, Lenovo, Dell, Fujitsu.
+// Strikte Whitelist: HP, Lenovo, Dell, Fujitsu, Microsoft (Surface).
 // Blocklist verhindert Drift-Modelle (Apple, ASUS, etc.).
 // Typo-Map korrigiert bekannte Schreibfehler aus CSV-Daten.
 
-export const ERLAUBTE_HERSTELLER_LISTE = ["HP", "Lenovo", "Dell", "Fujitsu"] as const;
+// ⚠️ Microsoft (Surface) ist seit 16.09.2026 erlaubt — die Technik repariert die
+// Geräte. Vorher stand Microsoft auf der Blocklist: Der Geräte-Import übersprang
+// Surface-Zeilen still, `GeraeteLookup` blieb leer und das Techniker-Portal
+// meldete für eine gescannte Surface-LogID nur „LogID nicht gefunden" (gemessen:
+// 3.356 Surface-Geräte im Lagerfuchs, 0 in Lagernaut).
+export const ERLAUBTE_HERSTELLER_LISTE = ["HP", "Lenovo", "Dell", "Fujitsu", "Microsoft"] as const;
 export type ErlaubterHersteller = typeof ERLAUBTE_HERSTELLER_LISTE[number];
 
 // Blocklist: Hersteller die NIEMALS erlaubt sind
 const BLOCKLIST: Record<string, string> = {
   apple:              "Apple — nicht im AfB-Portfolio",
-  microsoft:          "Microsoft — nicht im AfB-Portfolio",
   asus:               "ASUS — nicht im AfB-Portfolio",
   acer:               "Acer — nicht im AfB-Portfolio",
   dynabook:           "dynabook (Toshiba) — nicht im AfB-Portfolio",
@@ -22,6 +26,12 @@ const BLOCKLIST: Record<string, string> = {
   tuxedo:             "Tuxedo — nicht im AfB-Portfolio",
   bluechip:           "Bluechip — nicht im AfB-Portfolio",
   msi:                "MSI — nicht im AfB-Portfolio",
+  // ⚠️ Fangen „Micro…"-Namen ab, die NICHT Microsoft sind. Ohne sie fallen sie
+  // zwar auch durch (unbekannt), aber die Meldung nennt dann keinen Grund.
+  microstar:          "MicroStar (MSI) — nicht im AfB-Portfolio",
+  micron:             "Micron (Speicher-Hersteller) — kein Geräte-Hersteller",
+  "micron technology inc": "Micron (Speicher-Hersteller) — kein Geräte-Hersteller",
+  microconnect:       "MicroConnect (Zubehör) — kein Geräte-Hersteller",
   schenker:           "Schenker — nicht im AfB-Portfolio",
   telenorma:          "Telenorma — nicht im AfB-Portfolio",
   hpe:                "HPE (Server) — explizit verboten",
@@ -44,6 +54,9 @@ const TYPO_FIX: Record<string, ErlaubterHersteller> = {
   // Hersteller abgewiesen.
   "fujitsu siemens computers": "Fujitsu",
   "ibm lenovo":        "Lenovo",
+  "microsoft corporation": "Microsoft",
+  // 17 Zeilen im Lagerfuchs schreiben sich so (Stand 16.09.2026).
+  "microsft":          "Microsoft",
 };
 
 // Apple-Indikatoren in Modell-Bezeichnung (auch wenn Hersteller "Dell" lautet)

@@ -290,8 +290,26 @@ EOF
   sucht die erste offene Anfrage mit gleicher LogID und gleichem Teil, **ohne Marker**, und hätte
   unter echten Kürzeln echte Anfragen treffen können (ist nicht passiert). Jetzt über die Id.
 - **Socket.io-Panel ≠ Auth-State.** Sockets bestehen bis Tab-Reload, unabhängig vom Token.
-- **Geräte-Import:** nur HP, Lenovo, Dell, Fujitsu (typo-tolerant; HPE explizit abgelehnt =
-  Server). Modellnummern bleiben erhalten ("Precision 7530"); Marketing-Text raus.
+- **Geräte-Import:** nur HP, Lenovo, Dell, Fujitsu und **Microsoft/Surface** (typo-tolerant;
+  HPE explizit abgelehnt = Server). Modellnummern bleiben erhalten ("Precision 7530");
+  Marketing-Text raus.
+  ⚠️ **Die Whitelist entscheidet, ob ein Gerät im Techniker-Portal überhaupt existiert.**
+  Microsoft stand bis 16.09.2026 auf der Blocklist — der Import übersprang Surface-Zeilen
+  still, `GeraeteLookup` blieb leer, eine gescannte Surface-LogID meldete nur „LogID nicht
+  gefunden" (gemeldet von Frank am 16.09.2026 an 212.569.941 „Surface Laptop 4"). Stand
+  dabei: **3.373 Microsoft-Zeilen im Lagerfuchs, 0 Geräte/Modelle/Artikel in Lagernaut.**
+  ⚠️ **Wer einen Hersteller freischaltet, muss die Bestandsdaten nachtragen** — der Import
+  füllt `GeraeteLookup` nur beim CSV-Upload:
+  `prisma/scripts/backfill-geraete-lookup.ts --hersteller Microsoft` (Trockenlauf ist
+  Standard, `--schreiben` wendet an) zieht sie aus `LogIdStand` nach.
+  ⚠️ **Nur Geräteart „Notebook"** — bei Microsoft sind **1.634 von 3.373** Zeilen Zubehör
+  (785× Dockingstation, ~300 Stifte, Type Cover, Adapter). Als Gerät importiert würde jedes
+  davon ein Modell mit 17 Teiltypen. Die Import-Seite filtert das bereits, das Backfill-
+  Skript muss es genauso tun.
+  ⚠️ **„Micro…" ist nicht gleich Microsoft:** im Lagerfuchs stehen auch Micron (Speicher),
+  MicroConnect (Zubehör) und **Microstar = MSI** — alle drei gehören auf die Blocklist, sonst
+  rutschen sie mit einer unscharfen Regel als Geräte durch. Echter Tippfehler ist nur
+  „Microsft" (17 Zeilen).
 
 ---
 

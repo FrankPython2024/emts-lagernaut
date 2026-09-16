@@ -25,7 +25,7 @@ import { normalisiere, istPlausibel, schlageNach } from "./service";
 // Nummernsuche mit Fundstellen oder von Hand. Das ist die Zusage, die AfB nach
 // außen gegeben hat, und sie bleibt unangetastet.
 
-const HERSTELLER = ["HP", "Lenovo", "Dell", "Fujitsu", "unbekannt"] as const;
+const HERSTELLER = ["HP", "Lenovo", "Dell", "Fujitsu", "Microsoft", "unbekannt"] as const;
 
 export type ErkennungsErgebnis = {
   ok:          boolean;
