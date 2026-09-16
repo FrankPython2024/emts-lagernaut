@@ -837,6 +837,18 @@ Der Router muss dafür `modellIds` mitgeben.
     mitdruckt; Fallback-Timeout). Inhalt **groß/kontraststark (inklusiv)**: Foto oben, Name+
     Merkmale, AAN prominent, Standort/Kategorie, unten großer Scan-QR (roher `VM-…`-Code) +
     „Zum Erfassen scannen". Buttons **📄 Schild** je Zeile + **📄 A5-Schilder** in der Bulk-Leiste.
+    ⚠️ **Der QR wurde beim Druck abgeschnitten** (Frank, 16.09.2026). Ursache war nicht der Drucker:
+    Das Blatt war ein starrer 210-mm-Kasten mit `overflow: hidden`, `@page margin: 0` und einem
+    **starren 78-mm-Foto** — Foto + Ränder + Texte + Scan-Bereich ergaben ~218 mm, und unten steht
+    der QR. Am Bildschirm sieht man das nicht, die Vorschau skaliert anders. Jetzt: Rand über
+    `@page margin: 7mm` (nie padding — sonst druckt man in den Unrandbereich), Blatt 134×192 mm
+    (4 mm Reserve gegen Rundungs-Seitenumbrüche) und eine feste **Rangfolge bei Platzmangel**:
+    Scan-Bereich `flex-shrink: 0` (nie), dann das Foto (`flex: 0 1000 auto`, min 30 mm), Text
+    zuletzt. Erste Fassung hatte es umgekehrt — Foto blieb bei 74 mm, dafür wurde die „Maße"-Zeile
+    mittendrin abgeschnitten. An fünf Fällen im Browser nachgemessen (langer Name, Name=Merkmale,
+    mittel, extrem, ohne Foto): Text vollständig, Scan-Bereich bündig unten, QR 38 mm.
+    Ebenfalls dort: Merkmale, die wörtlich dem Namen entsprechen, werden nicht doppelt gedruckt,
+    und ein Platzhalter-AAN („?", „-") erzeugt keine AAN-Zeile.
   - **Übersicht „ohne Foto":** Liste hat eine **Foto-Spalte** (Titelbild-Thumbnail bzw. rotes „Kein
     Foto"), Filter **„Nur ohne Foto"** (`liste`-Input `nurOhneFoto` → `where.fotos={none:{}}`) und
     ein Kopf-Badge **„📷 N ohne Foto"** (Query `ohneFotoAnzahl` = aktive Artikel ohne Foto; Klick

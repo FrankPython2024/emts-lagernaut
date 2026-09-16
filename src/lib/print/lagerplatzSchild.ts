@@ -73,40 +73,68 @@ export async function printLagerplatzSchild(artikel: SchildArtikel[]): Promise<v
   const entries = await Promise.all(liste.map(async (a) => ({ a, qr: await genQrSvg(a.code.trim()) })));
 
   const css = `
-    @page { size: A5; margin: 0; }
+    /* ⚠️ Der Rand gehört ins @page, NICHT als padding in den Kasten: Mit
+       margin:0 druckt jeder Drucker in seinen Unrandbereich hinein, und die
+       Seite lief um wenige Millimeter über — die letzte Zeile rutschte weg. */
+    @page { size: A5; margin: 7mm; }
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: Arial, Helvetica, sans-serif; }
     html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-    /* A5 = 148×210mm; 9mm Innenrand (Drucker-Unrandbereich) → nichts wird beschnitten. */
-    .sheet { width: 148mm; height: 210mm; padding: 9mm; display: flex; flex-direction: column; overflow: hidden; page-break-after: always; }
-    .sheet:last-child { page-break-after: avoid; }
-    .foto { flex: 0 0 auto; height: 78mm; margin-bottom: 5mm; border: 0.5pt solid #bbb; border-radius: 2mm;
+    /* A5 abzüglich @page-Rand = 134 × 196mm. 192mm lässt Luft für Rundungs-
+       unterschiede der Drucker — sonst erzwingt ein halber Millimeter einen
+       Seitenumbruch und die halbe Seite fehlt. */
+    .sheet { width: 134mm; height: 192mm; display: flex; flex-direction: column;
+             overflow: hidden; page-break-after: always; break-after: page; }
+    .sheet:last-child { page-break-after: avoid; break-after: avoid; }
+    /* Rangfolge bei Platzmangel: Scan-Bereich bleibt IMMER ganz (flex-shrink 0),
+       danach gibt das Foto nach, der Text erst zuletzt. Der hohe Schrumpffaktor
+       (1000 gegen 1) sorgt dafür, dass praktisch nur das Foto kleiner wird.
+       Vorher war es umgekehrt — das Foto blieb bei 74mm und die letzte Textzeile
+       wurde mittendrin abgeschnitten. */
+    .foto { flex: 0 1000 auto; height: 74mm; min-height: 30mm; margin-bottom: 4mm;
+            border: 0.5pt solid #bbb; border-radius: 2mm;
             display: flex; align-items: center; justify-content: center; overflow: hidden; }
     .foto img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    /* Textblock darf sich verkleinern und notfalls abschneiden — der QR nicht. */
+    .text { flex: 0 1 auto; min-height: 0; overflow: hidden; }
     .name { font-size: 30pt; font-weight: 800; line-height: 1.1; margin: 0 0 2mm; color: #000;
             word-break: break-word; overflow-wrap: anywhere; -webkit-hyphens: auto; hyphens: auto; }
+    .name.mittel { font-size: 24pt; }
+    .name.lang   { font-size: 18pt; }
     .merkmale { font-size: 16pt; line-height: 1.25; margin: 0 0 4mm; color: #222; }
     .aan { font-size: 24pt; font-weight: 800; line-height: 1.1; margin: 0 0 2.5mm; color: #000; }
     .aan .lbl { font-size: 13pt; font-weight: 700; color: #555; letter-spacing: 1px; }
     .meta { font-size: 15pt; line-height: 1.3; margin: 0 0 1.5mm; color: #222; }
     .meta .lbl { font-weight: 700; color: #555; }
-    .spacer { flex: 1 1 auto; min-height: 3mm; }
-    /* Scan-Bereich unten: großer QR links, Hinweis + Code rechts. */
-    .scan { flex: 0 0 auto; display: flex; align-items: center; gap: 6mm; border-top: 1pt solid #000; padding-top: 4mm; }
-    .qr { width: 44mm; height: 44mm; flex: 0 0 auto; display: block; }
+    /* Wächst mit, damit der Scan-Bereich unten steht — bei einem Artikel ohne
+       Foto sonst mitten auf der Seite, mit 11cm Leerraum darunter. */
+    .spacer { flex: 1 1 auto; min-height: 2mm; }
+    /* Scan-Bereich: flex-shrink 0 — er wird NIE gequetscht oder abgeschnitten. */
+    .scan { flex: 0 0 auto; display: flex; align-items: center; gap: 6mm;
+            border-top: 1pt solid #000; padding-top: 4mm; }
+    .qr { width: 38mm; height: 38mm; flex: 0 0 auto; display: block; }
     .scantext { min-width: 0; }
     .scanhint { font-size: 15pt; font-weight: 700; color: #000; margin: 0 0 2mm; line-height: 1.2; }
-    .code { font-family: "Courier New", monospace; font-size: 26pt; font-weight: 800; letter-spacing: 1px; color: #000; }
+    .code { font-family: "Courier New", monospace; font-size: 24pt; font-weight: 800; letter-spacing: 1px; color: #000; }
   `;
 
   const body = entries.map(({ a, qr }) => {
     const fotoHtml = a.bildUrl
       ? `<div class="foto"><img src="${escapeHtml(a.bildUrl)}" alt="" /></div>`
       : "";
-    const merkmaleHtml = a.merkmale && a.merkmale.trim()
-      ? `<div class="merkmale">${escapeHtml(a.merkmale.trim())}</div>`
+    const name = a.name.trim();
+    // Lange Namen kleiner setzen, statt sie den Scan-Bereich wegdrücken zu lassen.
+    const nameKlasse = name.length > 32 ? " lang" : name.length > 18 ? " mittel" : "";
+    // Merkmale, die wörtlich der Name sind, zweimal zu drucken hilft niemandem
+    // (real bei den Kartonagen: Name und Merkmale beide „385 x 235 x 180").
+    const merkmale = (a.merkmale ?? "").trim();
+    const merkmaleHtml = merkmale && merkmale.toLowerCase() !== name.toLowerCase()
+      ? `<div class="merkmale">${escapeHtml(merkmale)}</div>`
       : "";
-    const aanHtml = a.aan && a.aan.trim()
-      ? `<div class="aan"><span class="lbl">AAN</span><br>${escapeHtml(a.aan.trim())}</div>`
+    // „?" oder „-" als AAN ist keine Nummer, sondern ein Platzhalter — dann
+    // lieber gar keine AAN-Zeile, das schafft Platz für das Wesentliche.
+    const aan = (a.aan ?? "").trim();
+    const aanHtml = aan && /[0-9a-zA-Z]/.test(aan)
+      ? `<div class="aan"><span class="lbl">AAN</span><br>${escapeHtml(aan)}</div>`
       : "";
     const metaTeile: string[] = [];
     if (a.standort && a.standort.trim())  metaTeile.push(`<span class="lbl">Standort:</span> ${escapeHtml(a.standort.trim())}`);
@@ -123,10 +151,12 @@ export async function printLagerplatzSchild(artikel: SchildArtikel[]): Promise<v
 
     return `<div class="sheet">
       ${fotoHtml}
-      <div class="name" lang="de">${escapeHtml(a.name)}</div>
-      ${merkmaleHtml}
-      ${aanHtml}
-      ${metaHtml}
+      <div class="text">
+        <div class="name${nameKlasse}" lang="de">${escapeHtml(name)}</div>
+        ${merkmaleHtml}
+        ${aanHtml}
+        ${metaHtml}
+      </div>
       <div class="spacer"></div>
       <div class="scan">
         <img class="qr" src="${qr}" alt="" />
