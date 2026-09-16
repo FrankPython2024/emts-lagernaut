@@ -33,6 +33,9 @@ type Artikel = {
   status:           "OK" | "NACHBESTELLEN";
   hatBild:          boolean;
   bildStand:        number | null; // ms-Zeitstempel als Cache-Buster (null = kein Foto)
+  // Die ersten beiden Fotos (nach position). Fürs A5-Schild, das zwei Bilder
+  // nebeneinander zeigt, wenn ein zweites hinterlegt ist.
+  bilder:           { id: number; stand: number }[];
 };
 
 // Ausliefer-URL des TITELBILDs (kleinste position) inkl. Cache-Buster. null, wenn
@@ -155,7 +158,9 @@ export default function VerbrauchsmaterialPage() {
   function schildDaten(a: Artikel) {
     return {
       code: a.code, name: a.name, merkmale: a.merkmale, aan: a.aan,
-      standort: a.standort, kategorie: a.kategorie, bildUrl: bildUrl(a),
+      standort: a.standort, kategorie: a.kategorie,
+      // Ein Bild → groß über die volle Breite, zwei → nebeneinander.
+      bildUrls: (a.bilder ?? []).slice(0, 2).map((b) => fotoUrl(b.id, b.stand)),
       laengeMm: a.laengeMm, breiteMm: a.breiteMm, hoeheMm: a.hoeheMm,
     };
   }

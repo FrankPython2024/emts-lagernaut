@@ -164,9 +164,11 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
       const artikel = await prisma.verbrauchsArtikel.findMany({
         where,
         orderBy: [{ aktiv: "desc" }, { name: "asc" }],
-        // Nur das Titelbild (kleinste position) — Existenz + Änderungszeit, NIE die
+        // Die ersten ZWEI Fotos (nach position) — nur Id + Änderungszeit, NIE die
         // Bytes (schlanke Liste). Cache-Buster fürs Thumbnail via ?v=<bildStand>.
-        include: { fotos: { orderBy: { position: "asc" }, take: 1, select: { aktualisiertAm: true } } },
+        // Das zweite Bild braucht das A5-Schild, das zwei Fotos nebeneinander zeigt,
+        // sofern vorhanden; die Liste selbst nutzt weiter nur das Titelbild.
+        include: { fotos: { orderBy: { position: "asc" }, take: 2, select: { id: true, aktualisiertAm: true } } },
       });
 
       return artikel.map(({ fotos, ...a }) => {
@@ -176,6 +178,7 @@ export const verbrauchsmaterialRouter = createTRPCRouter({
           status:    status(a.aktuellerBestand, a.mindestbestand),
           hatBild:   !!titel,
           bildStand: titel ? titel.aktualisiertAm.getTime() : null,
+          bilder:    fotos.map((f) => ({ id: f.id, stand: f.aktualisiertAm.getTime() })),
         };
       });
     }),

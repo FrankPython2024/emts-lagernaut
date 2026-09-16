@@ -845,8 +845,25 @@ Der Router muss dafür `modellIds` mitgeben.
     (4 mm Reserve gegen Rundungs-Seitenumbrüche) und eine feste **Rangfolge bei Platzmangel**:
     Scan-Bereich `flex-shrink: 0` (nie), dann das Foto (`flex: 0 1000 auto`, min 30 mm), Text
     zuletzt. Erste Fassung hatte es umgekehrt — Foto blieb bei 74 mm, dafür wurde die „Maße"-Zeile
-    mittendrin abgeschnitten. An fünf Fällen im Browser nachgemessen (langer Name, Name=Merkmale,
-    mittel, extrem, ohne Foto): Text vollständig, Scan-Bereich bündig unten, QR 38 mm.
+    mittendrin abgeschnitten. An fünf Fällen im Browser nachgemessen.
+    **Aufbau** (16.09.2026 überarbeitet, Rückmeldung „alles zu sehr links, das muss einen
+    professionellen Look haben"): Kopfzeile mit Trennlinie (links „VERBRAUCHSMATERIAL", rechts
+    die Kategorie) · Bildfeld · **zentrierter** Textblock (Name, Merkmale, AAN als umrandetes
+    Kästchen, Meta-Zeilen) · graues Fußband mit QR + Code. Vorher stand das Foto mittig und der
+    Text links, dazwischen ein Loch — das Bildfeld wächst jetzt in freien Platz hinein
+    (`flex-grow`, max 105 mm), der Abstandshalter drückt das Fußband nach unten.
+    ⚠️ **Die `.zeile`-Hüllen um AAN-Kästchen und Meta-Block sind Pflicht:** Beide sind
+    `inline-block` (damit sie als Ganzes mittig stehen) und flossen ohne Hülle NEBENeinander in
+    dieselbe Zeile und überlappten sich. Im Browser gesehen, nicht im Kopf.
+    ⚠️ Beim CSS-Neuaufbau ging zweimal `.spacer { flex: 1 1 auto }` verloren — dann sitzt das
+    Fußband bei einem Artikel ohne Foto mitten auf der Seite. Gehört zu den Dingen, die man
+    nachmisst statt anschaut.
+    **Zwei Fotos nebeneinander, sofern vorhanden:** `SchildArtikel.bildUrls` (max 2, die ersten
+    beiden nach `position`). Dafür gibt `verbrauchsmaterial.liste` jetzt `bilder: {id, stand}[]`
+    mit (`take: 2`, weiterhin OHNE Bytes); die Liste selbst nutzt unverändert nur das Titelbild.
+    Mehr als zwei wären auf A5 Briefmarken.
+    Nachgemessen (1 Bild, 2 Bilder, 2 Bilder + viel Text, Name=Merkmale, ohne Bild): Text nirgends
+    abgeschnitten, keine überlappenden Zeilen, Fußband überall bündig unten, QR 36 mm.
     Ebenfalls dort: Merkmale, die wörtlich dem Namen entsprechen, werden nicht doppelt gedruckt,
     und ein Platzhalter-AAN („?", „-") erzeugt keine AAN-Zeile.
   - **Übersicht „ohne Foto":** Liste hat eine **Foto-Spalte** (Titelbild-Thumbnail bzw. rotes „Kein
