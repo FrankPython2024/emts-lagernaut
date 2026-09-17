@@ -68,3 +68,26 @@ export function resolveStandortId(
   if (user?.alleStandorte) return inputStandortId ?? 1;
   return user?.standortId ?? inputStandortId ?? 1;
 }
+
+/**
+ * Standort-Filter für Statistik und Auswertungen: `null` = alle Standorte,
+ * eine Id, oder eine Liste (Nutzer mit Zugriff auf mehrere, aber nicht alle).
+ *
+ * ⚠️ Bei MEHREREN zugänglichen Standorten nie `null` zurückgeben — `null` heißt
+ * nachgelagert „kein Filter" und zeigte dem Nutzer die Zahlen ALLER Standorte.
+ * Eine leere Liste bleibt leer (= nichts sichtbar).
+ *
+ * ⚠️ Vorher lebte diese Funktion nur im Statistik-Router. Die Wert-Panels
+ * (Preise, Abgaben, Impact) übernahmen `standortId` ungeprüft aus der Eingabe —
+ * ein auf einen Standort beschränktes Konto konnte dort `null` schicken und sah
+ * alles (festgestellt 17.09.2026, damals folgenlos, weil nur Sömmerda Daten hatte).
+ */
+export function statistikStandortFilter(
+  ctx:              TRPCContext,
+  filterStandortId?: number | null,
+): number | number[] | null {
+  const ids = getZugaenglicheStandortIds(ctx, filterStandortId);
+  if (ids === null) return null;
+  if (ids.length === 1) return ids[0] ?? null;
+  return ids;
+}

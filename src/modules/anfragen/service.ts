@@ -454,6 +454,8 @@ export async function schliesseAnfrageAb(id: number, mitarbeiter: string) {
     data:  { status: AnfrageStatus.ABGESCHLOSSEN, bearbeitetVon: null, bearbeitetSeit: null },
   });
   meilisearchSync.anfrage(id);
+  // Jahresarchiv/Monatsdetail sind zwischengespeichert — sonst hinken sie hinterher.
+  invalidateTechnikerCache(anfrage.techniker).catch(() => {});
 
   sendeSystemNachricht({
     empfKuerzel: anfrage.techniker,

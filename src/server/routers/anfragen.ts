@@ -22,6 +22,7 @@ import {
 } from "@/modules/anfragen/service";
 import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service";
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
+import { invalidateTechnikerCache } from "@/modules/statistik/service";
 import { waehleQuelle } from "@/lib/artikel/pool";
 import { naechsteBelegNr } from "@/core/infra/belegnr";
 import { emitToAdmins, emitToUser, emitToAll, emitToBackoffice } from "@/modules/realtime/socket";
@@ -463,6 +464,7 @@ export const anfragenRouter = createTRPCRouter({
       });
 
       meilisearchSync.anfrage(input.id);
+      invalidateTechnikerCache(anfrage.techniker).catch(() => {});
       const payload = { id: input.id, status: neuerStatus, techniker: anfrage.techniker, logId: anfrage.logId };
       emitToBackoffice(EVENTS.ANFRAGE_UPDATED, payload);
       emitToUser(anfrage.techniker, EVENTS.ANFRAGE_UPDATED, payload);
@@ -532,6 +534,10 @@ export const anfragenRouter = createTRPCRouter({
 
       // Auch aus der globalen Suche nehmen — sonst bleibt die Anfrage dort sichtbar.
       meilisearchSync.anfragenGeloescht(result.ids);
+      // Und aus dem Statistik-Zwischenspeicher der betroffenen Techniker.
+      for (const k of new Set(betroffeneAnfragen.map((a) => a.techniker))) {
+        invalidateTechnikerCache(k).catch(() => {});
+      }
 
       // Admin-UIs live informieren
       emitToBackoffice(EVENTS.ANFRAGE_GELOESCHT, { ids: result.ids });

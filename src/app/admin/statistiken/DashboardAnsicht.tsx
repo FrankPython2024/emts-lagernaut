@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { api } from "@/trpc/react";
+import { LadeFehler } from "./LadeFehler";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Dashboard-Ansicht der Statistiken (alternative Optik zur klassischen Seite)
@@ -34,14 +35,13 @@ html.dark .lgn-viz{
 const SERIEN = [
   { key: "anfragen",        label: "Anfragen",        farbe: "var(--s1)" },
   { key: "erledigt",        label: "Erledigt",        farbe: "var(--s3)" },
-  { key: "bedarf",          label: "Bedarf",          farbe: "var(--s5)" },
   { key: "nichtVerfuegbar", label: "Nicht verfügbar", farbe: "var(--s2)" },
 ] as const;
 
 type SerienKey = (typeof SERIEN)[number]["key"];
 
 type VerlaufPunkt = {
-  datum: string; anfragen: number; erledigt: number; bedarf: number; nichtVerfuegbar?: number;
+  datum: string; anfragen: number; erledigt: number; nichtVerfuegbar?: number;
 };
 
 // Status → Serien-Slot. Feste Zuordnung: die Farbe gehört dem Status,
@@ -381,7 +381,6 @@ export function DashboardAnsicht({ tage, standortId }: { tage: number; standortI
     return {
       anfragen:        letzte.map((x) => x.anfragen),
       erledigt:        letzte.map((x) => x.erledigt),
-      bedarf:          letzte.map((x) => x.bedarf),
       nichtVerfuegbar: letzte.map((x) => x.nichtVerfuegbar ?? 0),
     };
   }, [verlauf.data]);
@@ -400,14 +399,23 @@ export function DashboardAnsicht({ tage, standortId }: { tage: number; standortI
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         {kpi.isLoading ? (
           Array.from({ length: 5 }).map((_, i) => <Laden key={i} h="h-[132px]" />)
+        ) : kpi.isError || !kpi.data ? (
+          // ⚠️ Vorher `?? 0`: Eine gescheiterte Abfrage sah aus wie echte Nullen.
+          <div className="col-span-full">
+            <LadeFehler fehler={kpi.error} onRetry={() => void kpi.refetch()} />
+          </div>
         ) : (
           <>
-            <Kachel label="Anfragen gesamt" wert={kpi.data?.gesamtAnfragen ?? 0} farbe="var(--s1)" verlauf={spark.anfragen} />
-            <Kachel label="Erledigt" wert={kpi.data?.abgeschlossen ?? 0} farbe="var(--s3)" verlauf={spark.erledigt}
-              fussnote={`${kpi.data?.erledigungsquote ?? 0} % Erledigungsrate`} />
-            <Kachel label="Bedarf / Offen" wert={kpi.data?.bedarf ?? 0} farbe="var(--s5)" verlauf={spark.bedarf} />
-            <Kachel label="Nicht verfügbar" wert={kpi.data?.nichtVerfuegbar ?? 0} farbe="var(--s2)" verlauf={spark.nichtVerfuegbar} />
-            <Kachel label="Storniert" wert={kpi.data?.storniert ?? 0} farbe="var(--s6)" />
+            <Kachel label="Anfragen gesamt" wert={kpi.data.gesamtAnfragen} farbe="var(--s1)" verlauf={spark.anfragen} />
+            <Kachel label="Erledigt" wert={kpi.data.abgeschlossen} farbe="var(--s3)" verlauf={spark.erledigt}
+              fussnote={`${kpi.data.erledigungsquote} % Erledigungsrate (ohne nicht verfügbar)`} />
+            {/* Offen = Neu + in Bearbeitung + Bedarf, aktueller Stand — hängt bewusst
+                nicht am Zeitraum, deshalb auch kein Mini-Verlauf. Vorher „Bedarf / Offen",
+                gezählt wurde aber nur BEDARF. */}
+            <Kachel label="Offen (aktuell)" wert={kpi.data.offen} farbe="var(--s5)"
+              fussnote="Neu, in Bearbeitung oder Bedarf" />
+            <Kachel label="Nicht verfügbar" wert={kpi.data.nichtVerfuegbar} farbe="var(--s2)" verlauf={spark.nichtVerfuegbar} />
+            <Kachel label="Storniert" wert={kpi.data.storniert} farbe="var(--s6)" />
           </>
         )}
       </div>
@@ -457,6 +465,7 @@ export function DashboardAnsicht({ tage, standortId }: { tage: number; standortI
             )}
 
             {verlauf.isLoading && <Laden h="h-[240px]" />}
+            {verlauf.isError && <LadeFehler fehler={verlauf.error} onRetry={() => void verlauf.refetch()} />}
             {verlauf.data && (verlauf.data.length === 0
               ? <Leer />
               : alsTabelle
@@ -466,19 +475,25 @@ export function DashboardAnsicht({ tage, standortId }: { tage: number; standortI
         </div>
 
         <Karte titel="Status-Verteilung" sub={`Letzte ${tage} Tage`}>
-          {status.isLoading ? <Laden h="h-[140px]" /> : <Ring items={statusItems} />}
+          {status.isLoading ? <Laden h="h-[140px]" />
+            : status.isError ? <LadeFehler fehler={status.error} onRetry={() => void status.refetch()} kompakt />
+            : <Ring items={statusItems} />}
         </Karte>
       </div>
 
       {/* ── Ranglisten ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         <Karte titel="Top Geräte" sub={`Letzte ${tage} Tage`}>
-          {topGeraete.isLoading ? <Laden /> : (
+          {topGeraete.isLoading ? <Laden /> : topGeraete.isError ? (
+            <LadeFehler fehler={topGeraete.error} onRetry={() => void topGeraete.refetch()} />
+          ) : (
             <BalkenListe items={(topGeraete.data ?? []).map((g) => ({ label: g.geraet, value: g.anzahl }))} />
           )}
         </Karte>
         <Karte titel="Top Ersatzteile" sub={`Letzte ${tage} Tage`}>
-          {topTeile.isLoading ? <Laden /> : (
+          {topTeile.isLoading ? <Laden /> : topTeile.isError ? (
+            <LadeFehler fehler={topTeile.error} onRetry={() => void topTeile.refetch()} />
+          ) : (
             <BalkenListe items={(topTeile.data ?? []).map((t) => ({ label: t.teil, value: t.anzahl }))} />
           )}
         </Karte>

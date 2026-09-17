@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { statistikStandortFilter } from "@/lib/auth/standortFilter";
 import { BuchungsTyp } from "@prisma/client";
 import { createTRPCRouter, adminProcedure, permissionProcedure } from "@/server/trpc";
 import { abgeben, auswertung } from "@/modules/abgaben/service";
@@ -131,8 +132,9 @@ export const abgabenRouter = createTRPCRouter({
       tage:       z.number().int().positive().nullable().optional(),
       standortId: z.number().int().positive().nullable().optional(),
     }).optional())
-    .query(({ input }) => auswertung({
+    // Standort serverseitig prüfen — vorher ungeprüft aus der Eingabe übernommen.
+    .query(({ ctx, input }) => auswertung({
       tage:       input?.tage ?? null,
-      standortId: input?.standortId ?? null,
+      standortId: statistikStandortFilter(ctx, input?.standortId ?? null),
     })),
 });

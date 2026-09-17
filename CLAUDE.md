@@ -218,9 +218,9 @@ EOF
   bei nicht gefundener Überschrift `0`/`null` und schrieb das durch — eine umbenannte Spalte hätte
   **alle Bestände auf null** gesetzt. Regel: `undefined` = „stand nicht in der Datei" = nicht
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
-- **Verify-Gate sind ZWÖLF Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
-  `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`
-  (zusammen 479) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+- **Verify-Gate sind DREIZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
+  `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
+  `zeit` (zusammen 514) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1064,6 +1064,72 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   Filter darf nicht wie „Kein Spendergerät gefunden" aussehen.
 - **Tests:** `test:defekte` (52), `test:teilespender` (42), `test:auswahl` (15), `test:frische` (19),
   `test:ort` (25), `test:bedarf` (29).
+
+### Statistik — Prüfung und Umbau (Sep 2026)
+
+Am 17.09.2026 mit vier parallelen Agents gegen die Produktion geprüft, danach umgebaut. Auslöser:
+Die Status-Verteilung reagierte nicht auf den Zeitraum. Dahinter steckte eine ganze Fehlerklasse.
+**Fünf Grundregeln, die für jede neue Kennzahl gelten** (stehen auch oben in
+`src/modules/statistik/service.ts`):
+
+1. ⚠️ **Zeitraum = `zeitraum(tage)` aus `src/lib/zeit/berlin.ts`**, sonst nichts. „Letzte N Tage"
+   = N Kalendertage einschließlich heute, deutsche Zeit ab 00:00. Vorher standen auf EINER Seite drei
+   Regeln (Mitternacht vor N Tagen = N+1 Tage, „jetzt − N×24 h", Verlauf ohne heute): Unter „Letzte 7
+   Tage" standen **200 / 183 / 180** Anfragen, danach überall **170**.
+2. ⚠️ **Der Container läuft auf UTC.** Nie `getHours()`, `getDay()`, `getMonth()`, `setHours(0)`,
+   `toISOString().slice(0,10)` oder `new Date(j, m, 1)` für Tages-/Stunden-/Monatsgrenzen — dafür
+   `berlinTag/-Stunde/-Wochentag/-Monat/-Mitternacht/-Monatsbeginn`. Die Tageszeit-Grafik zeigte die
+   Arbeitszeit als 5–13 statt 7–15 Uhr. **`TZ` im Container setzen ist KEINE Lösung**: Dann
+   verschieben sich die `toISOString`-Schlüssel um einen ganzen Tag. Test: `npm run test:zeit`
+   (35 Fälle, läuft in jeder Rechner-Zeitzone gleich).
+3. ⚠️ **Standort von Anfragen nur über `anfrageStandortWhere()`** (`src/modules/statistik/standort.ts`).
+   Mit Artikel zählt der Artikel-Standort, **ohne Artikel der Standort des Technikers** (Hauptstandort,
+   sonst seine Standort-Freigaben; Entscheidung Frank 17.09.2026). Vorher fielen Anfragen ohne Artikel
+   bei jedem Standortfilter heraus: 195 von 1.524, die fünf auf Sömmerda beschränkten Betrachter sahen
+   11–13 % weniger. Liefert ein `OR` — nie mit einem zweiten `OR` im selben where-Objekt mischen.
+   **Server-Prüfung über `statistikStandortFilter(ctx, id)`** (`src/lib/auth/standortFilter.ts`) in
+   JEDER Abfrage, auch je Techniker und in Preise/Abgaben/Impact — dort wurde `standortId` vorher
+   ungeprüft übernommen. Zwischenspeicher-Schlüssel (Jahresarchiv/Monatsdetail) enthalten den Standort.
+   ⚠️ **AA und DH haben keinen Standort** (Stand 17.09.2026, 16 Anfragen ohne Artikel) — bei ihnen
+   greift die Zuordnung nicht, bis der Standort im Benutzerkonto gesetzt ist.
+4. ⚠️ **Erledigungsrate = erledigt ÷ (gesamt − nicht verfügbar)** → `erledigungsrate()`. „Nicht
+   verfügbar" ist kein Liegenlassen (Entscheidung Frank). 30 Tage: 75 % → 91 %. Storniert zählt mit.
+5. **Bedarf-Quote entfernt.** Sie zählte den HEUTIGEN Status BEDARF; erledigte Bedarfsanfragen sind
+   nicht mehr BEDARF → praktisch immer 0 %. Die Kachel „Bedarf / Offen" (zählte nur BEDARF) heißt
+   jetzt „Offen" = NEU + IN_BEARBEITUNG + BEDARF, **aktueller Stand, unabhängig vom Zeitraum**.
+   Aus demselben Grund entfernt (Gegenlesen): die „Bedarf"-Linie im Verlauf und die Bedarf-Spalte im
+   Jahresarchiv. Die Status-Verteilung zeigt BEDARF weiter — dort IST der aktuelle Stand gemeint.
+   ⚠️ Anfragen ohne Buchung zählen nach **Anlegedatum** (kein Abschlussdatum gespeichert), Buchungen
+   nach Buchungsdatum — im Mittel 2,6 h Abstand, am Rand des Zeitraums kann eine fehlen.
+
+**„An die Technik ausgegeben"** (Wert ausgegeben, Gesamt ausgegeben, Impact): nur
+`AUSGABE_AN_TECHNIK` / `ausgabeAnTechnikSql` aus `src/lib/buchungen/technikAusgabe.ts` — Buchungen mit
+`anfrageId` **oder** Notiz „Anfrage #…" (gelöschte Anfragen lassen ihre Buchung mit leerem Verweis
+zurück: #26009, #26917). Vorher zählte jede AUSGANG/DIREKT-Buchung, auch Handkorrekturen: 363 von
+1.250 „wiederverwendeten Teilen" in 90 Tagen (29 %), größte Posten 129 und 190 Füße. Neu: 887 aus
+Buchungen + 12 aus Anfragen ohne Lagerartikel. **Stückpreis = `Artikel.preis`, sonst Kategoriepreis**
+(`COALESCE`), wie Abgaben es schon immer rechneten; die Spalte heißt deshalb „Ø Preis". Erledigte
+Anfragen **ohne Artikel, die keine Sonderanfrage sind**, laufen als DIREKT ohne Buchung und fehlten
+in jeder Summe — jetzt mit dem Kategoriepreis ihres Teiltyps drin. Sonderanfragen zählen jetzt auch
+bei gewähltem Standort (über den Techniker).
+
+**Fehler statt Nullen:** Kein Panel prüfte `isError`; eine gescheiterte Abfrage zeigte „0" bzw.
+rechnete in „Gesamt ausgegeben" still 0 € ein. Jetzt `LadeFehler` (`src/app/admin/statistiken/`)
+mit „Erneut versuchen". Fehlt nur das Recht für Abgaben (ARTIKEL_VIEW), zeigt das Gesamt-Panel den
+Technik-Anteil mit ausdrücklichem Hinweis statt einer falschen Summe.
+
+**Weitere Fixes:** Jahresarchiv-Zwischenspeicher wird jetzt auch in `auslagern.teile`,
+`schliesseAnfrageAb`, `anfragen.reset` und `anfragen.loeschen` geleert (hing bis 1 h hinterher);
+Techniker-Profil rechnete nur über die 200 neuesten Anfragen (jetzt 1000); Wochentag-/Tageszeit-
+Analyse folgen dem Zeitraum statt fest 90 Tagen; Blättern springt beim Zeitraumwechsel zurück;
+Kalenderwoche nach ISO (die alte Rechnung lag ab 2027 um eins daneben); `getLiveStats` braucht
+`STATISTIK_VIEW` (war für Techniker/Pickup offen); Statusnamen in Klartext; Balkenzahlen neben
+statt im Balken; Warn- und Ratenfarben mit lesbarem Kontrast.
+
+**Noch offen aus der Prüfung:** Touch-Ziele der Zeitraum-/Techniker-Auswahl (≈36 px statt 56),
+klassischer Verlauf ohne Tabellen-Alternative, doppelte Diagramm-Komponenten klassisch ↔ Dashboard,
+`redis.keys` in `invalidateTechnikerCache`, fehlender Index auf `Anfrage.datum`, drei ungenutzte
+Endpunkte (`getBuchungenVerlauf`, `getTechnikerStats`, `getMonatsbericht`).
 
 ### Notizbuch (Sep 2026)
 

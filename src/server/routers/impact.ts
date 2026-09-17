@@ -2,18 +2,19 @@ import { z } from "zod";
 import { AnfrageStatus } from "@prisma/client";
 import { createTRPCRouter, permissionProcedure, adminProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
-import { NICHT_UMLAGERUNG } from "@/lib/buchungen/umlagerung";
+import { AUSGABE_AN_TECHNIK } from "@/lib/buchungen/technikAusgabe";
+import { statistikStandortFilter } from "@/lib/auth/standortFilter";
+import { zeitraum } from "@/lib/zeit/berlin";
+import { anfrageStandortWhere, buchungStandortWhere } from "@/modules/statistik/standort";
 
 // ── Impact-/Nachhaltigkeits-Kennzahlen (Laptop-Ersatzteile) ──────────────────
-// Wiederverwendete Teile = Ausgabe-Buchungen (AUSGANG + DIREKT). Daraus über
+// Wiederverwendete Teile = Ausgabe-Buchungen an die Technik (AUSGABE_AN_TECHNIK). Daraus über
 // editierbare PAUSCHAL-Faktoren: eingespartes CO2 (kg) und vermiedener E-Schrott
 // (kg = Gewicht). Bewusst grobe, anpassbare Schätzung — die Faktoren setzt AfB
 // selbst (Tabelle ImpactEinstellung, Singleton id=1).
 //
 // Lesen: STATISTIK_VIEW · Faktoren ändern: adminProcedure.
 // Folgt demselben tage-/standortId-Filter wie die Statistik-Seite.
-
-const MS_PRO_TAG = 24 * 60 * 60 * 1000;
 
 // Startwerte (klar als Annahme gekennzeichnet, jederzeit im UI änderbar).
 const DEFAULT_CO2_PRO_TEIL_KG     = 5;     // kg CO2e je wiederverwendetem Teil
@@ -45,32 +46,38 @@ export const impactRouter = createTRPCRouter({
       tage:       z.number().int().positive().nullable().optional(),
       standortId: z.number().int().positive().nullable().optional(),
     }).optional())
-    .query(async ({ input }) => {
-      const tage       = input?.tage ?? null;
-      const standortId = input?.standortId ?? null;
-      const cutoff     = tage ? new Date(Date.now() - tage * MS_PRO_TAG) : null;
+    .query(async ({ ctx, input }) => {
+      const tage   = input?.tage ?? null;
+      const sId    = statistikStandortFilter(ctx, input?.standortId ?? null);
+      // Dieselbe Zeitraum-Regel wie die Statistik-Seite (deutsche Kalendertage).
+      const cutoff = tage ? zeitraum(tage).von : null;
+      const datum  = cutoff ? { datum: { gte: cutoff } } : {};
 
-      const datum    = cutoff ? { gte: cutoff } : undefined;
-      const artikel  = standortId ? { standortId } : undefined;
+      const standortBuchung = buchungStandortWhere(sId);
+      const standortAnfrage = await anfrageStandortWhere(sId);
 
-      const [reused, abgaben, geraeteRows, faktoren] = await Promise.all([
-        // Wiederverwendete Teile = Summe menge über Ausgabe-Buchungen.
+      const [reused, ohneArtikel, abgaben, geraeteRows, faktoren] = await Promise.all([
+        // Wiederverwendete Teile = Ausgabe-Buchungen AN DIE TECHNIK.
+        // `AUSGABE_AN_TECHNIK` schließt aus: Umlagerungen (Lager-interne Umzüge),
+        // Abgaben an Niederlassungen (Wirkung entsteht dort) und — seit 17.09.2026 —
+        // Buchungen ohne Anfrage-Bezug. Handkorrekturen machten vorher 29 % der
+        // „wiederverwendeten Teile" aus (363 von 1.249 in 90 Tagen).
         prisma.buchung.aggregate({
+          _sum:  { menge: true },
+          where: { ...AUSGABE_AN_TECHNIK, ...datum, ...standortBuchung },
+        }),
+        // Erledigte Anfragen ohne Lagerartikel (keine Sonderanfrage) laufen als
+        // DIREKT ohne Buchung — das Teil wurde trotzdem wiederverwendet.
+        prisma.anfrage.aggregate({
           _sum: { menge: true },
-          // Umlagerungen (Fach-/Standortwechsel) sind KEINE Wiederverwendung —
-          // sonst zählen CO2/E-Schrott/Teile Lager-interne Umzüge mit.
-          //
-          // Abgaben an andere Niederlassungen ebenfalls NICHT: Die Teile werden
-          // dort verbaut, nicht bei uns. Sie hier mitzuzählen würde unsere
-          // Wirkung überzeichnen und die Gruppe doppelt bilanzieren, sobald die
-          // empfangende Niederlassung sie ebenfalls ausweist. Sie erscheinen
-          // stattdessen als eigene Zahl (siehe `abgegeben` unten).
           where: {
-            typ: { in: ["AUSGANG", "DIREKT"] },
-            niederlassungId: null,
-            ...NICHT_UMLAGERUNG,
-            ...(datum ? { datum } : {}),
-            ...(artikel ? { artikel } : {}),
+            ...standortAnfrage,
+            artikelId:        null,
+            istSonderAnfrage: false,
+            testModus:        false,
+            status:           AnfrageStatus.ABGESCHLOSSEN,
+            buchungen:        { none: {} },
+            ...datum,
           },
         }),
         // Was an andere Niederlassungen ging — nur nachrichtlich, ohne Wirkung.
@@ -79,25 +86,25 @@ export const impactRouter = createTRPCRouter({
           where: {
             typ: { in: ["AUSGANG", "DIREKT"] },
             niederlassungId: { not: null },
-            ...(datum ? { datum } : {}),
-            ...(artikel ? { artikel } : {}),
+            ...datum,
+            ...standortBuchung,
           },
         }),
         // Versorgte Geräte = distinkte LogIDs erledigter (Nicht-Test-)Anfragen.
         prisma.anfrage.findMany({
           where: {
-            status: AnfrageStatus.ABGESCHLOSSEN,
+            ...standortAnfrage,
+            status:    AnfrageStatus.ABGESCHLOSSEN,
             testModus: false,
-            ...(datum ? { datum } : {}),
-            ...(artikel ? { artikel } : {}),
+            ...datum,
           },
-          select: { logId: true },
+          select:   { logId: true },
           distinct: ["logId"],
         }),
         ladeFaktoren(),
       ]);
 
-      const reusedParts = reused._sum.menge ?? 0;
+      const reusedParts = (reused._sum.menge ?? 0) + (ohneArtikel._sum.menge ?? 0);
       return {
         reusedParts,
         geraete:  geraeteRows.length,

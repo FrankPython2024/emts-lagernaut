@@ -39,6 +39,7 @@
     "test:auswahl": "tsx tests/auswahl.test.ts",
     "test:frische": "tsx tests/frische.test.ts",
     "test:ort": "tsx tests/ort.test.ts",
+    "test:zeit": "tsx tests/berlinZeit.test.ts",
     "test:bedarf": "tsx tests/bedarf.test.ts",
     "seed:entsorgung": "tsx prisma/scripts/seed-entsorgung-abfallarten.ts"
   },

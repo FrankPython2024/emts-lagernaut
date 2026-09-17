@@ -14,6 +14,7 @@ import { createTRPCRouter, adminProcedure } from "@/server/trpc";
 import { BuchungsTyp, AnfrageStatus } from "@prisma/client";
 import type { SessionUser } from "@/core/types";
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
+import { invalidateTechnikerCache } from "@/modules/statistik/service";
 import { assertKeinBestandEffekt } from "@/lib/buchungen/typeGuards";
 import { getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
 import { poolBestaendeFuer } from "@/lib/artikel/pool";
@@ -526,6 +527,13 @@ export const auslagernRouter = createTRPCRouter({
 
         return { ausgabe, ausgefuehrtVon: user.kuerzel, datum: new Date() };
       });
+
+      // Statistik-Zwischenspeicher (Jahresarchiv/Monatsdetail) der betroffenen
+      // Techniker leeren. ⚠️ Fehlte bis 17.09.2026 ausgerechnet hier, auf dem
+      // normalen Weg zum Abschließen — das Archiv hing bis zu 1 h hinterher.
+      for (const k of new Set(txResult.ausgabe.map((i) => i.techniker))) {
+        invalidateTechnikerCache(k).catch(() => {});
+      }
 
       // Meilisearch sync — fire-and-forget nach TX-Commit
       for (const item of txResult.ausgabe) {

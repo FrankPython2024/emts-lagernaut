@@ -1,4 +1,6 @@
 import { BuchungsTyp } from "@prisma/client";
+import { zeitraum } from "@/lib/zeit/berlin";
+import { buchungStandortWhere, type StandortFilterId } from "@/modules/statistik/standort";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/core/db/prisma";
 import { bucheLager } from "@/modules/buchungen/service";
@@ -114,8 +116,9 @@ export async function abgeben(data: {
  * Wert = Menge × (Einzelpreis des Artikels ?? Kategoriepreis). Artikel ohne
  * jeden Preis werden separat ausgewiesen, damit die Summe nicht still zu klein wird.
  */
-export async function auswertung(opts?: { tage?: number | null; standortId?: number | null }) {
-  const cutoff = opts?.tage ? new Date(Date.now() - opts.tage * 86_400_000) : null;
+export async function auswertung(opts?: { tage?: number | null; standortId?: StandortFilterId }) {
+  // Dieselbe Zeitraum-Regel wie die Statistik-Seite (deutsche Kalendertage).
+  const cutoff = opts?.tage ? zeitraum(opts.tage).von : null;
 
   const buchungen = await prisma.buchung.findMany({
     where: {
@@ -124,7 +127,7 @@ export async function auswertung(opts?: { tage?: number | null; standortId?: num
       ...(cutoff ? { datum: { gte: cutoff } } : {}),
       // Standort des ABGEBENDEN Lagers (nicht der Empfänger) — folgt damit
       // demselben Filter wie die übrigen Panels der Statistik-Seite.
-      ...(opts?.standortId ? { artikel: { standortId: opts.standortId } } : {}),
+      ...buchungStandortWhere(opts?.standortId),
     },
     select: {
       menge: true, datum: true,

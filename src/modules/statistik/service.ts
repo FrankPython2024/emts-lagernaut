@@ -1,6 +1,34 @@
 import { AnfrageStatus, BuchungsTyp } from "@prisma/client";
 import { prisma } from "@/core/db/prisma";
 import { redis } from "@/core/infra/redis";
+import {
+  addiereTage, berlinMitternacht, berlinMonat, berlinMonatsbeginn, berlinStunde,
+  berlinTag, berlinWochentag, isoKalenderwoche, zeitraum,
+} from "@/lib/zeit/berlin";
+import {
+  anfrageStandortWhere, buchungStandortWhere, standortSchluessel,
+  type StandortFilterId,
+} from "./standort";
+
+export type { StandortFilterId } from "./standort";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Statistik — Grundregeln (Prüfung 17.09.2026, vier Agents gegen die Produktion)
+//
+// 1. ZEITRAUM: „Letzte N Tage" heißt überall N Kalendertage einschließlich heute,
+//    in deutscher Zeit ab 00:00 → `zeitraum()` aus src/lib/zeit/berlin.ts.
+//    Vorher drei Regeln auf einer Seite (200 / 183 / 180 Anfragen unter
+//    derselben Überschrift), der Verlauf ohne den heutigen Tag, Tagesgrenzen und
+//    Uhrzeiten in UTC (Tageszeit-Grafik 2 h verschoben).
+// 2. STANDORT: Anfragen über `anfrageStandortWhere` — ohne Artikel zählt der
+//    Standort des Technikers. Nie wieder direkt `artikel.standortId` bei Anfragen.
+// 3. ERLEDIGUNGSRATE: „nicht verfügbar" zählt NICHT gegen die Rate
+//    (Entscheidung Frank 17.09.2026) → `erledigungsrate()`.
+// 4. BEDARF-QUOTE entfernt: Sie zählte den HEUTIGEN Status BEDARF; erledigte
+//    Bedarfsanfragen sind aber nicht mehr BEDARF — die Quote stand fast immer
+//    bei 0 % (1 von 617 Anfragen in 30 Tagen).
+// 5. Test-Anfragen zählen nie (`OHNE_TEST`).
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type LiveStats = {
   gesamtArtikel:       number;
@@ -15,51 +43,57 @@ export type LiveStats = {
   heutigeAuslagerungen: number;  // AUSGANG + DIREKT heute
 };
 
-// Standort-Filter-Fragmente (fire-and-forget, kein import nötig)
-// Standort-Filter: EINE id, eine LISTE von ids (Nutzer mit Zugriff auf mehrere,
-// aber nicht alle Standorte) oder null/undefined = kein Filter (= alle Standorte).
-export type StandortFilterId = number | number[] | null;
-
-function standortWo(sId?: StandortFilterId) {
-  if (sId == null) return null;
-  if (Array.isArray(sId)) return sId.length > 0 ? { in: sId } : { in: [-1] }; // leere Liste = nichts sichtbar
-  return sId;
+function sF(sId?: StandortFilterId) {
+  if (sId == null) return {};
+  return { standortId: Array.isArray(sId) ? { in: sId.length > 0 ? sId : [-1] } : sId };
 }
-function aF(sId?: StandortFilterId) { const w = standortWo(sId); return w != null ? { artikel: { standortId: w } } : {}; }
-function sF(sId?: StandortFilterId) { const w = standortWo(sId); return w != null ? { standortId: w } : {}; }
 
 // Test-Anfragen zählen NIEMALS in Statistik/KPIs. In jede Anfrage-Query gespreizt.
 // (Buchungen sind automatisch sauber — Test-Anfragen erzeugen keine Buchung.)
 const OHNE_TEST = { testModus: false } as const;
 
-// Hilfsfunktion: tage → { von, bis }
-function tageZuDateRange(tage: number): { von: Date; bis: Date } {
-  const bis = new Date();
-  const von = new Date();
-  von.setDate(von.getDate() - tage);
-  von.setHours(0, 0, 0, 0);
-  return { von, bis };
+/** Offen = noch nicht erledigt, storniert oder als nicht beschaffbar markiert. */
+const OFFENE_STATUS: AnfrageStatus[] = [
+  AnfrageStatus.NEU, AnfrageStatus.IN_BEARBEITUNG, AnfrageStatus.BEDARF,
+];
+
+/**
+ * Erledigungsrate in Prozent.
+ *
+ * ⚠️ „Nicht verfügbar" zählt NICHT gegen die Rate — das Teil war schlicht nicht
+ * zu beschaffen, die Anfrage ist nicht liegen geblieben. Vorher stand es im
+ * Nenner: 463 erledigt von 617 = 75 % (Grenze zu Rot) über 30 Tage; Monate
+ * wurden als „schlechtester" markiert, in denen nur Teile fehlten.
+ * Entscheidung Frank 17.09.2026. Storniert zählt weiterhin mit.
+ */
+export function erledigungsrate(erledigt: number, gesamt: number, nichtVerfuegbar: number): number {
+  const nenner = gesamt - nichtVerfuegbar;
+  return nenner > 0 ? Math.round((erledigt / nenner) * 100) : 0;
+}
+
+/** Beginn und Ende des heutigen Tages in deutscher Zeit. */
+function heuteGrenzen(): { start: Date; ende: Date } {
+  const heute = berlinTag(new Date());
+  return { start: berlinMitternacht(heute), ende: berlinMitternacht(addiereTage(heute, 1)) };
 }
 
 /**
  * Live-Kennzahlen für Dashboard.
  */
 export async function getLiveStats(standortId?: StandortFilterId): Promise<LiveStats> {
-  const heute      = new Date();
-  const heuteStart = new Date(heute.toISOString().slice(0, 10));
-  const heuteEnde  = new Date(heuteStart);
-  heuteEnde.setDate(heuteEnde.getDate() + 1);
+  const { start: heuteStart, ende: heuteEnde } = heuteGrenzen();
   const s = sF(standortId);
-  const a = aF(standortId);
+  const a = await anfrageStandortWhere(standortId);
+  const b = buchungStandortWhere(standortId);
 
   const [
     gesamtArtikel, offeneAnfragen, technikerOnline, buchungenHeute, artikelOhneBestand,
     aktiveAnfragen, bedarfAnfragen, artikelMitBestand, heutigeAuslagerungen,
   ] = await Promise.all([
     prisma.artikel.count({ where: s }),
-    prisma.anfrage.count({ where: { ...a, ...OHNE_TEST, status: { in: [AnfrageStatus.NEU, AnfrageStatus.BEDARF] } } }),
+    prisma.anfrage.count({ where: { ...a, ...OHNE_TEST, status: { in: OFFENE_STATUS } } }),
     prisma.technikerSession.count({ where: { online: true } }),
-    prisma.buchung.count({ where: { ...a, datum: { gte: heuteStart, lt: heuteEnde } } }),
+    prisma.buchung.count({ where: { ...b, datum: { gte: heuteStart, lt: heuteEnde } } }),
     prisma.artikel.count({ where: { ...s, bestand: 0 } }),
     // Dashboard-KPIs v2
     prisma.anfrage.count({ where: { ...a, ...OHNE_TEST, status: { in: [AnfrageStatus.NEU, AnfrageStatus.IN_BEARBEITUNG] } } }),
@@ -67,7 +101,7 @@ export async function getLiveStats(standortId?: StandortFilterId): Promise<LiveS
     prisma.artikel.count({ where: { ...s, bestand: { gt: 0 } } }),
     prisma.buchung.count({
       where: {
-        ...a,
+        ...b,
         datum: { gte: heuteStart, lt: heuteEnde },
         typ:   { in: [BuchungsTyp.AUSGANG, BuchungsTyp.DIREKT] },
       },
@@ -84,12 +118,11 @@ export async function getLiveStats(standortId?: StandortFilterId): Promise<LiveS
  * Meistgefragte Geräte im Zeitraum.
  */
 export async function getMeistgefragteGeraete(tage: number, standortId?: StandortFilterId) {
-  const von = new Date();
-  von.setDate(von.getDate() - tage);
+  const { von } = zeitraum(tage);
 
   const anfragen = await prisma.anfrage.groupBy({
     by:      ["geraet"],
-    where:   { ...aF(standortId), ...OHNE_TEST, datum: { gte: von } },
+    where:   { ...(await anfrageStandortWhere(standortId)), ...OHNE_TEST, datum: { gte: von } },
     _count:  { geraet: true },
     orderBy: { _count: { geraet: "desc" } },
     take:    10,
@@ -102,12 +135,11 @@ export async function getMeistgefragteGeraete(tage: number, standortId?: Standor
  * Meistgefragte Teile / Kategorien im Zeitraum.
  */
 export async function getMeistgefragteTeile(tage: number, standortId?: StandortFilterId) {
-  const von = new Date();
-  von.setDate(von.getDate() - tage);
+  const { von } = zeitraum(tage);
 
   const anfragen = await prisma.anfrage.groupBy({
     by:      ["teil"],
-    where:   { ...aF(standortId), ...OHNE_TEST, datum: { gte: von } },
+    where:   { ...(await anfrageStandortWhere(standortId)), ...OHNE_TEST, datum: { gte: von } },
     _count:  { teil: true },
     orderBy: { _count: { teil: "desc" } },
     take:    10,
@@ -120,16 +152,14 @@ export async function getMeistgefragteTeile(tage: number, standortId?: StandortF
  * Anfragen nach Status aufgeteilt — im gewählten Zeitraum.
  *
  * ⚠️ Nahm bis 17.09.2026 gar keinen Zeitraum entgegen und zählte alle Anfragen
- * seit Beginn. Auf der Statistik-Seite stand das Panel zwischen lauter
- * zeitraum-gefilterten Panels und blieb bei 7, 30 oder 365 Tagen gleich
- * (gemeldet von Frank). Gleiche Zeitraum-Regel wie „Top Geräte" daneben.
+ * seit Beginn — das Panel blieb bei 7, 30 oder 365 Tagen gleich.
  * Ohne `tage` weiterhin alles — für Aufrufer, die bewusst den Gesamtstand wollen.
  */
 export async function getAnfragenNachStatus(tage?: number, standortId?: StandortFilterId) {
-  const von = tage ? new Date(Date.now() - tage * 24 * 60 * 60 * 1000) : null;
+  const von = tage ? zeitraum(tage).von : null;
   const gruppen = await prisma.anfrage.groupBy({
     by:     ["status"],
-    where:  { ...aF(standortId), ...OHNE_TEST, ...(von ? { datum: { gte: von } } : {}) },
+    where:  { ...(await anfrageStandortWhere(standortId)), ...OHNE_TEST, ...(von ? { datum: { gte: von } } : {}) },
     _count: { status: true },
   });
 
@@ -137,33 +167,22 @@ export async function getAnfragenNachStatus(tage?: number, standortId?: Standort
 }
 
 /**
- * Buchungsverlauf der letzten N Tage (täglich).
+ * Buchungsverlauf der letzten N Tage (täglich, deutsche Kalendertage).
  */
 export async function getBuchungenVerlauf(tage: number, standortId?: StandortFilterId) {
-  const von = new Date();
-  von.setDate(von.getDate() - tage);
-  von.setHours(0, 0, 0, 0);
+  const z = zeitraum(tage);
 
   const buchungen = await prisma.buchung.findMany({
-    where:  { ...aF(standortId), datum: { gte: von } },
+    where:  { ...buchungStandortWhere(standortId), datum: { gte: z.von } },
     select: { datum: true, typ: true, menge: true },
     orderBy: { datum: "asc" },
   });
 
-  // Tageweise aggregieren. von = heute - tage (00:00), die Query liefert datum >= von,
-  // also von..heute (inkl. heute). Deshalb i <= tage — sonst fehlt der HEUTIGE Tag
-  // und alle heutigen Buchungen fallen unten in `if (!tag) continue` heraus.
   const tagesMap = new Map<string, { eingang: number; ausgang: number; direkt: number }>();
-
-  for (let i = 0; i <= tage; i++) {
-    const d = new Date(von);
-    d.setDate(d.getDate() + i);
-    tagesMap.set(d.toISOString().slice(0, 10), { eingang: 0, ausgang: 0, direkt: 0 });
-  }
+  for (const tag of z.tage) tagesMap.set(tag, { eingang: 0, ausgang: 0, direkt: 0 });
 
   for (const b of buchungen) {
-    const key = b.datum.toISOString().slice(0, 10);
-    const tag = tagesMap.get(key);
+    const tag = tagesMap.get(berlinTag(b.datum));
     if (!tag) continue;
 
     if (b.typ === "EINGANG") tag.eingang += b.menge;
@@ -175,36 +194,39 @@ export async function getBuchungenVerlauf(tage: number, standortId?: StandortFil
 }
 
 /**
- * KPI-Übersicht — tage: Anzahl Tage rückwärts von heute.
+ * KPI-Übersicht — tage: Anzahl Kalendertage einschließlich heute.
+ *
+ * `offen` hängt bewusst NICHT am Zeitraum: Die Kachel beantwortet „was liegt
+ * gerade noch an" — eine offene Anfrage von vor acht Tagen gehört dazu, auch
+ * wenn „7 Tage" gewählt ist. Vorher hieß die Kachel „Bedarf / Offen", zählte aber
+ * nur BEDARF und nur, was im Zeitraum angelegt wurde.
  */
 export async function getKpiOverview(tage: number, standortId?: StandortFilterId) {
-  const { von, bis } = tageZuDateRange(tage);
-  const where  = { datum: { gte: von, lte: bis } };
-  const artFlt = aF(standortId);
+  const { von } = zeitraum(tage);
+  const artFlt = await anfrageStandortWhere(standortId);
+  const where  = { ...artFlt, ...OHNE_TEST, datum: { gte: von } };
 
-  const [gesamtAnfragen, abgeschlossen, bedarf, storniert, nichtVerfuegbar, gesamtBuchungen] =
+  const [gesamtAnfragen, abgeschlossen, storniert, nichtVerfuegbar, offen] =
     await Promise.all([
-      prisma.anfrage.count({ where: { ...artFlt, ...where, ...OHNE_TEST } }),
-      prisma.anfrage.count({ where: { ...artFlt, ...where, ...OHNE_TEST, status: AnfrageStatus.ABGESCHLOSSEN } }),
-      prisma.anfrage.count({ where: { ...artFlt, ...where, ...OHNE_TEST, status: AnfrageStatus.BEDARF } }),
-      prisma.anfrage.count({ where: { ...artFlt, ...where, ...OHNE_TEST, status: AnfrageStatus.STORNIERT } }),
-      prisma.anfrage.count({ where: { ...artFlt, ...where, ...OHNE_TEST, status: AnfrageStatus.NICHT_VERFUEGBAR } }),
-      prisma.buchung.count({ where: { ...artFlt, ...where } }),
+      prisma.anfrage.count({ where }),
+      prisma.anfrage.count({ where: { ...where, status: AnfrageStatus.ABGESCHLOSSEN } }),
+      prisma.anfrage.count({ where: { ...where, status: AnfrageStatus.STORNIERT } }),
+      prisma.anfrage.count({ where: { ...where, status: AnfrageStatus.NICHT_VERFUEGBAR } }),
+      prisma.anfrage.count({ where: { ...artFlt, ...OHNE_TEST, status: { in: OFFENE_STATUS } } }),
     ]);
 
-  const erledigungsquote =
-    gesamtAnfragen > 0 ? Math.round((abgeschlossen / gesamtAnfragen) * 100) : 0;
-
-  // NICHT_VERFUEGBAR wird bewusst NICHT in erledigungsquote/storniert eingerechnet.
-  return { gesamtAnfragen, abgeschlossen, bedarf, storniert, nichtVerfuegbar, gesamtBuchungen, erledigungsquote };
+  return {
+    gesamtAnfragen, abgeschlossen, storniert, nichtVerfuegbar, offen,
+    erledigungsquote: erledigungsrate(abgeschlossen, gesamtAnfragen, nichtVerfuegbar),
+  };
 }
 
 /**
- * Techniker-Statistik — tage: Anzahl Tage rückwärts von heute.
+ * Techniker-Statistik — tage: Anzahl Kalendertage einschließlich heute.
  */
 export async function getTechnikerStats(tage: number, standortId?: StandortFilterId) {
-  const { von, bis } = tageZuDateRange(tage);
-  const where = { ...aF(standortId), ...OHNE_TEST, datum: { gte: von, lte: bis } };
+  const { von } = zeitraum(tage);
+  const where = { ...(await anfrageStandortWhere(standortId)), ...OHNE_TEST, datum: { gte: von } };
 
   const anfragen = await prisma.anfrage.groupBy({
     by:      ["techniker"],
@@ -222,74 +244,74 @@ export async function getTechnikerStats(tage: number, standortId?: StandortFilte
 // ── Techniker-spezifische Funktionen (Anfragen-basiert) ──────────────────────
 
 /**
- * Anfragen-Verlauf täglich (ersetzt Buchungs-Verlauf in Techniker-Statistik).
+ * Anfragen-Verlauf täglich (deutsche Kalendertage, heute eingeschlossen).
  * Optional nach Techniker-Kürzel filterbar.
+ *
+ * ⚠️ Bis 17.09.2026 fehlte der heutige Tag (Schleife `i < tage` ab „vor N Tagen"):
+ * alle heutigen Anfragen fielen still heraus — 20 Stück an dem Tag, an dem es
+ * auffiel. Beim Buchungsverlauf war genau das schon einmal behoben worden.
  */
 export async function getAnfragenVerlauf(tage: number, kuerzel?: string, standortId?: StandortFilterId) {
-  const von = new Date();
-  von.setDate(von.getDate() - tage);
-  von.setHours(0, 0, 0, 0);
+  const z = zeitraum(tage);
 
   const anfragen = await prisma.anfrage.findMany({
     where: {
-      ...aF(standortId),
+      ...(await anfrageStandortWhere(standortId)),
       ...OHNE_TEST,
-      datum: { gte: von },
+      datum: { gte: z.von },
       ...(kuerzel ? { techniker: kuerzel } : {}),
     },
     select: { datum: true, status: true },
     orderBy: { datum: "asc" },
   });
 
-  const tagesMap = new Map<string, { anfragen: number; erledigt: number; bedarf: number; nichtVerfuegbar: number }>();
-  for (let i = 0; i < tage; i++) {
-    const d = new Date(von);
-    d.setDate(d.getDate() + i);
-    tagesMap.set(d.toISOString().slice(0, 10), { anfragen: 0, erledigt: 0, bedarf: 0, nichtVerfuegbar: 0 });
-  }
+  // ⚠️ Keine „Bedarf"-Reihe: Sie zählte je Tag, was HEUTE noch BEDARF ist — eine
+  // erledigte Bedarfsanfrage verschwand rückwirkend aus der Kurve (gleicher Fehler
+  // wie bei der entfernten Bedarf-Quote, Befund des Gegenlesens 17.09.2026).
+  const tagesMap = new Map<string, { anfragen: number; erledigt: number; nichtVerfuegbar: number }>();
+  for (const tag of z.tage) tagesMap.set(tag, { anfragen: 0, erledigt: 0, nichtVerfuegbar: 0 });
 
   for (const a of anfragen) {
-    const key = a.datum.toISOString().slice(0, 10);
-    const tag = tagesMap.get(key);
+    const tag = tagesMap.get(berlinTag(a.datum));
     if (!tag) continue;
     tag.anfragen++;
     if (a.status === AnfrageStatus.ABGESCHLOSSEN)    tag.erledigt++;
-    if (a.status === AnfrageStatus.BEDARF)           tag.bedarf++;
     if (a.status === AnfrageStatus.NICHT_VERFUEGBAR) tag.nichtVerfuegbar++;
   }
 
   return Array.from(tagesMap.entries()).map(([datum, werte]) => ({ datum, ...werte }));
 }
 
-function getKW(d: Date): number {
-  const onejan = new Date(d.getFullYear(), 0, 1);
-  return Math.ceil((((d.getTime() - onejan.getTime()) / 86_400_000) + onejan.getDay() + 1) / 7);
+/** Where-Teil für die Anfragen EINES Technikers im Zeitraum, am Standort. */
+async function technikerWhere(kuerzel: string, tage: number, standortId?: StandortFilterId) {
+  return {
+    ...(await anfrageStandortWhere(standortId)),
+    techniker: kuerzel,
+    ...OHNE_TEST,
+    datum: { gte: zeitraum(tage).von },
+  };
 }
 
 /**
- * Techniker-KPIs: 6 persönliche Kennzahlen (nur Anfragen-basiert).
+ * Techniker-KPIs (nur Anfragen-basiert).
  */
-export async function getTechnikerKpis(kuerzel: string, tage: number) {
-  const { von, bis } = tageZuDateRange(tage);
-  const where = { techniker: kuerzel, ...OHNE_TEST, datum: { gte: von, lte: bis } };
-
+export async function getTechnikerKpis(kuerzel: string, tage: number, standortId?: StandortFilterId) {
   const alleAnfragen = await prisma.anfrage.findMany({
-    where,
+    where:  await technikerWhere(kuerzel, tage, standortId),
     select: { datum: true, status: true },
   });
 
-  const gesamt       = alleAnfragen.length;
-  const abgeschlossen = alleAnfragen.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN).length;
-  const bedarf        = alleAnfragen.filter((a) => a.status === AnfrageStatus.BEDARF).length;
-  const storniert     = alleAnfragen.filter((a) => a.status === AnfrageStatus.STORNIERT).length;
+  const gesamt          = alleAnfragen.length;
+  const abgeschlossen   = alleAnfragen.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN).length;
+  const storniert       = alleAnfragen.filter((a) => a.status === AnfrageStatus.STORNIERT).length;
   const nichtVerfuegbar = alleAnfragen.filter((a) => a.status === AnfrageStatus.NICHT_VERFUEGBAR).length;
-  const offen         = alleAnfragen.filter((a) => a.status === AnfrageStatus.NEU).length;
+  const offen           = alleAnfragen.filter((a) => OFFENE_STATUS.includes(a.status)).length;
 
-  // Aktivste Woche
+  // Aktivste Woche — ISO-Kalenderwoche in deutscher Zeit
   const wochenMap = new Map<string, number>();
   for (const a of alleAnfragen) {
-    const d     = new Date(a.datum);
-    const woche = `KW${getKW(d).toString().padStart(2, "0")}/${d.getFullYear()}`;
+    const { jahr, kw } = isoKalenderwoche(berlinTag(a.datum));
+    const woche = `KW${kw.toString().padStart(2, "0")}/${jahr}`;
     wochenMap.set(woche, (wochenMap.get(woche) ?? 0) + 1);
   }
   let aktivsteWoche = "–";
@@ -301,44 +323,29 @@ export async function getTechnikerKpis(kuerzel: string, tage: number) {
   return {
     gesamt,
     abgeschlossen,
-    bedarf,
     storniert,
     nichtVerfuegbar,
     offen,
-    erledigungsrate: gesamt > 0 ? Math.round((abgeschlossen / gesamt) * 100) : 0,
-    bedarfQuote:     gesamt > 0 ? Math.round((bedarf / gesamt) * 100) : 0,
+    erledigungsrate: erledigungsrate(abgeschlossen, gesamt, nichtVerfuegbar),
     aktivsteWoche,
     aktivsteWocheAnzahl: maxWocheN,
   };
 }
 
 /**
- * Top Teile eines Technikers mit Bedarf-Anteil.
+ * Top Teile eines Technikers.
  */
-export async function getTechnikerTeile(kuerzel: string, tage: number) {
-  const von = new Date();
-  von.setDate(von.getDate() - tage);
-
+export async function getTechnikerTeile(kuerzel: string, tage: number, standortId?: StandortFilterId) {
   const anfragen = await prisma.anfrage.findMany({
-    where:  { techniker: kuerzel, ...OHNE_TEST, datum: { gte: von } },
-    select: { teil: true, status: true },
+    where:  await technikerWhere(kuerzel, tage, standortId),
+    select: { teil: true },
   });
 
-  const map = new Map<string, { anzahl: number; bedarfAnzahl: number }>();
-  for (const a of anfragen) {
-    const e = map.get(a.teil) ?? { anzahl: 0, bedarfAnzahl: 0 };
-    e.anzahl++;
-    if (a.status === AnfrageStatus.BEDARF) e.bedarfAnzahl++;
-    map.set(a.teil, e);
-  }
+  const map = new Map<string, number>();
+  for (const a of anfragen) map.set(a.teil, (map.get(a.teil) ?? 0) + 1);
 
   return Array.from(map.entries())
-    .map(([teil, { anzahl, bedarfAnzahl }]) => ({
-      teil,
-      anzahl,
-      bedarfAnzahl,
-      bedarfQuote: Math.round((bedarfAnzahl / anzahl) * 100),
-    }))
+    .map(([teil, anzahl]) => ({ teil, anzahl }))
     .sort((a, b) => b.anzahl - a.anzahl)
     .slice(0, 10);
 }
@@ -346,12 +353,9 @@ export async function getTechnikerTeile(kuerzel: string, tage: number) {
 /**
  * Top Geräte eines Technikers.
  */
-export async function getTechnikerGeraete(kuerzel: string, tage: number) {
-  const von = new Date();
-  von.setDate(von.getDate() - tage);
-
+export async function getTechnikerGeraete(kuerzel: string, tage: number, standortId?: StandortFilterId) {
   const anfragen = await prisma.anfrage.findMany({
-    where:  { techniker: kuerzel, ...OHNE_TEST, datum: { gte: von } },
+    where:  await technikerWhere(kuerzel, tage, standortId),
     select: { geraet: true, geraeteName: true },
   });
 
@@ -369,48 +373,42 @@ export async function getTechnikerGeraete(kuerzel: string, tage: number) {
 }
 
 /**
- * Anfragen-Verteilung nach Wochentag (Mo=1 … So=7, vereinfacht 0–6).
+ * Anfragen-Verteilung nach Wochentag (0 = So … 6 = Sa), deutsche Zeit.
  */
-export async function getTechnikerWochentage(kuerzel: string, tage: number) {
-  const von = new Date();
-  von.setDate(von.getDate() - tage);
-
+export async function getTechnikerWochentage(kuerzel: string, tage: number, standortId?: StandortFilterId) {
   const anfragen = await prisma.anfrage.findMany({
-    where:  { techniker: kuerzel, ...OHNE_TEST, datum: { gte: von } },
+    where:  await technikerWhere(kuerzel, tage, standortId),
     select: { datum: true },
   });
 
   const NAMEN = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
   const counts = new Array(7).fill(0) as number[];
-  for (const a of anfragen) counts[new Date(a.datum).getDay()]++;
-  return NAMEN.map((tag, i) => ({ tag, anzahl: counts[i] }));
+  for (const a of anfragen) counts[berlinWochentag(a.datum)]++;
+  return NAMEN.map((tag, i) => ({ tag, anzahl: counts[i] ?? 0 }));
 }
 
 /**
- * Anfragen-Verteilung nach Tagesstunde.
+ * Anfragen-Verteilung nach Tagesstunde, deutsche Zeit.
+ * ⚠️ Vorher `getHours()` im UTC-Container: 7:30 Uhr erschien als 5 Uhr.
  */
-export async function getTechnikerTageszeiten(kuerzel: string, tage: number) {
-  const von = new Date();
-  von.setDate(von.getDate() - tage);
-
+export async function getTechnikerTageszeiten(kuerzel: string, tage: number, standortId?: StandortFilterId) {
   const anfragen = await prisma.anfrage.findMany({
-    where:  { techniker: kuerzel, ...OHNE_TEST, datum: { gte: von } },
+    where:  await technikerWhere(kuerzel, tage, standortId),
     select: { datum: true },
   });
 
   const counts = new Array(24).fill(0) as number[];
-  for (const a of anfragen) counts[new Date(a.datum).getHours()]++;
+  for (const a of anfragen) counts[berlinStunde(a.datum)]++;
   return counts.map((anzahl, stunde) => ({ stunde, anzahl }));
 }
 
 /**
  * Letzte Anfragen eines Technikers (paginiert).
  */
-export async function getTechnikerLetzteAnfragen(kuerzel: string, tage: number, limit: number, offset: number) {
-  const von = new Date();
-  von.setDate(von.getDate() - tage);
-
-  const where = { techniker: kuerzel, ...OHNE_TEST, datum: { gte: von } };
+export async function getTechnikerLetzteAnfragen(
+  kuerzel: string, tage: number, limit: number, offset: number, standortId?: StandortFilterId,
+) {
+  const where = await technikerWhere(kuerzel, tage, standortId);
 
   const [anfragen, total] = await Promise.all([
     prisma.anfrage.findMany({
@@ -427,25 +425,22 @@ export async function getTechnikerLetzteAnfragen(kuerzel: string, tage: number, 
 }
 
 /**
- * Team-Vergleich: alle Techniker mit mehreren Metriken (für Radar/Grid).
+ * Team-Vergleich: alle Techniker mit mehreren Metriken.
  */
 export async function getTechnikerTeamVergleich(tage: number, standortId?: StandortFilterId) {
-  const { von, bis } = tageZuDateRange(tage);
+  const { von } = zeitraum(tage);
 
   const alle = await prisma.anfrage.findMany({
-    where:  { ...aF(standortId), ...OHNE_TEST, datum: { gte: von, lte: bis } },
+    where:  { ...(await anfrageStandortWhere(standortId)), ...OHNE_TEST, datum: { gte: von } },
     select: { techniker: true, status: true },
   });
 
-  const map = new Map<string, {
-    gesamt: number; abgeschlossen: number; bedarf: number; nichtVerfuegbar: number;
-  }>();
+  const map = new Map<string, { gesamt: number; abgeschlossen: number; nichtVerfuegbar: number }>();
 
   for (const a of alle) {
-    const e = map.get(a.techniker) ?? { gesamt: 0, abgeschlossen: 0, bedarf: 0, nichtVerfuegbar: 0 };
+    const e = map.get(a.techniker) ?? { gesamt: 0, abgeschlossen: 0, nichtVerfuegbar: 0 };
     e.gesamt++;
     if (a.status === AnfrageStatus.ABGESCHLOSSEN)    e.abgeschlossen++;
-    if (a.status === AnfrageStatus.BEDARF)           e.bedarf++;
     if (a.status === AnfrageStatus.NICHT_VERFUEGBAR) e.nichtVerfuegbar++;
     map.set(a.techniker, e);
   }
@@ -454,29 +449,27 @@ export async function getTechnikerTeamVergleich(tage: number, standortId?: Stand
     .map(([techniker, s]) => ({
       techniker,
       volumen:         s.gesamt,
-      erledigungsrate: s.gesamt > 0 ? Math.round((s.abgeschlossen / s.gesamt) * 100) : 0,
-      bedarfQuote:     s.gesamt > 0 ? Math.round((s.bedarf / s.gesamt) * 100) : 0,
+      erledigungsrate: erledigungsrate(s.abgeschlossen, s.gesamt, s.nichtVerfuegbar),
       nichtVerfuegbar: s.nichtVerfuegbar,
     }))
     .sort((a, b) => b.volumen - a.volumen);
 }
 
 /**
- * Monatsbericht: alle Buchungen + Anfragen eines Monats.
+ * Monatsbericht: alle Buchungen + Anfragen eines Monats (deutsche Monatsgrenzen).
  */
 export async function getMonatsbericht(monat: number, jahr: number, standortId?: StandortFilterId) {
-  const von    = new Date(jahr, monat - 1, 1);
-  const bis    = new Date(jahr, monat, 1);
-  const artFlt = aF(standortId);
+  const von = berlinMonatsbeginn(jahr, monat);
+  const bis = berlinMonatsbeginn(jahr, monat + 1);
 
   const [buchungen, anfragen] = await Promise.all([
     prisma.buchung.findMany({
-      where:   { ...artFlt, datum: { gte: von, lt: bis } },
+      where:   { ...buchungStandortWhere(standortId), datum: { gte: von, lt: bis } },
       orderBy: { datum: "asc" },
       include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true } } },
     }),
     prisma.anfrage.findMany({
-      where:   { ...artFlt, ...OHNE_TEST, datum: { gte: von, lt: bis } },
+      where:   { ...(await anfrageStandortWhere(standortId)), ...OHNE_TEST, datum: { gte: von, lt: bis } },
       orderBy: { datum: "asc" },
       include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true } } },
     }),
@@ -495,22 +488,35 @@ export async function getMonatsbericht(monat: number, jahr: number, standortId?:
       abgeschlossen:    anfragen.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN).length,
       bedarf:           anfragen.filter((a) => a.status === AnfrageStatus.BEDARF).length,
       storniert:        anfragen.filter((a) => a.status === AnfrageStatus.STORNIERT).length,
+      nichtVerfuegbar:  anfragen.filter((a) => a.status === AnfrageStatus.NICHT_VERFUEGBAR).length,
     },
   };
 }
 
 // ── Jahres-Archiv Funktionen ────────────────────────────────────────────────
 
-/** Cache-Key Helpers */
-const cacheKeyJahr   = (k: string, j: number) => `stats:techniker:${k}:jahr:${j}`;
-const cacheKeyMonat  = (k: string, j: number, m: number) => `stats:techniker:${k}:monat:${j}-${m}`;
-const cacheTTL       = (j: number, m: number) => {
-  const now = new Date();
-  const isCurrent = j === now.getFullYear() && m === now.getMonth() + 1;
+/**
+ * Cache-Schlüssel. ⚠️ Der Standort gehört hinein — sonst bekäme ein auf Sömmerda
+ * beschränktes Konto das Archiv eines Admins mit allen Standorten aus dem Speicher.
+ * Das Präfix `stats:techniker:<kürzel>:` bleibt, damit `invalidateTechnikerCache`
+ * alle Varianten erwischt.
+ */
+const cacheKeyJahr  = (k: string, j: number, s: string) => `stats:techniker:${k}:jahr:${j}:s:${s}`;
+const cacheKeyMonat = (k: string, j: number, m: number, s: string) => `stats:techniker:${k}:monat:${j}-${m}:s:${s}`;
+const cacheTTL      = (j: number, m: number) => {
+  const jetzt = berlinMonat(new Date());
+  const isCurrent = j === jetzt.jahr && m === jetzt.monat;
   return isCurrent ? 300 : 3_600; // 5min aktueller Monat, 1h vergangene
 };
 
-/** Cache-Invalidierung für einen Techniker (nach neuer Anfrage / Status-Änderung). */
+/**
+ * Cache-Invalidierung für einen Techniker (nach neuer Anfrage / Status-Änderung).
+ *
+ * ⚠️ Muss an JEDER Stelle laufen, die Anfragen anlegt, abschließt, zurücksetzt
+ * oder löscht. Bis 17.09.2026 fehlte sie ausgerechnet beim normalen Abschließen
+ * (`auslagern.teile`) sowie bei `schliesseAnfrageAb`, `anfragen.reset` und
+ * `anfragen.loeschen` — das Jahresarchiv hing bis zu einer Stunde hinterher.
+ */
 export async function invalidateTechnikerCache(kuerzel: string): Promise<void> {
   try {
     const pattern = `stats:techniker:${kuerzel}:*`;
@@ -523,43 +529,45 @@ export async function invalidateTechnikerCache(kuerzel: string): Promise<void> {
  * Jahres-Archiv: 12 Monate mit Anfragen-KPIs.
  * Redis-Cache: vergangene Jahre 1h, aktuelles Jahr 5min.
  */
-export async function getTechnikerJahresArchiv(kuerzel: string, jahr: number) {
-  const key = cacheKeyJahr(kuerzel, jahr);
+export async function getTechnikerJahresArchiv(kuerzel: string, jahr: number, standortId?: StandortFilterId) {
+  const key = cacheKeyJahr(kuerzel, jahr, standortSchluessel(standortId));
   try {
     const cached = await redis.get(key);
-    if (cached) return JSON.parse(cached) as ReturnType<typeof _buildJahresArchiv>;
+    if (cached) return JSON.parse(cached) as Awaited<ReturnType<typeof _buildJahresArchiv>>;
   } catch {}
 
-  const result = await _buildJahresArchiv(kuerzel, jahr);
+  const result = await _buildJahresArchiv(kuerzel, jahr, standortId);
 
-  const ttl = new Date().getFullYear() === jahr ? 300 : 3_600;
+  const ttl = berlinMonat(new Date()).jahr === jahr ? 300 : 3_600;
   try { await redis.setex(key, ttl, JSON.stringify(result)); } catch {}
   return result;
 }
 
-async function _buildJahresArchiv(kuerzel: string, jahr: number) {
-  const von = new Date(jahr, 0, 1);
-  const bis = new Date(jahr + 1, 0, 1);
+async function _buildJahresArchiv(kuerzel: string, jahr: number, standortId?: StandortFilterId) {
+  const von = berlinMonatsbeginn(jahr, 1);
+  const bis = berlinMonatsbeginn(jahr + 1, 1);
 
   const anfragen = await prisma.anfrage.findMany({
-    where:  { techniker: kuerzel, ...OHNE_TEST, datum: { gte: von, lt: bis } },
+    where:  { ...(await anfrageStandortWhere(standortId)), techniker: kuerzel, ...OHNE_TEST, datum: { gte: von, lt: bis } },
     select: { datum: true, status: true },
   });
 
   const monate = Array.from({ length: 12 }, (_, i) => {
-    const ma = anfragen.filter((a) => new Date(a.datum).getMonth() === i);
-    if (!ma.length) return { monat: i + 1, gesamt: null, erledigt: null, bedarf: null, storniert: null, erledigungsrate: null };
-    const gesamt    = ma.length;
-    const erledigt  = ma.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN).length;
-    const bedarf    = ma.filter((a) => a.status === AnfrageStatus.BEDARF).length;
-    const storniert = ma.filter((a) => a.status === AnfrageStatus.STORNIERT).length;
+    const ma = anfragen.filter((a) => berlinMonat(a.datum).monat === i + 1);
+    if (!ma.length) {
+      return { monat: i + 1, gesamt: null, erledigt: null, storniert: null, nichtVerfuegbar: null, erledigungsrate: null };
+    }
+    const gesamt          = ma.length;
+    const erledigt        = ma.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN).length;
+    const storniert       = ma.filter((a) => a.status === AnfrageStatus.STORNIERT).length;
+    const nichtVerfuegbar = ma.filter((a) => a.status === AnfrageStatus.NICHT_VERFUEGBAR).length;
     return {
       monat: i + 1,
       gesamt,
       erledigt,
-      bedarf,
       storniert,
-      erledigungsrate: Math.round((erledigt / gesamt) * 100),
+      nichtVerfuegbar,
+      erledigungsrate: erledigungsrate(erledigt, gesamt, nichtVerfuegbar),
     };
   });
 
@@ -567,7 +575,8 @@ async function _buildJahresArchiv(kuerzel: string, jahr: number) {
   const mitDaten      = monate.filter((m) => m.gesamt !== null);
   const jahrGesamt    = mitDaten.reduce((s, m) => s + (m.gesamt ?? 0), 0);
   const jahrErledigt  = mitDaten.reduce((s, m) => s + (m.erledigt ?? 0), 0);
-  const jahrRate      = jahrGesamt > 0 ? Math.round((jahrErledigt / jahrGesamt) * 100) : 0;
+  const jahrNv        = mitDaten.reduce((s, m) => s + (m.nichtVerfuegbar ?? 0), 0);
+  const jahrRate      = erledigungsrate(jahrErledigt, jahrGesamt, jahrNv);
   const besterMonat   = mitDaten.reduce((best, m) => (m.erledigungsrate ?? 0) > (best?.erledigungsrate ?? -1) ? m : best, null as (typeof monate[0]) | null);
   const schlechtesterMonat = mitDaten.length > 1
     ? mitDaten.reduce((worst, m) => (m.erledigungsrate ?? 101) < (worst?.erledigungsrate ?? 101) ? m : worst, null as (typeof monate[0]) | null)
@@ -584,17 +593,18 @@ async function _buildJahresArchiv(kuerzel: string, jahr: number) {
 /**
  * Verfügbare Jahre für einen Techniker (für den Jahr-Selector).
  */
-export async function getTechnikerVerfuegbareJahre(kuerzel: string): Promise<number[]> {
+export async function getTechnikerVerfuegbareJahre(kuerzel: string, standortId?: StandortFilterId): Promise<number[]> {
+  const where = { ...(await anfrageStandortWhere(standortId)), techniker: kuerzel, ...OHNE_TEST };
   const [minA, maxA] = await Promise.all([
-    prisma.anfrage.findFirst({ where: { techniker: kuerzel, ...OHNE_TEST }, orderBy: { datum: "asc" },  select: { datum: true } }),
-    prisma.anfrage.findFirst({ where: { techniker: kuerzel, ...OHNE_TEST }, orderBy: { datum: "desc" }, select: { datum: true } }),
+    prisma.anfrage.findFirst({ where, orderBy: { datum: "asc" },  select: { datum: true } }),
+    prisma.anfrage.findFirst({ where, orderBy: { datum: "desc" }, select: { datum: true } }),
   ]);
 
-  const aktuellesJahr = new Date().getFullYear();
+  const aktuellesJahr = berlinMonat(new Date()).jahr;
   if (!minA) return [aktuellesJahr];
 
-  const minJahr = new Date(minA.datum).getFullYear();
-  const maxJahr = Math.max(new Date(maxA!.datum).getFullYear(), aktuellesJahr);
+  const minJahr = berlinMonat(minA.datum).jahr;
+  const maxJahr = Math.max(berlinMonat(maxA!.datum).jahr, aktuellesJahr);
   const jahre: number[] = [];
   for (let j = maxJahr; j >= minJahr; j--) jahre.push(j);
   return jahre;
@@ -604,33 +614,33 @@ export async function getTechnikerVerfuegbareJahre(kuerzel: string): Promise<num
  * Monats-Detail: alle KPIs + Top 3 Teile/Geräte + alle Anfragen.
  * Redis-Cache: 5min aktueller Monat, 1h vergangene.
  */
-export async function getTechnikerMonatsDetail(kuerzel: string, monat: number, jahr: number) {
-  const key = cacheKeyMonat(kuerzel, jahr, monat);
+export async function getTechnikerMonatsDetail(kuerzel: string, monat: number, jahr: number, standortId?: StandortFilterId) {
+  const key = cacheKeyMonat(kuerzel, jahr, monat, standortSchluessel(standortId));
   try {
     const cached = await redis.get(key);
-    if (cached) return JSON.parse(cached) as ReturnType<typeof _buildMonatsDetail>;
+    if (cached) return JSON.parse(cached) as Awaited<ReturnType<typeof _buildMonatsDetail>>;
   } catch {}
 
-  const result = await _buildMonatsDetail(kuerzel, monat, jahr);
+  const result = await _buildMonatsDetail(kuerzel, monat, jahr, standortId);
   try { await redis.setex(key, cacheTTL(jahr, monat), JSON.stringify(result)); } catch {}
   return result;
 }
 
-async function _buildMonatsDetail(kuerzel: string, monat: number, jahr: number) {
-  const von = new Date(jahr, monat - 1, 1);
-  const bis = new Date(jahr, monat, 1);
+async function _buildMonatsDetail(kuerzel: string, monat: number, jahr: number, standortId?: StandortFilterId) {
+  const von = berlinMonatsbeginn(jahr, monat);
+  const bis = berlinMonatsbeginn(jahr, monat + 1);
 
   const anfragen = await prisma.anfrage.findMany({
-    where:   { techniker: kuerzel, ...OHNE_TEST, datum: { gte: von, lt: bis } },
+    where:   { ...(await anfrageStandortWhere(standortId)), techniker: kuerzel, ...OHNE_TEST, datum: { gte: von, lt: bis } },
     include: { artikel: { select: { id: true, bezeichnung: true, kategorie: true } } },
     orderBy: { datum: "desc" },
   });
 
-  const gesamt    = anfragen.length;
-  const erledigt  = anfragen.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN).length;
-  const bedarf    = anfragen.filter((a) => a.status === AnfrageStatus.BEDARF).length;
-  const storniert = anfragen.filter((a) => a.status === AnfrageStatus.STORNIERT).length;
+  const gesamt          = anfragen.length;
+  const erledigt        = anfragen.filter((a) => a.status === AnfrageStatus.ABGESCHLOSSEN).length;
+  const storniert       = anfragen.filter((a) => a.status === AnfrageStatus.STORNIERT).length;
   const nichtVerfuegbar = anfragen.filter((a) => a.status === AnfrageStatus.NICHT_VERFUEGBAR).length;
+  const offen           = anfragen.filter((a) => OFFENE_STATUS.includes(a.status)).length;
 
   // Top 3 Teile
   const teileMap = new Map<string, number>();
@@ -651,8 +661,8 @@ async function _buildMonatsDetail(kuerzel: string, monat: number, jahr: number) 
     .map(([geraet, { anzahl, name }]) => ({ geraet, name, anzahl }));
 
   return {
-    kuerzel, monat, jahr, gesamt, erledigt, bedarf, storniert, nichtVerfuegbar,
-    erledigungsrate: gesamt > 0 ? Math.round((erledigt / gesamt) * 100) : 0,
+    kuerzel, monat, jahr, gesamt, erledigt, storniert, nichtVerfuegbar, offen,
+    erledigungsrate: erledigungsrate(erledigt, gesamt, nichtVerfuegbar),
     topTeile, topGeraete,
     anfragen,
   };
@@ -661,19 +671,19 @@ async function _buildMonatsDetail(kuerzel: string, monat: number, jahr: number) 
 /**
  * Jahres-Überblick aller Techniker (kompakt, für Admin-Chefüberblick).
  */
-export async function getAllTechnikerJahresOverview(jahr: number) {
-  const von = new Date(jahr, 0, 1);
-  const bis = new Date(jahr + 1, 0, 1);
+export async function getAllTechnikerJahresOverview(jahr: number, standortId?: StandortFilterId) {
+  const von = berlinMonatsbeginn(jahr, 1);
+  const bis = berlinMonatsbeginn(jahr + 1, 1);
 
   const alle = await prisma.anfrage.findMany({
-    where:  { ...OHNE_TEST, datum: { gte: von, lt: bis } },
+    where:  { ...(await anfrageStandortWhere(standortId)), ...OHNE_TEST, datum: { gte: von, lt: bis } },
     select: { techniker: true, datum: true, status: true },
   });
 
   const techMap = new Map<string, (number | null)[]>();
 
   for (const a of alle) {
-    const m = new Date(a.datum).getMonth(); // 0-based
+    const m = berlinMonat(a.datum).monat - 1; // 0-based
     if (!techMap.has(a.techniker)) techMap.set(a.techniker, new Array(12).fill(null));
     const arr = techMap.get(a.techniker)!;
     arr[m] = (arr[m] ?? 0) + 1;

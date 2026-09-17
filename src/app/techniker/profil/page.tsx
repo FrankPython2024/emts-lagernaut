@@ -58,7 +58,10 @@ export default function TechnikerProfilPage() {
   }
 
   const anfragenQuery = api.anfragen.getByTechniker.useQuery(
-    { kuerzel, showAll: true, limit: 200 },
+    // ⚠️ Die Kennzahlen hier werden aus dieser Liste gerechnet. Mit 200 fielen bei
+    // TH1 (251), MG (239) und HG (210) die ältesten Anfragen still heraus
+    // (17.09.2026). 1000 ist das Maximum des Routers.
+    { kuerzel, showAll: true, limit: 1000 },
     { enabled: !!kuerzel },
   );
 

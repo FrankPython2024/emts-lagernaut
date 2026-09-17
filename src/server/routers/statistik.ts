@@ -1,10 +1,6 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, permissionProcedure } from "@/server/trpc";
-
-// Alle Admin-Statistik-Endpoints sind read-only und sollen für BETRACHTER
-// (STATISTIK_VIEW) sichtbar sein. ADMIN bekommt es via SYSTEM_ADMIN-Wildcard.
-const statistikProcedure = permissionProcedure("STATISTIK_VIEW");
-import { getZugaenglicheStandortIds } from "@/lib/auth/standortFilter";
+import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
+import { statistikStandortFilter } from "@/lib/auth/standortFilter";
 import {
   getLiveStats,
   getMeistgefragteGeraete,
@@ -26,171 +22,136 @@ import {
   getTechnikerVerfuegbareJahre,
   getTechnikerMonatsDetail,
   getAllTechnikerJahresOverview,
-  type StandortFilterId,
 } from "@/modules/statistik/service";
 
-const TageSchema = z.object({
-  tage:       z.number().int().min(1).max(365).default(30),
-  standortId: z.number().int().positive().nullish(),
-});
+// Alle Statistik-Endpoints sind read-only und sollen für BETRACHTER
+// (STATISTIK_VIEW) sichtbar sein. ADMIN bekommt es via SYSTEM_ADMIN-Wildcard.
+const statistikProcedure = permissionProcedure("STATISTIK_VIEW");
 
-function resolveStatStandortId(
-  ctx:    Parameters<typeof getZugaenglicheStandortIds>[0],
-  input?: { standortId?: number | null },
-): StandortFilterId {
-  const ids = getZugaenglicheStandortIds(ctx, input?.standortId);
-  if (ids === null) return null;            // Admin/Wildcard, kein Filter → alle Daten
-  if (ids.length === 1) return ids[0] ?? null;
-  // MEHRERE zugaengliche Standorte: NICHT null zurueckgeben — null hiesse downstream
-  // "kein Filter" und wuerde dem Nutzer die Zahlen ALLER Standorte zeigen (Leak).
-  // Stattdessen exakt auf seine Standorte einschraenken (leere Liste = nichts).
-  return ids;
-}
+const standortId = z.number().int().positive().nullish();
+const tageFeld   = z.number().int().min(1).max(365);
+
+const TageSchema = z.object({ tage: tageFeld.default(30), standortId });
+
+// ⚠️ JEDE Abfrage prüft den Standort auf dem Server — auch die je Techniker.
+// Bis 17.09.2026 bekamen die Techniker-Abfragen, Jahresarchiv und Monatsdetail
+// gar keinen Standort: Ein auf einen Standort beschränktes Konto sah dort die
+// Anfragen aller Standorte.
+const TechnikerSchema = z.object({ kuerzel: z.string().min(1), tage: tageFeld.default(30), standortId });
 
 export const statistikRouter = createTRPCRouter({
 
-  // Live-Kennzahlen — alle eingeloggten User
-  getLiveStats: protectedProcedure
-    .input(z.object({ standortId: z.number().int().positive().nullish() }).optional())
-    .query(({ input, ctx }) => getLiveStats(resolveStatStandortId(ctx, input))),
+  // Live-Kennzahlen. ⚠️ War ein protectedProcedure — damit konnten auch TECHNIKER
+  // und PICKUP Bestandszahlen abrufen. Wird aktuell von keiner Seite genutzt.
+  getLiveStats: statistikProcedure
+    .input(z.object({ standortId }).optional())
+    .query(({ input, ctx }) => getLiveStats(statistikStandortFilter(ctx, input?.standortId))),
 
-  // Meistgefragte Geräte — Admin
   getMeistgefragteGeraete: statistikProcedure
     .input(TageSchema)
-    .query(({ input, ctx }) => getMeistgefragteGeraete(input.tage, resolveStatStandortId(ctx, input))),
+    .query(({ input, ctx }) => getMeistgefragteGeraete(input.tage, statistikStandortFilter(ctx, input.standortId))),
 
-  // Meistgefragte Teile — Admin
   getMeistgefragteTeile: statistikProcedure
     .input(TageSchema)
-    .query(({ input, ctx }) => getMeistgefragteTeile(input.tage, resolveStatStandortId(ctx, input))),
+    .query(({ input, ctx }) => getMeistgefragteTeile(input.tage, statistikStandortFilter(ctx, input.standortId))),
 
-  // Anfragen nach Status — Admin
   getAnfragenNachStatus: statistikProcedure
-    .input(z.object({
-      tage:       z.number().int().min(1).max(365).optional(),
-      standortId: z.number().int().positive().nullish(),
-    }).optional())
-    .query(({ input, ctx }) => getAnfragenNachStatus(input?.tage, resolveStatStandortId(ctx, input))),
+    .input(z.object({ tage: tageFeld.optional(), standortId }).optional())
+    .query(({ input, ctx }) => getAnfragenNachStatus(input?.tage, statistikStandortFilter(ctx, input?.standortId))),
 
-  // Buchungsverlauf täglich — Admin
   getBuchungenVerlauf: statistikProcedure
     .input(TageSchema)
-    .query(({ input, ctx }) => getBuchungenVerlauf(input.tage, resolveStatStandortId(ctx, input))),
+    .query(({ input, ctx }) => getBuchungenVerlauf(input.tage, statistikStandortFilter(ctx, input.standortId))),
 
-  // KPI-Übersicht — Admin (tage statt Date-Objekte)
   getKpiOverview: statistikProcedure
     .input(TageSchema)
-    .query(({ input, ctx }) => getKpiOverview(input.tage, resolveStatStandortId(ctx, input))),
+    .query(({ input, ctx }) => getKpiOverview(input.tage, statistikStandortFilter(ctx, input.standortId))),
 
-  // Techniker-Statistik — Admin
   getTechnikerStats: statistikProcedure
     .input(TageSchema)
-    .query(({ input, ctx }) => getTechnikerStats(input.tage, resolveStatStandortId(ctx, input))),
+    .query(({ input, ctx }) => getTechnikerStats(input.tage, statistikStandortFilter(ctx, input.standortId))),
 
-  // Monatsbericht — Admin
   getMonatsbericht: statistikProcedure
     .input(z.object({
-      monat:      z.number().int().min(1).max(12),
-      jahr:       z.number().int().min(2020).max(2100),
-      standortId: z.number().int().positive().nullish(),
+      monat: z.number().int().min(1).max(12),
+      jahr:  z.number().int().min(2020).max(2100),
+      standortId,
     }))
-    .query(({ input, ctx }) => getMonatsbericht(input.monat, input.jahr, resolveStatStandortId(ctx, input))),
+    .query(({ input, ctx }) =>
+      getMonatsbericht(input.monat, input.jahr, statistikStandortFilter(ctx, input.standortId))),
 
   // ── Techniker-Statistik (Anfragen-basiert) ────────────────────────────────
 
-  // Anfragen-Verlauf täglich (optional nach Techniker gefiltert)
   getAnfragenVerlauf: statistikProcedure
-    .input(z.object({
-      tage:       z.number().int().min(1).max(365).default(30),
-      kuerzel:    z.string().optional(),
-      standortId: z.number().int().positive().nullish(),
-    }))
-    .query(({ input, ctx }) => getAnfragenVerlauf(input.tage, input.kuerzel, resolveStatStandortId(ctx, input))),
+    .input(z.object({ tage: tageFeld.default(30), kuerzel: z.string().optional(), standortId }))
+    .query(({ input, ctx }) =>
+      getAnfragenVerlauf(input.tage, input.kuerzel, statistikStandortFilter(ctx, input.standortId))),
 
-  // Techniker-KPIs (6 Kennzahlen, nur für einen Techniker)
   getTechnikerKpis: statistikProcedure
-    .input(z.object({
-      kuerzel: z.string().min(1),
-      tage:    z.number().int().min(1).max(365).default(30),
-    }))
-    .query(({ input }) => getTechnikerKpis(input.kuerzel, input.tage)),
+    .input(TechnikerSchema)
+    .query(({ input, ctx }) =>
+      getTechnikerKpis(input.kuerzel, input.tage, statistikStandortFilter(ctx, input.standortId))),
 
-  // Top Teile eines Technikers mit Bedarf-Anteil
   getTechnikerTeile: statistikProcedure
-    .input(z.object({
-      kuerzel: z.string().min(1),
-      tage:    z.number().int().min(1).max(365).default(30),
-    }))
-    .query(({ input }) => getTechnikerTeile(input.kuerzel, input.tage)),
+    .input(TechnikerSchema)
+    .query(({ input, ctx }) =>
+      getTechnikerTeile(input.kuerzel, input.tage, statistikStandortFilter(ctx, input.standortId))),
 
-  // Top Geräte eines Technikers
   getTechnikerGeraete: statistikProcedure
-    .input(z.object({
-      kuerzel: z.string().min(1),
-      tage:    z.number().int().min(1).max(365).default(30),
-    }))
-    .query(({ input }) => getTechnikerGeraete(input.kuerzel, input.tage)),
+    .input(TechnikerSchema)
+    .query(({ input, ctx }) =>
+      getTechnikerGeraete(input.kuerzel, input.tage, statistikStandortFilter(ctx, input.standortId))),
 
-  // Wochentag-Verteilung
   getTechnikerWochentage: statistikProcedure
-    .input(z.object({
-      kuerzel: z.string().min(1),
-      tage:    z.number().int().min(1).max(365).default(90),
-    }))
-    .query(({ input }) => getTechnikerWochentage(input.kuerzel, input.tage)),
+    .input(TechnikerSchema)
+    .query(({ input, ctx }) =>
+      getTechnikerWochentage(input.kuerzel, input.tage, statistikStandortFilter(ctx, input.standortId))),
 
-  // Tageszeit-Verteilung
   getTechnikerTageszeiten: statistikProcedure
-    .input(z.object({
-      kuerzel: z.string().min(1),
-      tage:    z.number().int().min(1).max(365).default(90),
-    }))
-    .query(({ input }) => getTechnikerTageszeiten(input.kuerzel, input.tage)),
+    .input(TechnikerSchema)
+    .query(({ input, ctx }) =>
+      getTechnikerTageszeiten(input.kuerzel, input.tage, statistikStandortFilter(ctx, input.standortId))),
 
-  // Letzte Anfragen (paginiert)
   getTechnikerLetzteAnfragen: statistikProcedure
-    .input(z.object({
-      kuerzel: z.string().min(1),
-      tage:    z.number().int().min(1).max(365).default(30),
-      limit:   z.number().int().min(1).max(50).default(20),
-      offset:  z.number().int().min(0).default(0),
+    .input(TechnikerSchema.extend({
+      limit:  z.number().int().min(1).max(50).default(20),
+      offset: z.number().int().min(0).default(0),
     }))
-    .query(({ input }) =>
-      getTechnikerLetzteAnfragen(input.kuerzel, input.tage, input.limit, input.offset),
-    ),
+    .query(({ input, ctx }) =>
+      getTechnikerLetzteAnfragen(
+        input.kuerzel, input.tage, input.limit, input.offset,
+        statistikStandortFilter(ctx, input.standortId),
+      )),
 
-  // Team-Vergleich: alle Techniker mit mehreren Metriken
   getTechnikerTeamVergleich: statistikProcedure
     .input(TageSchema)
-    .query(({ input, ctx }) => getTechnikerTeamVergleich(input.tage, resolveStatStandortId(ctx, input))),
+    .query(({ input, ctx }) => getTechnikerTeamVergleich(input.tage, statistikStandortFilter(ctx, input.standortId))),
 
   // ── Jahres-Archiv ─────────────────────────────────────────────────────────
 
-  // 12-Monats-Übersicht für ein Jahr (Redis-gecacht)
   getTechnikerJahresArchiv: statistikProcedure
-    .input(z.object({
-      kuerzel: z.string().min(1),
-      jahr:    z.number().int().min(2020).max(2100),
-    }))
-    .query(({ input }) => getTechnikerJahresArchiv(input.kuerzel, input.jahr)),
+    .input(z.object({ kuerzel: z.string().min(1), jahr: z.number().int().min(2020).max(2100), standortId }))
+    .query(({ input, ctx }) =>
+      getTechnikerJahresArchiv(input.kuerzel, input.jahr, statistikStandortFilter(ctx, input.standortId))),
 
-  // Verfügbare Jahre für den Jahr-Selector
   getTechnikerVerfuegbareJahre: statistikProcedure
-    .input(z.object({ kuerzel: z.string().min(1) }))
-    .query(({ input }) => getTechnikerVerfuegbareJahre(input.kuerzel)),
+    .input(z.object({ kuerzel: z.string().min(1), standortId }))
+    .query(({ input, ctx }) =>
+      getTechnikerVerfuegbareJahre(input.kuerzel, statistikStandortFilter(ctx, input.standortId))),
 
-  // Monats-Detail mit Top Teile/Geräte + alle Anfragen (Redis-gecacht)
   getTechnikerMonatsDetail: statistikProcedure
     .input(z.object({
       kuerzel: z.string().min(1),
       monat:   z.number().int().min(1).max(12),
       jahr:    z.number().int().min(2020).max(2100),
+      standortId,
     }))
-    .query(({ input }) => getTechnikerMonatsDetail(input.kuerzel, input.monat, input.jahr)),
+    .query(({ input, ctx }) =>
+      getTechnikerMonatsDetail(input.kuerzel, input.monat, input.jahr, statistikStandortFilter(ctx, input.standortId))),
 
-  // Alle Techniker kompakt für Chefetage-Überblick
   getAllTechnikerJahresOverview: statistikProcedure
-    .input(z.object({ jahr: z.number().int().min(2020).max(2100) }))
-    .query(({ input }) => getAllTechnikerJahresOverview(input.jahr)),
+    .input(z.object({ jahr: z.number().int().min(2020).max(2100), standortId }))
+    .query(({ input, ctx }) =>
+      getAllTechnikerJahresOverview(input.jahr, statistikStandortFilter(ctx, input.standortId))),
 
 });

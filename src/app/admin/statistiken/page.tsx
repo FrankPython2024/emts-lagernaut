@@ -8,6 +8,7 @@ import { useStandortFilter } from "@/lib/standort/standortContext";
 import { useSocket } from "@/hooks/useSocket";
 import { EVENTS } from "@/modules/realtime/events";
 import { DashboardAnsicht } from "./DashboardAnsicht";
+import { LadeFehler } from "./LadeFehler";
 
 // ── Typen & Konstanten ────────────────────────────────────────────────────────
 
@@ -27,6 +28,12 @@ const STATUS_FARBE: Record<AnfrageStatus, string> = {
   ABGESCHLOSSEN:    "bg-[#00a400]  text-white",
   STORNIERT:        "bg-[#fa3e3e]  text-white",
   NICHT_VERFUEGBAR: "bg-[#f97316]  text-white",
+};
+
+// Statusnamen in Klartext — die klassische Ansicht zeigte vorher rohe Enum-Namen.
+const STATUS_TEXT: Record<string, string> = {
+  NEU: "Neu", BEDARF: "Bedarf", IN_BEARBEITUNG: "In Bearbeitung",
+  ABGESCHLOSSEN: "Erledigt", STORNIERT: "Storniert", NICHT_VERFUEGBAR: "Nicht verfügbar",
 };
 
 // Hex-Varianten für eingefärbte Balken (Status-Verteilung)
@@ -70,14 +77,20 @@ function euro(n: number): string {
 function WertAusgegebenPanel({ tage, standortId }: { tage: number; standortId: number | null | undefined }) {
   const q = api.preise.wertAusgegeben.useQuery({ tage, standortId: standortId ?? null });
   return (
-    <Panel title="💸 Wert ausgegeben" sub={`Teile (AUSGANG + Bedarf) × Kategorie-Preis + Sonderanfragen (Pauschale/Review) · letzte ${tage} Tage`}>
+    <Panel title="💸 Wert ausgegeben" sub={`Ersatzteile zu Anfragen × Stückpreis + Sonderanfragen · letzte ${tage} Tage`}>
       {q.isLoading && <Skeleton h="h-40" />}
+      {q.isError && <LadeFehler fehler={q.error} onRetry={() => void q.refetch()} />}
       {q.data && (
         <>
           <div className="mb-4">
             <div className="text-3xl font-black tabular-nums text-[#00a400]">{euro(q.data.gesamt)}</div>
             <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
               🧩 {q.data.mengeGesamt.toLocaleString("de-DE")} Teile ({euro(q.data.teileWert)}) · {q.data.proKategorie.length} Kategorien bewertet
+            </div>
+            <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
+              Gezählt werden nur Ausgaben zu einer Anfrage, Handbuchungen und Korrekturen nicht.
+              Stückpreis: Einzelpreis des Artikels, sonst Kategoriepreis.
+              {q.data.ohneLagerartikel > 0 && <> Darin {q.data.ohneLagerartikel.toLocaleString("de-DE")} Anfragen ohne Lagerartikel.</>}
             </div>
             {q.data.sonderanfragen.anzahl > 0 && (
               <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
@@ -100,7 +113,7 @@ function WertAusgegebenPanel({ tage, standortId }: { tage: number; standortId: n
                   <tr className="text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
                     <th className="text-left py-2 pr-3">Kategorie</th>
                     <th className="text-right py-2 px-3">Menge</th>
-                    <th className="text-right py-2 px-3">Preis</th>
+                    <th className="text-right py-2 px-3">Ø Preis</th>
                     <th className="text-right py-2 pl-3">Wert</th>
                   </tr>
                 </thead>
@@ -119,7 +132,7 @@ function WertAusgegebenPanel({ tage, standortId }: { tage: number; standortId: n
           )}
 
           {q.data.ohnePreis.length > 0 && (
-            <div className="mt-3 text-xs text-[#f7b928]">
+            <div className="mt-3 text-xs text-[#8A5A00] dark:text-[#f7b928]">
               ⚠️ {q.data.ohnePreis.length} Kategorien ohne Preis (nicht enthalten):{" "}
               {q.data.ohnePreis.map((o) => `${o.kategorie} (${o.menge})`).join(", ")}.{" "}
               <a href="/admin/preise" className="underline font-semibold">Preise ergänzen</a>
@@ -144,6 +157,11 @@ function GesamtwertPanel({ tage, standortId }: { tage: number; standortId: numbe
   const abgaben = api.abgaben.auswertung.useQuery({ tage, standortId: standortId ?? null });
 
   const laedt = technik.isLoading || abgaben.isLoading;
+  // ⚠️ Fehlt ein Teilwert, darf keine Summe erscheinen — vorher wurde er still als
+  // 0 € eingerechnet. Ausnahme: fehlendes Recht für die Abgaben (ARTIKEL_VIEW). Dann
+  // zeigen wir den Technik-Teil und sagen ausdrücklich, dass die Abgaben fehlen.
+  const abgabenOhneRecht = abgaben.error?.data?.code === "FORBIDDEN";
+  const fehler = technik.isError ? technik : (abgaben.isError && !abgabenOhneRecht ? abgaben : null);
   const wTechnik = technik.data?.gesamt ?? 0;
   const wAbgaben = abgaben.data?.gesamtWert ?? 0;
   const gesamt   = Math.round((wTechnik + wAbgaben) * 100) / 100;
@@ -161,11 +179,19 @@ function GesamtwertPanel({ tage, standortId }: { tage: number; standortId: numbe
       sub={`Alles, was das Lager verlassen hat · statistischer Wert · letzte ${tage} Tage`}
     >
       {laedt && <Skeleton h="h-32" />}
-      {!laedt && (
+      {!laedt && fehler && (
+        <LadeFehler fehler={fehler.error} onRetry={() => { void technik.refetch(); void abgaben.refetch(); }} />
+      )}
+      {!laedt && !fehler && (
         <>
           <div className="text-4xl font-black tabular-nums text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">
             {euro(gesamt)}
           </div>
+          {abgabenOhneRecht && (
+            <div className="text-xs font-semibold text-[#8A5A00] dark:text-[#f7b928] mb-1">
+              ⚠️ Ohne Abgaben an Niederlassungen: Dafür fehlt dir das Recht, Artikel einzusehen.
+            </div>
+          )}
           <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-4">
             Bauteil-Ernte ist bewusst nicht enthalten. Das ist Wert, der im Lager <em>liegt</em>, nicht ausgegeben wurde.
           </div>
@@ -203,7 +229,7 @@ function GesamtwertPanel({ tage, standortId }: { tage: number; standortId: numbe
           )}
 
           {luecken > 0 && (
-            <div className="mt-3 text-xs text-[#f7b928]">
+            <div className="mt-3 text-xs text-[#8A5A00] dark:text-[#f7b928]">
               ⚠️ {luecken.toLocaleString("de-DE")} Stück ohne hinterlegten Preis, in der Summe nicht enthalten.
               Preise pflegen unter <a href="/admin/preise" className="underline font-semibold">Kategorie-Preise</a>
               {" "}bzw. am Artikel selbst.
@@ -225,6 +251,11 @@ function AbgabenPanel({ tage, standortId }: { tage: number; standortId: number |
   return (
     <Panel title="🚚 Abgaben an Niederlassungen" sub={`Material an andere Standorte der Gruppe · statistischer Wert · letzte ${tage} Tage`}>
       {q.isLoading && <Skeleton h="h-32" />}
+      {q.error?.data?.code === "FORBIDDEN" ? (
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+          Für die Abgaben brauchst du das Recht, Artikel einzusehen.
+        </p>
+      ) : q.isError && <LadeFehler fehler={q.error} onRetry={() => void q.refetch()} />}
       {q.data && (
         <>
           <div className="mb-4">
@@ -234,7 +265,7 @@ function AbgabenPanel({ tage, standortId }: { tage: number; standortId: number |
               {q.data.proNiederlassung.length > 0 && <> · {q.data.proNiederlassung.length} Niederlassungen</>}
             </div>
             {q.data.ohnePreis > 0 && (
-              <div className="text-xs text-[#f7b928] mt-0.5">
+              <div className="text-xs text-[#8A5A00] dark:text-[#f7b928] mt-0.5">
                 ⚠️ {q.data.ohnePreis.toLocaleString("de-DE")} Stück ohne hinterlegten Preis, nicht im Wert enthalten
               </div>
             )}
@@ -285,8 +316,9 @@ function AbgabenPanel({ tage, standortId }: { tage: number; standortId: number |
 function ErntePanel({ tage, standortId }: { tage: number; standortId: number | null | undefined }) {
   const q = api.preise.wertGeerntet.useQuery({ tage, standortId: standortId ?? null });
   return (
-    <Panel title="🔧 Bauteil-Ernte" sub={`Aus Spender-Altgeräten gewonnene Teile × Kategorie-Preis · letzte ${tage} Tage`}>
+    <Panel title="🔧 Bauteil-Ernte" sub={`Aus Spender-Altgeräten gewonnene Teile × Stückpreis · letzte ${tage} Tage`}>
       {q.isLoading && <Skeleton h="h-40" />}
+      {q.isError && <LadeFehler fehler={q.error} onRetry={() => void q.refetch()} />}
       {q.data && (
         <>
           <div className="mb-4">
@@ -324,7 +356,7 @@ function ErntePanel({ tage, standortId }: { tage: number; standortId: number | n
                       <tr className="text-xs font-bold uppercase text-[#65676b] dark:text-[#b0b3b8] border-b border-[#ced4da] dark:border-[#3e4042]">
                         <th className="text-left py-2 pr-3">Kategorie</th>
                         <th className="text-right py-2 px-3">Menge</th>
-                        <th className="text-right py-2 px-3">Preis</th>
+                        <th className="text-right py-2 px-3">Ø Preis</th>
                         <th className="text-right py-2 pl-3">Wert</th>
                       </tr>
                     </thead>
@@ -361,7 +393,7 @@ function ErntePanel({ tage, standortId }: { tage: number; standortId: number | n
               )}
 
               {q.data.ohnePreis.length > 0 && (
-                <div className="mt-3 text-xs text-[#f7b928]">
+                <div className="mt-3 text-xs text-[#8A5A00] dark:text-[#f7b928]">
                   ⚠️ {q.data.ohnePreis.length} Kategorien ohne Preis (nicht im Wert enthalten):{" "}
                   {q.data.ohnePreis.map((o) => `${o.kategorie} (${o.menge})`).join(", ")}.{" "}
                   <a href="/admin/preise" className="underline font-semibold">Preise ergänzen</a>
@@ -401,47 +433,40 @@ function ErntePanel({ tage, standortId }: { tage: number; standortId: number | n
   );
 }
 
-// ── HBarChart mit optionalem Bedarf-Anteil ────────────────────────────────────
+// ── HBarChart ─────────────────────────────────────────────────────────────────
+// Der frühere Bedarf-Anteil ist entfernt: Er zählte den HEUTIGEN Status BEDARF,
+// erledigte Bedarfsanfragen fielen heraus — er stand praktisch immer bei 0 %.
 
-function HBarChart({ items, showBedarf, barColor }: {
-  items:      { label: string; value: number; bedarfValue?: number }[];
-  showBedarf?: boolean;
+function HBarChart({ items, barColor, labelText }: {
+  items:      { label: string; value: number }[];
   barColor?:  (label: string) => string | undefined;
+  labelText?: (label: string) => string;
 }) {
   if (!items.length) return <Empty />;
   const max = Math.max(...items.map((i) => i.value), 1);
   return (
     <div className="space-y-2">
       {items.map((item) => {
-        const pct       = (item.value / max) * 100;
-        const bedarfPct = showBedarf && item.bedarfValue
-          ? (item.bedarfValue / item.value) * pct
-          : 0;
-        const col = barColor?.(item.label);
+        const pct  = (item.value / max) * 100;
+        const col  = barColor?.(item.label);
+        const text = labelText?.(item.label) ?? item.label;
         return (
           <div key={item.label} className="flex items-center gap-3">
             <div
               className="w-28 text-xs text-[#65676b] dark:text-[#b0b3b8] truncate text-right flex-shrink-0"
-              title={item.label}
-              aria-label={item.label}
+              title={text}
             >
-              {item.label}
+              {text}
             </div>
-            <div className="flex-1 bg-[#f0f2f5] dark:bg-[#18191a] rounded-full h-5 overflow-hidden relative">
-              <div className={`h-full rounded-full flex items-center justify-end pr-2 transition-all duration-700 ${col ? "" : "bg-[#0064d2] dark:bg-[#45bdff]"}`}
-                style={{ width: `${pct}%`, ...(col ? { background: col } : {}) }}>
-                <span className="text-[10px] text-white font-bold">{item.value}</span>
-              </div>
-              {showBedarf && bedarfPct > 0 && (
-                <div className="absolute top-0 left-0 h-full bg-[#f7b928]/60 rounded-full"
-                  style={{ width: `${bedarfPct}%` }} />
-              )}
+            {/* Zahl NEBEN dem Balken, nicht darin: Weiß in 10 px auf einem kurzen
+                Balken (z. B. Storniert) war abgeschnitten oder unlesbar. */}
+            <div className="flex-1 bg-[#f0f2f5] dark:bg-[#18191a] rounded-full h-5 overflow-hidden" aria-hidden="true">
+              <div className={`h-full rounded-full transition-all duration-700 ${col ? "" : "bg-[#0064d2] dark:bg-[#45bdff]"}`}
+                style={{ width: `${pct}%`, ...(col ? { background: col } : {}) }} />
             </div>
-            {showBedarf && item.bedarfValue !== undefined && (
-              <div className="text-[10px] text-[#f7b928] font-bold w-14 flex-shrink-0">
-                {item.bedarfValue > 0 ? `${Math.round((item.bedarfValue / item.value) * 100)}% N/A` : ""}
-              </div>
-            )}
+            <div className="w-12 text-right text-xs font-bold tabular-nums text-[#1a1a1a] dark:text-[#e4e6eb] flex-shrink-0">
+              {item.value.toLocaleString("de-DE")}
+            </div>
           </div>
         );
       })}
@@ -452,17 +477,17 @@ function HBarChart({ items, showBedarf, barColor }: {
 // ── Anfragen-Verlauf SVG ──────────────────────────────────────────────────────
 
 function AnfragenVerlauf({ data }: {
-  data: { datum: string; anfragen: number; erledigt: number; bedarf: number; nichtVerfuegbar?: number }[];
+  data: { datum: string; anfragen: number; erledigt: number; nichtVerfuegbar?: number }[];
 }) {
   if (!data.length) return <Empty />;
 
   const nv = (d: typeof data[number]) => d.nichtVerfuegbar ?? 0;
-  const maxVal = Math.max(...data.flatMap((d) => [d.anfragen, d.erledigt, d.bedarf, nv(d)]), 1);
+  const maxVal = Math.max(...data.flatMap((d) => [d.anfragen, d.erledigt, nv(d)]), 1);
   const n      = data.length;
   const H      = 80;
   const W      = 300;
 
-  function pts(key: "anfragen" | "erledigt" | "bedarf" | "nichtVerfuegbar") {
+  function pts(key: "anfragen" | "erledigt" | "nichtVerfuegbar") {
     return data
       .map((d, i) => {
         const x = n > 1 ? (i / (n - 1)) * W : W / 2;
@@ -477,7 +502,6 @@ function AnfragenVerlauf({ data }: {
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full" style={{ height: `${H}px` }}>
         <polyline points={pts("anfragen")} fill="none" stroke="#0064d2" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
         <polyline points={pts("erledigt")} fill="none" stroke="#00a400" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-        <polyline points={pts("bedarf")}   fill="none" stroke="#f7b928" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
         <polyline points={pts("nichtVerfuegbar")} fill="none" stroke="#f97316" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
       </svg>
       {/* X-Achse: erste und letzte Beschriftung */}
@@ -518,7 +542,7 @@ function VBarChart({ items }: { items: { label: string; anzahl: number }[] }) {
 function StatusBadge({ status }: { status: AnfrageStatus }) {
   return (
     <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${STATUS_FARBE[status]}`}>
-      {status}
+      {STATUS_TEXT[status] ?? status}
     </span>
   );
 }
@@ -526,7 +550,7 @@ function StatusBadge({ status }: { status: AnfrageStatus }) {
 // ── Team-Vergleich Grid ───────────────────────────────────────────────────────
 
 function TeamVergleich({ data }: {
-  data: { techniker: string; volumen: number; erledigungsrate: number; bedarfQuote: number; nichtVerfuegbar?: number }[];
+  data: { techniker: string; volumen: number; erledigungsrate: number; nichtVerfuegbar?: number }[];
 }) {
   if (!data.length) return <Empty />;
   const maxVol = Math.max(...data.map((d) => d.volumen), 1);
@@ -550,20 +574,14 @@ function TeamVergleich({ data }: {
             </div>
             <div className="flex justify-between text-xs mt-1">
               <span className="text-[#65676b] dark:text-[#b0b3b8]">Erledigt</span>
-              <span className={`font-bold ${t.erledigungsrate >= 70 ? "text-[#00a400]" : t.erledigungsrate >= 40 ? "text-[#f7b928]" : "text-[#fa3e3e]"}`}>
+              <span className={`font-bold ${rateColor(t.erledigungsrate)}`}>
                 {t.erledigungsrate}%
-              </span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-[#65676b] dark:text-[#b0b3b8]">Bedarf</span>
-              <span className={`font-bold ${t.bedarfQuote <= 20 ? "text-[#00a400]" : t.bedarfQuote <= 40 ? "text-[#f7b928]" : "text-[#fa3e3e]"}`}>
-                {t.bedarfQuote}%
               </span>
             </div>
             {(t.nichtVerfuegbar ?? 0) > 0 && (
               <div className="flex justify-between text-xs">
                 <span className="text-[#65676b] dark:text-[#b0b3b8]">Nicht verfügbar</span>
-                <span className="font-bold text-[#f97316]">{t.nichtVerfuegbar}</span>
+                <span className="font-bold text-[#9a4a00] dark:text-[#f97316]">{t.nichtVerfuegbar}</span>
               </div>
             )}
           </div>
@@ -579,9 +597,9 @@ const MONATE = ["Januar","Februar","März","April","Mai","Juni","Juli","August",
 
 function rateColor(rate: number | null): string {
   if (rate === null) return "text-[#65676b] dark:text-[#b0b3b8]";
-  if (rate >= 90)   return "text-[#00a400]";
-  if (rate >= 75)   return "text-[#f7b928]";
-  return "text-[#fa3e3e]";
+  if (rate >= 90)   return "text-[#037A4F] dark:text-[#04B475]";
+  if (rate >= 75)   return "text-[#8A5A00] dark:text-[#f7b928]";
+  return "text-[#c62828] dark:text-[#ff8a80]";
 }
 
 function rateBg(rate: number | null): string {
@@ -596,8 +614,9 @@ function rateBg(rate: number | null): string {
 type MonatData = { monat: number; gesamt: number | null; erledigungsrate: number | null };
 
 function MonatsBalkenChart({
-  monate, onKlick, ausgewaehlt,
+  monate, onKlick, ausgewaehlt, jahr,
 }: {
+  jahr:         number;
   monate:       MonatData[];
   onKlick:      (m: MonatData) => void;
   ausgewaehlt?: number;
@@ -606,7 +625,8 @@ function MonatsBalkenChart({
   return (
     <div className="flex items-end gap-1 h-24 mt-2">
       {monate.map((m) => {
-        const isCurrent = new Date().getMonth() + 1 === m.monat;
+        // Jahr mit prüfen — sonst war im Archiv 2025 der heutige Monat markiert.
+        const isCurrent = new Date().getFullYear() === jahr && new Date().getMonth() + 1 === m.monat;
         const isSelected = ausgewaehlt === m.monat;
         const h = m.gesamt ? Math.max((m.gesamt / max) * 80, 4) : 0;
         return (
@@ -639,7 +659,7 @@ function MonatsBalkenChart({
 
 type MonatsDetailData = {
   kuerzel: string; monat: number; jahr: number;
-  gesamt: number; erledigt: number; bedarf: number; storniert: number; nichtVerfuegbar: number;
+  gesamt: number; erledigt: number; storniert: number; nichtVerfuegbar: number; offen: number;
   erledigungsrate: number;
   topTeile:   { teil: string; anzahl: number }[];
   topGeraete: { geraet: string; name: string; anzahl: number }[];
@@ -670,8 +690,8 @@ function MonatsDetailModal({ data, onClose }: { data: MonatsDetailData; onClose:
               <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Erledigungsrate</div>
             </div>
             <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
-              <div className="text-2xl font-black text-[#f7b928]">{data.bedarf}</div>
-              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Bedarf</div>
+              <div className="text-2xl font-black text-[#8A5A00] dark:text-[#f7b928]">{data.offen}</div>
+              <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Noch offen</div>
             </div>
             <div className="bg-[#f0f2f5] dark:bg-[#18191a] rounded-xl p-3 text-center">
               <div className="text-2xl font-black text-[#00a400]">{data.erledigt}</div>
@@ -741,7 +761,7 @@ function MonatsDetailModal({ data, onClose }: { data: MonatsDetailData; onClose:
                       <td className="py-1.5 px-3 max-w-[100px] truncate text-[#65676b] dark:text-[#b0b3b8]">{a.geraeteName ?? a.geraet}</td>
                       <td className="py-1.5 px-3 font-mono text-[#65676b] dark:text-[#b0b3b8]">{a.logId}</td>
                       <td className="py-1.5 pl-3">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${STATUS_FARBE[a.status]}`}>{a.status}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${STATUS_FARBE[a.status]}`}>{STATUS_TEXT[a.status] ?? a.status}</span>
                       </td>
                     </tr>
                   ))}
@@ -757,15 +777,15 @@ function MonatsDetailModal({ data, onClose }: { data: MonatsDetailData; onClose:
 
 // ── Jahresarchiv-Sektion (innerhalb Techniker-Detail) ─────────────────────────
 
-function JahresArchivSektion({ kuerzel }: { kuerzel: string }) {
+function JahresArchivSektion({ kuerzel, standortId }: { kuerzel: string; standortId: number | null | undefined }) {
   const aktuellesJahr              = new Date().getFullYear();
   const [gewaehlterJahr, setJahr]  = useState(aktuellesJahr);
   const [monatsModal, setMonatsModal] = useState<number | null>(null); // Monat 1-12
 
-  const verfuegbareJahre = api.statistik.getTechnikerVerfuegbareJahre.useQuery({ kuerzel });
-  const archiv           = api.statistik.getTechnikerJahresArchiv.useQuery({ kuerzel, jahr: gewaehlterJahr });
+  const verfuegbareJahre = api.statistik.getTechnikerVerfuegbareJahre.useQuery({ kuerzel, standortId });
+  const archiv           = api.statistik.getTechnikerJahresArchiv.useQuery({ kuerzel, jahr: gewaehlterJahr, standortId });
   const monatsDetail     = api.statistik.getTechnikerMonatsDetail.useQuery(
-    { kuerzel, monat: monatsModal ?? 1, jahr: gewaehlterJahr },
+    { kuerzel, monat: monatsModal ?? 1, jahr: gewaehlterJahr, standortId },
     { enabled: monatsModal !== null },
   );
 
@@ -796,6 +816,7 @@ function JahresArchivSektion({ kuerzel }: { kuerzel: string }) {
         <span className="text-xs text-[#65676b] dark:text-[#b0b3b8] ml-2">Klick auf Monat für Details</span>
       </div>
 
+      {archiv.isError && <LadeFehler fehler={archiv.error} onRetry={() => void archiv.refetch()} />}
       {archiv.isLoading && (
         <div className="space-y-3">
           <div className="grid grid-cols-4 gap-3"><Skeleton /><Skeleton /><Skeleton /><Skeleton /></div>
@@ -841,6 +862,7 @@ function JahresArchivSektion({ kuerzel }: { kuerzel: string }) {
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-[#fa3e3e]" />&lt;75%</span>
               </div>
               <MonatsBalkenChart
+                jahr={gewaehlterJahr}
                 monate={monate}
                 onKlick={(m) => setMonatsModal(m.monat)}
                 ausgewaehlt={monatsModal ?? undefined}
@@ -856,7 +878,7 @@ function JahresArchivSektion({ kuerzel }: { kuerzel: string }) {
                   <th className="text-left py-2 pr-3">Monat</th>
                   <th className="text-center py-2 px-3">Anfragen</th>
                   <th className="text-center py-2 px-3">Erledigt</th>
-                  <th className="text-center py-2 px-3">Bedarf</th>
+                  <th className="text-center py-2 px-3">Nicht verfügbar</th>
                   <th className="text-center py-2 pl-3">Rate</th>
                 </tr>
               </thead>
@@ -883,7 +905,7 @@ function JahresArchivSektion({ kuerzel }: { kuerzel: string }) {
                           #037A4F (5,4:1) und #8A5A00 (5,3:1), im Dunkelmodus die
                           hellen Töne. */}
                       <td className="text-center py-2 px-3 text-[#037A4F] dark:text-[#04B475]">{m.erledigt ?? <span className="text-[#65676b] dark:text-[#b0b3b8]">—</span>}</td>
-                      <td className="text-center py-2 px-3 text-[#8A5A00] dark:text-[#f7b928]">{m.bedarf ?? <span className="text-[#65676b] dark:text-[#b0b3b8]">—</span>}</td>
+                      <td className="text-center py-2 px-3 text-[#9a4a00] dark:text-[#f97316]">{m.nichtVerfuegbar ?? <span className="text-[#65676b] dark:text-[#b0b3b8]">—</span>}</td>
                       <td className={`text-center py-2 pl-3 font-bold ${rateColor(m.erledigungsrate)}`}>
                         {m.erledigungsrate !== null ? `${m.erledigungsrate}%` : <span className="text-[#65676b]">—</span>}
                       </td>
@@ -909,11 +931,12 @@ function JahresArchivSektion({ kuerzel }: { kuerzel: string }) {
 
 // ── Jahresübersicht aller Techniker (Tab in Übersicht) ────────────────────────
 
-function AlleJahresOverview() {
+function AlleJahresOverview({ standortId }: { standortId: number | null | undefined }) {
   const aktuellesJahr = new Date().getFullYear();
-  const overview = api.statistik.getAllTechnikerJahresOverview.useQuery({ jahr: aktuellesJahr });
+  const overview = api.statistik.getAllTechnikerJahresOverview.useQuery({ jahr: aktuellesJahr, standortId });
 
   if (overview.isLoading) return <Skeleton h="h-40" />;
+  if (overview.isError) return <LadeFehler fehler={overview.error} onRetry={() => void overview.refetch()} />;
   if (!overview.data?.length) return <Empty />;
 
   const max = Math.max(
@@ -965,9 +988,12 @@ function AlleJahresOverview() {
 // ── Hauptseite ────────────────────────────────────────────────────────────────
 
 export default function StatistikenPage() {
-  const [filter,     setFilter]    = useState<FilterRange>("monat");
+  const [filter,     setFilterRoh] = useState<FilterRange>("monat");
   const [kuerzel,    setKuerzel]   = useState<string>(""); // "" = Alle
   const [letzteOff,  setLetzteOff] = useState(0);
+  // Wer auf Seite 6 der „Letzten Anfragen" steht und den Zeitraum verkleinert,
+  // landete auf einer leeren Tabelle ohne Blätterleiste — deshalb zurück auf 0.
+  const setFilter = (f: FilterRange) => { setFilterRoh(f); setLetzteOff(0); };
   const [uebersichtTab, setUebersichtTab] = useState<"overview" | "jahresarchiv">("overview");
 
   // ── Ansicht: klassisch (Standard) ODER neues Dashboard ────────────────────
@@ -1019,17 +1045,18 @@ export default function StatistikenPage() {
   const statusData  = api.statistik.getAnfragenNachStatus.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
   const topGeraete  = api.statistik.getMeistgefragteGeraete.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
   const topTeile    = api.statistik.getMeistgefragteTeile.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
-  const teamVergl   = api.statistik.getTechnikerTeamVergleich.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
+  const teamVergl   = api.statistik.getTechnikerTeamVergleich.useQuery({ tage, standortId: sId }, { enabled: !hatTech && !zeigeDashboard });
 
   // ── Queries Techniker-Detail ──────────────────────────────────────────────
-  const techKpis      = api.statistik.getTechnikerKpis.useQuery({ kuerzel, tage }, { enabled: hatTech });
+  const techKpis      = api.statistik.getTechnikerKpis.useQuery({ kuerzel, tage, standortId: sId }, { enabled: hatTech });
   const verlaufTech   = api.statistik.getAnfragenVerlauf.useQuery({ tage, kuerzel, standortId: sId }, { enabled: hatTech });
-  const techTeile     = api.statistik.getTechnikerTeile.useQuery({ kuerzel, tage }, { enabled: hatTech });
-  const techGeraete   = api.statistik.getTechnikerGeraete.useQuery({ kuerzel, tage }, { enabled: hatTech });
-  const techWochentag = api.statistik.getTechnikerWochentage.useQuery({ kuerzel, tage: 90 }, { enabled: hatTech });
-  const techTageszeit = api.statistik.getTechnikerTageszeiten.useQuery({ kuerzel, tage: 90 }, { enabled: hatTech });
+  const techTeile     = api.statistik.getTechnikerTeile.useQuery({ kuerzel, tage, standortId: sId }, { enabled: hatTech });
+  const techGeraete   = api.statistik.getTechnikerGeraete.useQuery({ kuerzel, tage, standortId: sId }, { enabled: hatTech });
+  // Folgen jetzt dem Zeitraum-Umschalter (vorher fest 90 Tage).
+  const techWochentag = api.statistik.getTechnikerWochentage.useQuery({ kuerzel, tage, standortId: sId }, { enabled: hatTech });
+  const techTageszeit = api.statistik.getTechnikerTageszeiten.useQuery({ kuerzel, tage, standortId: sId }, { enabled: hatTech });
   const letzteAnfr    = api.statistik.getTechnikerLetzteAnfragen.useQuery(
-    { kuerzel, tage, limit: 15, offset: letzteOff },
+    { kuerzel, tage, limit: 15, offset: letzteOff, standortId: sId },
     { enabled: hatTech },
   );
 
@@ -1065,6 +1092,7 @@ export default function StatistikenPage() {
           <div className="flex bg-white dark:bg-[#242526] border border-[#ced4da] dark:border-[#3e4042] rounded-xl overflow-hidden">
             {FILTER_OPTS.map(({ key, label }) => (
               <button key={key} onClick={() => setFilter(key)}
+                aria-pressed={filter === key}
                 className={`px-4 py-2 text-sm font-semibold transition-colors ${
                   filter === key
                     ? "bg-[#0064d2] text-white"
@@ -1076,6 +1104,7 @@ export default function StatistikenPage() {
           </div>
           {/* Techniker-Selector */}
           <select
+            aria-label="Techniker auswählen"
             value={kuerzel}
             onChange={(e) => { setKuerzel(e.target.value); setLetzteOff(0); }}
             className="px-4 py-2 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-sm text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#0064d2]"
@@ -1116,35 +1145,46 @@ export default function StatistikenPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
             {kpi.isLoading ? (
               Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} />)
+            ) : kpi.isError || !kpi.data ? (
+              <div className="col-span-full">
+                <LadeFehler fehler={kpi.error} onRetry={() => void kpi.refetch()} />
+              </div>
             ) : (
               <>
-                <StatCard title="Anfragen gesamt"  value={kpi.data?.gesamtAnfragen ?? 0}  icon="🔔" color="primary" />
-                <StatCard title="Erledigt"          value={kpi.data?.abgeschlossen ?? 0}   icon="✅" color="success"
-                  sub={`${kpi.data?.erledigungsquote ?? 0}% Erledigungsrate`} />
-                <StatCard title="Bedarf / Offen"    value={kpi.data?.bedarf ?? 0}           icon="⏳" color="warning" />
-                <StatCard title="Storniert"         value={kpi.data?.storniert ?? 0}        icon="❌" color="danger" />
-                <StatCard title="Nicht verfügbar"   value={kpi.data?.nichtVerfuegbar ?? 0}  icon="🚫" accent="orange" />
+                <StatCard title="Anfragen gesamt"  value={kpi.data.gesamtAnfragen}  icon="🔔" color="primary"
+                  sub={`Letzte ${tage} Tage`} />
+                <StatCard title="Erledigt"          value={kpi.data.abgeschlossen}   icon="✅" color="success"
+                  sub={`${kpi.data.erledigungsquote} % Erledigungsrate (ohne nicht verfügbar)`} />
+                <StatCard title="Offen"             value={kpi.data.offen}           icon="⏳" color="warning"
+                  sub="Neu, in Bearbeitung oder Bedarf · aktuell, unabhängig vom Zeitraum" />
+                <StatCard title="Storniert"         value={kpi.data.storniert}       icon="❌" color="danger" />
+                <StatCard title="Nicht verfügbar"   value={kpi.data.nichtVerfuegbar} icon="🚫" accent="orange" />
               </>
             )}
           </div>
 
           {/* Anfragen-Verlauf + Status */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-            <div className="xl:col-span-2"><Panel title="Anfragen-Verlauf" sub="Täglich">
+            <div className="xl:col-span-2"><Panel title="Anfragen-Verlauf" sub={`Täglich · letzte ${tage} Tage`}>
               <div className="flex gap-4 text-xs mb-1 flex-wrap">
                 <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#0064d2] inline-block" />Anfragen</span>
                 <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#00a400] inline-block" />Erledigt</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#f7b928] inline-block" />Bedarf</span>
                 <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#f97316] inline-block" />Nicht verfügbar</span>
               </div>
               {verlaufAlle.isLoading && <Skeleton h="h-20" />}
+              {verlaufAlle.isError && <LadeFehler fehler={verlaufAlle.error} onRetry={() => void verlaufAlle.refetch()} />}
               {verlaufAlle.data && <AnfragenVerlauf data={verlaufAlle.data} />}
             </Panel></div>
 
             <Panel title="Status-Verteilung" sub={`Letzte ${tage} Tage`}>
               {statusData.isLoading && <Skeleton h="h-20" />}
+              {statusData.isError && <LadeFehler fehler={statusData.error} onRetry={() => void statusData.refetch()} />}
               {statusData.data && (
-                <HBarChart items={statusData.data.map((s) => ({ label: s.status, value: s.anzahl }))} barColor={(l) => STATUS_HEX[l]} />
+                <HBarChart
+                  items={statusData.data.map((s) => ({ label: s.status, value: s.anzahl }))}
+                  barColor={(l) => STATUS_HEX[l]}
+                  labelText={(l) => STATUS_TEXT[l] ?? l}
+                />
               )}
             </Panel>
           </div>
@@ -1153,12 +1193,14 @@ export default function StatistikenPage() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <Panel title="Top Geräte" sub={`Letzte ${tage} Tage`}>
               {topGeraete.isLoading && <Skeleton h="h-32" />}
+              {topGeraete.isError && <LadeFehler fehler={topGeraete.error} onRetry={() => void topGeraete.refetch()} />}
               {topGeraete.data && (
                 <HBarChart items={topGeraete.data.map((g) => ({ label: g.geraet, value: g.anzahl }))} />
               )}
             </Panel>
             <Panel title="Top Ersatzteile" sub={`Letzte ${tage} Tage`}>
               {topTeile.isLoading && <Skeleton h="h-32" />}
+              {topTeile.isError && <LadeFehler fehler={topTeile.error} onRetry={() => void topTeile.refetch()} />}
               {topTeile.data && (
                 <HBarChart items={topTeile.data.map((t) => ({ label: t.teil, value: t.anzahl }))} />
               )}
@@ -1194,11 +1236,12 @@ export default function StatistikenPage() {
             {uebersichtTab === "overview" && (
               <>
                 {teamVergl.isLoading && <Skeleton h="h-28" />}
+                {teamVergl.isError && <LadeFehler fehler={teamVergl.error} onRetry={() => void teamVergl.refetch()} />}
                 {teamVergl.data && <TeamVergleich data={teamVergl.data} />}
               </>
             )}
             {uebersichtTab === "jahresarchiv" && (
-              <AlleJahresOverview />
+              <AlleJahresOverview standortId={sId} />
             )}
           </Panel>
         </>
@@ -1218,8 +1261,9 @@ export default function StatistikenPage() {
               <div className="font-black text-[#1a1a1a] dark:text-[#e4e6eb]">Techniker: {kuerzel}</div>
               <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Letzte {tage} Tage · nur Anfragen-Daten</div>
             </div>
-            <button onClick={() => setKuerzel("")}
-              className="ml-auto text-[#65676b] hover:text-[#fa3e3e] text-lg font-bold transition-colors">
+            <button onClick={() => { setKuerzel(""); setLetzteOff(0); }}
+              aria-label="Techniker-Auswahl aufheben, alle Techniker anzeigen"
+              className="ml-auto w-11 h-11 flex items-center justify-center rounded-lg text-[#65676b] hover:text-[#fa3e3e] text-lg font-bold transition-colors">
               ×
             </button>
           </div>
@@ -1229,13 +1273,14 @@ export default function StatistikenPage() {
             <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
               {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} />)}
             </div>
+          ) : techKpis.isError ? (
+            <LadeFehler fehler={techKpis.error} onRetry={() => void techKpis.refetch()} />
           ) : techKpis.data ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
               <StatCard title="Gesamt"        value={techKpis.data.gesamt}          icon="🔔" color="primary" />
-              <StatCard title="Erledigungsrate" value={`${techKpis.data.erledigungsrate}%`} icon="✅" color="success"
-                sub={`${techKpis.data.abgeschlossen} erledigt`} />
-              <StatCard title="Bedarf-Quote"  value={`${techKpis.data.bedarfQuote}%`}      icon="⏳" color="warning"
-                sub={techKpis.data.bedarfQuote <= 20 ? "Gut" : techKpis.data.bedarfQuote <= 40 ? "OK" : "Hoch"} />
+              <StatCard title="Erledigungsrate" value={`${techKpis.data.erledigungsrate} %`} icon="✅" color="success"
+                sub={`${techKpis.data.abgeschlossen} erledigt · ohne nicht verfügbar`} />
+              <StatCard title="Nicht verfügbar" value={techKpis.data.nichtVerfuegbar} icon="🚫" accent="orange" />
               <StatCard title="Storniert"     value={techKpis.data.storniert}       icon="❌" color="danger" />
               <StatCard title="Aktivste Woche" value={techKpis.data.aktivsteWoche}  icon="📅" color="primary"
                 sub={`${techKpis.data.aktivsteWocheAnzahl} Anfragen`} />
@@ -1243,25 +1288,27 @@ export default function StatistikenPage() {
           ) : null}
 
           {/* Anfragen-Verlauf */}
-          <Panel title="Anfragen-Verlauf" sub={`${kuerzel} · täglich`}>
+          <Panel title="Anfragen-Verlauf" sub={`${kuerzel} · täglich · letzte ${tage} Tage`}>
             <div className="flex gap-4 text-xs mb-1 flex-wrap">
               <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#0064d2] inline-block" />Anfragen</span>
               <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#00a400] inline-block" />Erledigt</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#f7b928] inline-block" />Bedarf</span>
               <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-[#f97316] inline-block" />Nicht verfügbar</span>
             </div>
             {verlaufTech.isLoading && <Skeleton h="h-20" />}
+            {verlaufTech.isError && <LadeFehler fehler={verlaufTech.error} onRetry={() => void verlaufTech.refetch()} />}
             {verlaufTech.data && <AnfragenVerlauf data={verlaufTech.data} />}
           </Panel>
 
           {/* Wochentag + Tageszeit */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-            <Panel title="Wochentag-Analyse" sub="90 Tage · wann fragt er an?">
+            <Panel title="Wochentag-Analyse" sub={`Letzte ${tage} Tage · an welchen Tagen wird angefragt?`}>
               {techWochentag.isLoading && <Skeleton h="h-24" />}
+              {techWochentag.isError && <LadeFehler fehler={techWochentag.error} onRetry={() => void techWochentag.refetch()} kompakt />}
               {techWochentag.data && <VBarChart items={techWochentag.data.map((d) => ({ label: d.tag, anzahl: d.anzahl }))} />}
             </Panel>
-            <Panel title="Tageszeit-Analyse" sub="90 Tage · zu welcher Uhrzeit?">
+            <Panel title="Tageszeit-Analyse" sub={`Letzte ${tage} Tage · zu welcher Uhrzeit (deutsche Zeit)?`}>
               {techTageszeit.isLoading && <Skeleton h="h-24" />}
+              {techTageszeit.isError && <LadeFehler fehler={techTageszeit.error} onRetry={() => void techTageszeit.refetch()} kompakt />}
               {techTageszeit.data && (
                 <VBarChart
                   items={techTageszeit.data
@@ -1274,21 +1321,16 @@ export default function StatistikenPage() {
 
           {/* Top Teile + Top Geräte */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-            <Panel title="Top Ersatzteile" sub="🟡 = Bedarf-Anteil (nicht auf Lager)">
+            <Panel title="Top Ersatzteile" sub={`Letzte ${tage} Tage`}>
               {techTeile.isLoading && <Skeleton h="h-32" />}
+              {techTeile.isError && <LadeFehler fehler={techTeile.error} onRetry={() => void techTeile.refetch()} />}
               {techTeile.data && (
-                <HBarChart
-                  showBedarf
-                  items={techTeile.data.map((t) => ({
-                    label:       t.teil,
-                    value:       t.anzahl,
-                    bedarfValue: t.bedarfAnzahl,
-                  }))}
-                />
+                <HBarChart items={techTeile.data.map((t) => ({ label: t.teil, value: t.anzahl }))} />
               )}
             </Panel>
-            <Panel title="Top Geräte">
+            <Panel title="Top Geräte" sub={`Letzte ${tage} Tage`}>
               {techGeraete.isLoading && <Skeleton h="h-32" />}
+              {techGeraete.isError && <LadeFehler fehler={techGeraete.error} onRetry={() => void techGeraete.refetch()} />}
               {techGeraete.data && (
                 <HBarChart items={techGeraete.data.map((g) => ({ label: g.name || g.geraet, value: g.anzahl }))} />
               )}
@@ -1296,8 +1338,9 @@ export default function StatistikenPage() {
           </div>
 
           {/* Letzte Anfragen */}
-          <Panel title="Letzte Anfragen">
+          <Panel title="Letzte Anfragen" sub={`Letzte ${tage} Tage`}>
             {letzteAnfr.isLoading && <Skeleton h="h-40" />}
+            {letzteAnfr.isError && <LadeFehler fehler={letzteAnfr.error} onRetry={() => void letzteAnfr.refetch()} />}
             {letzteAnfr.data && (
               <>
                 <div className="overflow-x-auto">
@@ -1349,7 +1392,7 @@ export default function StatistikenPage() {
           </Panel>
 
           {/* Jahresarchiv-Sektion */}
-          <JahresArchivSektion kuerzel={kuerzel} />
+          <JahresArchivSektion kuerzel={kuerzel} standortId={sId} />
         </>
       )}
     </div>
