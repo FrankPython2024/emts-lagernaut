@@ -370,7 +370,7 @@ export function DashboardAnsicht({ tage, standortId }: { tage: number; standortI
   const sId = standortId;
   const kpi        = api.statistik.getKpiOverview.useQuery({ tage, standortId: sId });
   const verlauf    = api.statistik.getAnfragenVerlauf.useQuery({ tage, standortId: sId });
-  const status     = api.statistik.getAnfragenNachStatus.useQuery({ standortId: sId });
+  const status     = api.statistik.getAnfragenNachStatus.useQuery({ tage, standortId: sId });
   const topGeraete = api.statistik.getMeistgefragteGeraete.useQuery({ tage, standortId: sId });
   const topTeile   = api.statistik.getMeistgefragteTeile.useQuery({ tage, standortId: sId });
 
@@ -465,7 +465,7 @@ export function DashboardAnsicht({ tage, standortId }: { tage: number; standortI
           </Karte>
         </div>
 
-        <Karte titel="Status-Verteilung" sub="Anteil am Gesamtbestand">
+        <Karte titel="Status-Verteilung" sub={`Letzte ${tage} Tage`}>
           {status.isLoading ? <Laden h="h-[140px]" /> : <Ring items={statusItems} />}
         </Karte>
       </div>

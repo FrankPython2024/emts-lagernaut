@@ -1016,7 +1016,7 @@ export default function StatistikenPage() {
   // ── Queries Übersicht (Alle) ───────────────────────────────────────────────
   const kpi         = api.statistik.getKpiOverview.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
   const verlaufAlle = api.statistik.getAnfragenVerlauf.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
-  const statusData  = api.statistik.getAnfragenNachStatus.useQuery({ standortId: sId }, { enabled: !hatTech });
+  const statusData  = api.statistik.getAnfragenNachStatus.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
   const topGeraete  = api.statistik.getMeistgefragteGeraete.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
   const topTeile    = api.statistik.getMeistgefragteTeile.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
   const teamVergl   = api.statistik.getTechnikerTeamVergleich.useQuery({ tage, standortId: sId }, { enabled: !hatTech });
@@ -1141,7 +1141,7 @@ export default function StatistikenPage() {
               {verlaufAlle.data && <AnfragenVerlauf data={verlaufAlle.data} />}
             </Panel></div>
 
-            <Panel title="Status-Verteilung">
+            <Panel title="Status-Verteilung" sub={`Letzte ${tage} Tage`}>
               {statusData.isLoading && <Skeleton h="h-20" />}
               {statusData.data && (
                 <HBarChart items={statusData.data.map((s) => ({ label: s.status, value: s.anzahl }))} barColor={(l) => STATUS_HEX[l]} />

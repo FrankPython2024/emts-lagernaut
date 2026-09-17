@@ -66,8 +66,11 @@ export const statistikRouter = createTRPCRouter({
 
   // Anfragen nach Status — Admin
   getAnfragenNachStatus: statistikProcedure
-    .input(z.object({ standortId: z.number().int().positive().nullish() }).optional())
-    .query(({ input, ctx }) => getAnfragenNachStatus(resolveStatStandortId(ctx, input))),
+    .input(z.object({
+      tage:       z.number().int().min(1).max(365).optional(),
+      standortId: z.number().int().positive().nullish(),
+    }).optional())
+    .query(({ input, ctx }) => getAnfragenNachStatus(input?.tage, resolveStatStandortId(ctx, input))),
 
   // Buchungsverlauf täglich — Admin
   getBuchungenVerlauf: statistikProcedure

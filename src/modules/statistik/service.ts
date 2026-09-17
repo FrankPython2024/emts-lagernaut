@@ -117,12 +117,19 @@ export async function getMeistgefragteTeile(tage: number, standortId?: StandortF
 }
 
 /**
- * Anfragen nach Status aufgeteilt.
+ * Anfragen nach Status aufgeteilt — im gewählten Zeitraum.
+ *
+ * ⚠️ Nahm bis 17.09.2026 gar keinen Zeitraum entgegen und zählte alle Anfragen
+ * seit Beginn. Auf der Statistik-Seite stand das Panel zwischen lauter
+ * zeitraum-gefilterten Panels und blieb bei 7, 30 oder 365 Tagen gleich
+ * (gemeldet von Frank). Gleiche Zeitraum-Regel wie „Top Geräte" daneben.
+ * Ohne `tage` weiterhin alles — für Aufrufer, die bewusst den Gesamtstand wollen.
  */
-export async function getAnfragenNachStatus(standortId?: StandortFilterId) {
+export async function getAnfragenNachStatus(tage?: number, standortId?: StandortFilterId) {
+  const von = tage ? new Date(Date.now() - tage * 24 * 60 * 60 * 1000) : null;
   const gruppen = await prisma.anfrage.groupBy({
     by:     ["status"],
-    where:  { ...aF(standortId), ...OHNE_TEST },
+    where:  { ...aF(standortId), ...OHNE_TEST, ...(von ? { datum: { gte: von } } : {}) },
     _count: { status: true },
   });
 
