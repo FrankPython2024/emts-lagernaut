@@ -88,7 +88,7 @@ function WertAusgegebenPanel({ tage, standortId }: { tage: number; standortId: n
               🧩 {q.data.mengeGesamt.toLocaleString("de-DE")} Teile ({euro(q.data.teileWert)}) · {q.data.proKategorie.length} Kategorien bewertet
             </div>
             <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
-              Gezählt werden nur Ausgaben zu einer Anfrage, Handbuchungen und Korrekturen nicht.
+              Gezählt werden alle Ausgaben an die Technik, auch ohne Anfrage.
               Stückpreis: Einzelpreis des Artikels, sonst Kategoriepreis.
               {q.data.ohneLagerartikel > 0 && <> Darin {q.data.ohneLagerartikel.toLocaleString("de-DE")} Anfragen ohne Lagerartikel.</>}
             </div>

@@ -90,11 +90,11 @@ export const preiseRouter = createTRPCRouter({
     }),
 
   // ── Auswertung „Wert ausgegeben" (an die Technik) ───────────────────────────
-  // Summe menge × Stückpreis über die Ausgabe-Buchungen zu Anfragen, plus
+  // Summe menge × Stückpreis über die Ausgabe-Buchungen an die Technik, plus
   // erledigte Anfragen ohne Lagerartikel und Sonderanfragen.
   //
   // Regeln (Prüfung 17.09.2026):
-  //   • Nur Buchungen MIT Anfrage-Bezug → `ausgabeAnTechnikSql` (Handkorrekturen raus).
+  //   • Alle Ausgabe-Buchungen an die Technik → `ausgabeAnTechnikSql`, auch ohne Anfrage.
   //   • Stückpreis = Einzelpreis des Artikels, sonst Kategoriepreis. Vorher nur der
   //     Kategoriepreis — entgegen der Regel „Einzelpreis schlägt Kategoriepreis",
   //     die Abgaben schon immer so rechnen.

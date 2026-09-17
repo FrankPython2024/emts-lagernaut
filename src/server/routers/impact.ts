@@ -59,9 +59,8 @@ export const impactRouter = createTRPCRouter({
       const [reused, ohneArtikel, abgaben, geraeteRows, faktoren] = await Promise.all([
         // Wiederverwendete Teile = Ausgabe-Buchungen AN DIE TECHNIK.
         // `AUSGABE_AN_TECHNIK` schließt aus: Umlagerungen (Lager-interne Umzüge),
-        // Abgaben an Niederlassungen (Wirkung entsteht dort) und — seit 17.09.2026 —
-        // Buchungen ohne Anfrage-Bezug. Handkorrekturen machten vorher 29 % der
-        // „wiederverwendeten Teile" aus (363 von 1.249 in 90 Tagen).
+        // Abgaben an Niederlassungen (Wirkung entsteht dort). Ausgaben ohne Anfrage
+        // (z. B. Füße in großen Mengen) zählen bewusst mit.
         prisma.buchung.aggregate({
           _sum:  { menge: true },
           where: { ...AUSGABE_AN_TECHNIK, ...datum, ...standortBuchung },

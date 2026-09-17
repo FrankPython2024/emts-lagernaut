@@ -1102,12 +1102,13 @@ Die Status-Verteilung reagierte nicht auf den Zeitraum. Dahinter steckte eine ga
    ⚠️ Anfragen ohne Buchung zählen nach **Anlegedatum** (kein Abschlussdatum gespeichert), Buchungen
    nach Buchungsdatum — im Mittel 2,6 h Abstand, am Rand des Zeitraums kann eine fehlen.
 
-**„An die Technik ausgegeben"** (Wert ausgegeben, Gesamt ausgegeben, Impact): nur
-`AUSGABE_AN_TECHNIK` / `ausgabeAnTechnikSql` aus `src/lib/buchungen/technikAusgabe.ts` — Buchungen mit
-`anfrageId` **oder** Notiz „Anfrage #…" (gelöschte Anfragen lassen ihre Buchung mit leerem Verweis
-zurück: #26009, #26917). Vorher zählte jede AUSGANG/DIREKT-Buchung, auch Handkorrekturen: 363 von
-1.250 „wiederverwendeten Teilen" in 90 Tagen (29 %), größte Posten 129 und 190 Füße. Neu: 887 aus
-Buchungen + 12 aus Anfragen ohne Lagerartikel. **Stückpreis = `Artikel.preis`, sonst Kategoriepreis**
+**„An die Technik ausgegeben"** (Wert ausgegeben, Gesamt ausgegeben, Impact):
+`AUSGABE_AN_TECHNIK` / `ausgabeAnTechnikSql` aus `src/lib/buchungen/technikAusgabe.ts` = **jede**
+AUSGANG/DIREKT-Buchung außer Umlagerungen und Abgaben an Niederlassungen, **auch ohne Anfrage**.
+⚠️ **Nicht auf „nur Buchungen mit Anfrage" einschränken** — am 17.09.2026 so gebaut und am selben
+Tag zurückgenommen (Frank): Füße gehen auch in großen Mengen von Hand an die Technik (27.07.2026
+190× + 20× + 14× E14, 18.08.2026 129× EliteBook 850 G5), und die Füße vorne fielen damit von 509 auf
+156 Stück bzw. 2.036 € auf 624 €. **Stückpreis = `Artikel.preis`, sonst Kategoriepreis**
 (`COALESCE`), wie Abgaben es schon immer rechneten; die Spalte heißt deshalb „Ø Preis". Erledigte
 Anfragen **ohne Artikel, die keine Sonderanfrage sind**, laufen als DIREKT ohne Buchung und fehlten
 in jeder Summe — jetzt mit dem Kategoriepreis ihres Teiltyps drin. Sonderanfragen zählen jetzt auch
