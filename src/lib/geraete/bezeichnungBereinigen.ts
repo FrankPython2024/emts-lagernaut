@@ -31,8 +31,8 @@ export interface BereinigungsSchritt {
 }
 
 /**
- * Die Reinigungs-Schritte in fester Reihenfolge. Schritte 2–8 sind in ihrer Logik
- * unverändert; Schritt 1 (führende Sonderzeichen) ist gezielt ergänzt.
+ * Die Reinigungs-Schritte in fester Reihenfolge. Die Nummern erscheinen so in der
+ * Import-Sandbox; wer einen Schritt einschiebt, nummeriert die folgenden mit.
  */
 export const BEREINIGUNGS_SCHRITTE: BereinigungsSchritt[] = [
   {
@@ -104,24 +104,45 @@ export const BEREINIGUNGS_SCHRITTE: BereinigungsSchritt[] = [
   },
   {
     nummer:       7,
+    name:         "Betriebssystem-Zusatz entfernen",
+    beschreibung: 'Ein angehängtes Betriebssystem wie „Win11P" am Ende wird entfernt — es gehört nicht zum Modellnamen.',
+    transform: (current) =>
+      // "… 16GB 250GB SSD CAM BL Win11P" → "… 16GB 250GB SSD CAM BL"
+      // Kommt in den Lagerfuchs-Bezeichnungen als Win11P/Win10P/Win11H vor.
+      current.replace(/\s+Win\s?\d{1,2}\s?[A-Za-z]{0,3}$/i, "").trim(),
+  },
+  {
+    nummer:       8,
     name:         "Interne Codes entfernen",
-    beschreibung: 'Lange interne Codes am Ende (6+ Großbuchstaben/Ziffern) werden entfernt — Modell-Nummern wie 7530, T14s oder M3800 bleiben erhalten.',
+    beschreibung: 'Lange interne Codes am Ende (6+ GROSSBUCHSTABEN/Ziffern, mindestens eine Ziffer) werden entfernt — Modell-Nummern wie 7530, T14s oder M3800 und Namenszusätze wie „Detachable" bleiben erhalten.',
     transform: (current) => {
       // 6. Interne Codes am Ende entfernen (Lenovo-Stil: 6+ Zeichen, nur GROSSBUCHSTABEN + Ziffern)
       //    "ThinkPad T14 Gen 2i 20W1S06V00" → "ThinkPad T14 Gen 2i"
       //    NICHT: "7530" (4 Zeichen), "T14s" (4 Zeichen), "M3800" (5 Zeichen)
       //    Der Bug in der alten Version: {4,} hat "7530" fälschlich entfernt!
+      //
+      // ⚠️ KEIN `i`-Flag und PFLICHT-Ziffer. Mit `i` traf die Regel jedes Wort ab
+      //    6 Buchstaben am Ende: Am 22.09.2026 standen deshalb 1.111 Geräte unter
+      //    einem fremden Modellnamen — „Latitude 7320 Detachable" hieß „Latitude
+      //    7320" (234×), dazu „ZBook Fury 15 G7 Mobile Workstation" (292×),
+      //    „Elite x2 G8 Tablet" (138×) und die „Rugged"-Reihe. Folge: Neun
+      //    Anfragen zu Detachables wurden auf Teile des normalen 7320 gebucht,
+      //    und der Teilespender schlug fremde Modelle vor. Die Ziffern-Pflicht
+      //    hält zusätzlich reine Großschreib-Wörter wie „TABLET" heraus.
+      //    Bekannte Restlücke: Codes mit Kleinbuchstaben am Ende („21C2L14gen",
+      //    1 Gerät) bleiben stehen — lieber ein Code zu viel als ein Modellname
+      //    zu wenig.
       let prev   = "";
       let result = current;
       while (prev !== result) {
         prev   = result;
-        result = result.replace(/\s+[A-Z0-9]{6,}[-A-Z0-9]*$/i, "").trim();
+        result = result.replace(/\s+(?=[-A-Z0-9]*\d)[A-Z0-9]{6,}[-A-Z0-9]*$/, "").trim();
       }
       return result;
     },
   },
   {
-    nummer:       8,
+    nummer:       9,
     name:         "Leerzeichen normalisieren",
     beschreibung: "Mehrfache Leerzeichen werden zu einem einzigen zusammengefasst.",
     transform: (current) =>

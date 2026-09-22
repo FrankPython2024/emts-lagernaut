@@ -220,7 +220,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind DREIZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit` (zusammen 514) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit` (zusammen 526) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -306,6 +306,26 @@ EOF
   (785× Dockingstation, ~300 Stifte, Type Cover, Adapter). Als Gerät importiert würde jedes
   davon ein Modell mit 17 Teiltypen. Die Import-Seite filtert das bereits, das Backfill-
   Skript muss es genauso tun.
+  ⚠️ **Ein Namenszusatz am Ende ist kein interner Code** (22.09.2026, gemeldet von Frank an
+  213.096.770 „Latitude 7320 Detachable", angezeigt als „Latitude 7320"). Schritt „Interne Codes
+  entfernen" in `src/lib/geraete/bezeichnungBereinigen.ts` hatte ein `i`-Flag und schnitt damit
+  **jedes Wort ab 6 Buchstaben am Ende** ab. Betroffen waren **1.111 von 76.848 Geräten**:
+  ZBook Fury 15/17 G7 **Mobile Workstation** (406), Latitude 7320/7350 **Detachable** (236),
+  Elite x2 G8 **Tablet** (138), Latitude 7212/7220 **Rugged Extreme Tablet** (60), Latitude
+  5420/5424/5430 **Rugged** (39), ThinkPad X1 **Extreme** (22), mt22/mt45 **Mobile Thin Client** (50),
+  Elite **Dragonfly** (2).
+  ⚠️ **Das ist keine Anzeigesache** — der bereinigte Name ist die Modell-Identität. Von 22 Anfragen
+  zu Detachables wurden **neun auf Artikel des normalen 7320 gebucht** (Akku, Displaymodul,
+  Tastatur; zuletzt 21.09.2026), obwohl ein Detachable ein Folio-Tastatur-Tablet ist. Die Technik
+  behalf sich mit Freitext-Sonderanfragen („Detachable ,Rear Cam", „Tastatur Dock Connector mit
+  Kabel", „displaystift") — ein Warnzeichen dafür, dass ein Modell mit seinen Teiltypen fehlt.
+  Jetzt: **kein `i`-Flag und Pflicht-Ziffer** (`20W1S06V00` fliegt raus, `Detachable` bleibt), dazu
+  ein eigener Schritt für den Betriebssystem-Zusatz („Win11P", 115 Geräte). Restlücke: ein Code mit
+  Kleinbuchstaben am Ende („21C2L14gen", 1 Gerät) bleibt stehen.
+  ⚠️ **Nach einer Regeländerung müssen die gespeicherten Namen nachgezogen werden:**
+  `/admin/geraete-import` → „Analyse" (Trockenlauf, zeigt zu ändern/zu löschen) → „Geräte neu
+  verarbeiten", danach **Artikel-Generator** (legt GeraeteModell + 17 Artikel + Kompatibilität für
+  die neuen Namen an). Vor dem Umbau am 22.09.2026 gemessen: 0 Einträge würden gelöscht.
   ⚠️ **„Micro…" ist nicht gleich Microsoft:** im Lagerfuchs stehen auch Micron (Speicher),
   MicroConnect (Zubehör) und **Microstar = MSI** — alle drei gehören auf die Blocklist, sonst
   rutschen sie mit einer unscharfen Regel als Geräte durch. Echter Tippfehler ist nur

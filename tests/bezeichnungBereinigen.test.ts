@@ -72,6 +72,24 @@ const BEZ_TESTS: BezTest[] = [
   ["Dell",   "7530",  "7530"],
   ["Lenovo", "T14s",  "T14s"],
   ["Dell",   "M3800", "M3800"],
+
+  // ───── Namenszusätze am Ende MÜSSEN bleiben (22.09.2026) ─────
+  // Die alte Regel hatte ein `i`-Flag und schnitt jedes Wort ab 6 Buchstaben am
+  // Ende ab. 1.111 Geräte standen dadurch unter einem fremden Modellnamen.
+  ["Dell",   "Latitude 7320 Detachable",            "Latitude 7320 Detachable"],
+  ["Dell",   "Latitude 7212 Rugged Extreme Tablet", "Latitude 7212 Rugged Extreme Tablet"],
+  ["Dell",   "Latitude 5420 Rugged",                "Latitude 5420 Rugged"],
+  ["HP",     "ZBook Fury 15 G7 Mobile Workstation", "ZBook Fury 15 G7 Mobile Workstation"],
+  ["HP",     "Elite x2 G8 Tablet",                  "Elite x2 G8 Tablet"],
+  ["HP",     "mt22 Mobile Thin Client",             "mt22 Mobile Thin Client"],
+  ["HP",     "Elite Dragonfly",                     "Elite Dragonfly"],
+  ["Lenovo", "ThinkPad X1 Extreme",                 "ThinkPad X1 Extreme"],
+  // Interne Codes fliegen weiterhin raus — auch hinter einem Zusatz.
+  ["Dell",   "Latitude 7320 Detachable 20W1S06V00", "Latitude 7320 Detachable"],
+  ["Lenovo", "ThinkPad T14 Gen 2 20W1S06V00 20X1004FGE", "ThinkPad T14 Gen 2"],
+  // Betriebssystem-Zusatz gehört nicht zum Modellnamen.
+  ["Lenovo", "ThinkPad T14 G6 16GB 500GB BL Win11P", "ThinkPad T14 G6 16GB 500GB BL"],
+  ["Dell",   "Latitude 5540 CAM BL Win10P",          "Latitude 5540 CAM BL"],
 ];
 
 const HER_TESTS: HerTest[] = [
