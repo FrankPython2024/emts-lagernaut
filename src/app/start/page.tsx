@@ -48,7 +48,7 @@ export default function StartPage() {
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
           <img src="/afb-logo-svg.svg" alt="AfB" style={{ height: 40, width: "auto", margin: "0 auto 1rem" }} />
           <h1 style={{ margin: 0, fontSize: "1.75rem", fontWeight: 800, color: "var(--text, #1a1a1a)" }}>
-            Hallo{user?.name ? ` ${user.name}` : ""}!
+            Hallo{user?.name ? ` ${user.name}` : ""}
           </h1>
           <p style={{ margin: "0.4rem 0 0", fontSize: "1.05rem", color: "var(--text-dim, #65676b)" }}>
             Wohin möchtest du?
