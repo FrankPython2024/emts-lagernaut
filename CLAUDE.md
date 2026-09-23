@@ -81,6 +81,31 @@ eine **leere Tabelle** (nicht etwa Container im Status „Exited"), Startseite 5
 - Reboot-Bedarf steht in `/var/run/reboot-required.pkgs` (Kernel/libc → wirklich neu starten).
 - Der Build-Swap ist nach dem Reboot aus; der Deploy-Befehl schaltet ihn mit `swapon` selbst ein.
 
+### ⚠️ 502 im Wechsel, obwohl der Container läuft — Nginx zeigt auf `localhost`
+
+Am 23.09.2026 nach einem Deploy gemeldet: Die Seite antwortete abwechselnd 200 und 502, alle
+Techniker flogen im Sekundentakt aus der Live-Verbindung. Der Container lief durch
+(`RestartCount=0`, 4 % CPU, kein OOM), keine Warteschlange arbeitete, Platte und Inodes frei.
+
+**Ursache:** In `/etc/nginx/sites-available/lagernaut` stand `proxy_pass http://localhost:3000`.
+`localhost` steht in `/etc/hosts` für **zwei** Adressen — `127.0.0.1` UND `::1`. Nginx löst den
+Namen beim Laden auf, behandelt beide als gleichwertige Ziele und verteilt abwechselnd. Docker
+gibt den Port aber nur über IPv4 frei (`127.0.0.1:3000->3000/tcp`), über `::1` lauscht **nichts**.
+Jede zweite Anfrage lief deshalb in `connect() failed (111: Connection refused) … upstream:
+"http://[::1]:3000/…"`. Gelten beide Ziele kurzzeitig als tot, antwortet Nginx allen mit 502 und
+schreibt **`no live upstreams`** — das ist der Suchbegriff im Log.
+
+**Fix:** `proxy_pass http://127.0.0.1:3000;` (kein Hostname), dann `nginx -t && systemctl reload
+nginx`. Kein App-Neustart nötig. Sicherung der alten Datei lag unter
+`/root/lagernaut-nginx-backup-2026-09-23`.
+
+⚠️ **Der Fehler steckte schon länger drin und blieb unsichtbar**, weil Nginx den Fehlversuch still
+auf der IPv4-Adresse wiederholt, solange wenig los ist. Ausgebrochen ist er erst, als die App beim
+Deploy kurz wirklich weg war (damit fiel auch das IPv4-Ziel in die Fehlerliste) und das
+Techniker-Portal mit seinem 5-Sekunden-Nachladen und den Socket-Verbindungen sofort wieder
+Volllast gab. **Erst nach 502 die Container prüfen, dann `/var/log/nginx/error.log`** — steht dort
+`[::1]` oder `no live upstreams`, ist es nicht die App.
+
 ### ⚠️ „PrismaClient is not a constructor" — ZUERST Paket gegen Bundle prüfen
 
 Dieses Fehlerbild (500 auf allen Seiten, Log wiederholt
