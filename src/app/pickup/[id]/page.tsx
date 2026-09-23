@@ -691,7 +691,9 @@ export default function PickupScanPage() {
   }
 
   return (
-    <div className="space-y-2">
+    // pb-24: Raum unter der Liste, damit der schwebende „↑ Nach oben"-Knopf die
+    // letzte Karte nicht verdeckt — man kann sie darüber hinausscrollen.
+    <div className="space-y-2 pb-24">
       <style jsx>{`
         .pickup-pulse { border-radius: 0.75rem; animation: pickupPulse 0.6s ease-out; }
         @keyframes pickupPulse {
@@ -824,10 +826,10 @@ export default function PickupScanPage() {
                   type="button"
                   onClick={() => { setVonHand((v) => !v); inputRef.current?.focus({ preventScroll: true }); }}
                   aria-pressed={vonHand}
-                  className="inline-flex items-center gap-1 px-3 rounded-lg border text-xs font-bold min-h-[44px] transition-colors"
-                  style={vonHand
-                    ? { borderColor: aktivFarbe, color: "#fff", background: aktivFarbe }
-                    : { borderColor: "#ced4da", color: "#65676b" }}
+                  className={`inline-flex items-center gap-1 px-3 rounded-lg border text-xs font-bold min-h-[44px] transition-colors ${
+                    vonHand ? "text-white" : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"
+                  }`}
+                  style={vonHand ? { borderColor: aktivFarbe, background: aktivFarbe } : undefined}
                 >
                   <span aria-hidden>⌨</span> {vonHand ? "Tastatur an" : "Von Hand"}
                 </button>
@@ -1337,9 +1339,14 @@ function HaltKarte({
   }, [items, istColli]);
 
   return (
+    // ⚠️ Rahmenfarbe NICHT fest als Hellgrau setzen: Im dunklen Modus (Zebra)
+    // wurden alle Karten dadurch fast weiß umrandet und der aktuelle Halt
+    // stach nicht mehr heraus (Foto Frank, 23.09.2026).
     <div
-      className={`rounded-2xl border-2 overflow-hidden transition-opacity ${komplett ? "opacity-60" : ""}`}
-      style={{ borderColor: istAktuell ? "#008BD2" : komplett ? "rgba(4,180,117,0.4)" : "#ced4da" }}
+      className={`rounded-2xl overflow-hidden transition-opacity ${
+        istAktuell ? "border-2" : komplett ? "border opacity-60" : "border border-[#ced4da] dark:border-[#3e4042]"
+      }`}
+      style={istAktuell ? { borderColor: "#008BD2" } : komplett ? { borderColor: "rgba(4,180,117,0.4)" } : undefined}
     >
       <button
         type="button"
