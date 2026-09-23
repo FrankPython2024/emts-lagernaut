@@ -1215,6 +1215,9 @@ Logik rein in `src/lib/pickup/route.ts`, Test `npm run test:route` (35, mit der 
   Verbrauchsmaterial nutzt `useScannerMode` mit Umschalter unverändert weiter.
 - Kopfleiste im Picker-Bereich 40 statt 64 px, „← Liste" in der Titelzeile statt eigener 56-px-Zeile,
   weniger Seitenrand — der Platz gehört dem nächsten Halt.
+- Knopf **„↑ Nach oben"** unten rechts, sobald man > 400 px in die Liste gescrollt hat (bei offenem
+  Dialog ausgeblendet). Bewusst kein Dreifach-Tipp (Wunsch war „dreimal tippen"): Der erste Tipp
+  träfe fast immer ein Gerät oder eine Karte und öffnete dort schon etwas.
 
 ### Notizbuch (Sep 2026)
 

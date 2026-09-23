@@ -577,6 +577,21 @@ export default function PickupScanPage() {
       window.removeEventListener("focus", holen);
     };
   }, []);
+  // „↑ Nach oben" — erscheint erst, wenn man weit in die Liste gescrollt hat
+  // (Frank, 23.09.2026). Bewusst ein Knopf statt Dreifach-Tipp: Der erste Tipp
+  // träfe fast immer ein Gerät oder eine Karte und öffnete dort schon etwas.
+  const [weitUnten, setWeitUnten] = useState(false);
+  useEffect(() => {
+    const pruefen = () => setWeitUnten(window.scrollY > 400);
+    pruefen();
+    window.addEventListener("scroll", pruefen, { passive: true });
+    return () => window.removeEventListener("scroll", pruefen);
+  }, []);
+  function nachOben() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    inputRef.current?.focus({ preventScroll: true });
+  }
+
   // Dialog zu → sofort wieder scanbereit.
   useEffect(() => {
     if (!dialogOffen) inputRef.current?.focus({ preventScroll: true });
@@ -1062,6 +1077,18 @@ export default function PickupScanPage() {
           </div>
         );
       })()}
+
+      {weitUnten && !dialogOffen && (
+        <button
+          type="button"
+          onClick={nachOben}
+          aria-label="Nach oben zum Scan-Feld"
+          className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-1.5 px-5 rounded-full text-white text-base font-black shadow-2xl min-h-[56px]"
+          style={{ background: "#202F61", border: "2px solid #ffffff" }}
+        >
+          <span aria-hidden className="text-xl">↑</span> Nach oben
+        </button>
+      )}
 
       {/* Gerätedetails samt Bild — geöffnet durch Antippen einer Zeile. */}
       {detail && (
