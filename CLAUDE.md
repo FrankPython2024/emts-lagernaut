@@ -243,9 +243,9 @@ EOF
   bei nicht gefundener Überschrift `0`/`null` und schrieb das durch — eine umbenannte Spalte hätte
   **alle Bestände auf null** gesetzt. Regel: `undefined` = „stand nicht in der Datei" = nicht
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
-- **Verify-Gate sind DREIZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
+- **Verify-Gate sind VIERZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit` (zusammen 526) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route` (zusammen 561) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1176,6 +1176,34 @@ statt im Balken; Warn- und Ratenfarben mit lesbarem Kontrast.
 klassischer Verlauf ohne Tabellen-Alternative, doppelte Diagramm-Komponenten klassisch ↔ Dashboard,
 `redis.keys` in `invalidateTechnikerCache`, fehlender Index auf `Anfrage.datum`, drei ungenutzte
 Endpunkte (`getBuchungenVerlauf`, `getTechnikerStats`, `getMonatsbericht`).
+
+### Pickup am Handgerät: Wegführung statt Liste (Sep 2026)
+
+Rückmeldung Frank 23.09.2026: „Anfangs sucht man zu lange, womit man anfängt (zu lange Listen mit
+LogIDs)." Die Scan-Seite `/pickup/[id]` zeigte Collis **nach Menge** („Meiste / Wenigste LogIDs
+zuerst"), der Stellplatz stand klein unter jedem Gerät. Gemessen an „Richard 179" (#183: 179 Geräte,
+115 Collis, 31 Stellplätze): Start am hinteren Ende, dann **07-32 → 07-30 → 07-32 → 07-30 → 07-28 →
+07-30 → 07-32 → 07-08 …**, 92 Minuten für 48 Geräte, 12 s je Scan (bei 1-Colli-Aufträgen 2–6 s).
+Aufträge der letzten 60 Tage: Median 28 Geräte, **1 Colli, 1 Stellplatz** — die großen sind selten,
+aber dort kostet es.
+
+Jetzt: oben **eine Karte „Nächster Halt"** (Stellplatz groß, Collis als Kacheln, „Danach: …"), die
+Liste „Noch suchen" nach **Stellplatz in Laufreihenfolge**, Meldung „X erledigt → weiter zu Y".
+Logik rein in `src/lib/pickup/route.ts`, Test `npm run test:route` (35, mit der echten #183-Verteilung):
+- ⚠️ **Gegenüberliegende Reihen = ein Gang.** HL-06 und HL-07 liegen gegenüber (Frank) → Gang =
+  ⌊Reihe/2⌋, im Gang links/rechts im Wechsel nach Platznummer, Gänge in Schlangenlinie. **Aus EINEM
+  Paar abgeleitet** — stimmt die Paarung woanders nicht, nur `gangVon` ändern.
+- **80/20 (Wunsch Frank): dort anfangen, wo die meisten LogIDs liegen.** Die vollsten Stellplätze bis
+  80 % der offenen Geräte = **Hauptrunde**, der Rest (verstreute Einzelstücke) = **Restrunde** am
+  Schluss. #183: Hauptrunde 16 von 31 Plätzen mit 147 von 179 Geräten, 2 Richtungswechsel.
+  Unter 4 Stellplätzen keine Restrunde. Die Runden werden **eingefroren** (nur neu bei geänderter
+  Platzmenge), sonst rutscht ein Platz mitten im Laufen von einer Runde in die andere.
+- **Nächster Halt:** Start = vollster Platz der Hauptrunde, danach der **nächstgelegene** offene der
+  laufenden Runde, bei Gleichstand in Laufrichtung. ⚠️ **Der Halt folgt dem Menschen:** Scannt jemand
+  ein Gerät oder einen gesuchten Colli an einem anderen Platz, springt der Halt dorthin — so muss
+  niemand entscheiden, wo er anfängt. Ein Nachscan an einem schon leeren Platz lenkt nicht um.
+- Knöpfe „Meiste / Wenigste zuerst" samt `localStorage["pickup_sort_dir"]` **entfernt** — die
+  Wegreihenfolge ersetzt sie. Keine Schemaänderung.
 
 ### Notizbuch (Sep 2026)
 

@@ -41,6 +41,7 @@
     "test:ort": "tsx tests/ort.test.ts",
     "test:zeit": "tsx tests/berlinZeit.test.ts",
     "test:bedarf": "tsx tests/bedarf.test.ts",
+    "test:route": "tsx tests/pickupRoute.test.ts",
     "seed:entsorgung": "tsx prisma/scripts/seed-entsorgung-abfallarten.ts"
   },
   "dependencies": {

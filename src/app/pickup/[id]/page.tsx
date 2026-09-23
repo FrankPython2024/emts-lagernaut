@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -11,6 +11,7 @@ import { nurZiffern } from "@/lib/format/ziffern";
 import { playScanSound, playComplete, playColliKomplett, playNegativeSound, playWagenTreffer, playWagenLeer, type ScanResult } from "@/lib/pickup/scanSound";
 import { useScannerMode } from "@/lib/pickup/useScannerMode";
 import { GeraeteUmschalter } from "@/components/pickup/ModusBanner";
+import { ordneWeg, planeRunden, naechsterHalt, richtungVon } from "@/lib/pickup/route";
 
 // Farben wie ModusBanner: Blau = LogID-Auftrag, Violett = Colli-Auftrag.
 // Status nie NUR über Farbe — immer zusätzlich Icon + Klartext.
@@ -249,14 +250,16 @@ export default function PickupScanPage() {
   const [nichtDazu, setNichtDazu] = useState<{ art: "logid" | "colli"; wert: string; zeit: Date }[]>([]);
   const [ansicht, setAnsicht] = useState<"offen" | "gefunden" | "fremd">("offen");
   const [colliBusy, setColliBusy] = useState(false);
-  // Sortierrichtung der Colli-Liste — in localStorage gemerkt (Default: meiste zuerst).
-  // sortDir = listenrelevant (treibt die schwere Neudarstellung, läuft in der Transition);
-  // uiSortDir = sofortiger Button-Zustand, damit sich der Klick augenblicklich anfühlt.
-  const [sortDir, setSortDir]       = useState<"most" | "least">("most");
-  const [uiSortDir, setUiSortDir]   = useState<"most" | "least">("most");
-  const [isSortPending, startSortTransition] = useTransition();
-  // Eingefrorene Reihenfolge der Colli-Karten (nur bei Laden/Toggle/Typ neu).
-  const [colliOrder, setColliOrder] = useState<string[]>([]);
+  // Wegführung (src/lib/pickup/route.ts): der Stellplatz, an dem der Picker gerade
+  // ist — gesetzt beim Start (vollster Platz), beim Scannen (der Halt folgt dem
+  // Menschen) und automatisch weiter, sobald ein Platz leer gepickt ist.
+  // ⚠️ Ersetzt die Knöpfe „Meiste / Wenigste LogIDs zuerst": Die sortierten Collis
+  // nach MENGE, nie nach ORT — am Auftrag „Richard 179" (115 Collis auf 31
+  // Stellplätzen) lief der Picker dadurch 07-32 → 07-30 → 07-32 → 07-30 …
+  const [haltWahl, setHaltWahl] = useState<string | null>(null);
+  const richtungRef = useRef<1 | -1>(1);
+  const [haltToast, setHaltToast] = useState<{ fertig: string; weiter: string } | null>(null);
+  const haltToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pulse-Trigger des „Zuletzt gescannt"-Banners (steigt bei jedem Scan).
   const [pulseKey, setPulseKey]     = useState(0);
   // Hilfe-Texte standardmäßig eingeklappt — kosten sonst dauerhaft Platz im Kopf.
@@ -284,9 +287,15 @@ export default function PickupScanPage() {
     colliKomplettInitRef.current = false;
     colliKomplettMapRef.current  = new Map();
     setColliToast(null);
+    setHaltWahl(null);
+    setHaltToast(null);
+    richtungRef.current = 1;
   }, [id]);
 
-  useEffect(() => () => { if (colliToastTimerRef.current) clearTimeout(colliToastTimerRef.current); }, []);
+  useEffect(() => () => {
+    if (colliToastTimerRef.current) clearTimeout(colliToastTimerRef.current);
+    if (haltToastTimerRef.current) clearTimeout(haltToastTimerRef.current);
+  }, []);
 
   const abschliessen = api.pickup.abschliessen.useMutation({
     onSuccess: (r) => {
@@ -306,6 +315,9 @@ export default function PickupScanPage() {
       playScanSound(res.result);
       if (res.result === "FREMD") {
         setNichtDazu((prev) => [{ art: "logid" as const, wert: res.logId || vars.logIdRaw, zeit: new Date() }, ...prev].slice(0, 50));
+      } else if (res.position) {
+        // Wer hier scannt, steht hier — der Halt folgt ihm.
+        wechselHalt(res.position.stellplatz ?? "");
       }
       void utils.pickup.pickDetails.invalidate({ id });
     },
@@ -318,17 +330,6 @@ export default function PickupScanPage() {
 
   // Nach jedem Ergebnis Fokus zurück ins Scan-Feld (Handheld-tauglich).
   useEffect(() => { inputRef.current?.focus({ preventScroll: true }); }, [feedback]);
-
-  // Sortierrichtung beim Start aus localStorage laden, danach jede Änderung sichern.
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem("pickup_sort_dir");
-      if (v === "least" || v === "most") { setSortDir(v); setUiSortDir(v); }
-    } catch { /* localStorage nicht verfügbar */ }
-  }, []);
-  useEffect(() => {
-    try { localStorage.setItem("pickup_sort_dir", sortDir); } catch { /* ignore */ }
-  }, [sortDir]);
 
   // Banner bei jedem neuen Scan kurz aufpulsen (Key-Bump → Re-Mount der Animation).
   useEffect(() => { if (feedback) setPulseKey((k) => k + 1); }, [feedback]);
@@ -383,10 +384,6 @@ export default function PickupScanPage() {
     return m;
   }, [data?.positionen, istColli]);
 
-  // Signatur der Colli-Schlüsselmenge — ändert sich NICHT beim bloßen Abhaken,
-  // nur wenn Collis hinzukommen/wegfallen (Lade-/Typ-Wechsel).
-  const colliKeysSig = useMemo(() => [...colliGruppen.keys()].sort().join("|"), [colliGruppen]);
-
   // Erkennt den Übergang "Colli/Stellplatz war offen → ist jetzt komplett" und
   // feiert genau diesen Moment (Sound + Toast). "Ohne Colli/Stellplatz" (key "")
   // wird nicht gefeiert. Wird der GANZE Auftrag durch diesen Scan komplett, hat
@@ -424,29 +421,74 @@ export default function PickupScanPage() {
     colliKomplettMapRef.current = current;
   }, [colliGruppen, vollstaendig, data]);
 
-  // Ref auf die aktuelle Gruppierung, damit der Order-Effekt die offenen Anzahlen
-  // lesen kann, OHNE bei jedem Scan neu zu feuern.
-  const colliGruppenRef = useRef(colliGruppen);
-  colliGruppenRef.current = colliGruppen;
+  // ── Wegführung: Stellplätze als Halte ─────────────────────────────────────
+  // Gilt für beide Auftragsarten: Bei LogID-Aufträgen liegen am Halt Collis mit
+  // Geräten, bei Colli-Aufträgen die gesuchten Collis selbst.
+  const halteMap = useMemo(() => {
+    const m = new Map<string, ScanPos[]>();
+    for (const p of data?.positionen ?? []) {
+      const key = p.stellplatz ?? "";
+      const arr = m.get(key);
+      if (arr) arr.push(p); else m.set(key, [p]);
+    }
+    return m;
+  }, [data?.positionen]);
+  const halteSig = useMemo(() => [...halteMap.keys()].sort().join("|"), [halteMap]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const weg = useMemo(() => ordneWeg([...halteMap.keys()]), [halteSig]);
+  const offenJeHalt = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const [k, items] of halteMap) m.set(k, items.filter((p) => p.status !== "GEFUNDEN").length);
+    return m;
+  }, [halteMap]);
+  // Haupt-/Restrunde EINGEFROREN: nur neu, wenn sich die Platzmenge ändert —
+  // sonst rutschte ein Platz mitten im Laufen von der Haupt- in die Restrunde.
+  const offenJeHaltRef = useRef(offenJeHalt);
+  offenJeHaltRef.current = offenJeHalt;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const runden = useMemo(() => planeRunden(offenJeHaltRef.current, weg), [weg, data !== undefined]);
 
-  // STABILE Reihenfolge: nur bei Laden, Toggle-Wechsel oder Auftragstyp-Wechsel
-  // neu berechnen — NICHT live beim Scannen (Karten dürfen nicht wegspringen).
-  // Fertige Collis (0 offen) wandern hier ans Ende.
+  const aktuellerHalt = useMemo(
+    () => naechsterHalt({ weg, offen: offenJeHalt, haupt: runden.haupt, aktuell: haltWahl, richtung: richtungRef.current }),
+    [weg, offenJeHalt, runden, haltWahl],
+  );
+  // Was kommt danach? (Vorschau im Karten-Fuß)
+  const danachHalt = useMemo(() => {
+    if (aktuellerHalt === null) return null;
+    const ohne = new Map(offenJeHalt);
+    ohne.set(aktuellerHalt, 0);
+    return naechsterHalt({ weg, offen: ohne, haupt: runden.haupt, aktuell: aktuellerHalt, richtung: richtungRef.current });
+  }, [aktuellerHalt, offenJeHalt, weg, runden]);
+
+  // Für den Scan-Rückruf, der vor diesen Werten definiert ist.
+  const wegRef = useRef(weg);
+  wegRef.current = weg;
+  const aktuellerHaltRef = useRef(aktuellerHalt);
+  aktuellerHaltRef.current = aktuellerHalt;
+
+  function wechselHalt(key: string) {
+    if (!wegRef.current.includes(key) || key === aktuellerHaltRef.current) return;
+    // Nachscan an einem schon leeren Platz (z. B. „schon gefunden") lenkt nicht um.
+    if ((offenJeHaltRef.current.get(key) ?? 0) === 0) return;
+    richtungRef.current = richtungVon(wegRef.current, aktuellerHaltRef.current, key, richtungRef.current);
+    setHaltWahl(key);
+  }
+
+  // Halt leer gepickt → automatisch weiter. Beim Start (haltWahl null) nur
+  // übernehmen, ohne Meldung — sonst gäbe es bei jedem Öffnen ein „fertig".
   useEffect(() => {
-    const m   = colliGruppenRef.current;
-    const dir = sortDir === "most" ? -1 : 1;
-    const offenVon = (k: string) => (m.get(k) ?? []).filter((p) => p.status !== "GEFUNDEN").length;
-    const keys = [...m.keys()].sort((a, b) => {
-      const oa = offenVon(a), ob = offenVon(b);
-      const aDone = oa === 0, bDone = ob === 0;
-      if (aDone !== bDone) return aDone ? 1 : -1;          // fertige Collis ans Ende
-      if (oa !== ob)       return (oa - ob) * dir;          // nach Anzahl offener LogIDs
-      if (a === "" || b === "") return a === "" ? 1 : -1;   // „ohne Colli" zuletzt
-      return a.localeCompare(b, "de", { numeric: true });   // stabiler Tiebreak
-    });
-    setColliOrder(keys);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [colliKeysSig, sortDir, istColli]);
+    if (!data || aktuellerHalt === null || aktuellerHalt === haltWahl) return;
+    if (haltWahl !== null) {
+      richtungRef.current = richtungVon(weg, haltWahl, aktuellerHalt, richtungRef.current);
+      if (!vollstaendig) {
+        setColliToast(null); // ein Hinweis reicht — der Halt sagt mehr als der Colli
+        setHaltToast({ fertig: haltWahl, weiter: aktuellerHalt });
+        if (haltToastTimerRef.current) clearTimeout(haltToastTimerRef.current);
+        haltToastTimerRef.current = setTimeout(() => setHaltToast(null), 3500);
+      }
+    }
+    setHaltWahl(aktuellerHalt);
+  }, [aktuellerHalt, haltWahl, data, weg, vollstaendig]);
 
   // Hauptcolli-Vorabscan — kompakte Wagen-Karte für LOGID- UND COLLI-Aufträge.
   // Einmal geladen; die Treffer rechnet das Frontend lokal aus dem Live-Zustand.
@@ -471,6 +513,9 @@ export default function PickupScanPage() {
       setFeedback({ kind: "colli", colliNummer: res.colliZiffern, colliBekannt: res.colliBekannt, treffer: res.treffer, anzahlTreffer: res.anzahlTreffer });
       if (res.anzahlTreffer > 0) {
         playScanSound("GEFUNDEN");
+        // Gesuchter Colli in der Hand → der Picker steht an dessen Stellplatz.
+        const pos = (data?.positionen ?? []).find((p) => p.logId === res.treffer[0]?.logId);
+        if (pos) wechselHalt(pos.stellplatz ?? "");
       } else {
         playNegativeSound();
         setNichtDazu((prev) => [{ art: "colli" as const, wert: res.colliZiffern || raw, zeit: new Date() }, ...prev].slice(0, 50));
@@ -616,6 +661,22 @@ export default function PickupScanPage() {
         </div>
       )}
 
+      {/* „Stellplatz fertig → weiter zu …" — ersetzt in diesem Moment den Colli-Toast. */}
+      {haltToast && (
+        <div
+          role="status"
+          aria-live="assertive"
+          className="colli-toast fixed top-3 left-1/2 z-50 w-[calc(100%-1.5rem)] max-w-md rounded-2xl border-2 px-5 py-4 shadow-2xl flex items-center gap-3"
+          style={{ borderColor: "#04B475", background: "#04B475", color: "#fff" }}
+        >
+          <span className="text-3xl" aria-hidden>➡️</span>
+          <div className="min-w-0">
+            <div className="font-black text-base leading-tight">{haltToast.fertig || "Ohne Stellplatz"} erledigt</div>
+            <div className="text-lg font-black font-mono">Weiter zu {haltToast.weiter || "ohne Stellplatz"}</div>
+          </div>
+        </div>
+      )}
+
       {/* ── KOPF — scrollt mit der Seite mit (nicht mehr gepinnt) ── */}
       <div className="space-y-2">
         {/* Zurück — eigene Zeile ganz oben, beschriftet und in Handheld-Größe.
@@ -676,6 +737,21 @@ export default function PickupScanPage() {
                 <div className="h-full rounded-full transition-all" style={{ width: `${data.gesamt > 0 ? Math.round((data.gefunden / data.gesamt) * 100) : 0}%`, background: "#04B475" }} />
               </div>
             </div>
+
+            {/* Nächster Halt — beantwortet zuerst „Wo gehe ich hin?". */}
+            {!vollstaendig && aktuellerHalt !== null && (
+              <NaechsterHaltKarte
+                halt={aktuellerHalt}
+                items={halteMap.get(aktuellerHalt) ?? []}
+                istColli={!!istColli}
+                anzahlHalte={weg.length}
+                hauptOffen={weg.filter((k) => runden.haupt.has(k) && (offenJeHalt.get(k) ?? 0) > 0).length}
+                restOffen={weg.filter((k) => !runden.haupt.has(k) && (offenJeHalt.get(k) ?? 0) > 0).length}
+                inHauptrunde={runden.haupt.has(aktuellerHalt)}
+                danach={danachHalt}
+                farbe={aktivFarbe}
+              />
+            )}
 
             {/* Scan-Feld: Eingabe-Toggle (Handscanner/Mobil) + Feld + OK */}
             <form onSubmit={(e) => { e.preventDefault(); handleScan(); }} className="space-y-2">
@@ -743,31 +819,6 @@ export default function PickupScanPage() {
               )}
             </form>
 
-            {/* Sortierrichtung der Colli-Liste — Auswahl in localStorage gemerkt. */}
-            <div role="group" aria-label="Sortierrichtung der Colli-Liste" className="grid grid-cols-2 gap-1.5">
-              {([
-                { k: "most",  label: "Meiste LogIDs zuerst" },
-                { k: "least", label: "Wenigste zuerst" },
-              ] as const).map(({ k, label }) => {
-                const aktiv = uiSortDir === k;
-                return (
-                  <button
-                    key={k}
-                    aria-pressed={aktiv}
-                    onClick={() => {
-                      setUiSortDir(k);                                  // Button sofort umschalten
-                      startSortTransition(() => setSortDir(k));        // schwere Liste nicht-blockierend neu sortieren
-                      inputRef.current?.focus({ preventScroll: true });
-                    }}
-                    className={`rounded-xl border-2 px-3 min-h-[56px] text-xs font-bold transition-colors ${aktiv ? "bg-white dark:bg-[#242526] text-[#202F61] dark:text-[#e4e6eb]" : "bg-transparent text-[#65676b] dark:text-[#b0b3b8]"}`}
-                    style={{ borderColor: aktiv ? "#008BD2" : "#ced4da" }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-
             {/* „Zuletzt gescannt" — kompakte Statuszeile, pulst bei jedem Scan auf. */}
             <div
               key={pulseKey}
@@ -819,19 +870,16 @@ export default function PickupScanPage() {
           <>
             {ansicht === "offen" && (
               <>
-                {/* Sichtbarer Status während die Liste neu sortiert wird (Transition). */}
-                {isSortPending && (
-                  <div
-                    role="status"
-                    aria-live="polite"
-                    className="mb-3 flex items-center gap-2 rounded-xl border-2 px-4 min-h-[56px] text-lg font-bold"
-                    style={{ borderColor: "#008BD2", background: "rgba(0,139,210,0.10)", color: "#008BD2" }}
-                  >
-                    <span aria-hidden>⏳</span>
-                    <span>Sortiere Liste…</span>
-                  </div>
-                )}
-                <ColliListe order={colliOrder} groups={colliGruppen} istColli={!!istColli} leerText="Nichts zu picken." onDetail={setDetail} />
+                <HalteListe
+                  weg={weg}
+                  halte={halteMap}
+                  aktuell={aktuellerHalt}
+                  haupt={runden.haupt}
+                  mitRunden={runden.haupt.size > 0 && runden.haupt.size < weg.length}
+                  istColli={!!istColli}
+                  leerText="Nichts zu picken."
+                  onDetail={setDetail}
+                />
               </>
             )}
             {ansicht === "gefunden" && (
@@ -1047,36 +1095,231 @@ function PositionsListe({
   );
 }
 
-// ── Colli-Liste für „Noch suchen" — gruppiert nach Colli (LogID-Auftrag) bzw.
-//    Stellplatz (Colli-Auftrag), in der eingefrorenen `order`-Reihenfolge. Zeigt
-//    ALLE Geräte eines Collis (gescannte grün abgehakt). Vollständig gepickte
-//    Collis werden eingeklappt + abgedunkelt (Reihenfolge bleibt stabil). ──────
-function ColliListe({
-  order, groups, istColli, leerText, onDetail,
+// ── Karte „Nächster Halt" — die EINE Antwort auf „Wo gehe ich hin?" ──────────
+function NaechsterHaltKarte({
+  halt, items, istColli, anzahlHalte, hauptOffen, restOffen, inHauptrunde, danach, farbe,
 }: {
-  order: string[];
-  groups: Map<string, ScanPos[]>;
+  halt: string;
+  items: ScanPos[];
+  istColli: boolean;
+  anzahlHalte: number;
+  hauptOffen: number;
+  restOffen: number;
+  inHauptrunde: boolean;
+  danach: string | null;
+  farbe: string;
+}) {
+  const offene = items.filter((p) => p.status !== "GEFUNDEN");
+  // Was liegt hier? Bei LogID-Aufträgen die Collis (mit Anzahl Geräte), bei
+  // Colli-Aufträgen die gesuchten Collis selbst.
+  const chips: { key: string; text: string; anzahl: number }[] = [];
+  if (istColli) {
+    for (const p of offene) chips.push({ key: p.logId, text: formatLogId(p.logId), anzahl: 1 });
+  } else {
+    const m = new Map<string, number>();
+    for (const p of offene) m.set(p.colli ?? "", (m.get(p.colli ?? "") ?? 0) + 1);
+    for (const [c, n] of [...m.entries()].sort((x, y) => x[0].localeCompare(y[0], "de", { numeric: true }))) {
+      chips.push({ key: c || "__ohne__", text: c ? (formatLogId(nurZiffern(c)) || c) : "ohne Colli", anzahl: n });
+    }
+  }
+  const einPlatz  = anzahlHalte === 1;
+  const mitRunden = hauptOffen + restOffen > 0 && anzahlHalte >= 4;
+  const ZEIGE = 8;
+
+  return (
+    <section
+      aria-label="Nächster Halt"
+      className="rounded-2xl border-2 bg-white dark:bg-[#242526] px-4 py-3"
+      style={{ borderColor: farbe }}
+    >
+      <div className="flex items-center justify-between gap-2 text-[11px] font-black uppercase tracking-wide">
+        <span style={{ color: farbe }}>{einPlatz ? "Alles an einem Platz" : "Nächster Halt"}</span>
+        {mitRunden && (
+          <span className="text-[#65676b] dark:text-[#b0b3b8] normal-case tracking-normal font-bold text-xs">
+            {inHauptrunde
+              ? `Hauptrunde · noch ${hauptOffen} ${hauptOffen === 1 ? "Platz" : "Plätze"}`
+              : `Restrunde · noch ${restOffen} ${restOffen === 1 ? "Platz" : "Plätze"}`}
+          </span>
+        )}
+      </div>
+      <div className="font-mono font-black text-3xl leading-tight text-[#202F61] dark:text-[#e4e6eb] break-all">
+        📍 {halt || "ohne Stellplatz"}
+      </div>
+      <div className="text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+        {istColli
+          ? `${offene.length} ${offene.length === 1 ? "Colli" : "Collis"} hier holen`
+          : `${chips.length} ${chips.length === 1 ? "Colli" : "Collis"} · ${offene.length} ${offene.length === 1 ? "Gerät" : "Geräte"}`}
+      </div>
+      {einPlatz && !istColli && chips.length === 1 && (
+        <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">Einfach alles aus diesem Colli durchscannen.</div>
+      )}
+      <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={istColli ? "Gesuchte Collis hier" : "Collis an diesem Platz"}>
+        {chips.slice(0, ZEIGE).map((c) => (
+          <li key={c.key} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 bg-[#f0f2f5] dark:bg-[#18191a] font-mono font-bold text-base text-[#202F61] dark:text-[#e4e6eb]">
+            <span aria-hidden>📦</span>{c.text}
+            {!istColli && c.anzahl > 1 && <span className="font-sans text-xs text-[#65676b] dark:text-[#b0b3b8]">×{c.anzahl}</span>}
+          </li>
+        ))}
+        {chips.length > ZEIGE && (
+          <li className="inline-flex items-center rounded-lg px-2.5 py-1 text-sm font-bold text-[#65676b] dark:text-[#b0b3b8]">
+            +{chips.length - ZEIGE} weitere
+          </li>
+        )}
+      </ul>
+      {!einPlatz && (
+        <div className="mt-2 text-xs font-bold text-[#65676b] dark:text-[#b0b3b8]">
+          {danach !== null ? <>Danach: <span className="font-mono">{danach || "ohne Stellplatz"}</span></> : "Letzter Platz"}
+          {" · "}Woanders anfangen? Einfach dort scannen.
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Liste „Noch suchen" — Stellplätze in LAUFreihenfolge (nicht nach Menge). ──
+//    Der aktuelle Halt ist aufgeklappt, alle anderen zu; fertige gedimmt. Die
+//    Reihenfolge ist fest, beim Scannen springt nichts weg.
+function HalteListe({
+  weg, halte, aktuell, haupt, mitRunden, istColli, leerText, onDetail,
+}: {
+  weg: string[];
+  halte: Map<string, ScanPos[]>;
+  aktuell: string | null;
+  haupt: Set<string>;
+  mitRunden: boolean;
   istColli: boolean;
   leerText: string;
   onDetail?: (p: ScanPos) => void;
 }) {
-  if (groups.size === 0) {
+  if (halte.size === 0) {
     return (
       <div className="bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] p-6 text-center text-[#65676b] dark:text-[#b0b3b8]">
         {leerText}
       </div>
     );
   }
-  // `order` kann hinterherhängen (Erst-Render): fehlende/neue Keys ergänzen.
-  const keys = order.filter((k) => groups.has(k));
-  for (const k of groups.keys()) if (!keys.includes(k)) keys.push(k);
   return (
     <div className="space-y-3">
-      {keys.map((key) => {
-        const items = groups.get(key);
+      {weg.map((key) => {
+        const items = halte.get(key);
         if (!items || items.length === 0) return null;
-        return <ColliKarte key={key || "__ohne__"} colliKey={key} items={items} istColli={istColli} onDetail={onDetail} />;
+        return (
+          <HaltKarte
+            key={key || "__ohne__"}
+            halt={key}
+            items={items}
+            istAktuell={key === aktuell}
+            restrunde={mitRunden && !haupt.has(key)}
+            istColli={istColli}
+            onDetail={onDetail}
+          />
+        );
       })}
+    </div>
+  );
+}
+
+function HaltKarte({
+  halt, items, istAktuell, restrunde, istColli, onDetail,
+}: {
+  halt: string;
+  items: ScanPos[];
+  istAktuell: boolean;
+  restrunde: boolean;
+  istColli: boolean;
+  onDetail?: (p: ScanPos) => void;
+}) {
+  const offen    = items.filter((p) => p.status !== "GEFUNDEN").length;
+  const komplett = offen === 0;
+  const [auf, setAuf] = useState(istAktuell);
+  // Wird der Platz zum aktuellen Halt → aufklappen; ist er fertig → zuklappen.
+  useEffect(() => { if (istAktuell) setAuf(true); }, [istAktuell]);
+  const prevKomplett = useRef(komplett);
+  useEffect(() => {
+    if (komplett && !prevKomplett.current) setAuf(false);
+    prevKomplett.current = komplett;
+  }, [komplett]);
+
+  const collis = useMemo(() => {
+    if (istColli) return [];
+    const m = new Map<string, ScanPos[]>();
+    for (const p of items) {
+      const k = p.colli ?? "";
+      const arr = m.get(k);
+      if (arr) arr.push(p); else m.set(k, [p]);
+    }
+    return [...m.entries()].sort((a, b) => {
+      if (a[0] === "" || b[0] === "") return a[0] === "" ? 1 : -1;
+      return a[0].localeCompare(b[0], "de", { numeric: true });
+    });
+  }, [items, istColli]);
+
+  return (
+    <div
+      className={`rounded-2xl border-2 overflow-hidden transition-opacity ${komplett ? "opacity-60" : ""}`}
+      style={{ borderColor: istAktuell ? "#008BD2" : komplett ? "rgba(4,180,117,0.4)" : "#ced4da" }}
+    >
+      <button
+        type="button"
+        onClick={() => setAuf((v) => !v)}
+        aria-expanded={auf}
+        className={`w-full flex items-center justify-between gap-2 px-4 min-h-[56px] py-2.5 text-left ${istAktuell ? "bg-[#008BD2]/10" : komplett ? "bg-[#04B475]/5" : "bg-[#f0f2f5] dark:bg-[#18191a]"}`}
+      >
+        <h2 className="font-black text-base text-[#202F61] dark:text-[#e4e6eb] flex items-center gap-2 min-w-0 flex-wrap">
+          <span className="font-mono">📍 {halt || "ohne Stellplatz"}</span>
+          {istAktuell && !komplett && (
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#008BD2] text-white">jetzt hier</span>
+          )}
+          {restrunde && !komplett && (
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#65676b]/15 text-[#65676b] dark:text-[#b0b3b8]">Rest</span>
+          )}
+          {komplett ? (
+            <span className="text-sm text-[#04713f] font-bold whitespace-nowrap">✓ fertig</span>
+          ) : (
+            <span className="text-sm text-[#8A5A00] dark:text-[#f7b928] font-bold whitespace-nowrap">— {offen} offen</span>
+          )}
+        </h2>
+        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff] whitespace-nowrap">
+          {auf ? "▾" : "▸"} {items.length}
+        </span>
+      </button>
+      {auf && (
+        istColli ? (
+          <div className="bg-white dark:bg-[#242526] divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+            {items.map((p) => <PositionZeile key={p.id} p={p} onDetail={onDetail} />)}
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-[#242526] p-2 space-y-2">
+            {collis.map(([c, its]) => (
+              <ColliKarte key={c || "__ohne__"} colliKey={c} items={its} istColli={false} onDetail={onDetail} />
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+// Eine Geräte-/Colli-Zeile — von ColliKarte und HaltKarte gemeinsam genutzt.
+function PositionZeile({ p, onDetail }: { p: ScanPos; onDetail?: (p: ScanPos) => void }) {
+  const ok = p.status === "GEFUNDEN";
+  return (
+    <div className={`flex items-start gap-3 px-4 min-h-[56px] py-2.5 ${ok ? "bg-[#04B475]/5" : ""}`}>
+      <span className="text-xl w-6 text-center pt-0.5" aria-hidden style={{ color: ok ? "#04713f" : undefined }}>{ok ? "✓" : "○"}</span>
+      <button onClick={() => onDetail?.(p)} className="flex-1 min-w-0 text-left">
+        <div className="font-mono font-black text-lg" style={{ color: ok ? "#04713f" : undefined }}>
+          {formatLogId(p.logId)}
+        </div>
+        <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] break-words leading-snug">
+          {p.bezeichnung ?? "—"}
+        </div>
+        <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+          {p.stellplatz ?? "ohne Stellplatz"} · Details ansehen ›
+        </div>
+      </button>
+      {!ok && (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#65676b]/10 text-[#65676b] dark:text-[#b0b3b8]">Offen</span>
+      )}
     </div>
   );
 }
@@ -1117,28 +1360,7 @@ function ColliKarte({ colliKey, items, istColli, onDetail }: { colliKey: string;
       </button>
       {auf && (
         <div className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
-          {items.map((p) => {
-            const ok = p.status === "GEFUNDEN";
-            return (
-              <div key={p.id} className={`flex items-start gap-3 px-4 min-h-[56px] py-2.5 ${ok ? "bg-[#04B475]/5" : ""}`}>
-                <span className="text-xl w-6 text-center pt-0.5" aria-hidden style={{ color: ok ? "#04713f" : undefined }}>{ok ? "✓" : "○"}</span>
-                <button onClick={() => onDetail?.(p)} className="flex-1 min-w-0 text-left">
-                  <div className="font-mono font-black text-lg" style={{ color: ok ? "#04713f" : undefined }}>
-                    {formatLogId(p.logId)}
-                  </div>
-                  <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] break-words leading-snug">
-                    {p.bezeichnung ?? "—"}
-                  </div>
-                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                    {p.stellplatz ?? "ohne Stellplatz"} · Details ansehen ›
-                  </div>
-                </button>
-                {!ok && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#65676b]/10 text-[#65676b] dark:text-[#b0b3b8]">Offen</span>
-                )}
-              </div>
-            );
-          })}
+          {items.map((p) => <PositionZeile key={p.id} p={p} onDetail={onDetail} />)}
         </div>
       )}
     </div>
