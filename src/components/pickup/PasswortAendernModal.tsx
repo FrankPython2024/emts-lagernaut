@@ -19,7 +19,7 @@ const inputClass =
   "w-full px-4 rounded-xl border bg-white dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] " +
   "text-lg outline-none focus:border-[#008BD2] focus:ring-2 focus:ring-[#008BD2]/30 transition-colors";
 
-export function PasswortAendernModal() {
+export function PasswortAendernModal({ kompakt = false }: { kompakt?: boolean } = {}) {
   const [offen, setOffen] = useState(false);
 
   return (
@@ -28,7 +28,9 @@ export function PasswortAendernModal() {
         type="button"
         onClick={() => setOffen(true)}
         title="Passwort ändern"
-        className="inline-flex items-center gap-1.5 px-4 rounded-lg bg-white/10 hover:bg-white/20 text-sm font-bold transition-colors min-h-[44px]"
+        className={kompakt
+          ? "inline-flex items-center gap-1 px-2.5 rounded-md bg-white/10 hover:bg-white/20 text-xs font-bold transition-colors min-h-[32px]"
+          : "inline-flex items-center gap-1.5 px-4 rounded-lg bg-white/10 hover:bg-white/20 text-sm font-bold transition-colors min-h-[44px]"}
       >
         <span aria-hidden>🔑</span>
         <span className="hidden sm:inline">Passwort</span>

@@ -14,14 +14,17 @@ export default function PickupLayout({ children }: { children: React.ReactNode }
   return (
     <div className="min-h-screen bg-[#f0f2f5] dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb]">
       <header className="sticky top-0 z-20 bg-[#202F61] text-white shadow-md">
-        <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
-          <Link href="/pickup" className="font-black tracking-wide text-lg flex items-center gap-2">
+        {/* Bewusst schmal (40 px statt 64 px, Frank 23.09.2026): Auf dem Handgerät
+            gehört die Höhe dem Scan-Bereich. Passwort/Abmelden braucht man
+            selten — kleinere Knöpfe sind hier vertretbar. */}
+        <div className="max-w-3xl mx-auto px-3 h-10 flex items-center justify-between gap-2">
+          <Link href="/pickup" className="font-black tracking-wide text-sm flex items-center gap-1.5">
             <span aria-hidden>📦</span> Pickup
           </Link>
-          <div className="flex items-center gap-2">
-            <PasswortAendernModal />
+          <div className="flex items-center gap-1.5">
+            <PasswortAendernModal kompakt />
             <LogoutButton
-              className="inline-flex items-center px-4 rounded-lg bg-white/10 hover:bg-white/20 text-sm font-bold transition-colors min-h-[44px]"
+              className="inline-flex items-center px-3 rounded-md bg-white/10 hover:bg-white/20 text-xs font-bold transition-colors min-h-[32px]"
               title="Abmelden"
             >
               Abmelden
@@ -29,7 +32,7 @@ export default function PickupLayout({ children }: { children: React.ReactNode }
           </div>
         </div>
       </header>
-      <main className="max-w-3xl mx-auto p-4 sm:p-6">{children}</main>
+      <main className="max-w-3xl mx-auto px-2 py-2 sm:p-6">{children}</main>
     </div>
   );
 }

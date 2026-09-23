@@ -9,8 +9,6 @@ import { formatLogId } from "@/lib/pickup/logId";
 import { GeraetDetail, type PickupPos } from "../GeraetDetail";
 import { nurZiffern } from "@/lib/format/ziffern";
 import { playScanSound, playComplete, playColliKomplett, playNegativeSound, playWagenTreffer, playWagenLeer, type ScanResult } from "@/lib/pickup/scanSound";
-import { useScannerMode } from "@/lib/pickup/useScannerMode";
-import { GeraeteUmschalter } from "@/components/pickup/ModusBanner";
 import { ordneWeg, planeRunden, naechsterHalt, richtungVon } from "@/lib/pickup/route";
 
 // Farben wie ModusBanner: Blau = LogID-Auftrag, Violett = Colli-Auftrag.
@@ -265,8 +263,14 @@ export default function PickupScanPage() {
   // Hilfe-Texte standardmäßig eingeklappt — kosten sonst dauerhaft Platz im Kopf.
   const [hilfeAuf, setHilfeAuf]     = useState(false);
 
-  const { mode, setMode, onInputKeyDown } = useScannerMode();
-  const tastatur = mode === "mobil";
+  // Nur noch Handscanner (Frank, 23.09.2026). Vorher erkannte die Seite den Zebra
+  // am Touchscreen als „Mobil" — und holte in diesem Modus den Fokus nach einem
+  // Tipp in die Liste bewusst NICHT zurück (sonst spränge jedes Mal die
+  // Bildschirmtastatur auf). Folge: Nach jedem Tipp musste man ins Feld klicken.
+  // `vonHand` ist nur der Notweg für ein unlesbares Etikett: Tastatur für EINE
+  // Eingabe, danach wieder Scanner.
+  const [vonHand, setVonHand] = useState(false);
+  const tastatur = vonHand;
 
   const [abschlussDialog, setAbschlussDialog] = useState(false);
   const [unvollDialog, setUnvollDialog]       = useState(false);
@@ -533,6 +537,51 @@ export default function PickupScanPage() {
   // Gerätedetails: welche Position gerade angetippt wurde.
   const [detail, setDetail] = useState<ScanPos | null>(null);
 
+  // ── Scan-Feld immer bereit ────────────────────────────────────────────────
+  // Der Handscanner „tippt" wie eine Tastatur. Hat das Feld den Fokus verloren
+  // (Tipp auf Liste, Knopf, Kopfzeile, App-Wechsel), liefen Scans bisher ins
+  // Leere. Drei Wege zurück — außer ein Dialog ist offen (dessen Knöpfe
+  // brauchen den Fokus) oder ein anderes Eingabefeld ist bewusst gewählt:
+  //   1. Jede Taste ohne Fokus im Feld holt das Feld — das Zeichen landet dort.
+  //   2. Nach jedem Antippen irgendwo kurz danach zurück ins Feld.
+  //   3. Beim Zurückkehren in die App / den Tab.
+  const dialogOffen = !!detail || abschlussDialog || unvollDialog || !!abschlussErgebnis;
+  const dialogOffenRef = useRef(dialogOffen);
+  dialogOffenRef.current = dialogOffen;
+  useEffect(() => {
+    const istAnderesFeld = (el: Element | null) =>
+      !!el && el !== inputRef.current &&
+      (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || (el as HTMLElement).isContentEditable);
+    const holen = () => {
+      if (dialogOffenRef.current) return;
+      const aktiv = document.activeElement;
+      if (aktiv === inputRef.current || istAnderesFeld(aktiv)) return;
+      inputRef.current?.focus({ preventScroll: true });
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key.length === 1 || e.key === "Enter") holen();
+    };
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const onTipp = () => { if (t) clearTimeout(t); t = setTimeout(holen, 150); };
+    const onSichtbar = () => { if (document.visibilityState === "visible") holen(); };
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("pointerup", onTipp, true);
+    document.addEventListener("visibilitychange", onSichtbar);
+    window.addEventListener("focus", holen);
+    return () => {
+      if (t) clearTimeout(t);
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("pointerup", onTipp, true);
+      document.removeEventListener("visibilitychange", onSichtbar);
+      window.removeEventListener("focus", holen);
+    };
+  }, []);
+  // Dialog zu → sofort wieder scanbereit.
+  useEffect(() => {
+    if (!dialogOffen) inputRef.current?.focus({ preventScroll: true });
+  }, [dialogOffen]);
+
   function meldeUnbekannt(wert: string) {
     setFeedback({ kind: "unbekannt", wert });
     playNegativeSound();
@@ -580,6 +629,7 @@ export default function PickupScanPage() {
   function handleScan() {
     const v = eingabe.trim();
     if (!v) return;
+    setVonHand(false);
     const ziffern = nurZiffern(v);
     const len = ziffern.length;
 
@@ -679,23 +729,19 @@ export default function PickupScanPage() {
 
       {/* ── KOPF — scrollt mit der Seite mit (nicht mehr gepinnt) ── */}
       <div className="space-y-2">
-        {/* Zurück — eigene Zeile ganz oben, beschriftet und in Handheld-Größe.
-            Vorher stand hier nur ein „←" ohne Wort neben dem Auftragsnamen; das
-            ging zwischen Titel und Aktionsknopf unter. Ein Symbol allein ist
-            außerdem kein Ziel, das man mit Handschuhen sicher trifft. */}
-        {/* ⚠️ Das Ziel hängt am Recht. Wer den Auftrag verwaltet, will zurück in
-            die Admin-Übersicht; wer nur pickt, hat dort keinen Zutritt
-            (PICKUP_MANAGE) und liefe in eine Rechte-Meldung. */}
-        <Link
-          href={has("PICKUP_MANAGE") ? "/admin/pickup" : "/pickup"}
-          className="inline-flex items-center gap-2 px-5 rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#202F61] dark:text-[#e4e6eb] text-base font-bold hover:border-[#008BD2] hover:text-[#008BD2] transition-colors min-h-[56px]"
-        >
-          <span aria-hidden className="text-xl">←</span>
-          Zurück zur Auftragsliste
-        </Link>
-
-        {/* Zeile: Auftragsname · Aktion */}
+        {/* Zeile: Zurück · Auftragsname · Aktion.
+            Zurück stand vorher in einer eigenen 56-px-Zeile — Platz, der auf dem
+            Handgerät für den nächsten Halt fehlt. Es bleibt BESCHRIFTET (ein
+            „←" allein ging früher neben dem Titel unter).
+            ⚠️ Das Ziel hängt am Recht: Wer verwaltet, will in die Admin-
+            Übersicht; wer nur pickt, hätte dort keinen Zutritt (PICKUP_MANAGE). */}
         <div className="flex items-center gap-2">
+          <Link
+            href={has("PICKUP_MANAGE") ? "/admin/pickup" : "/pickup"}
+            className="inline-flex items-center gap-1 px-3 rounded-lg border-2 border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#202F61] dark:text-[#e4e6eb] text-sm font-bold hover:border-[#008BD2] hover:text-[#008BD2] transition-colors min-h-[44px] flex-shrink-0"
+          >
+            <span aria-hidden>←</span> Liste
+          </Link>
           <h1 className="flex-1 min-w-0 text-base font-black text-[#202F61] dark:text-[#e4e6eb] truncate">
             {isLoading ? "Lade…" : (data?.name ?? "Pickup")}
           </h1>
@@ -759,7 +805,17 @@ export default function PickupScanPage() {
                 <label htmlFor="scan-input" className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
                   {istColli ? "Colli scannen" : "LogID scannen"}
                 </label>
-                <GeraeteUmschalter device={mode} onChange={(d) => { setMode(d); inputRef.current?.focus({ preventScroll: true }); }} />
+                <button
+                  type="button"
+                  onClick={() => { setVonHand((v) => !v); inputRef.current?.focus({ preventScroll: true }); }}
+                  aria-pressed={vonHand}
+                  className="inline-flex items-center gap-1 px-3 rounded-lg border text-xs font-bold min-h-[44px] transition-colors"
+                  style={vonHand
+                    ? { borderColor: aktivFarbe, color: "#fff", background: aktivFarbe }
+                    : { borderColor: "#ced4da", color: "#65676b" }}
+                >
+                  <span aria-hidden>⌨</span> {vonHand ? "Tastatur an" : "Von Hand"}
+                </button>
               </div>
               <div className="flex gap-2">
                 <input
@@ -767,7 +823,6 @@ export default function PickupScanPage() {
                   ref={inputRef}
                   value={eingabe}
                   onChange={(e) => setEingabe(e.target.value)}
-                  onKeyDown={onInputKeyDown}
                   autoFocus
                   autoComplete="off"
                   inputMode={tastatur ? "numeric" : "none"}

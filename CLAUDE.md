@@ -1204,6 +1204,17 @@ Logik rein in `src/lib/pickup/route.ts`, Test `npm run test:route` (35, mit der 
   niemand entscheiden, wo er anfängt. Ein Nachscan an einem schon leeren Platz lenkt nicht um.
 - Knöpfe „Meiste / Wenigste zuerst" samt `localStorage["pickup_sort_dir"]` **entfernt** — die
   Wegreihenfolge ersetzt sie. Keine Schemaänderung.
+- ⚠️ **Nur noch Handscanner, Scan-Feld immer bereit** (Frank, 23.09.2026). Der Zebra hat einen
+  Touchscreen und wurde von `useScannerMode` als **„Mobil"** erkannt — und in diesem Modus holte die
+  Seite den Fokus nach einem Tipp in die Liste absichtlich NICHT zurück (sonst spränge die
+  Bildschirmtastatur auf). Folge: Nach jedem Tipp musste man ins Feld klicken. Jetzt auf
+  `/pickup/[id]` ohne Umschalter, `inputMode="none"`, und ein Fokus-Wächter holt das Feld zurück:
+  bei jeder Taste ohne Fokus (das Zeichen landet im Feld), 150 ms nach jedem Antippen und beim
+  Zurückkehren in den Tab — **außer ein Dialog ist offen** oder ein anderes Eingabefeld ist gewählt.
+  Notweg für unlesbare Etiketten: Knopf „⌨ Von Hand" (Tastatur für EINE Eingabe). Das Zählen im
+  Verbrauchsmaterial nutzt `useScannerMode` mit Umschalter unverändert weiter.
+- Kopfleiste im Picker-Bereich 40 statt 64 px, „← Liste" in der Titelzeile statt eigener 56-px-Zeile,
+  weniger Seitenrand — der Platz gehört dem nächsten Halt.
 
 ### Notizbuch (Sep 2026)
 
