@@ -245,7 +245,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ACHTZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke` (zusammen 692) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke` (zusammen 702) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1399,16 +1399,25 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   Die Brücke: ZIP-Inhaltsverzeichnis lesen → **Platte aus der Datei** (`findePlatten`; „P2S Full Set"
   am Drucker enthält NUR `plate_2` — „plate_1" fest angenommen wäre ins Leere gelaufen) → FTPS nach
   **`/cache/<Name>_L<VorlageId>.gcode.3mf`** (ASCII, je Vorlage fest → überschreibt den letzten) →
-  MQTT `project_file` mit `url: ftp:///cache/<datei>`, Ids 0, `use_ams: false` (kein AMS, ams_exist_bits 0)
-  → wartet 20 s auf `result`/Zustandswechsel.
+  MQTT `project_file` mit `url: ftp:///cache/<datei>`, Ids 0, `use_ams: false` (kein AMS — Frank: „nur
+  die externe Spule") → wartet 20 s auf `result`/Zustandswechsel.
+  ⚠️ **Spulen-Zuordnung ist Pflicht, auch ohne AMS** (`spulenZuordnung`, Brücke 1.2.0). Erster Druck am
+  24.09.2026 mit `ams_mapping: ""`: Datei kam an, Druck startete, blieb bei 0 % auf PAUSE mit
+  **07FF-8012 „Zuordnungstabelle des AMS konnte nicht abgerufen werden"**. Richtig für EINE Düse (P2S,
+  P1, X1, A1): `ams_mapping` = je Filament `-1` (rohe Platznummern lehnt die Firmware ab),
+  `ams_mapping2` = je Filament `{ams_id:255, slot_id:0}` für benutzte, `{255,255}` für unbenutzte.
+  255 ist der virtuelle Platz der externen Spule (`print.vir_slot[0].id`). Welche Filamente eine
+  Platte benutzt, steht in `Metadata/slice_info.config` der .gcode.3mf (`filamenteDerPlatte`, entpackt
+  mit zlib) — „P2S Full Set" am Drucker benutzt NUR Filament 4, ein fester Eintrag an Stelle 1 wäre
+  wieder gescheitert. Zwei-Düsen-Drucker (H2D) bräuchten 254 für die linke Spule — nicht vorgesehen.
   ⚠️ **Am P2S gemessen (FTP-Liste + Schreibtest 24.09.2026):** vsFTPd 3.0.5, TLS 1.2; der interne
   Speicher heißt `/cache` (dort legt auch Bambu Studio ab), daneben `/ipcam`, `/timelapse`. Der
   Datenkanal braucht **dieselbe TLS-Sitzung** (`session: getSession()`), und seine Verschlüsselung
   beginnt **erst nach LIST/STOR** — wer vorher auf `secureConnect` wartet, hängt und bekommt ECONNRESET.
   Schreibtest (200 KB hoch, identisch zurück, gelöscht) und alle Abweisungen (ohne Bestätigung, ohne/
   fremde Origin → 403, kein ZIP, nicht geslict) gegen den echten Drucker geprüft — **ohne** Druck.
-  **Erster echter Druck aus Lagernaut am 24.09.2026 gelaufen** (Frank: „funktioniert") — damit ist
-  auch die `url`-Form `ftp:///cache/…` am P2S bestätigt.
+  Bestätigt am echten Drucker: Übertragung und `url`-Form `ftp:///cache/…` (der Druck startete).
+  Ob 1.2.0 ohne 07FF-8012 durchläuft, prüft der nächste Druck vor Ort.
   **Fertig → einbuchen:** Der Browser merkt sich den gestarteten Druck (`localStorage
   druck-letzter-auftrag`, 48 h); meldet der Drucker FINISH mit demselben `subtask_name`, zeigt die
   Druckerkarte „✓ … fertig gedruckt → Jetzt einbuchen" (→ `#fertig`). Einbuchen löscht die Merkung.

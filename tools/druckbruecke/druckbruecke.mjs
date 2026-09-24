@@ -34,9 +34,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
+import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
-export const VERSION = "1.1.0";
+export const VERSION = "1.2.0";
 /** Größte Druckdatei, die die Brücke annimmt. */
 export const MAX_DRUCKDATEI = 60 * 1024 * 1024;
 /** In diesen Zuständen darf ein neuer Druck starten. */
@@ -212,6 +213,56 @@ export function findePlatten(buf) {
   return platten.sort((a, b) => a.nummer - b.nummer);
 }
 
+/** Einen Eintrag aus dem ZIP lesen (gespeichert oder „deflate"). null = nicht da/unlesbar. */
+export function leseZipEintrag(buf, gesucht) {
+  const min = Math.max(0, buf.length - 65557);
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= min; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) return null;
+  const anzahl = buf.readUInt16LE(eocd + 10);
+  let pos = buf.readUInt32LE(eocd + 16);
+  for (let n = 0; n < anzahl && pos + 46 <= buf.length; n++) {
+    if (buf.readUInt32LE(pos) !== 0x02014b50) return null;
+    const methode = buf.readUInt16LE(pos + 10);
+    const groesse = buf.readUInt32LE(pos + 20);
+    const nl = buf.readUInt16LE(pos + 28), xl = buf.readUInt16LE(pos + 30), cl = buf.readUInt16LE(pos + 32);
+    const lokal = buf.readUInt32LE(pos + 42);
+    const name = buf.subarray(pos + 46, pos + 46 + nl).toString("utf8");
+    if (name === gesucht) {
+      if (lokal + 30 > buf.length || buf.readUInt32LE(lokal) !== 0x04034b50) return null;
+      const start = lokal + 30 + buf.readUInt16LE(lokal + 26) + buf.readUInt16LE(lokal + 28);
+      const daten = buf.subarray(start, start + groesse);
+      try {
+        if (methode === 0) return Buffer.from(daten);
+        if (methode === 8) return zlib.inflateRawSync(daten);
+      } catch { return null; }
+      return null;
+    }
+    pos += 46 + nl + xl + cl;
+  }
+  return null;
+}
+
+/**
+ * Welche Filamente (1-basiert) benutzt diese Platte? Aus Metadata/slice_info.config
+ * („<filament id="2" …/>" im Block der Platte). null = nicht lesbar.
+ * Gebraucht für die Spulen-Zuordnung im Startbefehl — siehe druckBefehl.
+ */
+export function filamenteDerPlatte(buf, plattenNummer) {
+  const roh = leseZipEintrag(buf, "Metadata/slice_info.config");
+  if (!roh) return null;
+  const xml = roh.toString("utf8");
+  for (const block of xml.split(/<plate>/).slice(1)) {
+    const idx = /<metadata\s+key="index"\s+value="(\d+)"/.exec(block);
+    if (idx && Number(idx[1]) !== plattenNummer) continue;
+    const ids = [...block.matchAll(/<filament\s[^>]*\bid="(\d+)"/g)].map((m) => Number(m[1])).filter((n) => n > 0);
+    if (ids.length) return [...new Set(ids)].sort((a, b) => a - b);
+  }
+  return null;
+}
+
 /** Dateiname auf dem Drucker: nur sichere Zeichen, je Vorlage fest (überschreibt den letzten). */
 export function druckerDateiname(name, vorlageId) {
   const ascii = String(name ?? "")
@@ -222,8 +273,31 @@ export function druckerDateiname(name, vorlageId) {
   return `${ascii}${id}.gcode.3mf`;
 }
 
+/**
+ * Spulen-Zuordnung für Drucker mit EINER Düse ohne AMS (P2S): alles von der
+ * externen Spule. Die Firmware will je Filament des Projekts einen Eintrag —
+ * die benutzten zeigen auf den virtuellen Platz (ams_id 255, slot 0), die
+ * übrigen sind „ungültig" (255/255). Im flachen ams_mapping lehnt sie rohe
+ * Platznummern ab und will -1.
+ * ⚠️ 24.09.2026, erster Druck aus Lagernaut: mit use_ams false und LEERER
+ * Zuordnung blieb der P2S bei 0 % mit 07FF-8012 „Zuordnungstabelle des AMS
+ * konnte nicht abgerufen werden" stehen. Zwei-Düsen-Drucker (H2D) bräuchten
+ * für die linke Spule ams_id 254 — hier nicht vorgesehen.
+ */
+export function spulenZuordnung(filamente) {
+  const ids = Array.isArray(filamente) && filamente.length ? filamente : [1];
+  const laenge = Math.max(...ids);
+  const benutzt = new Set(ids);
+  return {
+    ams_mapping:  Array.from({ length: laenge }, () => -1),
+    ams_mapping2: Array.from({ length: laenge }, (_, i) =>
+      benutzt.has(i + 1) ? { ams_id: 255, slot_id: 0 } : { ams_id: 255, slot_id: 255 }),
+  };
+}
+
 /** Der MQTT-Befehl, der eine Datei aus /cache startet (lokaler Druck: Ids immer 0). */
-export function druckBefehl({ datei, platte, titel, sequenz }) {
+export function druckBefehl({ datei, platte, titel, sequenz, filamente }) {
+  const zuordnung = spulenZuordnung(filamente);
   return {
     print: {
       sequence_id:    String(sequenz),
@@ -243,8 +317,9 @@ export function druckBefehl({ datei, platte, titel, sequenz }) {
       flow_cali:      false,
       vibration_cali: false,
       layer_inspect:  false,
-      use_ams:        false, // kein AMS am P2S (ams_exist_bits 0) — Filament von der Spule
-      ams_mapping:    "",
+      use_ams:        false, // kein AMS am P2S (ams_exist_bits 0) — Filament von der externen Spule
+      ams_mapping:    zuordnung.ams_mapping,
+      ams_mapping2:   zuordnung.ams_mapping2,
     },
   };
 }
@@ -475,7 +550,7 @@ class DruckerVerbindung {
    * print.command = "project_file" (result/reason) und wechselt dann auf
    * PREPARE/RUNNING — beides gilt als angenommen.
    */
-  starteDruck({ datei, platte, titel }) {
+  starteDruck({ datei, platte, titel, filamente }) {
     const sequenz = Date.now() % 1_000_000;
     return new Promise((ok) => {
       const fertig = (erg) => { clearTimeout(t); this.lauscher.delete(l); ok(erg); };
@@ -492,7 +567,7 @@ class DruckerVerbindung {
       };
       const t = setTimeout(() => fertig({ angenommen: null }), 20_000);
       this.lauscher.add(l);
-      try { this.sende(druckBefehl({ datei, platte, titel, sequenz })); }
+      try { this.sende(druckBefehl({ datei, platte, titel, sequenz, filamente })); }
       catch (err) { fertig({ angenommen: false, grund: err.message }); }
     });
   }
@@ -556,14 +631,15 @@ async function drucke(req, res, url, e, verbindung) {
     const titel = String(url.searchParams.get("titel") ?? "Lagernaut").slice(0, 100);
     const datei = druckerDateiname(titel, vorlageId);
     const platte = platten[0].eintrag;
-    log(`Übertrage „${datei}" (${Math.round(inhalt.length / 1024)} KB, ${platte}) …`);
+    const filamente = filamenteDerPlatte(inhalt, platten[0].nummer);
+    log(`Übertrage „${datei}" (${Math.round(inhalt.length / 1024)} KB, ${platte}, Filament ${filamente ? filamente.join("+") : "? → 1"}) …`);
     ftp = new FtpsSitzung(e);
     await ftp.oeffnen();
     await ftp.hochladen(`/cache/${datei}`, inhalt);
     ftp.schliessen();
     ftp = null;
     log("Übertragen, starte Druck …");
-    const erg = await verbindung.starteDruck({ datei, platte, titel });
+    const erg = await verbindung.starteDruck({ datei, platte, titel, filamente });
     if (erg.angenommen === false) {
       log("⚠ Drucker hat abgelehnt:", erg.grund);
       return antworteJson(res, 502, { fehler: `Drucker hat abgelehnt: ${erg.grund}`, datei });

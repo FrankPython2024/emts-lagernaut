@@ -9,7 +9,9 @@
 import {
   kodiereLaenge, baueConnect, baueSubscribe, bauePublish, zerlegePakete, lesePublish,
   fuehreZusammen, fasseStatus, herkunftErlaubt, findePlatten, druckerDateiname, druckBefehl,
+  leseZipEintrag, filamenteDerPlatte, spulenZuordnung,
 } from "../tools/druckbruecke/druckbruecke.mjs";
+import zlib from "node:zlib";
 
 let passed = 0;
 let failed = 0;
@@ -115,6 +117,50 @@ console.log("\n── Druckbefehl ──");
 const bef = druckBefehl({ datei: "A_L1.gcode.3mf", platte: "Metadata/plate_2.gcode", titel: "A", sequenz: 7 }).print;
 check("project_file aus /cache", [bef.command, bef.url, bef.file, bef.param], ["project_file", "ftp:///cache/A_L1.gcode.3mf", "A_L1.gcode.3mf", "Metadata/plate_2.gcode"]);
 check("lokaler Druck: Ids 0, ohne AMS, Sequenz als Text", [bef.project_id, bef.task_id, bef.use_ams, bef.sequence_id], ["0", "0", false, "7"]);
+
+console.log("\n── Spulen-Zuordnung (P2S ohne AMS, 07FF-8012) ──");
+check("Filament 1 → externe Spule", spulenZuordnung([1]), { ams_mapping: [-1], ams_mapping2: [{ ams_id: 255, slot_id: 0 }] });
+check("nur Filament 4 (wie „P2S Full Set“) → Spule an Stelle 4, Rest ungültig", spulenZuordnung([4]).ams_mapping2,
+  [{ ams_id: 255, slot_id: 255 }, { ams_id: 255, slot_id: 255 }, { ams_id: 255, slot_id: 255 }, { ams_id: 255, slot_id: 0 }]);
+check("flaches ams_mapping immer -1 (rohe Platznummern lehnt die Firmware ab)", spulenZuordnung([2, 3]).ams_mapping, [-1, -1, -1]);
+check("unbekannt → wie Filament 1", spulenZuordnung(null), spulenZuordnung([1]));
+check("Befehl trägt die Zuordnung (nie mehr leer)", druckBefehl({ datei: "a", platte: "p", titel: "t", sequenz: 1, filamente: [1] }).print.ams_mapping2, [{ ams_id: 255, slot_id: 0 }]);
+
+console.log("\n── Filamente aus slice_info.config (echtes ZIP mit deflate) ──");
+function echtesZip(eintraege) {
+  const lokal = [], zentral = [];
+  let versatz = 0;
+  for (const [name, text] of eintraege) {
+    const n = Buffer.from(name, "utf8");
+    const roh = Buffer.from(text, "utf8");
+    const gepackt = zlib.deflateRawSync(roh);
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(8, 8);
+    lh.writeUInt32LE(gepackt.length, 18); lh.writeUInt32LE(roh.length, 22); lh.writeUInt16LE(n.length, 26);
+    const ch = Buffer.alloc(46);
+    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(8, 10);
+    ch.writeUInt32LE(gepackt.length, 20); ch.writeUInt32LE(roh.length, 24); ch.writeUInt16LE(n.length, 28);
+    ch.writeUInt32LE(versatz, 42);
+    lokal.push(lh, n, gepackt);
+    zentral.push(ch, n);
+    versatz += 30 + n.length + gepackt.length;
+  }
+  const cd = Buffer.concat(zentral);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(eintraege.length, 8); eocd.writeUInt16LE(eintraege.length, 10);
+  eocd.writeUInt32LE(cd.length, 12); eocd.writeUInt32LE(versatz, 16);
+  return Buffer.concat([...lokal, cd, eocd]);
+}
+const slice = `<?xml version="1.0"?><config>
+<plate><metadata key="index" value="1"/><filament id="1" type="PLA" used_g="8.67"/></plate>
+<plate><metadata key="index" value="2"/><filament id="4" type="PETG"/><filament id="2" type="PLA"/></plate>
+</config>`;
+const z = echtesZip([["Metadata/plate_2.gcode", "G28"], ["Metadata/slice_info.config", slice]]);
+check("Eintrag entpacken", leseZipEintrag(z, "Metadata/plate_2.gcode")?.toString(), "G28");
+check("fehlender Eintrag → null", leseZipEintrag(z, "gibt/es/nicht"), null);
+check("Platte 1 → Filament 1", filamenteDerPlatte(z, 1), [1]);
+check("Platte 2 → Filamente 2 und 4, sortiert", filamenteDerPlatte(z, 2), [2, 4]);
+check("ohne slice_info → null", filamenteDerPlatte(echtesZip([["Metadata/plate_1.gcode", "G28"]]), 1), null);
 
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);
 process.exit(failed === 0 ? 0 : 1);
