@@ -1407,8 +1407,8 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   beginnt **erst nach LIST/STOR** — wer vorher auf `secureConnect` wartet, hängt und bekommt ECONNRESET.
   Schreibtest (200 KB hoch, identisch zurück, gelöscht) und alle Abweisungen (ohne Bestätigung, ohne/
   fremde Origin → 403, kein ZIP, nicht geslict) gegen den echten Drucker geprüft — **ohne** Druck.
-  ⚠️ **Der erste echte Druck ist noch nicht gelaufen** (braucht jemanden vor Ort mit leerer Platte).
-  Unbestätigt sind deshalb: `url`-Form `ftp:///cache/…` und die `result`-Antwort des P2S.
+  **Erster echter Druck aus Lagernaut am 24.09.2026 gelaufen** (Frank: „funktioniert") — damit ist
+  auch die `url`-Form `ftp:///cache/…` am P2S bestätigt.
   **Fertig → einbuchen:** Der Browser merkt sich den gestarteten Druck (`localStorage
   druck-letzter-auftrag`, 48 h); meldet der Drucker FINISH mit demselben `subtask_name`, zeigt die
   Druckerkarte „✓ … fertig gedruckt → Jetzt einbuchen" (→ `#fertig`). Einbuchen löscht die Merkung.
