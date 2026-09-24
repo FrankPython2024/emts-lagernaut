@@ -29,8 +29,8 @@ model User {
   colliDruckLogs      ColliDruckLog[]
   pickupAuftraege     PickupAuftrag[]      @relation("PickupErsteller")
   pickupAbgeschlossen PickupAuftrag[]      @relation("PickupAbschliesser")
-  pickupGefunden      PickupPosition[] @relation("PickupFinder")
-  pickupVermisst      PickupPosition[] @relation("PickupVermisser")
+  pickupGefunden      PickupPosition[]     @relation("PickupFinder")
+  pickupVermisst      PickupPosition[]     @relation("PickupVermisser")
   extraPermissions    UserPermission[]
   permissionDenies    UserPermissionDeny[]
   createdAt           DateTime             @default(now())
@@ -1754,4 +1754,61 @@ model NotizEintrag {
   updatedAt  DateTime @updatedAt
 
   @@index([notizId])
+}
+
+// ── 3D-Druck: Druckvorlagen (Sep 2026) ──────────────────────────────────────
+// Selbst konstruierte Druckteile (vor allem Füße) mit Druckdatei, Foto und den
+// Gerätemodellen, für die sie passen. Die Druckliste stellt sie gegen die
+// Nachfrage aus den Anfragen (src/lib/druck/druckliste.ts).
+// Dateien liegen in der DB — damit sind sie bei jeder Sicherung dabei und
+// verschwinden nicht mit einem Arbeits-PC.
+model Druckvorlage {
+  id              Int                  @id @default(autoincrement())
+  name            String               @db.VarChar(191)
+  // Mehrere Teiltypen möglich („Füße vorne|Füße hinten"), wenn vorne und hinten
+  // baugleich sind. Text statt Tabelle: Es sind nie mehr als zwei, drei.
+  teiltypen       String               @db.VarChar(500)
+  stueckProPlatte Int?
+  druckzeitMin    Int?
+  material        String?              @db.VarChar(100)
+  notiz           String?              @db.Text
+  aktiv           Boolean              @default(true)
+  fotoMime        String?              @db.VarChar(100)
+  fotoDaten       Bytes?               @db.MediumBlob
+  fotoAm          DateTime?
+  erstelltVon     String               @db.VarChar(50)
+  modelle         DruckvorlageModell[]
+  dateien         DruckvorlageDatei[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([aktiv])
+}
+
+model DruckvorlageModell {
+  id        Int          @id @default(autoincrement())
+  vorlageId Int
+  vorlage   Druckvorlage @relation(fields: [vorlageId], references: [id], onDelete: Cascade)
+  // Modellschlüssel wie in der Teilespender-Suche (`modellSchluessel`): „ThinkPad
+  // L13 Gen 1 20R4-S37W0N" und „Lenovo ThinkPad L13 Gen 1" sind derselbe.
+  modellKey String       @db.VarChar(191)
+  anzeige   String       @db.VarChar(255)
+
+  @@unique([vorlageId, modellKey])
+  @@index([modellKey])
+}
+
+model DruckvorlageDatei {
+  id             Int          @id @default(autoincrement())
+  vorlageId      Int
+  vorlage        Druckvorlage @relation(fields: [vorlageId], references: [id], onDelete: Cascade)
+  // DRUCK (geslict, .gcode.3mf) | PROJEKT (.3mf) | QUELLE (STEP/STL …) — dateiArt()
+  art            String       @db.VarChar(20)
+  dateiname      String       @db.VarChar(255)
+  groesse        Int
+  daten          Bytes        @db.LongBlob
+  hochgeladenVon String       @db.VarChar(50)
+  createdAt      DateTime     @default(now())
+
+  @@index([vorlageId])
 }

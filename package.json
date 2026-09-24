@@ -44,6 +44,7 @@
     "test:route": "tsx tests/pickupRoute.test.ts",
     "test:scan": "tsx tests/pickupScan.test.ts",
     "test:rest": "tsx tests/pickupRest.test.ts",
+    "test:druck": "tsx tests/druck.test.ts",
     "seed:entsorgung": "tsx prisma/scripts/seed-entsorgung-abfallarten.ts"
   },
   "dependencies": {

@@ -40,6 +40,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/admin/colli-etiketten", label: "Label Tool", icon: "🏷️", permission: "COLLI_ETIKETTEN_VIEW" },
       { href: "/admin/karton-schilder", label: "Karton-Beschriftungen", icon: "🗃️", permission: "ARTIKEL_VIEW" },
       { href: "/admin/notizbuch",       label: "Notizbuch", icon: "📓", permission: "NOTIZBUCH_VIEW" },
+      { href: "/admin/druck",           label: "3D-Druck",  icon: "🖨️", permission: "ARTIKEL_VIEW" },
       { href: "/admin/pickup",          label: "Pickup",     icon: "🛻", permission: "PICKUP_MANAGE" },
       { href: "/admin/schrott",         label: "Schrottabholung", icon: "♻️", permission: "ENTSORGUNG_VIEW" },
       { href: "/admin/batterien",       label: "Batterietransport", icon: "🔋", permission: "ENTSORGUNG_VIEW" },

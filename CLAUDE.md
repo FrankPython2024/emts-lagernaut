@@ -243,9 +243,9 @@ EOF
   bei nicht gefundener Überschrift `0`/`null` und schrieb das durch — eine umbenannte Spalte hätte
   **alle Bestände auf null** gesetzt. Regel: `undefined` = „stand nicht in der Datei" = nicht
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
-- **Verify-Gate sind SECHZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
+- **Verify-Gate sind SIEBZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest` (zusammen 630) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck` (zusammen 654) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1328,6 +1328,39 @@ Frühere Liste der Auftrags-Hygiene
 = Inventur mit 4.916 Geräten, doppelte Namen). Gemessen: 75 % der Pick-Zeit steckt in Pausen > 60 s,
 Colli-Wechsel am selben Platz 35 s, anderer Platz 66 s, gleiche Colli 4 s; von 2.518 Collis wurden
 1.364 ganz, 1.152 gar nicht und nur 2 teilweise gefunden.
+
+### 3D-Druck: Druckbibliothek + Druckliste (Paket 1, 24.09.2026)
+
+Seite `/admin/druck` (Nav „🖨️ 3D-Druck", Betrieb), Vorlage `/admin/druck/[id]` bzw. `/admin/druck/neu`.
+Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
+- **Schema:** `Druckvorlage` (name, `teiltypen` als Text „Füße vorne|Füße hinten", stueckProPlatte,
+  druckzeitMin, material, notiz, aktiv, Foto als Bytes), `DruckvorlageModell` (modellKey + anzeige),
+  `DruckvorlageDatei` (art, dateiname, groesse, **daten LONGBLOB**). **Braucht `db push`**, kein seed-rbac
+  (ARTIKEL_VIEW lesen, ARTIKEL_EDIT pflegen).
+- **Dateien in der DB**, damit sie bei jeder Sicherung dabei sind und nicht mit einem PC verschwinden.
+  Upload `POST /api/druck/datei?vorlageId=&name=` (roher Body, max 40 MB — MySQL `max_allowed_packet`
+  ist 64 MB, Nginx 200 MB), Download `/api/druck/datei/[id]` als echter Link, Foto `/api/druck/foto/[id]`.
+  Die Art entscheidet die Endung (`dateiArt`): **`.gcode.3mf` = Druckdatei (geslict)**, `.3mf` =
+  Bambu-Studio-Projekt, STEP/STL/… = Konstruktion, alles andere wird abgelehnt. ⚠️ Listen-Abfragen
+  holen NIE `daten`/`fotoDaten`.
+- ⚠️ **Modelle über den Modellschlüssel** (`modellSchluessel` aus dem Teilespender) — sonst wären
+  „ThinkPad L13 Gen 1 20R4-S37W0N" und „Lenovo ThinkPad L13 Gen 1" zwei Geräte. Die Modellsuche
+  gruppiert `GeraeteModell` danach („E14 Gen": 16 Einträge → 5 Modelle).
+- **Druckliste** (`src/lib/druck/druckliste.ts`, Test `npm run test:druck`): Anfragen der letzten
+  90 Tage (ohne Storno/Test, **mit** „nicht verfügbar" — das ist ungedeckte Nachfrage) + offene
+  Anfragen gegen Bestand (über `Kompatibilitaet`, Artikel je Modell nur einmal gezählt). Ziel:
+  30 Tage Vorrat. „Jetzt drucken" = Vorlage da, Bestand reicht nicht (mit Plattenzahl);
+  „Konstruieren lohnt sich" = ab 2 Anfragen ohne Vorlage.
+  ⚠️ **Nach UNGEDECKTER Nachfrage sortieren**, nicht nach Anfragen: U7411 Fuß hinten hatte 7 Anfragen
+  und 230 Stück Bestand und stand sonst ganz oben. E14 Gen 4 (49 Anfragen) ist durch den Artikel
+  „ThinkPad E14 Füße vorne" (79 Stück, 370 Eingang ohne 3D-Druck-Kennzeichen) gedeckt.
+  Stand 24.09.2026: 31 Modell/Teiltyp-Paare ohne Vorlage, die größte Lücke 4 Stück (T14s Gen 3
+  hinten, Latitude 7410) — der Füße-Bedarf ist breit, aber je Modell klein.
+- **Geplant:** Paket 2 „Druck fertig → einbuchen" (EINGANG mit `herkunftArt = DRUCK`) + Druckprotokoll.
+  Paket 3 **Druckbrücke**: kleines Programm auf dem PC am Drucker, nimmt nur Anfragen vom eigenen PC
+  an (Browser → localhost → P2S per FTPS 990 + MQTT 8883), spricht selbst nie mit dem Server.
+  Voraussetzung am Drucker: „Nur LAN" + Entwicklermodus (Handy-App fällt weg — laut Frank egal),
+  USB-Stick/SD-Karte im Drucker.
 
 ### Notizbuch (Sep 2026)
 
