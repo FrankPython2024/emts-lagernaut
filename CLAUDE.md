@@ -1333,7 +1333,7 @@ Colli-Wechsel am selben Platz 35 s, anderer Platz 66 s, gleiche Colli 4 s; von 2
 
 Seite `/admin/druck` (Nav „🖨️ 3D-Druck", Betrieb), Vorlage `/admin/druck/[id]` bzw. `/admin/druck/neu`.
 Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
-- **Schema:** `Druckvorlage` (name, `teiltypen` als Text „Füße vorne|Füße hinten", stueckProPlatte,
+- **Schema:** `DruckProtokoll` (Paket 2, **`db push`**), `Druckvorlage` (name, `teiltypen` als Text „Füße vorne|Füße hinten", stueckProPlatte,
   druckzeitMin, material, notiz, aktiv, Foto als Bytes), `DruckvorlageModell` (modellKey + anzeige),
   `DruckvorlageDatei` (art, dateiname, groesse, **daten LONGBLOB**). **Braucht `db push`**, kein seed-rbac
   (ARTIKEL_VIEW lesen, ARTIKEL_EDIT pflegen).
@@ -1356,8 +1356,20 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   „ThinkPad E14 Füße vorne" (79 Stück, 370 Eingang ohne 3D-Druck-Kennzeichen) gedeckt.
   Stand 24.09.2026: 31 Modell/Teiltyp-Paare ohne Vorlage, die größte Lücke 4 Stück (T14s Gen 3
   hinten, Latitude 7410) — der Füße-Bedarf ist breit, aber je Modell klein.
-- **Geplant:** Paket 2 „Druck fertig → einbuchen" (EINGANG mit `herkunftArt = DRUCK`) + Druckprotokoll.
-  Paket 3 **Druckbrücke**: kleines Programm auf dem PC am Drucker, nimmt nur Anfragen vom eigenen PC
+- **Paket 2 „Druck fertig → einbuchen" (24.09.2026):** Karte auf der Vorlagenseite (`#fertig`, Knopf
+  „✓ Druck fertig" in Übersicht und Druckliste). Bucht über **`bucheLager`** EINGANG mit
+  `herkunftArt = "DRUCK"`, ohne LogID — derselbe Weg wie der Einlager-Assistent (Bestand, Suchindex,
+  Live-Update, Statistik). Recht **ARTIKEL_EINLAGERN**. Stück = Platten × Stück je Platte, überschreibbar.
+  **Zielartikel** (`zielArtikelFuer`): Artikel des Teiltyps, die per `Kompatibilitaet` an einem der
+  zugeordneten Modelle hängen (Varianten eingeschlossen), meiste Stück zuerst — L13 vorne: 209 vor
+  zwei leeren Varianten. Der Server prüft die Artikel-Id gegen diese Liste.
+  ⚠️ **Die Kompatibilität wird NICHT automatisch gepflegt** (Entscheidung Frank 24.09.2026, macht er
+  selbst). Bekannte Lücke: Das Techniker-Portal findet Bestand nur über die exakte Kompatibilität —
+  eine Variante wie „Thinkpad L13 20R3-0004MH" sieht die 209 Stück des Haupt-Artikels nicht.
+  **`DruckProtokoll`** (vorlageId SetNull + vorlageName-Kopie, buchungId ohne FK): wer, wann, wie viel.
+  **Zurücknehmen** 24 h lang und nur, solange der Bestand die Stück noch hat (sonst wäre er danach
+  negativ) — löscht die Buchung über `loescheBuchung` (Suchindex + Bestand neu).
+- **Geplant:** Paket 3 **Druckbrücke**: kleines Programm auf dem PC am Drucker, nimmt nur Anfragen vom eigenen PC
   an (Browser → localhost → P2S per FTPS 990 + MQTT 8883), spricht selbst nie mit dem Server.
   Voraussetzung am Drucker: „Nur LAN" + Entwicklermodus (Handy-App fällt weg — laut Frank egal),
   USB-Stick/SD-Karte im Drucker.

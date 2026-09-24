@@ -5,6 +5,9 @@
 // ?key=&anzeige=&teiltyp=), /admin/druck/<id> bearbeitet.
 // Foto und Dateien gibt es erst nach dem ersten Speichern — sie hängen an der Id.
 //
+// Paket 2: „Druck fertig" bucht die gedruckten Stück als EINGANG (3D-Druck) auf
+// einen Artikel der zugeordneten Geräte; das Druckprotokoll steht darunter.
+//
 // ⚠️ Formular-Falle 1 (CLAUDE.md): Nachgeladene Daten füllen das Formular nur
 // EINMAL. Danach gehört es dem Menschen — ein Neuladen nach dem Hochladen einer
 // Datei darf keine halb getippte Eingabe überschreiben.
@@ -72,6 +75,7 @@ function DruckVorlageInhalt() {
   const utils = api.useUtils();
   const { has, isLoading: permsLoading } = usePermissions();
   const darfPflegen = has("ARTIKEL_EDIT");
+  const darfEinbuchen = has("ARTIKEL_EINLAGERN");
 
   const details = api.druck.details.useQuery({ id: id ?? 0 }, { enabled: !!id && !permsLoading });
   const teiltypenQ = api.druck.teiltypen.useQuery(undefined, { enabled: !permsLoading, staleTime: 300_000 });
@@ -125,6 +129,7 @@ function DruckVorlageInhalt() {
       setGeaendert(false);
       void utils.druck.liste.invalidate();
       void utils.druck.druckliste.invalidate();
+      void utils.druck.zielArtikel.invalidate();
       if (neu) router.replace(`/admin/druck/${r.id}`);
       else void utils.druck.details.invalidate({ id: r.id });
     },
@@ -265,6 +270,12 @@ function DruckVorlageInhalt() {
 
       {!neu && details.data && (
         <>
+          <DruckFertigKarte
+            id={details.data.id}
+            stueckProPlatte={details.data.stueckProPlatte}
+            protokoll={details.data.protokoll}
+            darfEinbuchen={darfEinbuchen}
+          />
           <FotoKarte id={details.data.id} fotoAm={details.data.fotoAm} darfPflegen={darfPflegen} />
           <DateienKarte id={details.data.id} dateien={details.data.dateien} darfPflegen={darfPflegen} />
           {darfPflegen && <LoeschenKnopf id={details.data.id} name={details.data.name} />}
@@ -492,5 +503,165 @@ function LoeschenKnopf({ id, name }: { id: number; name: string }) {
         </div>
       </Modal>
     </>
+  );
+}
+
+type ProtokollEintrag = {
+  id: number; artikel: string; teiltyp: string; platten: number | null; stueck: number;
+  gedrucktVon: string; createdAt: Date | string; zurueckgenommenAm: Date | string | null;
+  zurueckgenommenVon: string | null; zuruecknehmbar: boolean;
+};
+
+// „Druck fertig" + Druckprotokoll. Stückzahl = Platten × Stück je Platte,
+// überschreibbar (eine Platte kann auch mal nicht voll sein).
+function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
+  id: number; stueckProPlatte: number | null; protokoll: ProtokollEintrag[]; darfEinbuchen: boolean;
+}) {
+  const { show } = useToast();
+  const utils = api.useUtils();
+  const ziel = api.druck.zielArtikel.useQuery({ id }, { enabled: darfEinbuchen });
+  const [artikelId, setArtikelId] = useState<number | null>(null);
+  const [platten, setPlatten] = useState("1");
+  const [stueckEigen, setStueckEigen] = useState<string | null>(null);
+  const [zurueckId, setZurueckId] = useState<number | null>(null);
+  const karteRef = useRef<HTMLDivElement>(null);
+
+  // Aus der Übersicht mit #fertig hierher gesprungen → Karte zeigen, sobald sie steht.
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#fertig") {
+      karteRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [ziel.data]);
+
+  const artikel = ziel.data?.artikel ?? [];
+  const gewaehlt = artikel.find((a) => a.id === artikelId) ?? artikel[0] ?? null;
+  const plattenZahl = zahlOderNull(platten);
+  const stueckVorschlag = plattenZahl && stueckProPlatte ? plattenZahl * stueckProPlatte : null;
+  const stueckText = stueckEigen ?? (stueckVorschlag != null ? String(stueckVorschlag) : "");
+  const stueck = zahlOderNull(stueckText);
+
+  const fertig = () => {
+    void utils.druck.details.invalidate({ id });
+    void utils.druck.zielArtikel.invalidate({ id });
+    void utils.druck.liste.invalidate();
+    void utils.druck.druckliste.invalidate();
+  };
+  const einbuchen = api.druck.einbuchen.useMutation({
+    onSuccess: (r) => {
+      show(`✅ ${r.stueck} Stück auf „${r.artikel}" eingebucht — Bestand jetzt ${r.neuerBestand}`, "success");
+      setPlatten("1");
+      setStueckEigen(null);
+      fertig();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+  const zuruecknehmen = api.druck.zuruecknehmen.useMutation({
+    onSuccess: () => { show("Buchung zurückgenommen", "success"); setZurueckId(null); fertig(); },
+    onError: (e) => { show(e.message, "error"); setZurueckId(null); },
+  });
+
+  return (
+    <div ref={karteRef} id="fertig" className={karte}>
+      <h2 className="font-black text-[#202F61] dark:text-[#e4e6eb]">✓ Druck fertig — einbuchen</h2>
+
+      {!darfEinbuchen ? (
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Einbuchen braucht das Recht zum Einlagern.</p>
+      ) : ziel.isLoading ? (
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Suche passende Artikel…</p>
+      ) : ziel.isError ? (
+        <p className="text-sm text-[#fa3e3e]">Fehler: {ziel.error.message}</p>
+      ) : artikel.length === 0 ? (
+        <div className="rounded-xl bg-[#BA7517]/10 px-4 py-3 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+          <div className="font-bold text-[#8A5A00] dark:text-[#f7b928]">Kein passender Artikel</div>
+          Für die zugeordneten Geräte gibt es noch keinen Artikel dieses Teiltyps. Erst Gerät zuordnen bzw.
+          Kompatibilität pflegen — dann erscheint er hier.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <span className={label}>Auf welchen Artikel?</span>
+            <div className="space-y-2" role="radiogroup">
+              {artikel.slice(0, 8).map((a) => {
+                const an = gewaehlt?.id === a.id;
+                return (
+                  <button key={a.id} type="button" role="radio" aria-checked={an} onClick={() => setArtikelId(a.id)}
+                    className={`w-full text-left px-4 min-h-[56px] rounded-xl border-2 flex items-center justify-between gap-3 ${an ? "border-[#008BD2] bg-[#008BD2]/10" : "border-[#ced4da] dark:border-[#3e4042]"}`}>
+                    <span className="text-sm text-[#202F61] dark:text-[#e4e6eb]">
+                      <strong>{a.bezeichnung}</strong>
+                      <span className="text-[#65676b] dark:text-[#b0b3b8]"> · {a.geraete} {a.geraete === 1 ? "Gerät" : "Geräte"}</span>
+                    </span>
+                    <span className="text-sm font-black text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">Bestand {a.bestand}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {artikel.length > 8 && (
+              <select className={`${feld} mt-2`} value={gewaehlt?.id ?? ""} onChange={(e) => setArtikelId(Number(e.target.value))} aria-label="Weitere Artikel">
+                {artikel.map((a) => <option key={a.id} value={a.id}>{a.bezeichnung} · Bestand {a.bestand}</option>)}
+              </select>
+            )}
+          </div>
+
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+            <div>
+              <label htmlFor="df-platten" className={label}>Platten</label>
+              <input id="df-platten" inputMode="numeric" className={feld} value={platten}
+                onChange={(e) => { setPlatten(e.target.value); setStueckEigen(null); }} />
+            </div>
+            <div>
+              <label htmlFor="df-stueck" className={label}>Stück gesamt</label>
+              <input id="df-stueck" inputMode="numeric" className={feld} value={stueckText}
+                onChange={(e) => setStueckEigen(e.target.value)} placeholder={stueckProPlatte ? "" : "Stück eintragen"} />
+            </div>
+          </div>
+          {!stueckProPlatte && (
+            <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Tipp: Mit „Stück je Platte“ oben rechnet Lagernaut die Stückzahl selbst aus.</p>
+          )}
+
+          <button type="button" className={`${knopfBlau} w-full`}
+            disabled={!gewaehlt || !stueck || einbuchen.isPending}
+            onClick={() => gewaehlt && stueck && einbuchen.mutate({ vorlageId: id, artikelId: gewaehlt.id, platten: plattenZahl, stueck })}>
+            {einbuchen.isPending ? "Buche ein…" : stueck ? `${stueck} Stück einbuchen` : "Stückzahl eintragen"}
+          </button>
+        </div>
+      )}
+
+      <div>
+        <h3 className="text-sm font-black uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8] mb-2">Druckprotokoll</h3>
+        {protokoll.length === 0 ? (
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Noch nichts über diese Vorlage eingebucht.</p>
+        ) : (
+          <ul className="divide-y divide-[#ced4da] dark:divide-[#3e4042]">
+            {protokoll.map((p) => (
+              <li key={p.id} className={`py-2 flex items-center gap-3 flex-wrap ${p.zurueckgenommenAm ? "opacity-60" : ""}`}>
+                <div className="min-w-0 flex-1 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                  <strong className={p.zurueckgenommenAm ? "line-through" : ""}>{p.stueck} Stück</strong>
+                  {p.platten ? ` · ${p.platten} ${p.platten === 1 ? "Platte" : "Platten"}` : ""} · {p.artikel}
+                  <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                    {fmtDatum(p.createdAt)} · {p.gedrucktVon}
+                    {p.zurueckgenommenAm && <> · zurückgenommen {fmtDatum(p.zurueckgenommenAm)} · {p.zurueckgenommenVon}</>}
+                  </div>
+                </div>
+                {darfEinbuchen && p.zuruecknehmbar && (
+                  <button type="button" className={knopfRand} onClick={() => setZurueckId(p.id)}>↩ Zurücknehmen</button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <Modal open={zurueckId != null} onClose={() => setZurueckId(null)} title="Einbuchung zurücknehmen?">
+        <p className="text-base text-[#1a1a1a] dark:text-[#e4e6eb] mb-4">
+          Die Buchung über {protokoll.find((p) => p.id === zurueckId)?.stueck} Stück wird gelöscht und der Bestand neu berechnet.
+          Für Tippfehler gedacht — geht nur in den ersten 24 Stunden.
+        </p>
+        <div className="flex gap-3">
+          <button type="button" className={`${knopfRand} flex-1`} onClick={() => setZurueckId(null)}>Abbrechen</button>
+          <button type="button" disabled={zuruecknehmen.isPending} onClick={() => zurueckId && zuruecknehmen.mutate({ protokollId: zurueckId })}
+            className="flex-1 rounded-xl bg-[#fa3e3e] text-white text-sm font-bold min-h-[48px] disabled:opacity-50">Zurücknehmen</button>
+        </div>
+      </Modal>
+    </div>
   );
 }

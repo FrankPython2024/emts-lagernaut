@@ -29,6 +29,7 @@ export default function DruckPage() {
   const { has, isLoading: permsLoading } = usePermissions();
   const darfLesen = has("ARTIKEL_VIEW");
   const darfPflegen = has("ARTIKEL_EDIT");
+  const darfEinbuchen = has("ARTIKEL_EINLAGERN");
   const [reiter, setReiter] = useState<Reiter>("liste");
   useEffect(() => {
     try { const r = localStorage.getItem(REITER_KEY); if (r === "liste" || r === "vorlagen") setReiter(r); } catch { /* egal */ }
@@ -122,11 +123,14 @@ export default function DruckPage() {
                           <div className="text-2xl font-black text-[#BA7517]">{z.fehlt} Stück</div>
                           {z.platten != null && <div className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8]">≈ {z.platten} {z.platten === 1 ? "Platte" : "Platten"}</div>}
                         </div>
-                        {d ? (
-                          <a href={`/api/druck/datei/${d.id}`} className={knopfBlau} title={d.dateiname}>⬇ Druckdatei</a>
-                        ) : (
-                          <Link href={`/admin/druck/${z.vorlageId}`} className={knopfRand}>Datei fehlt</Link>
-                        )}
+                        <div className="flex gap-2 flex-wrap">
+                          {d ? (
+                            <a href={`/api/druck/datei/${d.id}`} className={knopfBlau} title={d.dateiname}>⬇ Druckdatei</a>
+                          ) : (
+                            <Link href={`/admin/druck/${z.vorlageId}`} className={knopfRand}>Datei fehlt</Link>
+                          )}
+                          {darfEinbuchen && <Link href={`/admin/druck/${z.vorlageId}#fertig`} className={knopfRand}>✓ Druck fertig</Link>}
+                        </div>
                       </div>
                     );
                   })}
@@ -219,12 +223,18 @@ export default function DruckPage() {
                     <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
                       Bestand <strong>{v.bestand}</strong> · {v.stueck90} Stück in 90 Tagen{v.offenStueck > 0 && <> · <strong className="text-[#BA7517]">{v.offenStueck} offen</strong></>}
                     </div>
+                    {v.letzterDruck && (
+                      <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                        Zuletzt gedruckt: {new Date(v.letzterDruck.createdAt).toLocaleDateString("de-DE")} · {v.letzterDruck.stueck} Stück
+                      </div>
+                    )}
                   </div>
                 </Link>
                 <div className="px-4 pb-4 mt-auto flex gap-2">
                   {d ? <a href={`/api/druck/datei/${d.id}`} className={`${knopfBlau} flex-1`} title={d.dateiname}>⬇ Druckdatei</a>
                     : p ? <a href={`/api/druck/datei/${p.id}`} className={`${knopfRand} flex-1`} title={p.dateiname}>⬇ Projekt</a>
                     : <span className="flex-1 text-xs text-[#BA7517] font-bold self-center">⚠ keine Druckdatei</span>}
+                  {darfEinbuchen && <Link href={`/admin/druck/${v.id}#fertig`} className={knopfRand} title="Druck fertig — einbuchen">✓</Link>}
                   <Link href={`/admin/druck/${v.id}`} className={knopfRand}>{darfPflegen ? "Bearbeiten" : "Details"}</Link>
                 </div>
               </div>

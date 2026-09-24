@@ -7,6 +7,9 @@ import { zeitraum } from "@/lib/zeit/berlin";
 import { fuersArchiv } from "@/lib/bilder/groesse";
 import { zerlegeGeraetename } from "@/lib/geraete/schildName";
 import { modellSchluessel } from "@/modules/teilespender/service";
+import { bucheLager, loescheBuchung } from "@/modules/buchungen/service";
+import { standortWhere } from "@/lib/auth/standortFilter";
+import { BuchungsTyp } from "@prisma/client";
 import {
   DRUCK_TEILTYPEN_STANDARD, planeDruckliste, teiltypenAus, teiltypenText,
   type BedarfZeile, type VorlageKurz,
@@ -17,6 +20,10 @@ import {
 // Dateien laden hoch/runter über /api/druck/datei (Pages-API, rohe Bytes).
 const lesen   = permissionProcedure("ARTIKEL_VIEW");
 const pflegen = permissionProcedure("ARTIKEL_EDIT");
+// Einbuchen wie im Einlager-Assistenten — wer einlagern darf, darf Gedrucktes einbuchen.
+const einbuchenRecht = permissionProcedure("ARTIKEL_EINLAGERN");
+/** So lange lässt sich ein „Druck fertig" zurücknehmen (Tippfehler: 400 statt 40). */
+const ZURUECK_STUNDEN = 24;
 
 const TAGE = 90;
 const VORRAT_TAGE = 30;
@@ -109,6 +116,36 @@ async function ladeBedarf(teiltypen: string[], tage: number): Promise<BedarfZeil
   }));
 }
 
+/**
+ * Artikel, auf die ein Druck dieser Vorlage gebucht werden kann: Artikel des
+ * Teiltyps, die über die Kompatibilität an einem der zugeordneten Modelle hängen
+ * (Varianten mit Maschinennummer eingeschlossen). Meiste Stück zuerst — das ist
+ * in aller Regel der „Haupt-Artikel" (L13: 209 Stück, die Varianten 0).
+ */
+async function zielArtikelFuer(vorlageId: number, standortFilter: Record<string, unknown>) {
+  const v = await prisma.druckvorlage.findUnique({
+    where:  { id: vorlageId },
+    select: { id: true, name: true, teiltypen: true, stueckProPlatte: true, modelle: { select: { modellKey: true } } },
+  });
+  if (!v) throw new TRPCError({ code: "NOT_FOUND", message: "Vorlage nicht gefunden" });
+  const teiltypen = teiltypenAus(v.teiltypen);
+  const keys = new Set(v.modelle.map((m) => m.modellKey));
+  const rows = keys.size === 0 ? [] : await prisma.kompatibilitaet.findMany({
+    where:  { teiltyp: { in: teiltypen }, artikel: { ...standortFilter, kategorie: { in: teiltypen } } },
+    select: { geraet: true, artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true } } },
+  });
+  const je = new Map<number, { id: number; bezeichnung: string; teiltyp: string; bestand: number; geraete: number }>();
+  for (const k of rows) {
+    if (!keys.has(modellSchluessel(k.geraet))) continue;
+    const e = je.get(k.artikel.id);
+    if (e) e.geraete++;
+    else je.set(k.artikel.id, { id: k.artikel.id, bezeichnung: k.artikel.bezeichnung, teiltyp: k.artikel.kategorie, bestand: k.artikel.bestand, geraete: 1 });
+  }
+  const artikel = [...je.values()].sort((a, b) =>
+    b.bestand - a.bestand || a.bezeichnung.length - b.bezeichnung.length || a.bezeichnung.localeCompare(b.bezeichnung));
+  return { vorlage: { ...v, teiltypen }, artikel };
+}
+
 async function ladeVorlagenKurz(): Promise<VorlageKurz[]> {
   const v = await prisma.druckvorlage.findMany({
     where:  { aktiv: true },
@@ -143,6 +180,7 @@ export const druckRouter = createTRPCRouter({
         aktiv: true, fotoAm: true, updatedAt: true,
         modelle: { select: { modellKey: true, anzeige: true }, orderBy: { anzeige: "asc" } },
         dateien: { select: { id: true, art: true, dateiname: true, groesse: true, createdAt: true }, orderBy: { createdAt: "desc" } },
+        protokoll: { where: { zurueckgenommenAm: null }, select: { createdAt: true, stueck: true }, orderBy: { createdAt: "desc" }, take: 1 },
       },
     });
     const alleTeiltypen = [...new Set(vorlagen.flatMap((v) => teiltypenAus(v.teiltypen)))];
@@ -155,7 +193,8 @@ export const druckRouter = createTRPCRouter({
         const b = je.get(`${m.modellKey}\u0000${t}`);
         if (b) { bestand += b.bestand; stueck += b.stueck; offenStueck += b.offenStueck; }
       }
-      return { ...v, teiltypen: tt, bestand, stueck90: stueck, offenStueck };
+      const { protokoll, ...rest } = v;
+      return { ...rest, teiltypen: tt, bestand, stueck90: stueck, offenStueck, letzterDruck: protokoll[0] ?? null };
     });
   }),
 
@@ -181,7 +220,22 @@ export const druckRouter = createTRPCRouter({
         },
       });
       if (!v) throw new TRPCError({ code: "NOT_FOUND", message: "Vorlage nicht gefunden" });
-      return { ...v, teiltypen: teiltypenAus(v.teiltypen) };
+      const protokoll = await prisma.druckProtokoll.findMany({
+        where: { vorlageId: v.id }, orderBy: { createdAt: "desc" }, take: 30,
+      });
+      const artikelNamen = new Map((await prisma.artikel.findMany({
+        where: { id: { in: [...new Set(protokoll.map((p) => p.artikelId))] } }, select: { id: true, bezeichnung: true },
+      })).map((a) => [a.id, a.bezeichnung]));
+      const grenze = Date.now() - ZURUECK_STUNDEN * 3600_000;
+      return {
+        ...v,
+        teiltypen: teiltypenAus(v.teiltypen),
+        protokoll: protokoll.map((p) => ({
+          ...p,
+          artikel: artikelNamen.get(p.artikelId) ?? `Artikel #${p.artikelId} (gelöscht)`,
+          zuruecknehmbar: !p.zurueckgenommenAm && p.buchungId != null && p.createdAt.getTime() > grenze,
+        })),
+      };
     }),
 
   // Teiltypen zur Auswahl: Füße zuerst, dann die übrigen aktiven.
@@ -273,6 +327,80 @@ export const druckRouter = createTRPCRouter({
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       await prisma.druckvorlage.update({ where: { id: input.id }, data: { fotoDaten: null, fotoMime: null, fotoAm: null } });
+      return { ok: true };
+    }),
+
+  // Worauf kann gebucht werden? (Dialog „Druck fertig")
+  zielArtikel: einbuchenRecht
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const { vorlage, artikel } = await zielArtikelFuer(input.id, standortWhere(ctx));
+      return { teiltypen: vorlage.teiltypen, stueckProPlatte: vorlage.stueckProPlatte, artikel };
+    }),
+
+  // „Druck fertig": EINGANG mit herkunftArt DRUCK über bucheLager — derselbe Weg
+  // wie der Einlager-Assistent (Bestand, Suchindex, Live-Update, Statistik).
+  einbuchen: einbuchenRecht
+    .input(z.object({
+      vorlageId: z.number().int().positive(),
+      artikelId: z.number().int().positive(),
+      platten:   z.number().int().positive().max(1000).nullable(),
+      stueck:    z.number().int().positive().max(5000),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const user = ctx.session.user as SessionUser;
+      // Serverseitig prüfen, dass der Artikel wirklich zur Vorlage passt — der
+      // Client könnte sonst jede Artikel-Id schicken.
+      const { vorlage, artikel } = await zielArtikelFuer(input.vorlageId, standortWhere(ctx));
+      const ziel = artikel.find((a) => a.id === input.artikelId);
+      if (!ziel) throw new TRPCError({ code: "BAD_REQUEST", message: "Dieser Artikel passt nicht zur Vorlage." });
+      const kuerzel = (user.kuerzel || user.name || "?").slice(0, 50);
+      const notiz = [
+        "3D-gedruckt",
+        `Vorlage: ${vorlage.name} (#${vorlage.id})`,
+        input.platten ? `${input.platten} ${input.platten === 1 ? "Platte" : "Platten"}` : null,
+      ].filter(Boolean).join(" | ");
+      const buchung = await bucheLager({
+        artikelId:     ziel.id,
+        menge:         input.stueck,
+        typ:           BuchungsTyp.EINGANG,
+        mitarbeiter:   kuerzel,
+        notiz,
+        herkunftLogId: null,
+        herkunftArt:   "DRUCK",
+      });
+      await prisma.druckProtokoll.create({
+        data: {
+          vorlageId: vorlage.id, vorlageName: vorlage.name, artikelId: ziel.id, teiltyp: ziel.teiltyp,
+          platten: input.platten, stueck: input.stueck, buchungId: buchung.id, gedrucktVon: kuerzel,
+        },
+      });
+      return { artikel: ziel.bezeichnung, stueck: input.stueck, neuerBestand: ziel.bestand + input.stueck };
+    }),
+
+  // Tippfehler korrigieren: Buchung löschen, Bestand neu rechnen. Nur kurz nach
+  // dem Einbuchen und nur, solange die Stücke noch da sind — sonst wäre der
+  // Bestand danach negativ, weil schon ausgegeben wurde.
+  zuruecknehmen: einbuchenRecht
+    .input(z.object({ protokollId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const p = await prisma.druckProtokoll.findUnique({ where: { id: input.protokollId } });
+      if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Eintrag nicht gefunden" });
+      if (p.zurueckgenommenAm) throw new TRPCError({ code: "BAD_REQUEST", message: "Schon zurückgenommen." });
+      if (p.buchungId == null || p.createdAt.getTime() < Date.now() - ZURUECK_STUNDEN * 3600_000) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Nur in den ersten ${ZURUECK_STUNDEN} Stunden möglich — danach über die Buchungen korrigieren.` });
+      }
+      const a = await prisma.artikel.findUnique({ where: { id: p.artikelId }, select: { bestand: true } });
+      if (!a || a.bestand < p.stueck) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Es sind nur noch ${a?.bestand ?? 0} Stück da — ein Teil wurde schon ausgegeben.` });
+      }
+      const buchung = await prisma.buchung.findUnique({ where: { id: p.buchungId }, select: { id: true } });
+      if (buchung) await loescheBuchung(buchung.id);
+      const user = ctx.session.user as SessionUser;
+      await prisma.druckProtokoll.update({
+        where: { id: p.id },
+        data:  { zurueckgenommenAm: new Date(), zurueckgenommenVon: (user.kuerzel || user.name || "?").slice(0, 50) },
+      });
       return { ok: true };
     }),
 

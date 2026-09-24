@@ -1779,6 +1779,7 @@ model Druckvorlage {
   erstelltVon     String               @db.VarChar(50)
   modelle         DruckvorlageModell[]
   dateien         DruckvorlageDatei[]
+  protokoll       DruckProtokoll[]
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
@@ -1811,4 +1812,29 @@ model DruckvorlageDatei {
   createdAt      DateTime     @default(now())
 
   @@index([vorlageId])
+}
+
+// Druckprotokoll (Paket 2): Jeder „Druck fertig" ist eine EINGANG-Buchung mit
+// herkunftArt DRUCK — dieses Protokoll hält fest, aus welcher Vorlage sie kam.
+// Bleibt stehen, wenn die Vorlage gelöscht wird (Name als Kopie), denn die
+// Buchung bleibt auch.
+model DruckProtokoll {
+  id                 Int           @id @default(autoincrement())
+  vorlageId          Int?
+  vorlage            Druckvorlage? @relation(fields: [vorlageId], references: [id], onDelete: SetNull)
+  vorlageName        String        @db.VarChar(191)
+  artikelId          Int
+  teiltyp            String        @db.VarChar(100)
+  platten            Int?
+  stueck             Int
+  // Ohne Fremdschlüssel: Die Buchung kann über die Buchungsseite gelöscht werden,
+  // das Protokoll soll dann nicht mitverschwinden.
+  buchungId          Int?
+  gedrucktVon        String        @db.VarChar(50)
+  zurueckgenommenAm  DateTime?
+  zurueckgenommenVon String?       @db.VarChar(50)
+  createdAt          DateTime      @default(now())
+
+  @@index([vorlageId])
+  @@index([createdAt])
 }
