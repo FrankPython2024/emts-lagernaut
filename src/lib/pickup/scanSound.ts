@@ -13,6 +13,22 @@
  */
 let audioCtx: AudioContext | null = null;
 
+/**
+ * Vibration zusätzlich zum Ton (Paket 2, 24.09.2026): In der lauten Halle reicht
+ * der Lautsprecher allein nicht, und Hörgeschädigte hören ihn nicht. Jede
+ * Rückmeldung hat ein EIGENES Muster — kurz = gut, mehrfach = Achtung.
+ * ⚠️ Chrome vibriert erst nach einer Nutzerinteraktion auf der Seite; ob ein
+ * Scanner-Tastendruck dazu zählt, ist geräteabhängig. Fehlt die Vibration, bleibt
+ * es beim Ton — deshalb nie werfen.
+ */
+function vib(muster: number | number[]): void {
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") navigator.vibrate(muster);
+  } catch {
+    /* Vibration nicht verfügbar — bewusst ignorieren */
+  }
+}
+
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   const Ctor =
@@ -71,6 +87,7 @@ function tonLaut(
 
 // benötigt / grün: helles, steigendes Doppel-„Ding" (B5 → E6), laut.
 export function playScanErfolg(): void {
+  vib(60);
   try {
     const c = getCtx();
     if (!c) return;
@@ -83,6 +100,7 @@ export function playScanErfolg(): void {
 
 // nicht benötigt / rot: tiefer, harter, fallender Doppel-Buzz (A3 → D3), laut.
 export function playScanNichtBenoetigt(): void {
+  vib([150, 80, 150, 80, 150]);
   try {
     const c = getCtx();
     if (!c) return;
@@ -96,6 +114,7 @@ export function playScanNichtBenoetigt(): void {
 // Abschluss-Fanfare: aufsteigender Dreiklang (C-E-G-C), klar unterscheidbar vom
 // normalen GEFUNDEN-Ping. Wird nur bei der Live-Vervollständigung gespielt.
 export function playComplete(): void {
+  vib([100, 60, 100, 60, 300]);
   try {
     const ctx = getCtx();
     if (!ctx) return;
@@ -112,6 +131,7 @@ export function playComplete(): void {
 // als der GEFUNDEN-Doppelton und die Auftrags-Fanfare (playComplete), damit der
 // Picker den Unterschied "ein Colli fertig" vs. "ganzer Auftrag fertig" hört.
 export function playColliKomplett(): void {
+  vib([50, 60, 50]);
   try {
     const ctx = getCtx();
     if (!ctx) return;
@@ -128,6 +148,7 @@ export function playColliKomplett(): void {
 // Bewusst HÖRBAR ANDERS als die LogID-Scan-Töne: zwei klar absteigende Töne
 // (G4 → C4) statt des tiefen FREMD-Buzz — „kein Treffer hier".
 export function playNegativeSound(): void {
+  vib(250);
   try {
     const ctx = getCtx();
     if (!ctx) return;
@@ -152,6 +173,7 @@ export function playPositiveSound(): void {
 //     (A4-C#5-E5), klar getrennt vom GEFUNDEN-Doppelton.
 //   • Leer (0 gesuchte) → ein einzelner, neutraler Blip (weder auf- noch absteigend).
 export function playWagenTreffer(): void {
+  vib([40, 40, 40]);
   try {
     const ctx = getCtx();
     if (!ctx) return;
@@ -164,6 +186,7 @@ export function playWagenTreffer(): void {
 }
 
 export function playWagenLeer(): void {
+  vib(40);
   try {
     const ctx = getCtx();
     if (!ctx) return;
@@ -181,12 +204,31 @@ export function playScanSound(result: ScanResult): void {
   if (result === "FREMD")    { playScanNichtBenoetigt(); return; } // rot / nicht benötigt
   // SCHON / gelb — mittlerer, kurzer Doppel-Blip (gleiche Tonhöhe → klar als
   // „Warnung" erkennbar, weder auf- noch absteigend). Laut für gute Hörbarkeit.
+  vib([80, 80, 80]);
   try {
     const ctx = getCtx();
     if (!ctx) return;
     const t = ctx.currentTime;
     ton(ctx, 620, t,        0.10, "triangle", 0.85);
     ton(ctx, 620, t + 0.15, 0.10, "triangle", 0.85);
+  } catch {
+    /* Audio nicht verfügbar — bewusst ignorieren */
+  }
+}
+
+// „Nochmal scannen" — der Scan war weder LogID noch Colli (falsche Länge,
+// halb gelesen). Vorher derselbe Ton wie „Colli leer / weitergehen" — dabei ist
+// die Handlung genau entgegengesetzt: hier stehen bleiben und wiederholen.
+// Drei schnelle, gleich hohe Blips = „nochmal, nochmal".
+export function playNochmal(): void {
+  vib([60, 60, 60, 60, 60]);
+  try {
+    const ctx = getCtx();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    ton(ctx, 740, t,        0.07, "square", 0.45);
+    ton(ctx, 740, t + 0.11, 0.07, "square", 0.45);
+    ton(ctx, 740, t + 0.22, 0.07, "square", 0.45);
   } catch {
     /* Audio nicht verfügbar — bewusst ignorieren */
   }

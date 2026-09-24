@@ -1258,8 +1258,35 @@ Jetzt: `src/lib/pickup/scanAuswertung.ts` (Test `npm run test:scan`, 34):
   Nutzer gebucht, kommt `GEFUNDEN` statt `SCHON` — das ist die Wiederholung eines Scans, dessen
   Antwort verloren ging.
 
-Offen aus derselben Prüfung (Pakete 2–4): feste Ergebnisleiste + Vibration + unterscheidbare
-Tonfamilien + Wake Lock; „Colli nicht da"-Knopf, flache Liste, klares Ende; Auftrags-Hygiene
+**Pakete 2+3 (24.09.2026) — Rückmeldung und Führung:**
+- **Feste Ergebnisleiste unten** (`leisteRef`, Seite bekommt unten genau so viel Luft per
+  ResizeObserver): Ergebnis als großes Farbfeld mit Symbol UND Wort („Gefunden", „Schon gefunden",
+  „Nicht mitnehmen", „Nochmal scannen"), dazu Warteschlangen- und Fehlerhinweise. Vorher stand das
+  Ergebnis unter Halt-Karte, Scan-Feld und Hilfe — beim Scrollen blieb nur der Ton.
+- **Vibration** je Rückmeldung mit eigenem Muster (`vib` in `scanSound.ts`; Chrome vibriert erst
+  nach einer Nutzerinteraktion — fehlt sie, bleibt der Ton). „Nicht erkannt" hat einen eigenen Ton
+  (`playNochmal`, drei gleiche Blips) statt desselben wie „Colli leer/weitergehen".
+- **Bildschirm bleibt an** (`navigator.wakeLock`, bei Rückkehr in den Tab neu angefordert).
+- ⚠️ **„Colli nicht da"** — `PickupPosition.vermisstAm/vermisstVon` (**`db push`**), Aktionen
+  `pickup.nichtDa` / `pickup.nichtDaZuruecknehmen`. Status bleibt OFFEN; die Wegführung zählt die
+  Position nicht mehr als offen (`istNochZuSuchen`) und geht weiter; die Admin-Detailseite zeigt
+  „⚠ Nicht da · Kürzel Zeit" und oben „N als nicht da gemeldet — bitte klären". Ein späterer Scan
+  des Geräts hebt die Meldung auf. Ein Colli = ein Tipp, mehrere = Auswahl + „nichts davon da";
+  8 s „Rückgängig". Anlass: Collis werden fast nur ganz oder gar nicht gefunden (1.364 / 1.152 / 2),
+  und „nicht gefunden" war von „nicht gesucht" nicht zu unterscheiden.
+  ⚠️ Die User-Relationen zu PickupPosition heißen jetzt `PickupFinder` / `PickupVermisser` (zwei
+  Relationen zwischen denselben Modellen brauchen Namen — ändert nichts an der Tabelle).
+- ⚠️ **Kein Emoji-Pfeil ➡️ auf der Picker-Seite** — der Zebra zeigt ihn als weißes Kästchen
+  (Foto 24.09.2026). Stattdessen ein fetter Text-Pfeil „→". Wer neue Symbole einbaut: auf dem
+  Gerät ansehen, nicht nur am Schreibtisch.
+- **Flache Liste:** je Platz eine Karte, Colli als Zwischenzeile statt eigener Kasten, Geräte ohne
+  wiederholten Stellplatz und ohne „Offen"-Schild. **Klares Ende:** `FertigKarte` („Alles gefunden
+  → Auftrag abschließen" bzw. „Alle Plätze abgelaufen → als nicht komplett melden").
+- **Wörter:** „noch N Plätze" statt „Hauptrunde/Restrunde" (die Runden rechnet `route.ts` weiter,
+  der Picker braucht das Wort nicht), „Nicht mitnehmen" statt „Gehört nicht dazu", Starthinweis nur
+  vor dem ersten Fund, automatische Technik-Bemerkung beim Picker ausgeblendet, Hilfe unter die Liste.
+
+Offen aus derselben Prüfung (Paket 4): Auftrags-Hygiene
 (114 LogIDs gleichzeitig in #168 und #183, #175 seit Tagen 41/41 offen, #182 „Smartphones prüfen"
 = Inventur mit 4.916 Geräten, doppelte Namen). Gemessen: 75 % der Pick-Zeit steckt in Pausen > 60 s,
 Colli-Wechsel am selben Platz 35 s, anderer Platz 66 s, gleiche Colli 4 s; von 2.518 Collis wurden

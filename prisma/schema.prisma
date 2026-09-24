@@ -29,7 +29,8 @@ model User {
   colliDruckLogs      ColliDruckLog[]
   pickupAuftraege     PickupAuftrag[]      @relation("PickupErsteller")
   pickupAbgeschlossen PickupAuftrag[]      @relation("PickupAbschliesser")
-  pickupGefunden      PickupPosition[]
+  pickupGefunden      PickupPosition[] @relation("PickupFinder")
+  pickupVermisst      PickupPosition[] @relation("PickupVermisser")
   extraPermissions    UserPermission[]
   permissionDenies    UserPermissionDeny[]
   createdAt           DateTime             @default(now())
@@ -764,8 +765,16 @@ model PickupPosition {
   bezeichnung String?       @db.Text // AfB-Bezeichnungen bis 514+ Zeichen — wie GeraeteLookup/LogIdStand
   status      String        @default("OFFEN") // 'OFFEN' | 'GEFUNDEN'
   gefundenVon Int?
-  finder      User?         @relation(fields: [gefundenVon], references: [id])
+  finder      User?         @relation("PickupFinder", fields: [gefundenVon], references: [id])
   gefundenAm  DateTime?
+  // „Colli nicht da" (24.09.2026): Der Picker meldet am Platz, dass der Karton
+  // fehlt. Status bleibt OFFEN (gefunden ist es ja nicht) — die Wegführung
+  // überspringt die Position, das Büro sieht sie in der Klärliste. Ein späterer
+  // Scan des Geräts setzt beides zurück. Vorher war „nicht gefunden" von „noch
+  // nicht gesucht" nicht zu unterscheiden (1.152 von 2.518 Collis nie gefunden).
+  vermisstAm  DateTime?
+  vermisstVon Int?
+  vermisser   User?         @relation("PickupVermisser", fields: [vermisstVon], references: [id])
 
   @@index([auftragId, logId])
   @@index([logId])

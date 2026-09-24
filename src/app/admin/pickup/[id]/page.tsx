@@ -13,8 +13,17 @@ import { exportPickupCsv, printPickupBericht } from "@/lib/pickup/bericht";
 import { parsePickupCsv } from "@/lib/pickup/csvImport";
 import { parseColliPruefungCsv } from "@/lib/pickup/colliPruefung";
 
-function PosStatusBadge({ status }: { status: string }) {
+function PosStatusBadge({ status, vermisstAm, vermisstVon }: { status: string; vermisstAm?: Date | string | null; vermisstVon?: string | null }) {
   const gefunden = status === "GEFUNDEN";
+  // „Colli nicht da" — vom Picker am Platz gemeldet (Klärfall fürs Büro).
+  if (!gefunden && vermisstAm) {
+    const zeit = new Date(vermisstAm).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap bg-[#BA7517]/15 text-[#8A5A00] dark:text-[#f7b928]" title="Vom Picker als „nicht da“ gemeldet">
+        ⚠ Nicht da · {vermisstVon ?? "?"} {zeit}
+      </span>
+    );
+  }
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${gefunden
       ? "bg-[#04B475]/10 text-[#037A4F]"
@@ -224,6 +233,7 @@ export default function PickupDetailPage() {
   const offen         = gesamt - gefunden;
   const abgeschlossen = data.status === "abgeschlossen";
   const nichtGefundene = data.positionen.filter((p) => p.status !== "GEFUNDEN");
+  const vermisste      = nichtGefundene.filter((p) => p.vermisstAm).length;
   const pct           = gesamt > 0 ? Math.round((gefunden / gesamt) * 100) : 0;
 
   return (
@@ -243,6 +253,11 @@ export default function PickupDetailPage() {
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">
             {data.status === "offen" ? "Offen" : "Abgeschlossen"} · {fmtDatum(data.createdAt)} · {data.ersteller?.kuerzel ?? data.ersteller?.name ?? "—"}
           </p>
+          {vermisste > 0 && (
+            <div className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold bg-[#BA7517]/15 text-[#8A5A00] dark:text-[#f7b928]">
+              ⚠ {vermisste} {vermisste === 1 ? "Gerät" : "Geräte"} vom Picker als „nicht da" gemeldet — bitte klären
+            </div>
+          )}
           {data.bemerkung && (
             <div className="mt-2 inline-flex items-start gap-2 px-3 py-2 rounded-xl bg-[#008BD2]/10 text-[#202F61] dark:text-[#e4e6eb] text-sm">
               <span aria-hidden>📝</span>
@@ -387,7 +402,7 @@ export default function PickupDetailPage() {
                   <div className="flex-1 min-w-0 text-sm text-[#1a1a1a] dark:text-[#e4e6eb] truncate" title={p.bezeichnung ?? ""}>
                     {p.bezeichnung ?? "—"}
                   </div>
-                  <PosStatusBadge status={p.status} />
+                  <PosStatusBadge status={p.status} vermisstAm={p.vermisstAm} vermisstVon={p.vermisser?.kuerzel ?? p.vermisser?.name ?? null} />
                 </div>
               ))}
             </div>

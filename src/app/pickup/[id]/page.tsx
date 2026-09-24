@@ -10,7 +10,7 @@ import type { SessionUser } from "@/core/types";
 import { formatLogId } from "@/lib/pickup/logId";
 import { GeraetDetail, type PickupPos } from "../GeraetDetail";
 import { nurZiffern } from "@/lib/format/ziffern";
-import { playScanSound, playComplete, playColliKomplett, playNegativeSound, playWagenTreffer, playWagenLeer, type ScanResult } from "@/lib/pickup/scanSound";
+import { playScanSound, playComplete, playColliKomplett, playNegativeSound, playNochmal, playWagenTreffer, playWagenLeer, type ScanResult } from "@/lib/pickup/scanSound";
 import { ordneWeg, planeRunden, naechsterHalt, richtungVon } from "@/lib/pickup/route";
 import {
   werteScanAus, fehlerArt, wartezeitMs, ladeWarteschlange, speichereWarteschlange,
@@ -33,7 +33,11 @@ const NACH_FUND_MS = 350;
 type ScanPos = {
   id: number; logId: string; colli: string | null; stellplatz: string | null;
   bezeichnung: string | null; status: string; gefundenVonName: string | null; gefundenAm: Date | string | null;
+  /** „Colli nicht da" gemeldet — bleibt OFFEN, die Wegführung überspringt es. */
+  vermisstAm?: Date | string | null; vermisstVonName?: string | null;
 };
+const istVermisst = (p: ScanPos) => p.status !== "GEFUNDEN" && !!p.vermisstAm;
+const istNochZuSuchen = (p: ScanPos) => p.status !== "GEFUNDEN" && !p.vermisstAm;
 
 // Einheitliches Ergebnis des letzten Scans — LogID-Scan ODER Colli-Prüfung.
 type Feedback =
@@ -90,7 +94,8 @@ function ErgebnisBanner({ fb, istColli }: { fb: Feedback | null; istColli: boole
     return (
       <div role="status" aria-live="assertive" className="rounded-2xl border-2 p-5" style={{ borderColor: "#fa3e3e", background: "rgba(250,62,62,0.10)" }}>
         <div className="flex items-center gap-4">
-          <span className="text-5xl" aria-hidden>➡️</span>
+          {/* Kein Emoji-Pfeil ➡️: Den zeigt der Zebra als weißes Kästchen (Foto 24.09.2026). */}
+          <span className="text-5xl font-black leading-none" aria-hidden style={{ color: "#fa3e3e" }}>→</span>
           <div className="min-w-0">
             <div className="text-2xl font-black" style={{ color: "#b3261e" }}>Nichts Gesuchtes hier</div>
             <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb]">Weiter zum nächsten Colli.</div>
@@ -180,45 +185,54 @@ function ErgebnisBanner({ fb, istColli }: { fb: Feedback | null; istColli: boole
         <div className="flex items-center gap-4">
           <span className="text-5xl" aria-hidden>❓</span>
           <div className="min-w-0">
-            <div className="text-2xl font-black" style={{ color: "#BA7517" }}>Nicht erkannt</div>
+            <div className="text-2xl font-black text-[#8A5A00] dark:text-[#f7b928]">Nochmal scannen</div>
             <div className="text-base font-bold text-[#202F61] dark:text-[#e4e6eb] font-mono">{fb.wert || "—"}</div>
-            <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">Das ist keine LogID und kein Colli. Bitte erneut scannen.</div>
+            <div className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">Das war keine LogID und kein Colli.</div>
           </div>
         </div>
       </div>
     );
   }
 
-  // ── LogID-Scan — kompakte Statuszeile (~56px), Icon + Farbe + Klartext ──
+  // ── Gerät / Colli gescannt — großes Farbfeld mit Symbol UND Wort (nie nur
+  //    Farbe, nie nur Ton). Steht in der festen Leiste unten, also immer sichtbar.
   const p = fb.position;
+  const was = istColli ? "Colli" : "Gerät";
   if (fb.result === "GEFUNDEN") {
     return (
-      <div role="status" aria-live="assertive" className="flex items-center gap-3 rounded-xl border-2 px-3 min-h-[56px]" style={{ borderColor: "#04B475", background: "rgba(4,180,117,0.12)" }}>
-        <span className="text-2xl" aria-hidden style={{ color: "#04713f" }}>✓</span>
-        <span className="font-mono font-black text-lg text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">{formatLogId(fb.logId)}</span>
-        <span className="min-w-0 truncate text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-          Colli {p?.colli ?? "—"} · {p?.bezeichnung ?? "—"}
-        </span>
+      <div role="status" aria-live="assertive" className="flex items-center gap-3 rounded-2xl border-2 px-4 py-3" style={{ borderColor: "#04B475", background: "rgba(4,180,117,0.14)" }}>
+        <span className="text-4xl leading-none" aria-hidden style={{ color: "#04B475" }}>✓</span>
+        <div className="min-w-0">
+          <div className="text-2xl font-black leading-tight text-[#04713f] dark:text-[#3ddc97]">Gefunden</div>
+          <div className="font-mono font-black text-lg text-[#202F61] dark:text-[#e4e6eb]">{formatLogId(fb.logId)}</div>
+          {p?.bezeichnung && <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{p.bezeichnung}</div>}
+        </div>
       </div>
     );
   }
   if (fb.result === "SCHON") {
     return (
-      <div role="status" aria-live="assertive" className="flex items-center gap-3 rounded-xl border-2 px-3 min-h-[56px]" style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.12)" }}>
-        <span className="text-2xl" aria-hidden style={{ color: "#BA7517" }}>⚠</span>
-        <span className="font-mono font-black text-lg text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">{formatLogId(fb.logId)}</span>
-        <span className="min-w-0 truncate text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-          Schon gefunden{p?.gefundenVonName ? ` · ${p.gefundenVonName}` : ""}
-        </span>
+      <div role="status" aria-live="assertive" className="flex items-center gap-3 rounded-2xl border-2 px-4 py-3" style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.14)" }}>
+        <span className="text-4xl leading-none" aria-hidden style={{ color: "#BA7517" }}>⚠</span>
+        <div className="min-w-0">
+          <div className="text-2xl font-black leading-tight text-[#8A5A00] dark:text-[#f7b928]">Schon gefunden</div>
+          <div className="font-mono font-black text-lg text-[#202F61] dark:text-[#e4e6eb]">{formatLogId(fb.logId)}</div>
+          <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+            {was} ist schon gebucht{p?.gefundenVonName ? ` (${p.gefundenVonName})` : ""} — einfach weitermachen.
+          </div>
+        </div>
       </div>
     );
   }
   // FREMD
   return (
-    <div role="status" aria-live="assertive" className="flex items-center gap-3 rounded-xl border-2 px-3 min-h-[56px]" style={{ borderColor: "#fa3e3e", background: "rgba(250,62,62,0.12)" }}>
-      <span className="text-2xl" aria-hidden style={{ color: "#b3261e" }}>✗</span>
-      <span className="font-mono font-black text-lg text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">{fb.logId ? formatLogId(fb.logId) : "—"}</span>
-      <span className="min-w-0 truncate text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">Gehört nicht dazu</span>
+    <div role="status" aria-live="assertive" className="flex items-center gap-3 rounded-2xl border-2 px-4 py-3" style={{ borderColor: "#fa3e3e", background: "rgba(250,62,62,0.14)" }}>
+      <span className="text-4xl leading-none" aria-hidden style={{ color: "#fa3e3e" }}>✗</span>
+      <div className="min-w-0">
+        <div className="text-2xl font-black leading-tight text-[#b3261e] dark:text-[#ff6b6b]">Nicht mitnehmen</div>
+        <div className="font-mono font-black text-lg text-[#202F61] dark:text-[#e4e6eb]">{fb.logId ? formatLogId(fb.logId) : "—"}</div>
+        <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">{was} gehört nicht zu diesem Auftrag.</div>
+      </div>
     </div>
   );
 }
@@ -275,6 +289,11 @@ export default function PickupScanPage() {
   // nach MENGE, nie nach ORT — am Auftrag „Richard 179" (115 Collis auf 31
   // Stellplätzen) lief der Picker dadurch 07-32 → 07-30 → 07-32 → 07-30 …
   const [haltWahl, setHaltWahl] = useState<string | null>(null);
+  // „Colli nicht da" — kurzer Hinweis mit Rückgängig (Fehltipp mit Handschuh).
+  const [nichtDaToast, setNichtDaToast] = useState<{ ids: number[]; text: string } | null>(null);
+  const nichtDaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Beim „nicht da" wechselt der Halt — dann KEIN zusätzliches „X erledigt".
+  const haltToastUnterdrueckenRef = useRef(false);
   const richtungRef = useRef<1 | -1>(1);
   const [haltToast, setHaltToast] = useState<{ fertig: string; weiter: string } | null>(null);
   const haltToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -499,7 +518,9 @@ export default function PickupScanPage() {
     prevVollRef.current = istVoll;
   }, [data]);
 
-  const offenePositionen   = useMemo(() => (data?.positionen ?? []).filter((p) => p.status !== "GEFUNDEN"), [data]);
+  // „Noch suchen" zählt nur, was wirklich noch zu suchen ist — als „nicht da"
+  // Gemeldetes steht in der Liste mit ⚠, gehört aber nicht mehr in die Zahl.
+  const offenePositionen   = useMemo(() => (data?.positionen ?? []).filter(istNochZuSuchen), [data]);
   const gefundenePositionen = useMemo(() => (data?.positionen ?? []).filter((p) => p.status === "GEFUNDEN"), [data]);
   const gruppenGefunden = useMemo(() => gruppiere(gefundenePositionen, !!istColli), [gefundenePositionen, istColli]);
 
@@ -593,7 +614,9 @@ export default function PickupScanPage() {
   const weg = useMemo(() => ordneWeg([...halteMap.keys()]), [halteSig]);
   const offenJeHalt = useMemo(() => {
     const m = new Map<string, number>();
-    for (const [k, items] of halteMap) m.set(k, items.filter((p) => p.status !== "GEFUNDEN").length);
+    // „Nicht da" gemeldete Positionen zählen NICHT als offen — der Platz ist damit
+    // abgearbeitet und die Führung geht weiter.
+    for (const [k, items] of halteMap) m.set(k, items.filter(istNochZuSuchen).length);
     return m;
   }, [halteMap]);
   // Haupt-/Restrunde EINGEFROREN: nur neu, wenn sich die Platzmenge ändert —
@@ -635,7 +658,9 @@ export default function PickupScanPage() {
     if (!data || aktuellerHalt === null || aktuellerHalt === haltWahl) return;
     if (haltWahl !== null) {
       richtungRef.current = richtungVon(weg, haltWahl, aktuellerHalt, richtungRef.current);
-      if (!vollstaendig) {
+      const unterdruecken = haltToastUnterdrueckenRef.current;
+      haltToastUnterdrueckenRef.current = false;
+      if (!vollstaendig && !unterdruecken) {
         setColliToast(null); // ein Hinweis reicht — der Halt sagt mehr als der Colli
         setHaltToast({ fertig: haltWahl, weiter: aktuellerHalt });
         if (haltToastTimerRef.current) clearTimeout(haltToastTimerRef.current);
@@ -721,6 +746,87 @@ export default function PickupScanPage() {
       window.removeEventListener("focus", holen);
     };
   }, []);
+  // ── „Colli nicht da" ──────────────────────────────────────────────────────
+  // Sofort lokal markieren (die Führung geht gleich weiter), dann speichern. Scheitert
+  // das Speichern, wird die Markierung zurückgenommen und laut gemeldet.
+  function setzeVermisstLokal(ids: number[], am: Date | null) {
+    const set = new Set(ids);
+    utils.pickup.pickDetails.setData({ id }, (alt) => alt && {
+      ...alt,
+      positionen: alt.positionen.map((x) => (set.has(x.id) ? { ...x, vermisstAm: am, vermisstVonName: am ? meinKuerzel : null } : x)),
+    });
+  }
+  const nichtDa = api.pickup.nichtDa.useMutation({
+    onSuccess: () => { void utils.pickup.pickDetails.invalidate({ id }); },
+    onError: (e, vars) => {
+      setzeVermisstLokal(vars.positionIds, null);
+      setNichtDaToast(null);
+      setSpeicherFehler(`„Nicht da" ist NICHT gespeichert: ${e.message || "keine Verbindung"}. Bitte nochmal tippen.`);
+      playNegativeSound();
+    },
+  });
+  const nichtDaZurueck = api.pickup.nichtDaZuruecknehmen.useMutation({
+    onSettled: () => { void utils.pickup.pickDetails.invalidate({ id }); },
+    onError: (e) => setSpeicherFehler(`Rückgängig hat nicht geklappt: ${e.message || "keine Verbindung"}.`),
+  });
+  function meldeNichtDa(ids: number[], text: string) {
+    if (ids.length === 0) return;
+    haltToastUnterdrueckenRef.current = true;
+    setzeVermisstLokal(ids, new Date());
+    nichtDa.mutate({ auftragId: id, positionIds: ids });
+    setColliToast(null);
+    setHaltToast(null);
+    setNichtDaToast({ ids, text });
+    playWagenLeer();
+    if (nichtDaTimerRef.current) clearTimeout(nichtDaTimerRef.current);
+    nichtDaTimerRef.current = setTimeout(() => setNichtDaToast(null), 8000);
+    inputRef.current?.focus({ preventScroll: true });
+  }
+  function nimmNichtDaZurueck() {
+    if (!nichtDaToast) return;
+    setzeVermisstLokal(nichtDaToast.ids, null);
+    nichtDaZurueck.mutate({ auftragId: id, positionIds: nichtDaToast.ids });
+    setNichtDaToast(null);
+    inputRef.current?.focus({ preventScroll: true });
+  }
+  useEffect(() => () => { if (nichtDaTimerRef.current) clearTimeout(nichtDaTimerRef.current); }, []);
+
+  // ── Bildschirm bleibt an, solange die Scan-Seite offen ist ────────────────
+  // Sonst geht der Zebra mitten im Gang aus, und nach dem Entsperren muss man
+  // sich erst wieder zurechtfinden. Chrome gibt die Sperre beim Tab-Wechsel frei
+  // → bei Rückkehr neu anfordern.
+  useEffect(() => {
+    let sperre: WakeLockSentinel | null = null;
+    const holen = async () => {
+      try {
+        if (document.visibilityState === "visible" && "wakeLock" in navigator) {
+          sperre = await navigator.wakeLock.request("screen");
+        }
+      } catch {
+        /* nicht erlaubt / nicht unterstützt — dann eben ohne */
+      }
+    };
+    void holen();
+    const onSicht = () => { if (document.visibilityState === "visible") void holen(); };
+    document.addEventListener("visibilitychange", onSicht);
+    return () => {
+      document.removeEventListener("visibilitychange", onSicht);
+      void sperre?.release().catch(() => {});
+    };
+  }, []);
+
+  // Feste Ergebnisleiste unten: Ihre Höhe schwankt (Colli-Treffer listen Geräte),
+  // die Seite braucht darunter genau so viel Luft — sonst verdeckt sie die Liste.
+  const leisteRef = useRef<HTMLDivElement>(null);
+  const [leisteHoehe, setLeisteHoehe] = useState(120);
+  useEffect(() => {
+    const el = leisteRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setLeisteHoehe(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [permsLoading, darfPick]);
+
   // „↑ Nach oben" — erscheint erst, wenn man weit in die Liste gescrollt hat
   // (Frank, 23.09.2026). Bewusst ein Knopf statt Dreifach-Tipp: Der erste Tipp
   // träfe fast immer ein Gerät oder eine Karte und öffnete dort schon etwas.
@@ -743,7 +849,7 @@ export default function PickupScanPage() {
 
   function meldeUnbekannt(wert: string) {
     setFeedback({ kind: "unbekannt", wert });
-    playNegativeSound();
+    playNochmal();
     setEingabe("");
     inputRef.current?.focus({ preventScroll: true });
   }
@@ -859,9 +965,9 @@ export default function PickupScanPage() {
   }
 
   return (
-    // pb-24: Raum unter der Liste, damit der schwebende „↑ Nach oben"-Knopf die
-    // letzte Karte nicht verdeckt — man kann sie darüber hinausscrollen.
-    <div className="space-y-2 pb-24">
+    // Unten Luft in Höhe der festen Ergebnisleiste (+ Platz für „↑ Nach oben"),
+    // damit die letzte Karte über die Leiste hinausgescrollt werden kann.
+    <div className="space-y-2" style={{ paddingBottom: leisteHoehe + 72 }}>
       <style jsx>{`
         .pickup-pulse { border-radius: 0.75rem; animation: pickupPulse 0.6s ease-out; }
         @keyframes pickupPulse {
@@ -904,11 +1010,30 @@ export default function PickupScanPage() {
           className="colli-toast fixed top-3 left-1/2 z-50 w-[calc(100%-1.5rem)] max-w-md rounded-2xl border-2 px-5 py-4 shadow-2xl flex items-center gap-3"
           style={{ borderColor: "#04B475", background: "#04B475", color: "#fff" }}
         >
-          <span className="text-3xl" aria-hidden>➡️</span>
+          <span className="text-3xl font-black leading-none" aria-hidden>→</span>
           <div className="min-w-0">
             <div className="font-black text-base leading-tight">{haltToast.fertig || "Ohne Stellplatz"} erledigt</div>
             <div className="text-lg font-black font-mono">Weiter zu {haltToast.weiter || "ohne Stellplatz"}</div>
           </div>
+        </div>
+      )}
+
+      {nichtDaToast && (
+        <div
+          role="status"
+          aria-live="assertive"
+          className="colli-toast fixed top-3 left-1/2 z-50 w-[calc(100%-1.5rem)] max-w-md rounded-2xl border-2 px-4 py-3 shadow-2xl flex items-center gap-3 bg-white dark:bg-[#242526]"
+          style={{ borderColor: "#BA7517" }}
+        >
+          <span className="text-2xl" aria-hidden>⚠</span>
+          <div className="flex-1 min-w-0 text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{nichtDaToast.text}</div>
+          <button
+            type="button"
+            onClick={nimmNichtDaZurueck}
+            className="px-4 rounded-xl border-2 border-[#BA7517] text-base font-black text-[#202F61] dark:text-[#e4e6eb] min-h-[56px] flex-shrink-0"
+          >
+            Rückgängig
+          </button>
         </div>
       )}
 
@@ -949,7 +1074,9 @@ export default function PickupScanPage() {
 
         {data && (
           <>
-            {data.bemerkung && (
+            {/* Die automatische Technik-Bemerkung („Automatisch aus dem Technik-Export
+                erzeugt … Regel: …") ist Büro-Wissen und kostet auf dem Handgerät eine Zeile. */}
+            {data.bemerkung && !data.bemerkung.startsWith("Automatisch aus dem Technik-Export") && (
               <div className="flex items-center gap-2 px-3 rounded-lg bg-[#008BD2]/10 text-[#202F61] dark:text-[#e4e6eb] text-sm font-semibold min-h-[44px]" title={data.bemerkung}>
                 <span aria-hidden>📝</span>
                 <span className="min-w-0 truncate">{data.bemerkung}</span>
@@ -958,7 +1085,7 @@ export default function PickupScanPage() {
 
             {/* Fortschritt — dünn (keine große Karte) */}
             <div>
-              <div className="flex items-baseline justify-between text-xs font-bold">
+              <div className="flex items-baseline justify-between text-sm font-bold">
                 <span style={vollstaendig ? { color: "#04713f" } : undefined} className={vollstaendig ? "" : "text-[#65676b] dark:text-[#b0b3b8]"}>
                   {vollstaendig ? "✓ Alles gefunden" : `${data.gefunden} von ${data.gesamt} gefunden`}
                 </span>
@@ -976,11 +1103,23 @@ export default function PickupScanPage() {
                 items={halteMap.get(aktuellerHalt) ?? []}
                 istColli={!!istColli}
                 anzahlHalte={weg.length}
-                hauptOffen={weg.filter((k) => runden.haupt.has(k) && (offenJeHalt.get(k) ?? 0) > 0).length}
-                restOffen={weg.filter((k) => !runden.haupt.has(k) && (offenJeHalt.get(k) ?? 0) > 0).length}
-                inHauptrunde={runden.haupt.has(aktuellerHalt)}
+                offeneHalte={weg.filter((k) => (offenJeHalt.get(k) ?? 0) > 0).length}
                 danach={danachHalt}
                 farbe={aktivFarbe}
+                zeigeStarthinweis={data.gefunden === 0}
+                onNichtDa={meldeNichtDa}
+              />
+            )}
+
+            {/* Alles abgelaufen — klares Ende statt eines kleinen Knopfs oben rechts. */}
+            {aktuellerHalt === null && data.gesamt > 0 && (
+              <FertigKarte
+                vollstaendig={vollstaendig}
+                gefunden={data.gefunden}
+                gesamt={data.gesamt}
+                vermisst={data.positionen.filter(istVermisst).length}
+                onAbschliessen={() => setAbschlussDialog(true)}
+                onNichtKomplett={() => setUnvollDialog(true)}
               />
             )}
 
@@ -1017,7 +1156,7 @@ export default function PickupScanPage() {
                   inputMode={tastatur ? "numeric" : "none"}
                   enterKeyHint="done"
                   spellCheck={false}
-                  placeholder={istColli ? "Colli scannen…" : "Colli oder LogID scannen…"}
+                  placeholder="Hier scannen …"
                   className="flex-1 min-w-0 px-4 rounded-xl border-2 bg-white dark:bg-[#18191a] text-2xl font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] outline-none transition-colors min-h-[56px]"
                   style={{ borderColor: aktivFarbe }}
                 />
@@ -1032,71 +1171,7 @@ export default function PickupScanPage() {
                   </button>
                 )}
               </div>
-              {/* Hilfe — standardmäßig eingeklappt, kostet so keinen Dauer-Platz */}
-              {(hauptcolliMap.size > 0 || !istColli) && (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setHilfeAuf((v) => !v)}
-                    aria-expanded={hilfeAuf}
-                    className="inline-flex items-center gap-1 min-h-[56px] px-2 text-xs font-bold text-[#008BD2] dark:text-[#45bdff] hover:underline"
-                  >
-                    <span aria-hidden>ⓘ</span> Hilfe <span aria-hidden>{hilfeAuf ? "▾" : "▸"}</span>
-                  </button>
-                  {hilfeAuf && (
-                    <div className="space-y-1 pb-1">
-                      {hauptcolliMap.size > 0 && (
-                        <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                          🚛 Reihenfolge am Wagen: <strong>Hauptcolli</strong> scannen → du siehst, welche gesuchten Collis im Wagen liegen (hakt nichts ab) →
-                          {istColli ? " diese Collis scannen." : " Colli öffnen, dann die LogIDs (9 Stellen) scannen."}
-                        </p>
-                      )}
-                      {!istColli && (
-                        <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                          ℹ️ Colli scannen (6–7 Stellen): Du hörst und siehst, ob ein gesuchtes Gerät drin ist.
-                          Wenn ja, die LogIDs (9 Stellen) darin scannen. Die Prüfung nutzt die Daten dieses Auftrags.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
             </form>
-
-            {/* „Zuletzt gescannt" — kompakte Statuszeile, pulst bei jedem Scan auf. */}
-            <div
-              key={pulseKey}
-              className={pulseKey > 0 ? "pickup-pulse" : undefined}
-              style={{ ["--pulse" as string]: pulseColor } as React.CSSProperties}
-            >
-              <ErgebnisBanner fb={feedback} istColli={!!istColli} />
-            </div>
-
-            {/* Noch nicht gespeichert — erst zeigen, wenn es wirklich hakt (sonst
-                flackerte bei jedem Scan kurz „wird gespeichert"). */}
-            {schlange.length > 0 && (sendeStatus !== "ok" || schlange.length >= 3) && (
-              <div role="status" aria-live="polite" className="flex items-center gap-3 rounded-xl border-2 px-3 py-2 min-h-[56px]" style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.12)" }}>
-                <span className="text-2xl" aria-hidden>⏳</span>
-                <span className="text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
-                  {sendeStatus === "anmelden"
-                    ? `Abgemeldet — ${schlange.length} ${schlange.length === 1 ? "Scan wartet" : "Scans warten"}. Bitte neu anmelden, dann gehen sie raus.`
-                    : `${schlange.length} ${schlange.length === 1 ? "Scan" : "Scans"} noch nicht gespeichert — wird wiederholt. Einfach weiterscannen.`}
-                </span>
-              </div>
-            )}
-            {speicherFehler && (
-              <div role="alert" className="flex items-center gap-3 rounded-xl border-2 px-3 py-2 min-h-[56px]" style={{ borderColor: "#fa3e3e", background: "rgba(250,62,62,0.12)" }}>
-                <span className="text-2xl" aria-hidden>✗</span>
-                <span className="flex-1 min-w-0 text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{speicherFehler}</span>
-                <button
-                  type="button"
-                  onClick={() => setSpeicherFehler(null)}
-                  className="px-4 rounded-lg border-2 border-[#fa3e3e] text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] min-h-[48px] flex-shrink-0"
-                >
-                  OK
-                </button>
-              </div>
-            )}
 
         {data && (
           <>
@@ -1106,7 +1181,7 @@ export default function PickupScanPage() {
               {([
                 { k: "offen",    label: "Noch suchen",      n: offenePositionen.length,   farbe: "#BA7517" },
                 { k: "gefunden", label: "Gefunden",         n: gefundenePositionen.length, farbe: "#04713f" },
-                { k: "fremd",    label: "Gehört nicht dazu", n: nichtDazu.length,           farbe: "#b3261e" },
+                { k: "fremd",    label: "Nicht mitnehmen",  n: nichtDazu.length,           farbe: "#b3261e" },
               ] as const).map(({ k, label, n, farbe }) => {
                 const aktiv = ansicht === k;
                 return (
@@ -1115,11 +1190,11 @@ export default function PickupScanPage() {
                     aria-pressed={aktiv}
                     aria-label={`${label}: ${n}`}
                     onClick={() => setAnsicht(k)}
-                    className={`rounded-xl border-2 px-2 py-2 min-h-[56px] flex flex-col items-center justify-center transition-colors ${aktiv ? "bg-white dark:bg-[#242526]" : "bg-transparent"}`}
-                    style={{ borderColor: aktiv ? farbe : "#ced4da" }}
+                    className={`rounded-xl border-2 px-2 py-2 min-h-[56px] flex flex-col items-center justify-center transition-colors ${aktiv ? "bg-white dark:bg-[#242526]" : "bg-transparent border-[#ced4da] dark:border-[#3e4042]"}`}
+                    style={aktiv ? { borderColor: farbe } : undefined}
                   >
                     <span className="text-lg font-black leading-none" style={{ color: farbe }}>{n}</span>
-                    <span className="text-[11px] font-bold text-center leading-tight mt-0.5 text-[#1a1a1a] dark:text-[#e4e6eb]">{label}</span>
+                    <span className="text-xs font-bold text-center leading-tight mt-0.5 text-[#1a1a1a] dark:text-[#e4e6eb]">{label}</span>
                   </button>
                 );
               })}
@@ -1159,8 +1234,6 @@ export default function PickupScanPage() {
                   weg={weg}
                   halte={halteMap}
                   aktuell={aktuellerHalt}
-                  haupt={runden.haupt}
-                  mitRunden={runden.haupt.size > 0 && runden.haupt.size < weg.length}
                   istColli={!!istColli}
                   leerText="Nichts zu picken."
                   onDetail={setDetail}
@@ -1178,7 +1251,7 @@ export default function PickupScanPage() {
                 ) : (
                   <>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-bold text-[#b3261e]">✗ Gehört nicht dazu: {nichtDazu.length}</span>
+                      <span className="text-sm font-bold text-[#b3261e] dark:text-[#ff6b6b]">✗ Nicht mitnehmen: {nichtDazu.length}</span>
                       <button onClick={() => setNichtDazu([])} className="text-xs text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] min-h-[44px] px-2">Liste leeren</button>
                     </div>
                     <ul className="space-y-1.5">
@@ -1196,6 +1269,40 @@ export default function PickupScanPage() {
             )}
           </>
         ) : null}
+      </div>
+
+      {/* Hilfe — unter der Liste, eingeklappt. Oben kostete sie eine 56-px-Zeile
+          zwischen Scan-Feld und Ergebnis. */}
+      <div>
+              {/* Hilfe — standardmäßig eingeklappt, kostet so keinen Dauer-Platz */}
+              {(hauptcolliMap.size > 0 || !istColli) && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setHilfeAuf((v) => !v)}
+                    aria-expanded={hilfeAuf}
+                    className="inline-flex items-center gap-1 min-h-[56px] px-2 text-xs font-bold text-[#008BD2] dark:text-[#45bdff] hover:underline"
+                  >
+                    <span aria-hidden>ⓘ</span> Hilfe <span aria-hidden>{hilfeAuf ? "▾" : "▸"}</span>
+                  </button>
+                  {hilfeAuf && (
+                    <div className="space-y-1 pb-1">
+                      {hauptcolliMap.size > 0 && (
+                        <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                          🚛 Reihenfolge am Wagen: <strong>Hauptcolli</strong> scannen → du siehst, welche gesuchten Collis im Wagen liegen (hakt nichts ab) →
+                          {istColli ? " diese Collis scannen." : " Colli öffnen, dann die LogIDs (9 Stellen) scannen."}
+                        </p>
+                      )}
+                      {!istColli && (
+                        <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+                          ℹ️ Colli scannen (6–7 Stellen): Du hörst und siehst, ob ein gesuchtes Gerät drin ist.
+                          Wenn ja, die LogIDs (9 Stellen) darin scannen. Die Prüfung nutzt die Daten dieses Auftrags.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
       </div>
 
       {/* Erfolgsmeldung → Redirect */}
@@ -1295,17 +1402,63 @@ export default function PickupScanPage() {
         );
       })()}
 
-      {weitUnten && !dialogOffen && (
-        <button
-          type="button"
-          onClick={nachOben}
-          aria-label="Nach oben zum Scan-Feld"
-          className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-1.5 px-5 rounded-full text-white text-base font-black shadow-2xl min-h-[56px]"
-          style={{ background: "#202F61", border: "2px solid #ffffff" }}
-        >
-          <span aria-hidden className="text-xl">↑</span> Nach oben
-        </button>
-      )}
+      {/* ── Feste Ergebnisleiste unten ──
+          Das Ergebnis des letzten Scans ist IMMER sichtbar, auch weit unten in der
+          Liste. Vorher stand es unter Halt-Karte, Scan-Feld und Hilfe — beim
+          Scrollen blieb nur der Ton (Code-Prüfung 23.09.2026, Befund 10). */}
+      <div
+        ref={leisteRef}
+        className="fixed bottom-0 inset-x-0 z-30 border-t border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5]/95 dark:bg-[#18191a]/95 backdrop-blur shadow-[0_-4px_16px_rgba(0,0,0,0.15)]"
+      >
+        <div className="relative max-w-3xl mx-auto px-2 py-2 space-y-2 max-h-[45vh] overflow-y-auto">
+            {/* „Zuletzt gescannt" — kompakte Statuszeile, pulst bei jedem Scan auf. */}
+            <div
+              key={pulseKey}
+              className={pulseKey > 0 ? "pickup-pulse" : undefined}
+              style={{ ["--pulse" as string]: pulseColor } as React.CSSProperties}
+            >
+              <ErgebnisBanner fb={feedback} istColli={!!istColli} />
+            </div>
+
+            {/* Noch nicht gespeichert — erst zeigen, wenn es wirklich hakt (sonst
+                flackerte bei jedem Scan kurz „wird gespeichert"). */}
+            {schlange.length > 0 && (sendeStatus !== "ok" || schlange.length >= 3) && (
+              <div role="status" aria-live="polite" className="flex items-center gap-3 rounded-xl border-2 px-3 py-2 min-h-[56px]" style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.12)" }}>
+                <span className="text-2xl" aria-hidden>⏳</span>
+                <span className="text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                  {sendeStatus === "anmelden"
+                    ? `Abgemeldet — ${schlange.length} ${schlange.length === 1 ? "Scan wartet" : "Scans warten"}. Bitte neu anmelden, dann gehen sie raus.`
+                    : `${schlange.length} ${schlange.length === 1 ? "Scan" : "Scans"} noch nicht gespeichert — wird wiederholt. Einfach weiterscannen.`}
+                </span>
+              </div>
+            )}
+            {speicherFehler && (
+              <div role="alert" className="flex items-center gap-3 rounded-xl border-2 px-3 py-2 min-h-[56px]" style={{ borderColor: "#fa3e3e", background: "rgba(250,62,62,0.12)" }}>
+                <span className="text-2xl" aria-hidden>✗</span>
+                <span className="flex-1 min-w-0 text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{speicherFehler}</span>
+                <button
+                  type="button"
+                  onClick={() => setSpeicherFehler(null)}
+                  className="px-4 rounded-lg border-2 border-[#fa3e3e] text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] min-h-[48px] flex-shrink-0"
+                >
+                  OK
+                </button>
+              </div>
+            )}
+
+        </div>
+        {weitUnten && !dialogOffen && (
+          <button
+            type="button"
+            onClick={nachOben}
+            aria-label="Nach oben zum Scan-Feld"
+            className="absolute -top-16 right-3 inline-flex items-center gap-1.5 px-5 rounded-full text-white text-base font-black shadow-2xl min-h-[56px]"
+            style={{ background: "#202F61", border: "2px solid #ffffff" }}
+          >
+            <span aria-hidden className="text-xl">↑</span> Nach oben
+          </button>
+        )}
+      </div>
 
       {/* Gerätedetails samt Bild — geöffnet durch Antippen einer Zeile. */}
       {detail && (
@@ -1395,97 +1548,186 @@ function PositionsListe({
 }
 
 // ── Karte „Nächster Halt" — die EINE Antwort auf „Wo gehe ich hin?" ──────────
+//    Dazu der Knopf „nicht da": Gemessen wurden Collis fast nur ganz oder gar
+//    nicht gefunden (1.364 ganz, 1.152 gar nicht, 2 teilweise von 2.518) — wer am
+//    Platz steht und den Karton nicht sieht, muss das mit EINEM Tipp melden können.
 function NaechsterHaltKarte({
-  halt, items, istColli, anzahlHalte, hauptOffen, restOffen, inHauptrunde, danach, farbe,
+  halt, items, istColli, anzahlHalte, offeneHalte, danach, farbe, zeigeStarthinweis, onNichtDa,
 }: {
   halt: string;
   items: ScanPos[];
   istColli: boolean;
   anzahlHalte: number;
-  hauptOffen: number;
-  restOffen: number;
-  inHauptrunde: boolean;
+  offeneHalte: number;
   danach: string | null;
   farbe: string;
+  zeigeStarthinweis: boolean;
+  onNichtDa: (positionIds: number[], text: string) => void;
 }) {
-  const offene = items.filter((p) => p.status !== "GEFUNDEN");
-  // Was liegt hier? Bei LogID-Aufträgen die Collis (mit Anzahl Geräte), bei
+  const [auswahlAuf, setAuswahlAuf] = useState(false);
+  // Beim Wechsel zum nächsten Halt die Auswahl wieder schließen.
+  useEffect(() => { setAuswahlAuf(false); }, [halt]);
+
+  const offene = items.filter(istNochZuSuchen);
+  // Was liegt hier? Bei LogID-Aufträgen die Collis (mit ihren Geräten), bei
   // Colli-Aufträgen die gesuchten Collis selbst.
-  const chips: { key: string; text: string; anzahl: number }[] = [];
+  const collis: { key: string; text: string; ids: number[] }[] = [];
   if (istColli) {
-    for (const p of offene) chips.push({ key: p.logId, text: formatLogId(p.logId), anzahl: 1 });
+    for (const p of offene) collis.push({ key: p.logId, text: formatLogId(p.logId), ids: [p.id] });
   } else {
-    const m = new Map<string, number>();
-    for (const p of offene) m.set(p.colli ?? "", (m.get(p.colli ?? "") ?? 0) + 1);
-    for (const [c, n] of [...m.entries()].sort((x, y) => x[0].localeCompare(y[0], "de", { numeric: true }))) {
-      chips.push({ key: c || "__ohne__", text: c ? (formatLogId(nurZiffern(c)) || c) : "ohne Colli", anzahl: n });
+    const m = new Map<string, number[]>();
+    for (const p of offene) {
+      const k = p.colli ?? "";
+      const arr = m.get(k);
+      if (arr) arr.push(p.id); else m.set(k, [p.id]);
+    }
+    for (const [c, ids] of [...m.entries()].sort((x, y) => x[0].localeCompare(y[0], "de", { numeric: true }))) {
+      collis.push({ key: c || "__ohne__", text: c ? (formatLogId(nurZiffern(c)) || c) : "ohne Colli", ids });
     }
   }
-  const einPlatz  = anzahlHalte === 1;
-  const mitRunden = hauptOffen + restOffen > 0 && anzahlHalte >= 4;
+  const einPlatz = anzahlHalte === 1;
+  const ort = halt || "ohne Stellplatz";
   const ZEIGE = 8;
 
   return (
-    <section
-      aria-label="Nächster Halt"
-      className="rounded-2xl border-2 bg-white dark:bg-[#242526] px-4 py-3"
-      style={{ borderColor: farbe }}
-    >
-      <div className="flex items-center justify-between gap-2 text-[11px] font-black uppercase tracking-wide">
-        <span style={{ color: farbe }}>{einPlatz ? "Alles an einem Platz" : "Nächster Halt"}</span>
-        {mitRunden && (
-          <span className="text-[#65676b] dark:text-[#b0b3b8] normal-case tracking-normal font-bold text-xs">
-            {inHauptrunde
-              ? `Hauptrunde · noch ${hauptOffen} ${hauptOffen === 1 ? "Platz" : "Plätze"}`
-              : `Restrunde · noch ${restOffen} ${restOffen === 1 ? "Platz" : "Plätze"}`}
+    <section aria-label="Nächster Halt" className="rounded-2xl border-2 bg-white dark:bg-[#242526] px-4 py-3" style={{ borderColor: farbe }}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-black uppercase tracking-wide" style={{ color: farbe }}>
+          {einPlatz ? "Alles an einem Platz" : "Nächster Halt"}
+        </span>
+        {!einPlatz && (
+          <span className="text-sm font-bold text-[#65676b] dark:text-[#b0b3b8]">
+            noch {offeneHalte} {offeneHalte === 1 ? "Platz" : "Plätze"}
           </span>
         )}
       </div>
-      <div className="font-mono font-black text-3xl leading-tight text-[#202F61] dark:text-[#e4e6eb] break-all">
-        📍 {halt || "ohne Stellplatz"}
-      </div>
-      <div className="text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+      <div className="font-mono font-black text-3xl leading-tight text-[#202F61] dark:text-[#e4e6eb] break-all">📍 {ort}</div>
+      <div className="text-lg font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
         {istColli
           ? `${offene.length} ${offene.length === 1 ? "Colli" : "Collis"} hier holen`
-          : `${chips.length} ${chips.length === 1 ? "Colli" : "Collis"} · ${offene.length} ${offene.length === 1 ? "Gerät" : "Geräte"}`}
+          : `${collis.length} ${collis.length === 1 ? "Colli" : "Collis"} · ${offene.length} ${offene.length === 1 ? "Gerät" : "Geräte"}`}
       </div>
-      {einPlatz && !istColli && chips.length === 1 && (
-        <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">Einfach alles aus diesem Colli durchscannen.</div>
+      {einPlatz && !istColli && collis.length === 1 && (
+        <div className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">Einfach alles aus diesem Colli durchscannen.</div>
       )}
       <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={istColli ? "Gesuchte Collis hier" : "Collis an diesem Platz"}>
-        {chips.slice(0, ZEIGE).map((c) => (
-          <li key={c.key} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 bg-[#f0f2f5] dark:bg-[#18191a] font-mono font-bold text-base text-[#202F61] dark:text-[#e4e6eb]">
+        {collis.slice(0, ZEIGE).map((c) => (
+          <li key={c.key} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 bg-[#f0f2f5] dark:bg-[#18191a] font-mono font-bold text-lg text-[#202F61] dark:text-[#e4e6eb]">
             <span aria-hidden>📦</span>{c.text}
-            {!istColli && c.anzahl > 1 && <span className="font-sans text-xs text-[#65676b] dark:text-[#b0b3b8]">×{c.anzahl}</span>}
+            {!istColli && c.ids.length > 1 && <span className="font-sans text-sm text-[#65676b] dark:text-[#b0b3b8]">×{c.ids.length}</span>}
           </li>
         ))}
-        {chips.length > ZEIGE && (
-          <li className="inline-flex items-center rounded-lg px-2.5 py-1 text-sm font-bold text-[#65676b] dark:text-[#b0b3b8]">
-            +{chips.length - ZEIGE} weitere
-          </li>
+        {collis.length > ZEIGE && (
+          <li className="inline-flex items-center rounded-lg px-2.5 py-1 text-base font-bold text-[#65676b] dark:text-[#b0b3b8]">+{collis.length - ZEIGE} weitere</li>
         )}
       </ul>
+
+      {/* „Nicht da" — bei einem Colli ein Tipp, bei mehreren erst die Auswahl. */}
+      <div className="mt-3">
+        {collis.length === 1 ? (
+          <button
+            type="button"
+            onClick={() => onNichtDa(collis[0]!.ids, `Colli ${collis[0]!.text} als „nicht da" gemeldet`)}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl border-2 border-[#BA7517] text-[#8A5A00] dark:text-[#f7b928] text-base font-black min-h-[56px]"
+          >
+            <span aria-hidden>✗</span> Colli {collis[0]!.text} ist nicht da
+          </button>
+        ) : collis.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setAuswahlAuf((v) => !v)}
+              aria-expanded={auswahlAuf}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl border-2 border-[#BA7517] text-[#8A5A00] dark:text-[#f7b928] text-base font-black min-h-[56px]"
+            >
+              <span aria-hidden>✗</span> Etwas ist nicht da … <span aria-hidden>{auswahlAuf ? "▾" : "▸"}</span>
+            </button>
+            {auswahlAuf && (
+              <div className="mt-2 grid gap-2">
+                {collis.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => onNichtDa(c.ids, `Colli ${c.text} als „nicht da" gemeldet`)}
+                    className="w-full text-left px-4 rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-base font-bold text-[#202F61] dark:text-[#e4e6eb] min-h-[56px]"
+                  >
+                    📦 <span className="font-mono">{c.text}</span> ist nicht da
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => onNichtDa(collis.flatMap((c) => c.ids), `Alles an ${ort} als „nicht da" gemeldet`)}
+                  className="w-full px-4 rounded-xl border-2 border-[#BA7517] text-base font-black text-[#8A5A00] dark:text-[#f7b928] min-h-[56px]"
+                >
+                  Hier ist nichts davon da
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       {!einPlatz && (
-        <div className="mt-2 text-xs font-bold text-[#65676b] dark:text-[#b0b3b8]">
-          {danach !== null ? <>Danach: <span className="font-mono">{danach || "ohne Stellplatz"}</span></> : "Letzter Platz"}
-          {" · "}Woanders anfangen? Einfach dort scannen.
+        <div className="mt-2 text-base font-bold text-[#65676b] dark:text-[#b0b3b8]">
+          {danach !== null ? <>Danach: <span className="font-mono">{danach || "ohne Stellplatz"}</span></> : "Das ist der letzte Platz."}
         </div>
+      )}
+      {zeigeStarthinweis && !einPlatz && (
+        <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Woanders anfangen? Einfach dort scannen.</div>
       )}
     </section>
   );
 }
 
+// ── Klares Ende: alle Plätze abgelaufen ─────────────────────────────────────
+function FertigKarte({
+  vollstaendig, gefunden, gesamt, vermisst, onAbschliessen, onNichtKomplett,
+}: {
+  vollstaendig: boolean;
+  gefunden: number;
+  gesamt: number;
+  vermisst: number;
+  onAbschliessen: () => void;
+  onNichtKomplett: () => void;
+}) {
+  if (vollstaendig) {
+    return (
+      <section aria-label="Auftrag fertig" className="rounded-2xl border-2 px-4 py-4 text-center space-y-3" style={{ borderColor: "#04B475", background: "rgba(4,180,117,0.12)" }}>
+        <div className="text-4xl" aria-hidden>✅</div>
+        <div className="text-2xl font-black text-[#04713f] dark:text-[#3ddc97]">Alles gefunden</div>
+        <div className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">Alle {gesamt} {gesamt === 1 ? "Gerät" : "Geräte"} sind gescannt.</div>
+        <button type="button" onClick={onAbschliessen} className="w-full rounded-xl bg-[#037A4F] text-white text-lg font-black min-h-[64px]">
+          Auftrag abschließen
+        </button>
+      </section>
+    );
+  }
+  return (
+    <section aria-label="Alle Plätze abgelaufen" className="rounded-2xl border-2 px-4 py-4 text-center space-y-3" style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.12)" }}>
+      <div className="text-4xl" aria-hidden>🏁</div>
+      <div className="text-2xl font-black text-[#8A5A00] dark:text-[#f7b928]">Alle Plätze abgelaufen</div>
+      <div className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">
+        {gefunden} von {gesamt} gefunden{vermisst > 0 ? ` · ${vermisst} als „nicht da" gemeldet` : ""}.
+      </div>
+      <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Taucht ein Colli doch noch auf: einfach scannen.</div>
+      <button type="button" onClick={onNichtKomplett} className="w-full rounded-xl bg-[#BA7517] text-white text-lg font-black min-h-[64px]">
+        Als nicht komplett melden
+      </button>
+    </section>
+  );
+}
+
 // ── Liste „Noch suchen" — Stellplätze in LAUFreihenfolge (nicht nach Menge). ──
-//    Der aktuelle Halt ist aufgeklappt, alle anderen zu; fertige gedimmt. Die
+//    Flach statt drei Kästen ineinander (Foto Frank, 23.09.2026): je Platz eine
+//    Karte, darin die Collis als Zwischenzeile und die Geräte als Zeilen. Der
+//    aktuelle Halt ist aufgeklappt, alle anderen zu; fertige gedimmt. Die
 //    Reihenfolge ist fest, beim Scannen springt nichts weg.
 function HalteListe({
-  weg, halte, aktuell, haupt, mitRunden, istColli, leerText, onDetail,
+  weg, halte, aktuell, istColli, leerText, onDetail,
 }: {
   weg: string[];
   halte: Map<string, ScanPos[]>;
   aktuell: string | null;
-  haupt: Set<string>;
-  mitRunden: boolean;
   istColli: boolean;
   leerText: string;
   onDetail?: (p: ScanPos) => void;
@@ -1508,7 +1750,6 @@ function HalteListe({
             halt={key}
             items={items}
             istAktuell={key === aktuell}
-            restrunde={mitRunden && !haupt.has(key)}
             istColli={istColli}
             onDetail={onDetail}
           />
@@ -1519,16 +1760,16 @@ function HalteListe({
 }
 
 function HaltKarte({
-  halt, items, istAktuell, restrunde, istColli, onDetail,
+  halt, items, istAktuell, istColli, onDetail,
 }: {
   halt: string;
   items: ScanPos[];
   istAktuell: boolean;
-  restrunde: boolean;
   istColli: boolean;
   onDetail?: (p: ScanPos) => void;
 }) {
-  const offen    = items.filter((p) => p.status !== "GEFUNDEN").length;
+  const offen    = items.filter(istNochZuSuchen).length;
+  const vermisst = items.filter(istVermisst).length;
   const komplett = offen === 0;
   const [auf, setAuf] = useState(istAktuell);
   // Wird der Platz zum aktuellen Halt → aufklappen; ist er fertig → zuklappen.
@@ -1572,102 +1813,66 @@ function HaltKarte({
         <h2 className="font-black text-base text-[#202F61] dark:text-[#e4e6eb] flex items-center gap-2 min-w-0 flex-wrap">
           <span className="font-mono">📍 {halt || "ohne Stellplatz"}</span>
           {istAktuell && !komplett && (
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#008BD2] text-white">jetzt hier</span>
+            <span className="text-sm px-2 py-0.5 rounded-full bg-[#202F61] text-white font-black">jetzt hier</span>
           )}
-          {restrunde && !komplett && (
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#65676b]/15 text-[#65676b] dark:text-[#b0b3b8]">Rest</span>
-          )}
-          {komplett ? (
-            <span className="text-sm text-[#04713f] font-bold whitespace-nowrap">✓ fertig</span>
-          ) : (
-            <span className="text-sm text-[#8A5A00] dark:text-[#f7b928] font-bold whitespace-nowrap">— {offen} offen</span>
-          )}
+          {komplett && vermisst === 0 && <span className="text-sm text-[#04713f] dark:text-[#3ddc97] font-bold whitespace-nowrap">✓ fertig</span>}
+          {!komplett && <span className="text-sm text-[#8A5A00] dark:text-[#f7b928] font-bold whitespace-nowrap">— {offen} offen</span>}
+          {vermisst > 0 && <span className="text-sm text-[#8A5A00] dark:text-[#f7b928] font-bold whitespace-nowrap">⚠ {vermisst} nicht da</span>}
         </h2>
-        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff] whitespace-nowrap">
+        <span className="text-sm font-bold px-2 py-0.5 rounded-full bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff] whitespace-nowrap">
           {auf ? "▾" : "▸"} {items.length}
         </span>
       </button>
       {auf && (
-        istColli ? (
-          <div className="bg-white dark:bg-[#242526] divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
-            {items.map((p) => <PositionZeile key={p.id} p={p} onDetail={onDetail} />)}
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-[#242526] p-2 space-y-2">
-            {collis.map(([c, its]) => (
-              <ColliKarte key={c || "__ohne__"} colliKey={c} items={its} istColli={false} onDetail={onDetail} />
-            ))}
-          </div>
-        )
+        <div className="bg-white dark:bg-[#242526] divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
+          {istColli
+            ? items.map((p) => <PositionZeile key={p.id} p={p} onDetail={onDetail} />)
+            : collis.map(([c, its]) => {
+                const cOffen = its.filter(istNochZuSuchen).length;
+                const cVermisst = its.filter(istVermisst).length;
+                return (
+                  <div key={c || "__ohne__"}>
+                    {/* Colli als schlichte Zwischenzeile — kein eigener Kasten mehr. */}
+                    <div className="flex items-center gap-2 px-4 py-2 bg-[#f7f8fa] dark:bg-[#1e1f20] text-base font-black text-[#202F61] dark:text-[#e4e6eb] flex-wrap">
+                      <span aria-hidden>📦</span>
+                      <span className="font-mono">{c ? (formatLogId(nurZiffern(c)) || c) : "ohne Colli"}</span>
+                      {cOffen > 0 && <span className="text-sm text-[#8A5A00] dark:text-[#f7b928]">· {cOffen} offen</span>}
+                      {cVermisst > 0 && <span className="text-sm text-[#8A5A00] dark:text-[#f7b928]">· ⚠ nicht da</span>}
+                      {cOffen === 0 && cVermisst === 0 && <span className="text-sm text-[#04713f] dark:text-[#3ddc97]">· ✓</span>}
+                    </div>
+                    {its.map((p) => <PositionZeile key={p.id} p={p} onDetail={onDetail} />)}
+                  </div>
+                );
+              })}
+        </div>
       )}
     </div>
   );
 }
 
-// Eine Geräte-/Colli-Zeile — von ColliKarte und HaltKarte gemeinsam genutzt.
+// Eine Geräte-/Colli-Zeile. Ohne Stellplatz (steht schon im Karten-Kopf) und ohne
+// „Offen"-Schildchen (sagt dasselbe wie der Kreis links).
 function PositionZeile({ p, onDetail }: { p: ScanPos; onDetail?: (p: ScanPos) => void }) {
   const ok = p.status === "GEFUNDEN";
+  const weg = istVermisst(p);
   return (
-    <div className={`flex items-start gap-3 px-4 min-h-[56px] py-2.5 ${ok ? "bg-[#04B475]/5" : ""}`}>
-      <span className="text-xl w-6 text-center pt-0.5" aria-hidden style={{ color: ok ? "#04713f" : undefined }}>{ok ? "✓" : "○"}</span>
-      <button onClick={() => onDetail?.(p)} className="flex-1 min-w-0 text-left">
-        <div className="font-mono font-black text-lg" style={{ color: ok ? "#04713f" : undefined }}>
+    <button
+      type="button"
+      onClick={() => onDetail?.(p)}
+      className={`w-full flex items-center gap-3 px-4 min-h-[56px] py-2 text-left ${ok ? "bg-[#04B475]/5" : ""}`}
+    >
+      <span className="text-xl w-6 text-center flex-shrink-0" aria-hidden style={{ color: ok ? "#04B475" : weg ? "#BA7517" : undefined }}>
+        {ok ? "✓" : weg ? "⚠" : "○"}
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className={`block font-mono font-black text-lg ${ok ? "text-[#04713f] dark:text-[#3ddc97]" : "text-[#202F61] dark:text-[#e4e6eb]"}`}>
           {formatLogId(p.logId)}
-        </div>
-        <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] break-words leading-snug">
-          {p.bezeichnung ?? "—"}
-        </div>
-        <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-          {p.stellplatz ?? "ohne Stellplatz"} · Details ansehen ›
-        </div>
-      </button>
-      {!ok && (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#65676b]/10 text-[#65676b] dark:text-[#b0b3b8]">Offen</span>
-      )}
-    </div>
-  );
-}
-
-function ColliKarte({ colliKey, items, istColli, onDetail }: { colliKey: string; items: ScanPos[]; istColli: boolean; onDetail?: (p: ScanPos) => void }) {
-  const offen    = items.filter((p) => p.status !== "GEFUNDEN").length;
-  const komplett = offen === 0;
-  const [auf, setAuf] = useState(() => !komplett); // fertige Collis starten eingeklappt
-  // Wird ein Colli beim Scannen fertig → automatisch einklappen (springt NICHT weg).
-  const prevKomplett = useRef(komplett);
-  useEffect(() => {
-    if (komplett && !prevKomplett.current) setAuf(false);
-    prevKomplett.current = komplett;
-  }, [komplett]);
-
-  const leer  = istColli ? "— (ohne Stellplatz)" : "— (ohne Colli)";
-  const titel = istColli ? "🧭 Stellplatz" : "📦 Colli";
-
-  return (
-    <div className={`bg-white dark:bg-[#242526] rounded-2xl border shadow-sm overflow-hidden transition-opacity ${komplett ? "opacity-60 border-[#04B475]/40" : "border-[#ced4da] dark:border-[#3e4042]"}`}>
-      <button
-        type="button"
-        onClick={() => setAuf((v) => !v)}
-        aria-expanded={auf}
-        className={`w-full flex items-center justify-between gap-2 px-4 min-h-[56px] py-2.5 border-b text-left ${komplett ? "bg-[#04B475]/5 border-[#04B475]/30" : "bg-[#f0f2f5] dark:bg-[#18191a] border-[#ced4da] dark:border-[#3e4042]"}`}
-      >
-        <h2 className="font-black text-sm text-[#202F61] dark:text-[#e4e6eb] flex items-center gap-2 min-w-0">
-          <span className="truncate">{titel} {colliKey || leer}</span>
-          {komplett ? (
-            <span className="text-[#04713f] font-bold whitespace-nowrap">· ✓ komplett</span>
-          ) : (
-            <span className="text-[#BA7517] font-bold whitespace-nowrap">— {offen} offen</span>
-          )}
-        </h2>
-        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#008BD2]/10 text-[#008BD2] dark:text-[#45bdff] whitespace-nowrap">
-          {auf ? "▾" : "▸"} {items.length}
         </span>
-      </button>
-      {auf && (
-        <div className="divide-y divide-[#f0f2f5] dark:divide-[#3e4042]">
-          {items.map((p) => <PositionZeile key={p.id} p={p} onDetail={onDetail} />)}
-        </div>
-      )}
-    </div>
+        <span className="block text-sm text-[#1a1a1a] dark:text-[#e4e6eb] break-words leading-snug">{p.bezeichnung ?? "—"}</span>
+        {weg && <span className="block text-sm font-bold text-[#8A5A00] dark:text-[#f7b928]">als „nicht da" gemeldet</span>}
+      </span>
+      <span className="text-xl text-[#65676b] dark:text-[#b0b3b8] flex-shrink-0" aria-hidden>›</span>
+    </button>
   );
 }
 

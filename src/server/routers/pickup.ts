@@ -27,7 +27,13 @@ type PosMitFinder = {
   id: number; logId: string; colli: string | null; stellplatz: string | null;
   bezeichnung: string | null; status: string; gefundenAm: Date | null;
   finder: { name: string; kuerzel: string } | null;
+  vermisstAm?: Date | null;
+  vermisser?: { name: string; kuerzel: string } | null;
 };
+const MIT_PERSONEN = {
+  finder:    { select: { name: true, kuerzel: true } },
+  vermisser: { select: { name: true, kuerzel: true } },
+} as const;
 function shapePos(p: PosMitFinder) {
   return {
     id:              p.id,
@@ -38,6 +44,8 @@ function shapePos(p: PosMitFinder) {
     status:          p.status,
     gefundenVonName: p.finder?.kuerzel ?? p.finder?.name ?? null,
     gefundenAm:      p.gefundenAm,
+    vermisstAm:      p.vermisstAm ?? null,
+    vermisstVonName: p.vermisser?.kuerzel ?? p.vermisser?.name ?? null,
   };
 }
 
@@ -118,7 +126,7 @@ export const pickupRouter = createTRPCRouter({
         include: {
           ersteller:    { select: { name: true, kuerzel: true } },
           abschliesser: { select: { name: true, kuerzel: true } },
-          positionen:   { include: { finder: { select: { name: true, kuerzel: true } } } },
+          positionen:   { include: MIT_PERSONEN },
         },
       });
       if (!auftrag) throw new TRPCError({ code: "NOT_FOUND", message: "Pickup-Auftrag nicht gefunden" });
@@ -312,7 +320,7 @@ export const pickupRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const auftrag = await prisma.pickupAuftrag.findUnique({
         where:   { id: input.id },
-        include: { positionen: { include: { finder: { select: { name: true, kuerzel: true } } } } },
+        include: { positionen: { include: MIT_PERSONEN } },
       });
       if (!auftrag) throw new TRPCError({ code: "NOT_FOUND", message: "Pickup-Auftrag nicht gefunden" });
       const positionen = auftrag.positionen.map(shapePos);
@@ -342,7 +350,7 @@ export const pickupRouter = createTRPCRouter({
 
       const pos = await prisma.pickupPosition.findFirst({
         where:   { auftragId: input.auftragId, logId },
-        include: { finder: { select: { name: true, kuerzel: true } } },
+        include: MIT_PERSONEN,
       });
 
       // Nicht auf dieser Liste → NICHTS in der DB ändern.
@@ -361,13 +369,14 @@ export const pickupRouter = createTRPCRouter({
       // OFFEN → GEFUNDEN, aber NUR, wenn sie in diesem Moment noch offen ist.
       // Vorher: lesen, dann bedingungslos schreiben — scannten zwei Picker dasselbe
       // Gerät gleichzeitig, galt es für beide als gefunden, der Letzte gewann.
+      // Ein Fund hebt ein früheres „Colli nicht da" auf — das Gerät ist ja da.
       const { count } = await prisma.pickupPosition.updateMany({
         where: { id: pos.id, status: "OFFEN" },
-        data:  { status: "GEFUNDEN", gefundenVon: user.id, gefundenAm: new Date() },
+        data:  { status: "GEFUNDEN", gefundenVon: user.id, gefundenAm: new Date(), vermisstAm: null, vermisstVon: null },
       });
       const aktuell = await prisma.pickupPosition.findUniqueOrThrow({
         where:   { id: pos.id },
-        include: { finder: { select: { name: true, kuerzel: true } } },
+        include: MIT_PERSONEN,
       });
       if (count === 0) {
         const eigener = aktuell.gefundenVon === user.id;
@@ -466,6 +475,42 @@ export const pickupRouter = createTRPCRouter({
         hauptcollis: wagen.map((w) => ({ hauptcolli: w.hauptcolli, stellplatz: w.stellplatz })),
         zuordnung:   zuordnung.map((r) => ({ untercolli: r.untercolli, hauptcolli: r.hauptcolli })),
       };
+    }),
+
+  // „Colli nicht da": Der Picker steht am Platz, der Karton fehlt. Markiert die
+  // OFFENEN Positionen (nie gefundene) als vermisst — Status bleibt OFFEN, die
+  // Wegführung geht zum nächsten Halt, das Büro sieht sie in der Klärliste.
+  // Vorbild: „Pick Denial" in SAP EWM — ein Tipp, keine Pflicht-Texteingabe.
+  nichtDa: pickupPick
+    .input(z.object({
+      auftragId:   z.number().int().positive(),
+      positionIds: z.array(z.number().int().positive()).min(1).max(500),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const user = ctx.session.user as SessionUser;
+      await ladeOffenenAuftragOderWirf(input.auftragId);
+      const { count } = await prisma.pickupPosition.updateMany({
+        where: { id: { in: input.positionIds }, auftragId: input.auftragId, status: "OFFEN" },
+        data:  { vermisstAm: new Date(), vermisstVon: user.id },
+      });
+      void emitFortschritt(input.auftragId);
+      return { count };
+    }),
+
+  // Rückgängig für „nicht da" (Fehltipp, oder der Karton ist doch aufgetaucht).
+  nichtDaZuruecknehmen: pickupPick
+    .input(z.object({
+      auftragId:   z.number().int().positive(),
+      positionIds: z.array(z.number().int().positive()).min(1).max(500),
+    }))
+    .mutation(async ({ input }) => {
+      await ladeOffenenAuftragOderWirf(input.auftragId);
+      const { count } = await prisma.pickupPosition.updateMany({
+        where: { id: { in: input.positionIds }, auftragId: input.auftragId },
+        data:  { vermisstAm: null, vermisstVon: null },
+      });
+      void emitFortschritt(input.auftragId);
+      return { count };
     }),
 
   // Versehentlichen Treffer zurücksetzen: GEFUNDEN → OFFEN.
