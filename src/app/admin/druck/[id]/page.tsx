@@ -20,6 +20,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { DATEI_ART_TEXT, DATEI_MAX_BYTES, dateiArt, type DateiArt } from "@/lib/druck/druckliste";
+import { DruckenKnopf } from "@/components/druck/DruckenKnopf";
+import { vergissAuftrag } from "@/components/druck/useDruckbruecke";
 
 type Modell = { key: string; anzeige: string };
 
@@ -277,7 +279,7 @@ function DruckVorlageInhalt() {
             darfEinbuchen={darfEinbuchen}
           />
           <FotoKarte id={details.data.id} fotoAm={details.data.fotoAm} darfPflegen={darfPflegen} />
-          <DateienKarte id={details.data.id} dateien={details.data.dateien} darfPflegen={darfPflegen} />
+          <DateienKarte id={details.data.id} titel={details.data.name} material={details.data.material} dateien={details.data.dateien} darfPflegen={darfPflegen} />
           {darfPflegen && <LoeschenKnopf id={details.data.id} name={details.data.name} />}
         </>
       )}
@@ -383,7 +385,9 @@ function FotoKarte({ id, fotoAm, darfPflegen }: { id: number; fotoAm: Date | str
 
 type DateiMeta = { id: number; art: string; dateiname: string; groesse: number; hochgeladenVon: string; createdAt: Date | string };
 
-function DateienKarte({ id, dateien, darfPflegen }: { id: number; dateien: DateiMeta[]; darfPflegen: boolean }) {
+function DateienKarte({ id, titel, material, dateien, darfPflegen }: {
+  id: number; titel: string; material: string | null; dateien: DateiMeta[]; darfPflegen: boolean;
+}) {
   const { show } = useToast();
   const utils = api.useUtils();
   const [laden, setLaden] = useState<string | null>(null);
@@ -443,6 +447,7 @@ function DateienKarte({ id, dateien, darfPflegen }: { id: number; dateien: Datei
                   <div className="font-bold text-sm text-[#202F61] dark:text-[#e4e6eb] break-all">{d.dateiname}</div>
                   <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{fmtGroesse(d.groesse)} · {fmtDatum(d.createdAt)} · {d.hochgeladenVon}</div>
                 </div>
+                {art === "DRUCK" && <DruckenKnopf klein vorlageId={id} titel={titel} dateiId={d.id} dateiname={d.dateiname} material={material} />}
                 <a href={`/api/druck/datei/${d.id}`} className={knopfRand}>⬇ Herunterladen</a>
                 {darfPflegen && (
                   <button type="button" className={`${knopfRand} text-[#fa3e3e]`} onClick={() => setLoeschId(d.id)} aria-label={`${d.dateiname} löschen`}>🗑</button>
@@ -549,6 +554,7 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
   const einbuchen = api.druck.einbuchen.useMutation({
     onSuccess: (r) => {
       show(`✅ ${r.stueck} Stück auf „${r.artikel}" eingebucht — Bestand jetzt ${r.neuerBestand}`, "success");
+      vergissAuftrag(id);
       setPlatten("1");
       setStueckEigen(null);
       fertig();

@@ -10,6 +10,7 @@ import Link from "next/link";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { DruckerStatus } from "@/components/druck/DruckerStatus";
+import { DruckenKnopf } from "@/components/druck/DruckenKnopf";
 
 type Reiter = "liste" | "vorlagen";
 const REITER_KEY = "druck-reiter";
@@ -132,6 +133,11 @@ export default function DruckPage() {
                           ) : (
                             <Link href={`/admin/druck/${z.vorlageId}`} className={knopfRand}>Datei fehlt</Link>
                           )}
+                          {druckDatei.get(z.vorlageId) && (
+                            <DruckenKnopf klein vorlageId={z.vorlageId} titel={z.vorlageName}
+                              dateiId={druckDatei.get(z.vorlageId)!.id} dateiname={druckDatei.get(z.vorlageId)!.dateiname}
+                              material={(vorlagen.data ?? []).find((v) => v.id === z.vorlageId)?.material} />
+                          )}
                           {darfEinbuchen && <Link href={`/admin/druck/${z.vorlageId}#fertig`} className={knopfRand}>✓ Druck fertig</Link>}
                         </div>
                       </div>
@@ -233,6 +239,11 @@ export default function DruckPage() {
                     )}
                   </div>
                 </Link>
+                {d && (
+                  <div className="px-4 pb-2">
+                    <DruckenKnopf klein vorlageId={v.id} titel={v.name} dateiId={d.id} dateiname={d.dateiname} material={v.material} />
+                  </div>
+                )}
                 <div className="px-4 pb-4 mt-auto flex gap-2">
                   {d ? <a href={`/api/druck/datei/${d.id}`} className={`${knopfBlau} flex-1`} title={d.dateiname}>⬇ Druckdatei</a>
                     : p ? <a href={`/api/druck/datei/${p.id}`} className={`${knopfRand} flex-1`} title={p.dateiname}>⬇ Projekt</a>

@@ -1,27 +1,19 @@
 "use client";
 
-// ── Druckerstatus über die lokale Druckbrücke (3D-Druck Paket 3, Stufe 1) ────
-// Fragt http://127.0.0.1:17350/status — also die Brücke auf DEM PC, auf dem
-// dieser Browser läuft (tools/druckbruecke/druckbruecke.mjs). Der Lagernaut-
-// Server ist daran nicht beteiligt. An jedem anderen PC gibt es keine Brücke;
-// dann steht hier nur eine unaufdringliche Zeile.
+// ── Druckerstatus über die lokale Druckbrücke (3D-Druck Paket 3) ──────────────
+// Fragt über useDruckbruecke die Brücke auf DEM PC, auf dem dieser Browser läuft
+// (tools/druckbruecke/druckbruecke.mjs). Der Lagernaut-Server ist daran nicht
+// beteiligt. An jedem anderen PC gibt es keine Brücke; dann steht hier nur eine
+// unaufdringliche Zeile.
 // ⚠️ Chrome fragt beim ersten Mal, ob die Seite auf Geräte im lokalen Netzwerk
 // zugreifen darf — „Zulassen", sonst sieht es aus wie „Brücke läuft nicht".
+//
+// Ist ein aus Lagernaut gestarteter Druck fertig, fragt die Karte direkt nach
+// dem Einbuchen (Paket 2) — genau dann steht man am Drucker.
 
-import { useEffect, useRef, useState } from "react";
-
-export const BRUECKE_URL = "http://127.0.0.1:17350";
-
-type Drucker = {
-  zustand: string | null; zustandText: string; datei: string | null;
-  fortschritt: number | null; restMinuten: number | null; schicht: number | null; schichten: number | null;
-  duese: number | null; dueseZiel: number | null; bett: number | null; bettZiel: number | null;
-  fehlercode: number | null; meldungen: number;
-};
-type BrueckenStatus = {
-  bruecke: { version: string }; verbindung: string; fehler: string | null;
-  letzterBericht: string | null; drucker: Drucker | null;
-};
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { leseAuftrag, useDruckbruecke, vergissAuftrag, type LetzterAuftrag } from "./useDruckbruecke";
 
 const FARBE: Record<string, string> = {
   RUNNING: "bg-[#008BD2]/15 text-[#0064d2] dark:text-[#45bdff]",
@@ -40,38 +32,18 @@ function fmtRest(min: number | null): string | null {
 const grad = (ist: number | null, ziel: number | null) =>
   ist == null ? "–" : `${Math.round(ist)}°${ziel ? ` / ${Math.round(ziel)}°` : ""}`;
 
-export function DruckerStatus() {
-  const [s, setS] = useState<BrueckenStatus | null>(null);
-  const [erreichbar, setErreichbar] = useState<boolean | null>(null);
-  const erreichbarRef = useRef(false);
+/** Gehört der fertige Druck zu dem, was hier gestartet wurde? (subtask_name = unser Titel) */
+function istUnserDruck(a: LetzterAuftrag, datei: string | null): boolean {
+  if (!datei) return false;
+  const ohneEndung = a.datei.replace(/\.gcode\.3mf$/i, "");
+  return datei === a.titel || datei === ohneEndung || datei === a.datei;
+}
 
-  useEffect(() => {
-    let aus = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const hole = async () => {
-      if (document.visibilityState === "visible") {
-        const ab = new AbortController();
-        const t = setTimeout(() => ab.abort(), 2500);
-        let ok = false;
-        try {
-          const r = await fetch(`${BRUECKE_URL}/status`, { signal: ab.signal, cache: "no-store" });
-          if (r.ok) {
-            const j = (await r.json()) as BrueckenStatus;
-            if (!aus) setS(j);
-            ok = true;
-          }
-        } catch { /* keine Brücke an diesem PC */ } finally {
-          clearTimeout(t);
-        }
-        erreichbarRef.current = ok;
-        if (!aus) setErreichbar(ok);
-      }
-      // Läuft keine Brücke, seltener nachsehen — das ist an fast jedem PC so.
-      if (!aus) timer = setTimeout(hole, erreichbarRef.current ? 3000 : 15000);
-    };
-    void hole();
-    return () => { aus = true; clearTimeout(timer); };
-  }, []);
+export function DruckerStatus() {
+  const { erreichbar, status: s } = useDruckbruecke();
+  const [auftrag, setAuftrag] = useState<LetzterAuftrag | null>(null);
+  // localStorage erst im Browser lesen; bei jedem neuen Bericht neu (Start/Einbuchen ändern ihn).
+  useEffect(() => { setAuftrag(leseAuftrag()); }, [s]);
 
   if (erreichbar === null) return null;
   if (!erreichbar) {
@@ -101,6 +73,7 @@ export function DruckerStatus() {
 
   const rest = fmtRest(d.restMinuten);
   const aktiv = d.zustand === "RUNNING" || d.zustand === "PREPARE" || d.zustand === "PAUSE";
+  const fertigUnser = d.zustand === "FINISH" && auftrag != null && istUnserDruck(auftrag, d.datei);
   return (
     <div className={`${karte} space-y-2`} aria-live="polite">
       <div className="flex items-center gap-2 flex-wrap">
@@ -126,6 +99,19 @@ export function DruckerStatus() {
       <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
         Düse {grad(d.duese, d.dueseZiel)} · Bett {grad(d.bett, d.bettZiel)}
       </div>
+      {fertigUnser && auftrag && (
+        <div className="flex items-center gap-2 flex-wrap rounded-xl bg-[#04B475]/10 px-3 py-2">
+          <span className="text-sm font-bold text-[#037A4F] dark:text-[#3ddc97] flex-1 min-w-[180px]">✓ „{auftrag.titel}“ ist fertig gedruckt.</span>
+          <Link href={`/admin/druck/${auftrag.vorlageId}#fertig`}
+            className="inline-flex items-center px-4 rounded-xl bg-[#037A4F] text-white text-sm font-bold min-h-[48px]">
+            Jetzt einbuchen
+          </Link>
+          <button type="button" onClick={() => { vergissAuftrag(auftrag.vorlageId); setAuftrag(null); }}
+            className="px-3 rounded-xl text-sm font-semibold text-[#65676b] dark:text-[#b0b3b8] min-h-[48px]">
+            Ausblenden
+          </button>
+        </div>
+      )}
     </div>
   );
 }

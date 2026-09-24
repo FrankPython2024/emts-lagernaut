@@ -245,7 +245,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ACHTZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke` (zusammen 680) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke` (zusammen 692) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1391,8 +1391,29 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   mc_remaining_time, layer_num/total_layer_num, nozzle_/bed_temper(+_target), subtask_name, print_error,
   hms, sdcard — wie P1/X1. `gcode_file` steht beim P2S als „/data/Metadata/plate_1.gcode".
   Zusätzlich gibt es `print.device` (extruder, nozzle, bed …) — bisher nicht ausgewertet.
-  **Stufe 2 (offen):** Drucken — Datei per FTPS (990, implizites TLS) auf den Speicher, Start per MQTT
-  `project_file`; USB-Stick/SD-Karte im Drucker nötig; Pflicht-Bestätigung „Platte leer".
+- **Paket 3 Stufe 2 = Drucken (24.09.2026, Brücke 1.1.0):** Knopf „🖨️ Drucken" (`components/druck/
+  DruckenKnopf.tsx`) an Vorlagenkarte, Druckliste und jeder geslicten Datei — **nur sichtbar, wenn auf
+  diesem PC eine Brücke läuft und verbunden ist**. Dialog mit zwei Pflicht-Häkchen („Platte leer",
+  „richtiges Filament") und Druckerzustand; Start nur bei IDLE/FINISH/FAILED. Der Browser holt die Datei
+  aus Lagernaut (eigene Sitzung) und schickt sie an `POST /drucken?bestaetigt=1&vorlage=&titel=`.
+  Die Brücke: ZIP-Inhaltsverzeichnis lesen → **Platte aus der Datei** (`findePlatten`; „P2S Full Set"
+  am Drucker enthält NUR `plate_2` — „plate_1" fest angenommen wäre ins Leere gelaufen) → FTPS nach
+  **`/cache/<Name>_L<VorlageId>.gcode.3mf`** (ASCII, je Vorlage fest → überschreibt den letzten) →
+  MQTT `project_file` mit `url: ftp:///cache/<datei>`, Ids 0, `use_ams: false` (kein AMS, ams_exist_bits 0)
+  → wartet 20 s auf `result`/Zustandswechsel.
+  ⚠️ **Am P2S gemessen (FTP-Liste + Schreibtest 24.09.2026):** vsFTPd 3.0.5, TLS 1.2; der interne
+  Speicher heißt `/cache` (dort legt auch Bambu Studio ab), daneben `/ipcam`, `/timelapse`. Der
+  Datenkanal braucht **dieselbe TLS-Sitzung** (`session: getSession()`), und seine Verschlüsselung
+  beginnt **erst nach LIST/STOR** — wer vorher auf `secureConnect` wartet, hängt und bekommt ECONNRESET.
+  Schreibtest (200 KB hoch, identisch zurück, gelöscht) und alle Abweisungen (ohne Bestätigung, ohne/
+  fremde Origin → 403, kein ZIP, nicht geslict) gegen den echten Drucker geprüft — **ohne** Druck.
+  ⚠️ **Der erste echte Druck ist noch nicht gelaufen** (braucht jemanden vor Ort mit leerer Platte).
+  Unbestätigt sind deshalb: `url`-Form `ftp:///cache/…` und die `result`-Antwort des P2S.
+  **Fertig → einbuchen:** Der Browser merkt sich den gestarteten Druck (`localStorage
+  druck-letzter-auftrag`, 48 h); meldet der Drucker FINISH mit demselben `subtask_name`, zeigt die
+  Druckerkarte „✓ … fertig gedruckt → Jetzt einbuchen" (→ `#fertig`). Einbuchen löscht die Merkung.
+  Eine gemeinsame Abfrage für die ganze Seite (`useDruckbruecke`, useSyncExternalStore) — sonst fragte
+  jede Vorlagenkarte alle 3 s einzeln.
 
 ### Notizbuch (Sep 2026)
 

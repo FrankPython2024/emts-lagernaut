@@ -8,7 +8,7 @@
 
 import {
   kodiereLaenge, baueConnect, baueSubscribe, bauePublish, zerlegePakete, lesePublish,
-  fuehreZusammen, fasseStatus, herkunftErlaubt,
+  fuehreZusammen, fasseStatus, herkunftErlaubt, findePlatten, druckerDateiname, druckBefehl,
 } from "../tools/druckbruecke/druckbruecke.mjs";
 
 let passed = 0;
@@ -78,6 +78,43 @@ check("mit Schrägstrich am Ende erlaubt", herkunftErlaubt("https://emts-lagerna
 check("fremde Seite abgelehnt", herkunftErlaubt("https://boese.example", erl), false);
 check("ähnliche Seite abgelehnt", herkunftErlaubt("https://emts-lagernaut.duckdns.org.boese.example", erl), false);
 check("ohne Origin abgelehnt", herkunftErlaubt(undefined, erl), false);
+
+console.log("\n── Platten in der Druckdatei (ZIP-Inhaltsverzeichnis) ──");
+// Minimales ZIP ohne Inhalt: nur Zentralverzeichnis + Ende-Eintrag, wie es findePlatten liest.
+function zip(namen) {
+  const cd = Buffer.concat(namen.map((n) => {
+    const name = Buffer.from(n, "utf8");
+    const h = Buffer.alloc(46);
+    h.writeUInt32LE(0x02014b50, 0);
+    h.writeUInt16LE(name.length, 28);
+    return Buffer.concat([h, name]);
+  }));
+  const vorne = Buffer.from("PK-Dateiinhalt-egal");
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(namen.length, 8);
+  eocd.writeUInt16LE(namen.length, 10);
+  eocd.writeUInt32LE(cd.length, 12);
+  eocd.writeUInt32LE(vorne.length, 16);
+  return Buffer.concat([vorne, cd, eocd]);
+}
+check("Platte 1", findePlatten(zip(["Metadata/plate_1.gcode", "Metadata/plate_1.png", "3D/3dmodel.model"])), [{ eintrag: "Metadata/plate_1.gcode", nummer: 1 }]);
+check("nur Platte 2 exportiert (wie „P2S Full Set“ am Drucker)", findePlatten(zip(["Metadata/plate_2.gcode", "Metadata/plate_2.json"]))?.map((p) => p.nummer), [2]);
+check("mehrere Platten sortiert", findePlatten(zip(["Metadata/plate_3.gcode", "Metadata/plate_1.gcode"]))?.map((p) => p.nummer), [1, 3]);
+check("nicht geslict (Projekt ohne gcode) → leer", findePlatten(zip(["3D/3dmodel.model", "Metadata/model_settings.config"])), []);
+check("kein ZIP → null", findePlatten(Buffer.from("das ist keine zip-datei, nur text ".repeat(3))), null);
+check(".md5-Datei zählt nicht", findePlatten(zip(["Metadata/plate_1.gcode.md5"])), []);
+
+console.log("\n── Dateiname auf dem Drucker ──");
+check("Umlaute, ß, Vorlage-Nr.", druckerDateiname("Latitude 7310 Füße vorne", 3), "Latitude 7310 Fuesse vorne_L3.gcode.3mf");
+check("Sonderzeichen raus, Endung nicht doppelt", druckerDateiname("E14/Gen4: Fuß*.gcode.3mf", 12), "E14 Gen4 Fuss_L12.gcode.3mf");
+check("leerer Name", druckerDateiname("", 0), "druck.gcode.3mf");
+check("höchstens 60 Zeichen Name", druckerDateiname("x".repeat(100), 1).length, 60 + "_L1.gcode.3mf".length);
+
+console.log("\n── Druckbefehl ──");
+const bef = druckBefehl({ datei: "A_L1.gcode.3mf", platte: "Metadata/plate_2.gcode", titel: "A", sequenz: 7 }).print;
+check("project_file aus /cache", [bef.command, bef.url, bef.file, bef.param], ["project_file", "ftp:///cache/A_L1.gcode.3mf", "A_L1.gcode.3mf", "Metadata/plate_2.gcode"]);
+check("lokaler Druck: Ids 0, ohne AMS, Sequenz als Text", [bef.project_id, bef.task_id, bef.use_ams, bef.sequence_id], ["0", "0", false, "7"]);
 
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);
 process.exit(failed === 0 ? 0 : 1);
