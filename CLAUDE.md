@@ -1445,7 +1445,8 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   oder „Ausblenden" → `DruckAuftrag.erledigtAm`). Material-Hinweis im Dialog, wenn Vorlage und Spule
   nicht passen (`materialPasst`) — nur Warnung, kein Verbot.
   Zusammenspiel Brücke ↔ Server am 24.09. mit einem Nachbau der Endpunkte geprüft (Meldung, Abholen,
-  Datei, Ablehnung einer ungültigen Datei VOR dem Drucker, Ergebnis) — ohne Druck.
+  Datei, Ablehnung einer ungültigen Datei VOR dem Drucker, Ergebnis) — ohne Druck. Nach Deploy + Koppeln
+  am 24.09.2026 im Betrieb bestätigt (Frank: „funktioniert“).
 
 ### Notizbuch (Sep 2026)
 
