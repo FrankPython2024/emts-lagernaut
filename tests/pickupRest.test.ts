@@ -10,7 +10,7 @@
  * Reine Logik, kein Netz, keine Datenbank.
  */
 
-import { planeRest, restName, type LagerfuchsStand, type RestPosition } from "../src/lib/pickup/restAuftrag";
+import { planeRest, restName, istZielPlatz, type LagerfuchsStand, type RestPosition } from "../src/lib/pickup/restAuftrag";
 
 let passed = 0;
 let failed = 0;
@@ -66,6 +66,22 @@ check("VOR dem Auftrag ausgeschieden zählt nicht (Auftrag ist frischer)", [wegV
 const wegOhneDatum = plan([pos("212000008")], [["212000008", stand({ ausgeschieden: true, ausgeschiedenAm: null, zuletztGesehen: NACHHER })]]);
 check("ohne Abgangsdatum: zuletzt gesehen entscheidet", wegOhneDatum.ausgeschieden.length, 1);
 
+console.log("\n── Schon angekommen (Ziel-Stellplatz) ──");
+const tec = plan([pos("212000010")], [["212000010", stand({ stellplatz: "TEC-WE", colli: null })]]);
+check("jetzt auf TEC-WE → angekommen, nicht übernommen", [tec.uebernehmen.length, tec.angekommen.length, tec.umgezogen], [0, 1, 0]);
+for (const z of ["TEC-3-3-0", "ER-0-0-0", "BTA-0-1", "Vor-Rei-1-AV", "vor-rei-2", "tec-we"]) {
+  check(`Zielplatz erkannt: ${z}`, istZielPlatz(z), true);
+}
+for (const z of ["HL-07-31-01", "ETL-7-2-1", "WE", "MDR-WE-12-4", "ERSATZ-1", "TECHNIK", "Broker", "", null]) {
+  check(`kein Zielplatz: ${z}`, istZielPlatz(z), false);
+}
+const ausTec = plan([pos("212000011", "TEC-3-3-0")], [["212000011", stand({ stellplatz: "TEC-3-6-0" })]]);
+check("Abholung AUS der Technik: TEC→TEC bleibt normaler Umzug", [ausTec.uebernehmen.length, ausTec.angekommen.length, ausTec.umgezogen], [1, 0, 1]);
+const tecAlt = plan([pos("212000012")], [["212000012", stand({ stellplatz: "TEC-WE", zuletztGesehen: VORHER })]]);
+check("Lagerfuchs älter als Auftrag → nicht angekommen", [tecAlt.uebernehmen.length, tecAlt.angekommen.length], [1, 0]);
+const tecAus = plan([pos("212000013")], [["212000013", stand({ stellplatz: "TEC-WE", ausgeschieden: true, ausgeschiedenAm: NACHHER })]]);
+check("ausgeschieden geht vor angekommen", [tecAus.ausgeschieden.length, tecAus.angekommen.length], [1, 0]);
+
 console.log("\n── Unbekannt ──");
 const unb = plan([pos("212000009")], []);
 check("nicht im Lagerfuchs → übernommen, gezählt", [unb.uebernehmen.length, unb.unbekannt], [1, 1]);
@@ -79,7 +95,7 @@ const mix = plan(
     ["212000006", stand({ ausgeschieden: true, ausgeschiedenAm: NACHHER })],
   ],
 );
-check("Zählung stimmt", [mix.uebernehmen.length, mix.umgezogen, mix.ausgeschieden.length, mix.unbekannt], [3, 1, 1, 1]);
+check("Zählung stimmt", [mix.uebernehmen.length, mix.umgezogen, mix.ausgeschieden.length, mix.unbekannt, mix.angekommen.length], [3, 1, 1, 1, 0]);
 
 console.log("\n── Name ──");
 check("Rest-Name", restName("Richard 179"), "Richard 179 · Rest");

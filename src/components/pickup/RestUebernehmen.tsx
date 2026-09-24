@@ -4,6 +4,8 @@
 //  • RestUebernehmenKnopf: offene Positionen in einen neuen Auftrag, alter wird
 //    abgeschlossen (Server: pickup.restUebernehmen, Regel: lib/pickup/restAuftrag).
 //  • UeberschneidungHinweis: welche Geräte stehen AUCH in anderen offenen Aufträgen?
+//  • AngekommenHinweis: welche offenen Geräte stehen laut Lagerfuchs schon in der
+//    Technik (TEC/ER/BTA/Vor-Rei)? Anlass: #168 am 24.09.2026, alle 239 offenen.
 // Anlass: 1.339 LogIDs wurden nach einem Fehlversuch einfach neu angelegt, der alte
 // Auftrag blieb oft offen — am 23.09.2026 standen 114 LogIDs gleichzeitig in #168
 // und #183.
@@ -56,7 +58,7 @@ function RestDialog({ auftragId, onClose }: { auftragId: number; onClose: () => 
   });
 
   const d = q.data;
-  const anzahl = d ? d.offen - (ohneAusgeschiedene ? d.ausgeschieden : 0) : 0;
+  const anzahl = d ? d.offen - d.angekommen - (ohneAusgeschiedene ? d.ausgeschieden : 0) : 0;
   const nameWert = name ?? d?.vorschlagName ?? "";
 
   return (
@@ -89,6 +91,12 @@ function RestDialog({ auftragId, onClose }: { auftragId: number; onClose: () => 
                   {d.umgezogen === 0 ? "alle Orte stimmen noch." : "neuen Stellplatz und Colli übernehmen."}
                 </span>
               </label>
+              {d.angekommen > 0 && (
+                <p className="font-semibold text-[#037A4F] dark:text-[#3ddc97]">
+                  🏁 {d.angekommen} {d.angekommen === 1 ? "steht" : "stehen"} schon in der Technik
+                  ({d.angekommenPlaetze.map((x) => `${x.platz} ${x.anzahl}`).join(" · ")}) — kommen nicht mit, die sind abgeholt.
+                </p>
+              )}
               {d.unbekannt > 0 && (
                 <p className="text-[#65676b] dark:text-[#b0b3b8]">{d.unbekannt} nicht im Lagerfuchs — alter Ort bleibt.</p>
               )}
@@ -104,6 +112,12 @@ function RestDialog({ auftragId, onClose }: { auftragId: number; onClose: () => 
                 </details>
               )}
             </div>
+          )}
+
+          {anzahl === 0 && d.angekommen > 0 && (
+            <p className="rounded-xl bg-[#04B475]/10 px-3 py-2 text-sm font-bold text-[#037A4F] dark:text-[#3ddc97]">
+              Es bleibt nichts zum Suchen übrig. Auftrag einfach abschließen.
+            </p>
           )}
 
           <div>
@@ -163,6 +177,46 @@ export function UeberschneidungHinweis({ auftragId, logIds }: { auftragId: numbe
         ))}
       </ul>
       <p className="text-[#65676b] dark:text-[#b0b3b8]">Ist einer davon der alte Auftrag? Dann dort abschließen — sonst sucht jemand doppelt.</p>
+    </div>
+  );
+}
+
+/** Offene Geräte, die laut Lagerfuchs schon in der Technik stehen — Abschließen anbieten. */
+export function AngekommenHinweis({ auftragId, offen }: { auftragId: number; offen: number }) {
+  const { show } = useToast();
+  const utils = api.useUtils();
+  const q = api.pickup.angekommen.useQuery(undefined, { staleTime: 60_000 });
+  const abschliessen = api.pickup.abschliessen.useMutation({
+    onSuccess: () => {
+      show("✅ Auftrag abgeschlossen", "success");
+      void utils.pickup.details.invalidate({ id: auftragId });
+      void utils.pickup.liste.invalidate();
+      void utils.pickup.angekommen.invalidate();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+  const a = q.data?.find((x) => x.auftragId === auftragId);
+  if (!a || a.angekommen === 0) return null;
+  const alle = a.angekommen >= offen;
+  return (
+    <div role="status" className="rounded-xl border-2 border-[#04B475] bg-[#04B475]/10 px-4 py-3 text-sm text-[#1a1a1a] dark:text-[#e4e6eb] space-y-2">
+      <div className="font-black text-[#037A4F] dark:text-[#3ddc97]">
+        🏁 {alle ? `Alle ${offen} offenen Geräte stehen` : `${a.angekommen} von ${offen} offenen Geräten stehen`} laut Lagerfuchs schon in der Technik
+      </div>
+      <p>
+        {a.plaetze.map((x) => `${x.platz}: ${x.anzahl}`).join(" · ")}. Sie wurden abgeholt, nur nicht in diesem Auftrag gescannt.
+        {alle ? " Hier ist nichts mehr zu suchen." : " „Rest in neuen Auftrag“ lässt sie weg."}
+      </p>
+      {alle && (
+        <button
+          type="button"
+          disabled={abschliessen.isPending}
+          onClick={() => abschliessen.mutate({ id: auftragId })}
+          className="px-5 rounded-xl bg-[#037A4F] text-white text-sm font-bold min-h-[48px] disabled:opacity-50"
+        >
+          {abschliessen.isPending ? "Schließe ab…" : "✓ Auftrag abschließen"}
+        </button>
+      )}
     </div>
   );
 }

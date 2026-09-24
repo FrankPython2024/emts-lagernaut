@@ -33,11 +33,16 @@ function fmtDatum(d: Date | string): string {
   return new Date(d).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function AuftragKarte({ a, onAbschliessen, schliesst }: { a: Auftrag; onAbschliessen?: (id: number) => void; schliesst?: boolean }) {
+/** Offene Geräte, die laut Lagerfuchs schon in der Technik stehen (pickup.angekommen). */
+type Angekommen = { angekommen: number; offen: number; plaetze: { platz: string; anzahl: number }[] };
+
+function AuftragKarte({ a, ang, onAbschliessen, schliesst }: { a: Auftrag; ang?: Angekommen; onAbschliessen?: (id: number) => void; schliesst?: boolean }) {
   const pct = a.gesamt > 0 ? Math.round((a.gefunden / a.gesamt) * 100) : 0;
   // Gemessen 23.09.2026: 28 Aufträge wurden erst über einen Tag nach dem letzten
   // Scan geschlossen, #175 stand zwei Tage bei 41/41 — sichtbar machen.
   const fertigAberOffen = a.status === "offen" && a.gesamt > 0 && a.gefunden === a.gesamt;
+  // 24.09.2026: #168 hatte 239 „offene" Geräte, die alle schon in der Technik standen.
+  const restSchonDa = a.status === "offen" && !!ang && ang.angekommen > 0 && ang.angekommen === a.offen;
   return (
     <Link
       href={`/admin/pickup/${a.id}`}
@@ -53,10 +58,18 @@ function AuftragKarte({ a, onAbschliessen, schliesst }: { a: Auftrag; onAbschlie
       {a.bemerkung ? (
         <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-3 truncate" title={a.bemerkung}>📝 {a.bemerkung}</div>
       ) : <div className="mb-3" />}
-      {(a.doppelt > 0 || a.vermisst > 0 || fertigAberOffen) && (
+      {(a.doppelt > 0 || a.vermisst > 0 || fertigAberOffen || (ang && ang.angekommen > 0)) && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {fertigAberOffen && (
             <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold bg-[#04B475]/15 text-[#037A4F] dark:text-[#3ddc97]">✓ alles gefunden — noch nicht abgeschlossen</span>
+          )}
+          {ang && ang.angekommen > 0 && (
+            <span
+              className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold bg-[#04B475]/15 text-[#037A4F] dark:text-[#3ddc97]"
+              title={`Laut Lagerfuchs: ${ang.plaetze.map((x) => `${x.platz} ${x.anzahl}`).join(" · ")}`}
+            >
+              🏁 {restSchonDa ? "alle" : ang.angekommen} {restSchonDa ? "offenen" : `von ${a.offen} offenen`} schon in der Technik
+            </span>
           )}
           {a.doppelt > 0 && (
             <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold bg-[#BA7517]/15 text-[#8A5A00] dark:text-[#f7b928]">⚠ {a.doppelt} auch in anderem offenen Auftrag</span>
@@ -80,14 +93,14 @@ function AuftragKarte({ a, onAbschliessen, schliesst }: { a: Auftrag; onAbschlie
           ? `Abgeschlossen: ${fmtDatum(a.abgeschlossenAm)}`
           : `${fmtDatum(a.createdAt)} · ${a.ersteller}`}
       </div>
-      {fertigAberOffen && onAbschliessen && (
+      {(fertigAberOffen || restSchonDa) && onAbschliessen && (
         <button
           type="button"
           disabled={schliesst}
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAbschliessen(a.id); }}
           className="mt-3 w-full rounded-xl bg-[#037A4F] text-white text-sm font-bold min-h-[48px] disabled:opacity-50"
         >
-          {schliesst ? "Schließe ab…" : "✓ Jetzt abschließen"}
+          {schliesst ? "Schließe ab…" : fertigAberOffen ? "✓ Jetzt abschließen" : "✓ Abschließen — Rest ist schon in der Technik"}
         </button>
       )}
     </Link>
@@ -98,6 +111,9 @@ export default function PickupListePage() {
   const { has, isLoading: permsLoading } = usePermissions();
   const darfManage = has("PICKUP_MANAGE");
   const { data, isLoading } = api.pickup.liste.useQuery(undefined, { enabled: !permsLoading && darfManage });
+  // Lagerfuchs-Abgleich ist teurer (alle offenen LogIDs) — seltener laden.
+  const angekommenQ = api.pickup.angekommen.useQuery(undefined, { enabled: !permsLoading && darfManage, staleTime: 60_000 });
+  const angJe = new Map((angekommenQ.data ?? []).map((x) => [x.auftragId, x]));
 
   // Live-Fortschritt (Socket): Liste invalidieren → Karten + offen↔archiv ohne Reload.
   const utils = api.useUtils();
@@ -110,6 +126,7 @@ export default function PickupListePage() {
     }
     setSchliesse(new Set());
     void utils.pickup.liste.invalidate();
+    void utils.pickup.angekommen.invalidate();
   }
   const { on, off, connected } = useSocket();
   useEffect(() => {
@@ -197,7 +214,7 @@ export default function PickupListePage() {
               </div>
             ) : (
               <div className={gridCls} style={gridStyle}>
-                {offene.map((a) => <AuftragKarte key={a.id} a={a} onAbschliessen={(aid) => void schliesseAb([aid])} schliesst={schliesse.has(a.id)} />)}
+                {offene.map((a) => <AuftragKarte key={a.id} a={a} ang={angJe.get(a.id)} onAbschliessen={(aid) => void schliesseAb([aid])} schliesst={schliesse.has(a.id)} />)}
               </div>
             )}
           </section>

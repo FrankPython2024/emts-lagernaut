@@ -83,6 +83,30 @@ async function ladeOffenenAuftragOderWirf(auftragId: number): Promise<void> {
   }
 }
 
+// Lagerfuchs-Stand je LogID (Schlüssel: reine Ziffern).
+async function ladeLagerfuchsStand(logIds: string[]): Promise<Map<string, LagerfuchsStand>> {
+  const stand = new Map<string, LagerfuchsStand>();
+  const schluessel = [...new Set(logIds.flatMap((l) => {
+    const d = nurZiffern(l);
+    return d ? [d, formatLogId(d)] : [];
+  }))];
+  for (let i = 0; i < schluessel.length; i += 1000) {
+    const rows = await prisma.logIdStand.findMany({
+      where:  { logId: { in: schluessel.slice(i, i + 1000) } },
+      select: { logId: true, stellplatz: true, colli: true, zuletztGesehen: true, ausgeschieden: true, ausgeschiedenAm: true },
+    });
+    for (const row of rows) stand.set(nurZiffern(row.logId), row);
+  }
+  return stand;
+}
+
+/** Die häufigsten Ziel-Stellplätze, z. B. „TEC-WE 100 · TEC-3-3-0 34". */
+function haeufigstePlaetze(liste: { stellplatz: string }[], n = 3): { platz: string; anzahl: number }[] {
+  const m = new Map<string, number>();
+  for (const x of liste) m.set(x.stellplatz, (m.get(x.stellplatz) ?? 0) + 1);
+  return [...m].sort((a, b) => b[1] - a[1]).slice(0, n).map(([platz, anzahl]) => ({ platz, anzahl }));
+}
+
 // „Rest übernehmen": offene Positionen des Auftrags + Lagerfuchs-Stand je LogID.
 // Der Lagerfuchs schreibt LogIDs MIT Punkten („212.652.351"), der Pickup ohne —
 // deshalb wird nach beiden Schreibweisen gesucht und über die Ziffern verbunden.
@@ -96,21 +120,10 @@ async function ladeRestPlan(id: number, ohneAusgeschiedene: boolean, ortAktualis
   });
   if (!auftrag) throw new TRPCError({ code: "NOT_FOUND", message: "Pickup-Auftrag nicht gefunden" });
 
-  const stand = new Map<string, LagerfuchsStand>();
   // Colli-Aufträge führen Colli-Nummern, keine Geräte — der Lagerfuchs hilft dort nicht.
-  if (auftrag.typ === "LOGID" && auftrag.positionen.length > 0) {
-    const schluessel = [...new Set(auftrag.positionen.flatMap((p) => {
-      const d = nurZiffern(p.logId);
-      return d ? [d, formatLogId(d)] : [];
-    }))];
-    for (let i = 0; i < schluessel.length; i += 1000) {
-      const rows = await prisma.logIdStand.findMany({
-        where:  { logId: { in: schluessel.slice(i, i + 1000) } },
-        select: { logId: true, stellplatz: true, colli: true, zuletztGesehen: true, ausgeschieden: true, ausgeschiedenAm: true },
-      });
-      for (const row of rows) stand.set(nurZiffern(row.logId), row);
-    }
-  }
+  const stand = auftrag.typ === "LOGID"
+    ? await ladeLagerfuchsStand(auftrag.positionen.map((p) => p.logId))
+    : new Map<string, LagerfuchsStand>();
   const plan = planeRest({
     positionen: auftrag.positionen, stand, auftragAngelegt: auftrag.createdAt, ohneAusgeschiedene, ortAktualisieren,
   });
@@ -666,9 +679,34 @@ export const pickupRouter = createTRPCRouter({
         unbekannt:       plan.unbekannt,
         ausgeschieden:   plan.ausgeschieden.length,
         ausgeschiedenBeispiele: plan.ausgeschieden.slice(0, 20),
+        angekommen:      plan.angekommen.length,
+        angekommenPlaetze: haeufigstePlaetze(plan.angekommen),
         lagerfuchsStand,
       };
     }),
+
+  // Offene Geräte, die laut Lagerfuchs schon in der Technik (TEC/ER/BTA/Vor-Rei)
+  // stehen — abgeholt, nur nicht in diesem Auftrag gescannt. Am 24.09.2026 waren
+  // das ALLE 239 offenen Geräte von #168. Je offenem LOGID-Auftrag.
+  angekommen: pickupManage.query(async () => {
+    const auftraege = await prisma.pickupAuftrag.findMany({
+      where:  { status: "offen", typ: "LOGID" },
+      select: {
+        id: true, createdAt: true,
+        positionen: { where: { status: "OFFEN" }, select: { logId: true, colli: true, stellplatz: true, bezeichnung: true } },
+      },
+    });
+    const stand = await ladeLagerfuchsStand(auftraege.flatMap((a) => a.positionen.map((p) => p.logId)));
+    return auftraege.flatMap((a) => {
+      const plan = planeRest({ positionen: a.positionen, stand, auftragAngelegt: a.createdAt, ohneAusgeschiedene: true, ortAktualisieren: false });
+      return plan.angekommen.length === 0 ? [] : [{
+        auftragId:  a.id,
+        angekommen: plan.angekommen.length,
+        offen:      a.positionen.length,
+        plaetze:    haeufigstePlaetze(plan.angekommen),
+      }];
+    });
+  }),
 
   // Rest übernehmen: neuer Auftrag mit den offenen Positionen, alter wird
   // abgeschlossen — in EINER Transaktion, damit nie beide offen sind (genau das
@@ -684,7 +722,9 @@ export const pickupRouter = createTRPCRouter({
       const user = ctx.session.user as SessionUser;
       const { auftrag, plan } = await ladeRestPlan(input.id, input.ohneAusgeschiedene, input.ortAktualisieren);
       if (plan.uebernehmen.length === 0) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Nichts zu übernehmen — es ist kein Gerät mehr offen." });
+        throw new TRPCError({ code: "BAD_REQUEST", message: plan.angekommen.length > 0
+          ? "Nichts zu übernehmen — die offenen Geräte stehen schon in der Technik. Auftrag einfach abschließen."
+          : "Nichts zu übernehmen — es ist kein Gerät mehr offen." });
       }
       const neu = await prisma.$transaction(async (tx) => {
         const a = await tx.pickupAuftrag.create({

@@ -245,7 +245,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind SECHZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest` (zusammen 611) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest` (zusammen 630) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1297,6 +1297,17 @@ Jetzt: `src/lib/pickup/scanAuswertung.ts` (Test `npm run test:scan`, 34):
   ReForm-Datei). Am 24.09. war der letzte Lagerfuchs-Import vom 07.09. → für #168/#183/#182
   0 Änderungen; die Funktion hilft erst mit frischem Lagerfuchs-Export. LogIDs: Lagerfuchs MIT
   Punkten, Pickup ohne — Abgleich über die Ziffern.
+- ⚠️ **„Umgezogen" ist nicht immer „woanders abholen" — Ziel-Stellplätze.** Mit dem ersten frischen
+  Lagerfuchs danach (24.09.2026) meldete der Abgleich für #168 **alle 239 offenen Geräte als
+  umgezogen** — nach TEC-WE, TEC-3, ER-0, BTA … Sie waren längst in der Technik, nur nicht in #168
+  gescannt; ein Rest-Auftrag hätte den Picker nach TEC-WE geschickt. **`TEC`, `ER`, `BTA`, `Vor-Rei`
+  = schon gefunden** (Frank, 24.09.2026) → `istZielPlatz()` in `restAuftrag.ts`, solche Geräte zählen
+  als `angekommen` und kommen nie mit. ⚠️ **Nur wenn der Auftrag sie nicht selbst dort suchte:**
+  10 Aufträge holen bewusst AUS der Technik ab (332 Positionen auf TEC-Plätzen), TEC→TEC bleibt
+  normaler Umzug. `pickup.angekommen` rechnet das für alle offenen LOGID-Aufträge; die Admin-Liste
+  zeigt „🏁 … schon in der Technik" (bei allen: Knopf „Abschließen — Rest ist schon in der
+  Technik"), die Detailseite einen Hinweis mit Abschließen-Knopf. Abschließen markiert NICHTS als
+  gefunden — der Auftrag steht danach ehrlich als „Nicht komplett" im Archiv.
 - **Warnungen:** Neuanlage prüft `bereitsOffen` und bietet „nicht noch einmal aufnehmen" an
   (Standard an); Admin-Detail zeigt, welche offenen Geräte AUCH in anderen offenen Aufträgen
   stehen; Admin-Liste zeigt je Auftrag „⚠ N auch in anderem offenen Auftrag", „⚠ N nicht da" und

@@ -15,6 +15,14 @@
 // aktueller als der Lagerfuchs (284 Fälle, in denen ein späterer Import nur
 // nachzog, was der Auftrag schon wusste).
 //
+// ⚠️ „Umgezogen" heißt nicht immer „woanders abholen": Steht ein Gerät jetzt auf
+// einem ZIEL-Stellplatz (Technik, ER, BTA, Vor-Rei), ist es schon abgeholt — nur
+// nicht in DIESEM Auftrag gescannt. Am 24.09.2026 standen alle 239 offenen Geräte
+// von #168 so in der Technik; ein Rest-Auftrag hätte den Picker nach TEC-WE
+// geschickt. Solche Geräte zählen als `angekommen` und kommen nie mit.
+// Nur wenn der Auftrag sie NICHT schon dort suchte — 10 Aufträge holen bewusst
+// AUS der Technik ab (332 Positionen auf TEC-Plätzen).
+//
 // Reine Funktion, Test: `npm run test:rest`.
 
 import { nurZiffern } from "@/lib/format/ziffern";
@@ -43,7 +51,17 @@ export type RestPlan = {
   umgezogen: number;
   /** Nicht im Lagerfuchs — alter Ort bleibt. */
   unbekannt: number;
+  /** Laut Lagerfuchs seitdem auf einem Ziel-Stellplatz (Technik …) — schon abgeholt. */
+  angekommen: { logId: string; stellplatz: string }[];
 };
+
+// Ziel-Stellplätze (Frank, 24.09.2026): Was hier steht, ist schon gefunden.
+const ZIEL_PLATZ = /^(TEC|ER|BTA|VOR-REI)(-|$)/i;
+
+/** Steht das Gerät an einem Ort, an dem der Pickup schon vorbei ist? */
+export function istZielPlatz(stellplatz: string | null | undefined): boolean {
+  return ZIEL_PLATZ.test((stellplatz ?? "").trim());
+}
 
 const gleicherPlatz = (a: string | null, b: string | null) =>
   (a ?? "").trim().toUpperCase() === (b ?? "").trim().toUpperCase();
@@ -57,7 +75,7 @@ export function planeRest(args: {
   ohneAusgeschiedene: boolean;
   ortAktualisieren: boolean;
 }): RestPlan {
-  const plan: RestPlan = { uebernehmen: [], ausgeschieden: [], umgezogen: 0, unbekannt: 0 };
+  const plan: RestPlan = { uebernehmen: [], ausgeschieden: [], umgezogen: 0, unbekannt: 0, angekommen: [] };
   const seit = args.auftragAngelegt.getTime();
 
   for (const p of args.positionen) {
@@ -74,6 +92,10 @@ export function planeRest(args: {
       continue;
     }
     const neuer = s.zuletztGesehen.getTime() > seit;
+    if (neuer && istZielPlatz(s.stellplatz) && !istZielPlatz(p.stellplatz)) {
+      plan.angekommen.push({ logId: nurZiffern(p.logId), stellplatz: s.stellplatz!.trim() });
+      continue;
+    }
     const anders = !gleicherPlatz(s.stellplatz, p.stellplatz) || !gleichesColli(s.colli, p.colli);
     if (neuer && anders && (s.stellplatz || s.colli)) {
       plan.umgezogen++;

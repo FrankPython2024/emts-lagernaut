@@ -12,7 +12,7 @@ import { formatLogId } from "@/lib/pickup/logId";
 import { exportPickupCsv, printPickupBericht } from "@/lib/pickup/bericht";
 import { parsePickupCsv } from "@/lib/pickup/csvImport";
 import { parseColliPruefungCsv } from "@/lib/pickup/colliPruefung";
-import { RestUebernehmenKnopf, UeberschneidungHinweis } from "@/components/pickup/RestUebernehmen";
+import { AngekommenHinweis, RestUebernehmenKnopf, UeberschneidungHinweis } from "@/components/pickup/RestUebernehmen";
 
 function PosStatusBadge({ status, vermisstAm, vermisstVon }: { status: string; vermisstAm?: Date | string | null; vermisstVon?: string | null }) {
   const gefunden = status === "GEFUNDEN";
@@ -375,6 +375,10 @@ export default function PickupDetailPage() {
           bestehendeLogIds={new Set(data.positionen.map((p) => p.logId))}
           onDone={() => utils.pickup.details.invalidate({ id })}
         />
+      )}
+
+      {data.status === "offen" && offen > 0 && data.typ === "LOGID" && (
+        <AngekommenHinweis auftragId={id} offen={offen} />
       )}
 
       {data.status === "offen" && offen > 0 && (
