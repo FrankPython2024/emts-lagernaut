@@ -1387,9 +1387,10 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   falscher Code → CONNACK 5. **Voraussetzung:** „Nur LAN" + „Entwicklermodus" am Drucker (Handy-App
   fällt weg — laut Frank egal). Anzeige: `components/druck/DruckerStatus.tsx` oben auf `/admin/druck`
   (an PCs ohne Brücke nur eine graue Zeile, Abfrage dann alle 15 s statt 3 s).
-  ⚠️ **Feldnamen des P2S sind noch nicht gegen einen echten Bericht geprüft** (angenommen wie P1/X1:
-  gcode_state, mc_percent, mc_remaining_time, nozzle_temper …). Nach dem ersten Verbinden `/roh`
-  ansehen und `fasseStatus` nachziehen.
+  **Feldnamen am echten P2S bestätigt** (24.09.2026, 99 Felder in `print`): gcode_state, mc_percent,
+  mc_remaining_time, layer_num/total_layer_num, nozzle_/bed_temper(+_target), subtask_name, print_error,
+  hms, sdcard — wie P1/X1. `gcode_file` steht beim P2S als „/data/Metadata/plate_1.gcode".
+  Zusätzlich gibt es `print.device` (extruder, nozzle, bed …) — bisher nicht ausgewertet.
   **Stufe 2 (offen):** Drucken — Datei per FTPS (990, implizites TLS) auf den Speicher, Start per MQTT
   `project_file`; USB-Stick/SD-Karte im Drucker nötig; Pflicht-Bestätigung „Platte leer".
 

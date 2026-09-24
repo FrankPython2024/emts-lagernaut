@@ -108,7 +108,7 @@ export function DruckerStatus() {
         <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold ${FARBE[d.zustand ?? ""] ?? "bg-[#65676b]/15 text-[#4b4f56] dark:text-[#b0b3b8]"}`}>
           {d.zustandText}
         </span>
-        {aktiv && d.datei && <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{d.datei}</span>}
+        {(aktiv || d.zustand === "FINISH" || d.zustand === "FAILED") && d.datei && <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{d.datei}</span>}
         {d.fehlercode && <span className="text-xs font-bold text-[#c01818] dark:text-[#ff6b6b]">Fehler {d.fehlercode}</span>}
         {d.meldungen > 0 && <span className="text-xs font-bold text-[#8A5A00] dark:text-[#f7b928]">⚠ {d.meldungen} {d.meldungen === 1 ? "Meldung" : "Meldungen"} am Drucker</span>}
       </div>
