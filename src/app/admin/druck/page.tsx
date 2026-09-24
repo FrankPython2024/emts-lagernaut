@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { DruckerStatus } from "@/components/druck/DruckerStatus";
 
 type Reiter = "liste" | "vorlagen";
 const REITER_KEY = "druck-reiter";
@@ -63,6 +64,8 @@ export default function DruckPage() {
         </div>
         {darfPflegen && <Link href="/admin/druck/neu" className={knopfBlau}>＋ Neue Vorlage</Link>}
       </div>
+
+      <DruckerStatus />
 
       <div role="tablist" className="flex gap-2">
         {([["liste", "📋 Druckliste"], ["vorlagen", `🗂️ Vorlagen${vorlagen.data ? ` (${vorlagen.data.length})` : ""}`]] as const).map(([r, text]) => (

@@ -243,9 +243,9 @@ EOF
   bei nicht gefundener Überschrift `0`/`null` und schrieb das durch — eine umbenannte Spalte hätte
   **alle Bestände auf null** gesetzt. Regel: `undefined` = „stand nicht in der Datei" = nicht
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
-- **Verify-Gate sind SIEBZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
+- **Verify-Gate sind ACHTZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck` (zusammen 654) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke` (zusammen 680) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1369,10 +1369,29 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   **`DruckProtokoll`** (vorlageId SetNull + vorlageName-Kopie, buchungId ohne FK): wer, wann, wie viel.
   **Zurücknehmen** 24 h lang und nur, solange der Bestand die Stück noch hat (sonst wäre er danach
   negativ) — löscht die Buchung über `loescheBuchung` (Suchindex + Bestand neu).
-- **Geplant:** Paket 3 **Druckbrücke**: kleines Programm auf dem PC am Drucker, nimmt nur Anfragen vom eigenen PC
-  an (Browser → localhost → P2S per FTPS 990 + MQTT 8883), spricht selbst nie mit dem Server.
-  Voraussetzung am Drucker: „Nur LAN" + Entwicklermodus (Handy-App fällt weg — laut Frank egal),
-  USB-Stick/SD-Karte im Drucker.
+- **Paket 3 Druckbrücke, Stufe 1 = nur Status (24.09.2026):** `tools/druckbruecke/druckbruecke.mjs`,
+  **eine Datei, nur Node.js, keine Pakete** (MQTT 3.1.1 selbst: CONNECT/SUBSCRIBE/PUBLISH/PING), Start
+  über „Druckbruecke starten.cmd". Läuft auf Franks Arbeitslaptop (192.168.253.188, selbes Netz wie der
+  Drucker 192.168.253.233, Seriennummer 22E8BJ610901688). Test `npm run test:bruecke` (reines `node`,
+  `.mjs` — tsc sieht die Datei nicht).
+  **Weg:** Browser auf DIESEM PC → `http://127.0.0.1:17350/status` → Brücke → P2S (MQTT über TLS, 8883,
+  Benutzer `bblp`, Passwort = Zugangscode, Thema `device/<SN>/report`, einmal `pushall`, danach
+  Änderungen zusammenführen). Die Brücke spricht **nie** mit dem Lagernaut-Server — Frank: „das muss
+  lokal passieren, nur am Standort".
+  ⚠️ **Zugangscode nur in `%USERPROFILE%\.lagernaut-druckbruecke.json`** (nie im Chat, nie im Repo;
+  `DRUCKBRUECKE_EINSTELLUNGEN` lenkt für Tests um). Absicherung, alle am 24.09. nachgeprüft: lauscht nur
+  auf 127.0.0.1, fremde `Origin` → 403, fremder `Host` → 403 (DNS-Rebinding), Chrome-Freigabe
+  `Access-Control-Allow-Private-Network` im Preflight, `/roh` (voller Bericht zur Fehlersuche) nur
+  ohne Origin. Chrome fragt beim ersten Mal nach „Geräte im lokalen Netzwerk" → Zulassen.
+  Gegen den echten Drucker geprüft: TLS 1.3, Zertifikat CN = Seriennummer (Aussteller „BBL Device CA"),
+  falscher Code → CONNACK 5. **Voraussetzung:** „Nur LAN" + „Entwicklermodus" am Drucker (Handy-App
+  fällt weg — laut Frank egal). Anzeige: `components/druck/DruckerStatus.tsx` oben auf `/admin/druck`
+  (an PCs ohne Brücke nur eine graue Zeile, Abfrage dann alle 15 s statt 3 s).
+  ⚠️ **Feldnamen des P2S sind noch nicht gegen einen echten Bericht geprüft** (angenommen wie P1/X1:
+  gcode_state, mc_percent, mc_remaining_time, nozzle_temper …). Nach dem ersten Verbinden `/roh`
+  ansehen und `fasseStatus` nachziehen.
+  **Stufe 2 (offen):** Drucken — Datei per FTPS (990, implizites TLS) auf den Speicher, Start per MQTT
+  `project_file`; USB-Stick/SD-Karte im Drucker nötig; Pflicht-Bestätigung „Platte leer".
 
 ### Notizbuch (Sep 2026)
 
