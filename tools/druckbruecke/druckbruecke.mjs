@@ -17,8 +17,17 @@
 // später als .exe verpackbar. Das Nötigste an MQTT 3.1.1 steht deshalb unten
 // selbst drin (Verbinden, Abonnieren, Senden, Ping).
 //
-// Drucken (Stufe 2): Die Lagernaut-Seite holt die geslicte Datei (.gcode.3mf)
-// und schickt sie an POST /drucken. Die Brücke legt sie per FTPS (Port 990,
+// Drucken von JEDEM PC (Stufe 3, 24.09.2026): Die Brücke meldet sich alle 5 s bei
+// Lagernaut (NUR ausgehend, wie ein Browser — der Laptop hängt im „öffentlichen"
+// Gast-WLAN, eingehend blockt die Firewall) und holt dabei höchstens einen
+// Druckauftrag ab. Anmeldung mit dem Brücken-Schlüssel aus Lagernaut
+// („Druckbrücke koppeln"), eingetragen als „brueckenSchluessel" in der
+// Einstellungsdatei. Ohne Schlüssel läuft nur die Statusanzeige am Laptop.
+// Den früheren lokalen Druckweg (POST /drucken aus dem Browser) gibt es nicht
+// mehr — es gibt EINEN Weg, und der kennt die Plattensperre.
+//
+// Drucken: Die Brücke holt die geslicte Datei (.gcode.3mf) bei Lagernaut
+// und legt sie per FTPS (Port 990,
 // implizites TLS, vsFTPd) in den internen Speicher /cache und startet sie per
 // MQTT „project_file". Gemessen am P2S am 24.09.2026: Bambu Studio legt seine
 // Druckdateien genau dort ab, und der Datenkanal verlangt DIESELBE TLS-Sitzung
@@ -37,7 +46,11 @@ import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
-export const VERSION = "1.2.0";
+export const VERSION = "1.3.0";
+/** Standard-Adresse von Lagernaut (Drucken von jedem PC über den Server). */
+export const LAGERNAUT_STANDARD = "https://emts-lagernaut.duckdns.org";
+/** Alle so viele ms meldet sich die Brücke bei Lagernaut. */
+export const MELDE_TAKT_MS = 5000;
 /** Größte Druckdatei, die die Brücke annimmt. */
 export const MAX_DRUCKDATEI = 60 * 1024 * 1024;
 /** In diesen Zuständen darf ein neuer Druck starten. */
@@ -161,6 +174,14 @@ const ZUSTAND_TEXT = {
 
 const zahl = (v) => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : null);
 
+function spuleAus(vs) {
+  const t = Array.isArray(vs) ? vs[0] : null;
+  if (!t || typeof t !== "object") return null;
+  const typ = typeof t.tray_type === "string" && t.tray_type ? t.tray_type : null;
+  const farbe = typeof t.tray_color === "string" && t.tray_color ? `#${t.tray_color.slice(0, 6)}` : null;
+  return typ || farbe ? { typ, farbe } : null;
+}
+
 /** Rohbericht (print-Objekt) → das, was Lagernaut anzeigt. */
 export function fasseStatus(p) {
   if (!p || typeof p !== "object") return null;
@@ -181,6 +202,8 @@ export function fasseStatus(p) {
     bettZiel:     zahl(p.bed_target_temper),
     fehlercode:   zahl(p.print_error) || null,
     meldungen:    hms.length,
+    // Externe Spule (P2S ohne AMS): print.vir_slot[0] — für den Material-Hinweis.
+    spule:        spuleAus(p.vir_slot),
   };
 }
 
@@ -435,6 +458,8 @@ export function leseEinstellungen(datei = EINSTELLUNGEN) {
       druckerIp: "192.168.x.x",
       seriennummer: "HIER_SERIENNUMMER",
       zugangscode: "HIER_ZUGANGSCODE",
+      lagernautUrl: LAGERNAUT_STANDARD,
+      brueckenSchluessel: "HIER_SCHLUESSEL_AUS_LAGERNAUT",
       port: STANDARD_PORT,
       erlaubteSeiten: ERLAUBT_STANDARD,
     }, null, 2), "utf8");
@@ -452,6 +477,10 @@ export function leseEinstellungen(datei = EINSTELLUNGEN) {
     druckerIp:      String(e.druckerIp).trim(),
     seriennummer:   String(e.seriennummer).trim(),
     zugangscode:    String(e.zugangscode).trim(),
+    lagernautUrl:   String(e.lagernautUrl || LAGERNAUT_STANDARD).trim().replace(/\/+$/, ""),
+    // Leer oder Platzhalter = Drucken über Lagernaut aus.
+    brueckenSchluessel: typeof e.brueckenSchluessel === "string" && e.brueckenSchluessel.trim() && !e.brueckenSchluessel.startsWith("HIER_")
+      ? e.brueckenSchluessel.trim() : null,
     port:           Number(e.port) || STANDARD_PORT,
     erlaubteSeiten: Array.isArray(e.erlaubteSeiten) && e.erlaubteSeiten.length ? e.erlaubteSeiten : ERLAUBT_STANDARD,
   };
@@ -591,47 +620,25 @@ export function herkunftErlaubt(origin, erlaubte) {
   return typeof origin === "string" && erlaubte.includes(origin.replace(/\/$/, ""));
 }
 
-function antworteJson(res, code, obj) {
-  res.writeHead(code, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify(obj));
-}
-
-function leseKoerper(req, max) {
-  return new Promise((ok, fehler) => {
-    const teile = [];
-    let n = 0;
-    req.on("data", (c) => {
-      n += c.length;
-      if (n > max) { fehler(new Error("Datei zu groß")); req.destroy(); return; }
-      teile.push(c);
-    });
-    req.on("end", () => ok(Buffer.concat(teile)));
-    req.on("error", fehler);
-  });
-}
-
+// ── Druck ausführen: Datei → /cache → project_file ────────────────────────────
+const log = (...a) => console.log(new Date().toLocaleTimeString("de-DE"), ...a);
 let druckLaeuft = false;
 
-async function drucke(req, res, url, e, verbindung) {
-  if (url.searchParams.get("bestaetigt") !== "1") return antworteJson(res, 400, { fehler: "Bestätigung fehlt (Platte leer, Filament eingelegt)." });
-  if (druckLaeuft) return antworteJson(res, 409, { fehler: "Es wird gerade schon ein Druck übertragen." });
+/** Der eine Druckweg. Liefert { ok, bestaetigt?, fehler? } — wirft nie. */
+export async function druckeInhalt(inhalt, { titel, vorlageId }, e, verbindung) {
   const st = verbindung.status();
-  if (st.verbindung !== "verbunden") return antworteJson(res, 409, { fehler: "Keine Verbindung zum Drucker." });
+  if (st.verbindung !== "verbunden") return { ok: false, fehler: "Keine Verbindung zum Drucker." };
   if (!st.drucker?.zustand || !STARTBEREIT.includes(st.drucker.zustand)) {
-    return antworteJson(res, 409, { fehler: `Drucker ist nicht bereit (${st.drucker?.zustandText ?? "unbekannt"}).` });
+    return { ok: false, fehler: `Drucker ist nicht bereit (${st.drucker?.zustandText ?? "unbekannt"}).` };
   }
-  druckLaeuft = true;
-  const log = (...a) => console.log(new Date().toLocaleTimeString("de-DE"), ...a);
+  const platten = findePlatten(inhalt);
+  if (!platten) return { ok: false, fehler: "Keine gültige .gcode.3mf-Datei." };
+  if (platten.length === 0) return { ok: false, fehler: "Die Datei ist nicht geslict (keine Platte darin)." };
+  const datei = druckerDateiname(titel, vorlageId);
+  const platte = platten[0].eintrag;
+  const filamente = filamenteDerPlatte(inhalt, platten[0].nummer);
   let ftp = null;
   try {
-    const inhalt = await leseKoerper(req, MAX_DRUCKDATEI);
-    const platten = findePlatten(inhalt);
-    if (!platten) return antworteJson(res, 400, { fehler: "Keine gültige .gcode.3mf-Datei." });
-    if (platten.length === 0) return antworteJson(res, 400, { fehler: "Die Datei ist nicht geslict (keine Platte darin). Bitte in Bambu Studio „geslicte Platte exportieren“." });
-    const vorlageId = Number(url.searchParams.get("vorlage"));
-    const titel = String(url.searchParams.get("titel") ?? "Lagernaut").slice(0, 100);
-    const datei = druckerDateiname(titel, vorlageId);
-    const platte = platten[0].eintrag;
-    const filamente = filamenteDerPlatte(inhalt, platten[0].nummer);
     log(`Übertrage „${datei}" (${Math.round(inhalt.length / 1024)} KB, ${platte}, Filament ${filamente ? filamente.join("+") : "? → 1"}) …`);
     ftp = new FtpsSitzung(e);
     await ftp.oeffnen();
@@ -642,17 +649,83 @@ async function drucke(req, res, url, e, verbindung) {
     const erg = await verbindung.starteDruck({ datei, platte, titel, filamente });
     if (erg.angenommen === false) {
       log("⚠ Drucker hat abgelehnt:", erg.grund);
-      return antworteJson(res, 502, { fehler: `Drucker hat abgelehnt: ${erg.grund}`, datei });
+      return { ok: false, fehler: `Drucker hat abgelehnt: ${erg.grund}` };
     }
     log(erg.angenommen ? "✓ Druck gestartet" : "Befehl gesendet, Drucker hat noch nicht bestätigt");
-    return antworteJson(res, 200, { ok: true, bestaetigt: erg.angenommen === true, datei, platte, weiterePlatten: platten.length - 1 });
+    return { ok: true, bestaetigt: erg.angenommen === true };
   } catch (err) {
     log("⚠ Drucken fehlgeschlagen:", err.message);
-    return antworteJson(res, 500, { fehler: err.message });
+    return { ok: false, fehler: err.message };
   } finally {
     ftp?.schliessen();
-    druckLaeuft = false;
   }
+}
+
+// ── Lagernaut: melden und Aufträge abholen (nur ausgehend) ────────────────────
+function starteLagernaut(e, verbindung) {
+  if (!e.brueckenSchluessel) {
+    log("Hinweis: Kein Brücken-Schlüssel eingetragen — Drucken über Lagernaut ist aus.");
+    return;
+  }
+  const kopf = { Authorization: `Bearer ${e.brueckenSchluessel}` };
+  let letzte = "(start)";
+  const melde = (fehler) => {
+    if (fehler === letzte) return;
+    if (fehler) log(fehler);
+    else log(letzte === "(start)" ? `✓ Mit Lagernaut verbunden (${e.lagernautUrl})` : "✓ Wieder mit Lagernaut verbunden");
+    letzte = fehler;
+  };
+
+  async function fuehreAus(a) {
+    druckLaeuft = true;
+    log(`Auftrag #${a.id} „${a.titel}" aus Lagernaut …`);
+    let erg;
+    try {
+      const r = await fetch(`${e.lagernautUrl}/api/druck/bruecke/datei/${a.id}`, { headers: kopf, signal: AbortSignal.timeout(120_000) });
+      if (!r.ok) throw new Error(`Druckdatei nicht abrufbar (${r.status})`);
+      const inhalt = Buffer.from(await r.arrayBuffer());
+      if (inhalt.length > MAX_DRUCKDATEI) throw new Error("Druckdatei zu groß");
+      erg = await druckeInhalt(inhalt, { titel: a.titel, vorlageId: a.vorlageId }, e, verbindung);
+    } catch (err) {
+      erg = { ok: false, fehler: err.message };
+    } finally {
+      druckLaeuft = false;
+    }
+    // Ergebnis melden — ein paar Versuche, sonst räumt Lagernaut nach 5 min auf.
+    for (let i = 0; i < 5; i++) {
+      try {
+        const r = await fetch(`${e.lagernautUrl}/api/druck/bruecke/ergebnis`, {
+          method: "POST", headers: { ...kopf, "Content-Type": "application/json" },
+          body: JSON.stringify({ auftragId: a.id, ok: erg.ok, bestaetigt: erg.bestaetigt, meldung: erg.fehler ?? null }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (r.ok || r.status === 409) return;
+      } catch { /* gleich nochmal */ }
+      await new Promise((ok) => setTimeout(ok, 3000));
+    }
+    log("⚠ Ergebnis konnte Lagernaut nicht gemeldet werden.");
+  }
+
+  const runde = async () => {
+    try {
+      const r = await fetch(`${e.lagernautUrl}/api/druck/bruecke`, {
+        method: "POST", headers: { ...kopf, "Content-Type": "application/json" },
+        body: JSON.stringify(verbindung.status()), signal: AbortSignal.timeout(10_000),
+      });
+      if (r.status === 401) melde("⚠ Lagernaut kennt diesen Brücken-Schlüssel nicht — in Lagernaut neu koppeln und in der Einstellungsdatei eintragen.");
+      else if (!r.ok) melde(`⚠ Lagernaut antwortet mit Fehler ${r.status}`);
+      else {
+        melde(null);
+        const j = await r.json();
+        // Nicht abwarten: Während der Übertragung meldet die Brücke weiter ihren Stand.
+        if (j?.auftrag && !druckLaeuft) void fuehreAus(j.auftrag);
+      }
+    } catch (err) {
+      melde(`⚠ Lagernaut nicht erreichbar: ${err.message}`);
+    }
+    setTimeout(runde, MELDE_TAKT_MS);
+  };
+  void runde();
 }
 
 function starteServer(e, verbindung) {
@@ -669,7 +742,7 @@ function starteServer(e, verbindung) {
       res.setHeader("Vary", "Origin");
     }
     if (req.method === "OPTIONS") {
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type");
       res.setHeader("Access-Control-Max-Age", "600");
       // Chrome: Anfragen einer Internetseite an den eigenen PC brauchen diese Freigabe.
@@ -681,12 +754,6 @@ function starteServer(e, verbindung) {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     if (req.method === "GET" && url.pathname === "/status") {
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify(verbindung.status()));
-      return;
-    }
-    if (req.method === "POST" && url.pathname === "/drucken") {
-      // Nur aus Lagernaut: Ein Druck braucht die Bestätigung im Dialog dort.
-      if (!erlaubt) { res.writeHead(403).end("Nur aus Lagernaut"); return; }
-      void drucke(req, res, url, e, verbindung);
       return;
     }
     // Nur zur Fehlersuche am PC selbst (ohne Origin, also nicht aus einer Webseite).
@@ -720,4 +787,5 @@ if (direkt) {
   const v = new DruckerVerbindung(e);
   starteServer(e, v);
   v.starten();
+  starteLagernaut(e, v);
 }

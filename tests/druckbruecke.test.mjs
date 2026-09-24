@@ -72,6 +72,8 @@ check("print_error 0 → kein Fehler", st.fehlercode, null);
 check("Zahlen als Text werden gelesen", fasseStatus({ mc_percent: "12" }).fortschritt, 12);
 check("unbekannter Zustand bleibt lesbar", fasseStatus({ gcode_state: "offline" }).zustandText, "offline");
 check("kein Bericht → null", fasseStatus(undefined), null);
+check("externe Spule aus vir_slot (echter P2S-Bericht)", fasseStatus({ vir_slot: [{ id: "255", tray_type: "PLA", tray_color: "161616FF" }] }).spule, { typ: "PLA", farbe: "#161616" });
+check("ohne vir_slot → keine Spule", fasseStatus({ gcode_state: "IDLE" }).spule, null);
 
 console.log("\n── Freigegebene Seiten ──");
 const erl = ["https://emts-lagernaut.duckdns.org"];

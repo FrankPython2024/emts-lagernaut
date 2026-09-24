@@ -10,6 +10,8 @@ import { modellSchluessel } from "@/modules/teilespender/service";
 import { bucheLager, loescheBuchung } from "@/modules/buchungen/service";
 import { standortWhere } from "@/lib/auth/standortFilter";
 import { BuchungsTyp } from "@prisma/client";
+import { STAND_ID, hashSchluessel, neuerSchluessel } from "@/modules/druck/bruecke";
+import { BRUECKE_STILL_MS, darfStarten, istDerAuftrag } from "@/lib/druck/warteschlange";
 import {
   DRUCK_TEILTYPEN_STANDARD, planeDruckliste, teiltypenAus, teiltypenText,
   type BedarfZeile, type VorlageKurz,
@@ -22,6 +24,8 @@ const lesen   = permissionProcedure("ARTIKEL_VIEW");
 const pflegen = permissionProcedure("ARTIKEL_EDIT");
 // Einbuchen wie im Einlager-Assistenten — wer einlagern darf, darf Gedrucktes einbuchen.
 const einbuchenRecht = permissionProcedure("ARTIKEL_EINLAGERN");
+// Drucken über den Server (Stufe 3): nur mit eigenem Recht — ein Druck bewegt eine Maschine.
+const druckStarten = permissionProcedure("DRUCK_STARTEN");
 /** So lange lässt sich ein „Druck fertig" zurücknehmen (Tippfehler: 400 statt 40). */
 const ZURUECK_STUNDEN = 24;
 
@@ -375,6 +379,11 @@ export const druckRouter = createTRPCRouter({
           platten: input.platten, stueck: input.stueck, buchungId: buchung.id, gedrucktVon: kuerzel,
         },
       });
+      // Die Frage „fertig → einbuchen?" auf der Druckerkarte ist damit beantwortet.
+      await prisma.druckAuftrag.updateMany({
+        where: { vorlageId: vorlage.id, status: "GESTARTET", erledigtAm: null },
+        data:  { erledigtAm: new Date() },
+      });
       return { artikel: ziel.bezeichnung, stueck: input.stueck, neuerBestand: ziel.bestand + input.stueck };
     }),
 
@@ -403,6 +412,123 @@ export const druckRouter = createTRPCRouter({
       });
       return { ok: true };
     }),
+
+  // ── Drucken über den Server ────────────────────────────────────────────────
+  // Stand der Druckbrücke + Warteschlange — für JEDEN PC (die Brücke meldet an
+  // den Server, nicht an den Browser).
+  druckerStand: lesen.query(async () => {
+    const jetzt = new Date();
+    const [stand, warteschlange, zuletzt] = await Promise.all([
+      prisma.druckerStand.findUnique({ where: { id: STAND_ID } }),
+      prisma.druckAuftrag.findMany({
+        where: { status: { in: ["WARTET", "ABGEHOLT"] } }, orderBy: { createdAt: "asc" },
+        select: { id: true, titel: true, status: true, erstelltVon: true, createdAt: true, vorlageId: true },
+      }),
+      prisma.druckAuftrag.findMany({
+        where: { status: { in: ["GESTARTET", "FEHLER", "ABGEBROCHEN"] }, createdAt: { gte: new Date(jetzt.getTime() - 24 * 3600_000) } },
+        orderBy: { createdAt: "desc" }, take: 5,
+        select: { id: true, titel: true, dateiname: true, status: true, meldung: true, erstelltVon: true, createdAt: true, gestartetAm: true, vorlageId: true, erledigtAm: true },
+      }),
+    ]);
+    const drucker = (stand?.drucker ?? null) as null | {
+      zustand?: string | null; zustandText?: string; datei?: string | null; fortschritt?: number | null;
+      restMinuten?: number | null; schicht?: number | null; schichten?: number | null;
+      duese?: number | null; dueseZiel?: number | null; bett?: number | null; bettZiel?: number | null;
+      fehlercode?: number | null; meldungen?: number; spule?: { typ: string | null; farbe: string | null } | null;
+    };
+    const online = !!stand?.gemeldetAm && jetzt.getTime() - stand.gemeldetAm.getTime() <= BRUECKE_STILL_MS;
+    const start = darfStarten({
+      gemeldetAm: stand?.gemeldetAm ?? null, verbindung: stand?.verbindung ?? null,
+      zustand: drucker?.zustand ?? null, platteFrei: stand?.platteFrei ?? false, jetzt,
+    });
+    // „Fertig → einbuchen?": der zuletzt gestartete, noch nicht erledigte Auftrag,
+    // wenn der Drucker genau ihn als fertig meldet.
+    const letzter = zuletzt.find((a) => a.status === "GESTARTET");
+    const einbuchen = letzter && !letzter.erledigtAm && letzter.vorlageId && drucker?.zustand === "FINISH"
+      && istDerAuftrag(letzter.titel, letzter.dateiname, drucker.datei ?? null)
+      ? { auftragId: letzter.id, vorlageId: letzter.vorlageId, titel: letzter.titel } : null;
+    return {
+      gekoppelt:     !!stand?.schluesselHash,
+      gekoppeltAm:   stand?.schluesselAm ?? null,
+      online,
+      gemeldetAm:    stand?.gemeldetAm ?? null,
+      version:       stand?.version ?? null,
+      verbindung:    stand?.verbindung ?? null,
+      fehler:        stand?.fehler ?? null,
+      drucker:       online ? drucker : null,
+      platteFrei:    stand?.platteFrei ?? false,
+      platteFreiVon: stand?.platteFreiVon ?? null,
+      platteFreiAm:  stand?.platteFreiAm ?? null,
+      startbereit:   start.ok,
+      wartegrund:    start.ok ? null : start.grund,
+      warteschlange,
+      zuletzt:       zuletzt.map((a) => ({
+        id: a.id, titel: a.titel, status: a.status, meldung: a.meldung, erstelltVon: a.erstelltVon,
+        createdAt: a.createdAt, gestartetAm: a.gestartetAm, vorlageId: a.vorlageId,
+      })),
+      einbuchen,
+    };
+  }),
+
+  // Druckauftrag anlegen — die Brücke holt ihn ab, sobald Drucker und Platte frei sind.
+  auftragAnlegen: druckStarten
+    .input(z.object({ dateiId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const d = await prisma.druckvorlageDatei.findUnique({
+        where:  { id: input.dateiId },
+        select: { id: true, art: true, dateiname: true, vorlage: { select: { id: true, name: true } } },
+      });
+      if (!d) throw new TRPCError({ code: "NOT_FOUND", message: "Druckdatei nicht gefunden" });
+      if (d.art !== "DRUCK") throw new TRPCError({ code: "BAD_REQUEST", message: "Nur geslicte Druckdateien (.gcode.3mf) lassen sich drucken." });
+      const a = await prisma.druckAuftrag.create({
+        data: {
+          vorlageId: d.vorlage.id, dateiId: d.id, titel: d.vorlage.name.slice(0, 100), dateiname: d.dateiname,
+          status: "WARTET", erstelltVon: kuerzelVon(ctx),
+        },
+      });
+      return { id: a.id };
+    }),
+
+  // Nur wartende Aufträge — ein abgeholter ist schon unterwegs zum Drucker.
+  auftragAbbrechen: druckStarten
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const r = await prisma.druckAuftrag.updateMany({
+        where: { id: input.id, status: "WARTET" },
+        data:  { status: "ABGEBROCHEN", abgebrochenVon: kuerzelVon(ctx), beendetAm: new Date() },
+      });
+      if (r.count !== 1) throw new TRPCError({ code: "BAD_REQUEST", message: "Der Auftrag ist schon unterwegs zum Drucker oder erledigt." });
+      return { ok: true };
+    }),
+
+  // „Platte ist leer" — nur per Knopf (Frank, 24.09.2026). Wer die gedruckten
+  // Teile abnimmt, hat auch das Recht zum Einlagern.
+  platteIstLeer: einbuchenRecht.mutation(async ({ ctx }) => {
+    const stand = await prisma.druckerStand.findUnique({ where: { id: STAND_ID }, select: { id: true } });
+    if (!stand) throw new TRPCError({ code: "BAD_REQUEST", message: "Die Druckbrücke ist noch nicht gekoppelt." });
+    await prisma.druckerStand.update({
+      where: { id: STAND_ID },
+      data:  { platteFrei: true, platteFreiVon: kuerzelVon(ctx), platteFreiAm: new Date() },
+    });
+    return { ok: true };
+  }),
+
+  // „Fertig → einbuchen?" ausblenden, ohne einzubuchen.
+  einbuchenAusblenden: einbuchenRecht
+    .input(z.object({ auftragId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      await prisma.druckAuftrag.updateMany({ where: { id: input.auftragId, erledigtAm: null }, data: { erledigtAm: new Date() } });
+      return { ok: true };
+    }),
+
+  // Neuen Brücken-Schlüssel erzeugen. Wird EINMAL angezeigt; gespeichert wird
+  // nur der Hash. Ein neuer Schlüssel sperrt den alten sofort aus.
+  brueckeKoppeln: druckStarten.mutation(async ({ ctx }) => {
+    const schluessel = neuerSchluessel();
+    const daten = { schluesselHash: hashSchluessel(schluessel), schluesselAm: new Date(), schluesselVon: kuerzelVon(ctx) };
+    await prisma.druckerStand.upsert({ where: { id: STAND_ID }, create: { id: STAND_ID, ...daten }, update: daten });
+    return { schluessel };
+  }),
 
   dateiLoeschen: pflegen
     .input(z.object({ id: z.number().int().positive() }))

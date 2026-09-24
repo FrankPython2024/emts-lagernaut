@@ -92,6 +92,9 @@ const PERMISSIONS = [
   // Schreibrechte haben — wer dort scannen soll, bekommt EDIT pro Person.
   { key: "NOTIZBUCH_VIEW", kategorie: "Betrieb", bezeichnung: "Notizbuch einsehen, kopieren, exportieren" },
   { key: "NOTIZBUCH_EDIT", kategorie: "Betrieb", bezeichnung: "Notizbuch: Notizen anlegen, scannen, bearbeiten, löschen" },
+  // 3D-Druck: Druck an den Drucker schicken (über die Druckbrücke) und die Brücke koppeln.
+  // Nur ADMIN (Wildcard) bzw. pro Person — ein Druck bewegt eine Maschine.
+  { key: "DRUCK_STARTEN", kategorie: "Betrieb", bezeichnung: "3D-Druck: Druckaufträge an den Drucker schicken, Druckbrücke koppeln" },
 
   // System
   { key: "STRESSTEST_RUN",      kategorie: "System",      bezeichnung: "Stresstest ausführen" },

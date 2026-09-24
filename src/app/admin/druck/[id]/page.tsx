@@ -21,7 +21,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { DATEI_ART_TEXT, DATEI_MAX_BYTES, dateiArt, type DateiArt } from "@/lib/druck/druckliste";
 import { DruckenKnopf } from "@/components/druck/DruckenKnopf";
-import { vergissAuftrag } from "@/components/druck/useDruckbruecke";
+import { DruckerStatus } from "@/components/druck/DruckerStatus";
 
 type Modell = { key: string; anzeige: string };
 
@@ -272,6 +272,7 @@ function DruckVorlageInhalt() {
 
       {!neu && details.data && (
         <>
+          <DruckerStatus />
           <DruckFertigKarte
             id={details.data.id}
             stueckProPlatte={details.data.stueckProPlatte}
@@ -554,7 +555,6 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
   const einbuchen = api.druck.einbuchen.useMutation({
     onSuccess: (r) => {
       show(`✅ ${r.stueck} Stück auf „${r.artikel}" eingebucht — Bestand jetzt ${r.neuerBestand}`, "success");
-      vergissAuftrag(id);
       setPlatten("1");
       setStueckEigen(null);
       fertig();

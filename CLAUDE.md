@@ -245,7 +245,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ACHTZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke` (zusammen 702) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke` (zusammen 726) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1376,8 +1376,9 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   `.mjs` — tsc sieht die Datei nicht).
   **Weg:** Browser auf DIESEM PC → `http://127.0.0.1:17350/status` → Brücke → P2S (MQTT über TLS, 8883,
   Benutzer `bblp`, Passwort = Zugangscode, Thema `device/<SN>/report`, einmal `pushall`, danach
-  Änderungen zusammenführen). Die Brücke spricht **nie** mit dem Lagernaut-Server — Frank: „das muss
-  lokal passieren, nur am Standort".
+  Änderungen zusammenführen). ⚠️ **Überholt durch Stufe 3:** Anfangs sprach die Brücke nie mit dem
+  Server (Frank: „lokal, nur am Standort"); seit Stufe 3 meldet sie sich ausgehend bei Lagernaut, damit
+  von jedem PC gedruckt werden kann (Franks Entscheidung, 24.09.2026). Lokal bleibt nur `/status`+`/roh`.
   ⚠️ **Zugangscode nur in `%USERPROFILE%\.lagernaut-druckbruecke.json`** (nie im Chat, nie im Repo;
   `DRUCKBRUECKE_EINSTELLUNGEN` lenkt für Tests um). Absicherung, alle am 24.09. nachgeprüft: lauscht nur
   auf 127.0.0.1, fremde `Origin` → 403, fremder `Host` → 403 (DNS-Rebinding), Chrome-Freigabe
@@ -1391,12 +1392,9 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   mc_remaining_time, layer_num/total_layer_num, nozzle_/bed_temper(+_target), subtask_name, print_error,
   hms, sdcard — wie P1/X1. `gcode_file` steht beim P2S als „/data/Metadata/plate_1.gcode".
   Zusätzlich gibt es `print.device` (extruder, nozzle, bed …) — bisher nicht ausgewertet.
-- **Paket 3 Stufe 2 = Drucken (24.09.2026, Brücke 1.1.0):** Knopf „🖨️ Drucken" (`components/druck/
-  DruckenKnopf.tsx`) an Vorlagenkarte, Druckliste und jeder geslicten Datei — **nur sichtbar, wenn auf
-  diesem PC eine Brücke läuft und verbunden ist**. Dialog mit zwei Pflicht-Häkchen („Platte leer",
-  „richtiges Filament") und Druckerzustand; Start nur bei IDLE/FINISH/FAILED. Der Browser holt die Datei
-  aus Lagernaut (eigene Sitzung) und schickt sie an `POST /drucken?bestaetigt=1&vorlage=&titel=`.
-  Die Brücke: ZIP-Inhaltsverzeichnis lesen → **Platte aus der Datei** (`findePlatten`; „P2S Full Set"
+- **Paket 3 Stufe 2 = Drucken (24.09.2026, Brücke 1.1.0/1.2.0):** anfangs nur am Laptop (Browser →
+  `POST 127.0.0.1:17350/drucken`, seit 1.3.0 entfernt). Der Druckweg selbst (`druckeInhalt`):
+  ZIP-Inhaltsverzeichnis lesen → **Platte aus der Datei** (`findePlatten`; „P2S Full Set"
   am Drucker enthält NUR `plate_2` — „plate_1" fest angenommen wäre ins Leere gelaufen) → FTPS nach
   **`/cache/<Name>_L<VorlageId>.gcode.3mf`** (ASCII, je Vorlage fest → überschreibt den letzten) →
   MQTT `project_file` mit `url: ftp:///cache/<datei>`, Ids 0, `use_ams: false` (kein AMS — Frank: „nur
@@ -1416,13 +1414,38 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   beginnt **erst nach LIST/STOR** — wer vorher auf `secureConnect` wartet, hängt und bekommt ECONNRESET.
   Schreibtest (200 KB hoch, identisch zurück, gelöscht) und alle Abweisungen (ohne Bestätigung, ohne/
   fremde Origin → 403, kein ZIP, nicht geslict) gegen den echten Drucker geprüft — **ohne** Druck.
-  Bestätigt am echten Drucker: Übertragung und `url`-Form `ftp:///cache/…` (der Druck startete).
-  Ob 1.2.0 ohne 07FF-8012 durchläuft, prüft der nächste Druck vor Ort.
-  **Fertig → einbuchen:** Der Browser merkt sich den gestarteten Druck (`localStorage
-  druck-letzter-auftrag`, 48 h); meldet der Drucker FINISH mit demselben `subtask_name`, zeigt die
-  Druckerkarte „✓ … fertig gedruckt → Jetzt einbuchen" (→ `#fertig`). Einbuchen löscht die Merkung.
-  Eine gemeinsame Abfrage für die ganze Seite (`useDruckbruecke`, useSyncExternalStore) — sonst fragte
-  jede Vorlagenkarte alle 3 s einzeln.
+  **Mit 1.2.0 am 24.09.2026 erfolgreich aus Lagernaut gedruckt** (Frank: „funktioniert hervorragend“) —
+  Übertragung, `url`-Form `ftp:///cache/…` und Spulen-Zuordnung am P2S bestätigt.
+- **Paket 3 Stufe 3 = Drucken von JEDEM PC (24.09.2026, Brücke 1.3.0):** Wunsch Frank: „dass ein Admin
+  von jedem PC Drucke starten kann". Direkt im LAN geht es NICHT: Der Laptop hängt im WLAN „AfB-Gast 2",
+  Windows führt es als **„Öffentlich"**, die Firewall blockt eingehend, Frank hat keine Adminrechte
+  (gemessen). Deshalb über den Server, **nur ausgehend**:
+  `Admin → druck.auftragAnlegen (DruckAuftrag WARTET) ← Brücke fragt alle 5 s: POST /api/druck/bruecke
+  (meldet Stand, bekommt ≤ 1 Auftrag) → GET /api/druck/bruecke/datei/<id> → druckeInhalt →
+  POST /api/druck/bruecke/ergebnis`. Logik `src/modules/druck/bruecke.ts`, Regeln
+  `src/lib/druck/warteschlange.ts` (Test in `test:druck`).
+  **Anmeldung:** „Druckbrücke koppeln" auf der Druckerkarte erzeugt einen Schlüssel, der EINMAL
+  angezeigt wird; in der DB nur SHA-256 (`DruckerStand.schluesselHash`, Vergleich zeitkonstant), am
+  Laptop als `brueckenSchluessel` in der Einstellungsdatei. Neuer Schlüssel sperrt den alten aus.
+  **Recht `DRUCK_STARTEN`** (Aufträge anlegen/abbrechen, koppeln) — ADMIN per Wildcard, sonst pro Person;
+  **braucht `seed-rbac`**. „Platte ist leer" und Einbuchen: ARTIKEL_EINLAGERN.
+  ⚠️ **Platte „nur per Knopf" (Frank):** Wer an einem anderen PC druckt, sieht die Platte nicht — das
+  Häkchen im Dialog gibt es deshalb nicht mehr. `DruckerStand.platteFrei` setzt NUR der Knopf „✓ Platte
+  ist leer" (Druckerkarte, nur wenn nicht gedruckt wird). Belegt wird sie beim Abholen eines Auftrags
+  UND bei jedem gemeldeten PREPARE/RUNNING/PAUSE (auch Drucke aus Bambu Studio oder vom Display). Die
+  Meldung der Brücke schreibt nur „belegt", nie „frei" — sonst überschriebe sie einen gleichzeitigen
+  Knopfdruck. Scheitert ein Start, war die Platte nie im Einsatz → wieder frei.
+  **Start** nur, wenn Brücke ≤ 30 s still, mit Drucker verbunden, Zustand IDLE/FINISH/FAILED, Platte frei
+  und kein Auftrag unterwegs; ältester zuerst. Abgeholt ohne Ergebnis > 5 min → FEHLER („bitte am
+  Drucker nachsehen"). Abbrechen nur solange WARTET.
+  **Druckerkarte an jedem PC** (`DruckerStatus`, fragt alle 3 s `druck.druckerStand`; Drucken-Knöpfe lesen
+  denselben Zwischenspeicher mit): Zustand, Fortschritt, Spule (aus `vir_slot`), Platte + Knopf,
+  Warteschlange mit Grund, Fehler der letzten 24 h, „✓ … fertig gedruckt → Jetzt einbuchen" (letzter
+  GESTARTET-Auftrag, Drucker meldet FINISH mit seinem Titel als subtask_name; erledigt durch Einbuchen
+  oder „Ausblenden" → `DruckAuftrag.erledigtAm`). Material-Hinweis im Dialog, wenn Vorlage und Spule
+  nicht passen (`materialPasst`) — nur Warnung, kein Verbot.
+  Zusammenspiel Brücke ↔ Server am 24.09. mit einem Nachbau der Endpunkte geprüft (Meldung, Abholen,
+  Datei, Ablehnung einer ungültigen Datei VOR dem Drucker, Ergebnis) — ohne Druck.
 
 ### Notizbuch (Sep 2026)
 

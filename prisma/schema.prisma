@@ -1780,6 +1780,7 @@ model Druckvorlage {
   modelle         DruckvorlageModell[]
   dateien         DruckvorlageDatei[]
   protokoll       DruckProtokoll[]
+  auftraege       DruckAuftrag[]
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
@@ -1837,4 +1838,50 @@ model DruckProtokoll {
 
   @@index([vorlageId])
   @@index([createdAt])
+}
+
+// Druckaufträge über den Server (Paket 3, Stufe 3): Ein Admin legt an jedem PC
+// einen Auftrag an, die Druckbrücke am Laptop beim Drucker holt ihn ab
+// (nur ausgehende Verbindung, Schlüssel in DruckerStand.schluesselHash).
+// Status: WARTET → ABGEHOLT → GESTARTET | FEHLER; ABGEBROCHEN nur aus WARTET.
+model DruckAuftrag {
+  id             Int           @id @default(autoincrement())
+  vorlageId      Int?
+  vorlage        Druckvorlage? @relation(fields: [vorlageId], references: [id], onDelete: SetNull)
+  dateiId        Int
+  titel          String        @db.VarChar(191)
+  dateiname      String        @db.VarChar(255)
+  status         String        @db.VarChar(20)
+  meldung        String?       @db.VarChar(500)
+  erstelltVon    String        @db.VarChar(50)
+  abgebrochenVon String?       @db.VarChar(50)
+  abgeholtAm     DateTime?
+  gestartetAm    DateTime?
+  beendetAm      DateTime?
+  // „Fertig → einbuchen?" ist erledigt (eingebucht oder ausgeblendet).
+  erledigtAm     DateTime?
+  createdAt      DateTime      @default(now())
+
+  @@index([status])
+  @@index([vorlageId])
+}
+
+// Letzter Stand, den die Druckbrücke meldet — eine Zeile (id = 1).
+model DruckerStand {
+  id             Int       @id
+  // Nur der Hash des Brücken-Schlüssels; der Schlüssel selbst steht nur in der
+  // Einstellungsdatei am Laptop.
+  schluesselHash String?   @db.VarChar(100)
+  schluesselAm   DateTime?
+  schluesselVon  String?   @db.VarChar(50)
+  gemeldetAm     DateTime?
+  version        String?   @db.VarChar(20)
+  verbindung     String?   @db.VarChar(20)
+  fehler         String?   @db.VarChar(500)
+  drucker        Json?
+  // „Nur per Knopf" (Frank, 24.09.2026): frei erst, wenn jemand am Drucker
+  // bestätigt, dass die Platte leer ist. Jeder Druck macht sie wieder belegt.
+  platteFrei     Boolean   @default(false)
+  platteFreiVon  String?   @db.VarChar(50)
+  platteFreiAm   DateTime?
 }

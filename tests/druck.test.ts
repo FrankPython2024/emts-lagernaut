@@ -10,6 +10,7 @@ import {
   planeDruckliste, dateiArt, teiltypenAus, teiltypenText,
   type BedarfZeile, type VorlageKurz,
 } from "../src/lib/druck/druckliste";
+import { darfStarten, platteNachBericht, haengt, istDerAuftrag, materialPasst } from "../src/lib/druck/warteschlange";
 
 let passed = 0;
 let failed = 0;
@@ -90,6 +91,37 @@ console.log("\n── Teiltypen-Text ──");
 check("zerlegen", teiltypenAus("Füße vorne|Füße hinten"), ["Füße vorne", "Füße hinten"]);
 check("leer", teiltypenAus(null), []);
 check("zusammensetzen ohne Doppelte", teiltypenText(["Füße vorne", " Füße vorne ", "Füße hinten", ""]), "Füße vorne|Füße hinten");
+
+console.log("\n── Warteschlange: darf gestartet werden? ──");
+const JETZT = new Date("2026-09-24T14:00:00Z");
+const lage = (x: Partial<Parameters<typeof darfStarten>[0]> = {}) =>
+  darfStarten({ gemeldetAm: new Date(JETZT.getTime() - 3000), verbindung: "verbunden", zustand: "IDLE", platteFrei: true, jetzt: JETZT, ...x });
+check("alles bereit → ok", lage().ok, true);
+check("nach FINISH mit freier Platte → ok", lage({ zustand: "FINISH" }).ok, true);
+check("Platte belegt → wartet", lage({ platteFrei: false }), { ok: false, grund: "Platte noch belegt — am Drucker „Platte ist leer“ drücken" });
+check("druckt → wartet", lage({ zustand: "RUNNING" }), { ok: false, grund: "Drucker druckt gerade" });
+check("Pause (z. B. 07FF-8012) → wartet", lage({ zustand: "PAUSE" }).ok, false);
+check("Brücke 31 s still → aus", lage({ gemeldetAm: new Date(JETZT.getTime() - 31_000) }), { ok: false, grund: "Druckbrücke am Laptop ist aus" });
+check("nie gemeldet → aus", lage({ gemeldetAm: null }).ok, false);
+check("Brücke ohne Drucker → wartet", lage({ verbindung: "getrennt" }), { ok: false, grund: "Brücke hat keine Verbindung zum Drucker" });
+check("unbekannter Zustand → wartet", lage({ zustand: null }), { ok: false, grund: "Drucker ist nicht bereit" });
+
+console.log("\n── Platte: nur der Knopf macht frei ──");
+check("Druck läuft → belegt", platteNachBericht(true, "RUNNING"), false);
+check("Druck vom Drucker selbst gestartet → auch belegt", platteNachBericht(true, "PREPARE"), false);
+check("fertig → bleibt, wie es war (belegt)", platteNachBericht(false, "FINISH"), false);
+check("fertig macht NICHT frei", platteNachBericht(false, "IDLE"), false);
+check("frei bleibt frei, solange nichts druckt", platteNachBericht(true, "IDLE"), true);
+
+console.log("\n── Hängende Aufträge, fertiger Druck, Material ──");
+check("abgeholt vor 6 min → hängt", haengt(new Date(JETZT.getTime() - 6 * 60_000), JETZT), true);
+check("abgeholt vor 1 min → läuft noch", haengt(new Date(JETZT.getTime() - 60_000), JETZT), false);
+check("fertiger Druck = unser Titel", istDerAuftrag("Dell Latitude 7310", "x.gcode.3mf", "Dell Latitude 7310"), true);
+check("fertiger Druck = Dateiname ohne Endung", istDerAuftrag("T", "7310-fuß-vorne.gcode.3mf", "7310-fuß-vorne"), true);
+check("anderer Druck (aus Bambu Studio)", istDerAuftrag("Dell Latitude 7310", "a.gcode.3mf", "3DBenchy"), false);
+check("PETG vs. PLA → passt nicht", materialPasst("PETG", "PLA"), false);
+check("„TPU schwarz“ vs. TPU → passt", materialPasst("TPU schwarz", "TPU"), true);
+check("Vorlage ohne Material → keine Aussage", materialPasst("", "PLA"), null);
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);
