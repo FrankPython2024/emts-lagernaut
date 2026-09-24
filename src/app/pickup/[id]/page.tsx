@@ -22,6 +22,13 @@ import {
 const BLAU    = "#008BD2";
 const VIOLETT = "#7c3aed";
 
+// ⚠️ Feier-Töne (Colli komplett, Auftrag fertig) kommen NACH dem Fund-Ton, nie
+// darüber. Seit der Scan auf dem Gerät entschieden wird (24.09.2026), fallen Fund
+// und „komplett" in denselben Augenblick — vorher lag eine Server-Runde dazwischen.
+// Übereinander klangen die steigenden Tonfolgen wie ein doppelter Fund-Ton
+// (gemeldet von Frank). Der Fund-Ton dauert ~0,3 s.
+const NACH_FUND_MS = 350;
+
 
 type ScanPos = {
   id: number; logId: string; colli: string | null; stellplatz: string | null;
@@ -488,7 +495,7 @@ export default function PickupScanPage() {
     if (!data) return;
     const istVoll = data.gesamt > 0 && data.gefunden === data.gesamt;
     if (prevVollRef.current === null) { prevVollRef.current = istVoll; return; }
-    if (istVoll && !prevVollRef.current) playComplete();
+    if (istVoll && !prevVollRef.current) setTimeout(playComplete, NACH_FUND_MS);
     prevVollRef.current = istVoll;
   }, [data]);
 
@@ -552,10 +559,16 @@ export default function PickupScanPage() {
       for (const [key, komplett] of current.entries()) {
         if (komplett && prev.get(key) !== true) {
           const anzahl = colliGruppen.get(key)?.length ?? 0;
-          setColliToast({ key, anzahl });
-          playColliKomplett();
-          if (colliToastTimerRef.current) clearTimeout(colliToastTimerRef.current);
-          colliToastTimerRef.current = setTimeout(() => setColliToast(null), 2600);
+          // Nur feiern, wenn im Colli MEHR als ein Gerät gesucht war. Bei einem
+          // einzigen ist jeder Fund zugleich „Colli komplett" — in Richards
+          // Aufträgen der Normalfall (Median 1 Gerät je Colli) — und die Meldung
+          // wurde zum Dauerrauschen über jedem Scan.
+          if (anzahl > 1) {
+            setColliToast({ key, anzahl });
+            setTimeout(playColliKomplett, NACH_FUND_MS);
+            if (colliToastTimerRef.current) clearTimeout(colliToastTimerRef.current);
+            colliToastTimerRef.current = setTimeout(() => setColliToast(null), 2600);
+          }
           break; // Regelfall: ein Scan schließt genau ein Colli ab
         }
       }

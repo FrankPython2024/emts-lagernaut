@@ -1248,6 +1248,11 @@ Jetzt: `src/lib/pickup/scanAuswertung.ts` (Test `npm run test:scan`, 34):
 - Feld wird **sofort** beim Enter geleert. Scans vor dem Laden werden gemerkt und nachgeholt.
   Ein Scan schließt offene Fenster (außer beim Abschließen selbst). Abschließen ist gesperrt,
   solange Scans unterwegs sind — der Server nähme danach nichts mehr an.
+- ⚠️ **Feier-Töne nach dem Fund-Ton, nie darüber** (`NACH_FUND_MS`). Mit der Auswertung auf dem
+  Gerät fielen „Gerät gefunden" und „Colli komplett"/Abschluss-Fanfare in denselben Augenblick
+  (vorher lag eine Server-Runde dazwischen) — klang wie ein doppelter Fund-Ton (Frank, 24.09.2026).
+  „Colli komplett" nur noch bei MEHR als einem gesuchten Gerät im Colli: Bei Richard-Aufträgen
+  (Median 1 Gerät je Colli) war sonst jeder Scan zugleich „Colli komplett".
 - **Server:** `pickup.scan` schreibt per `updateMany where status = OFFEN` (vorher lesen-dann-
   schreiben: zwei gleichzeitige Scans galten beide als Fund). Ist die Position schon vom SELBEN
   Nutzer gebucht, kommt `GEFUNDEN` statt `SCHON` — das ist die Wiederholung eines Scans, dessen
