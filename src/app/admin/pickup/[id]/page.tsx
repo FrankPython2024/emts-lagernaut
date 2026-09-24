@@ -12,6 +12,7 @@ import { formatLogId } from "@/lib/pickup/logId";
 import { exportPickupCsv, printPickupBericht } from "@/lib/pickup/bericht";
 import { parsePickupCsv } from "@/lib/pickup/csvImport";
 import { parseColliPruefungCsv } from "@/lib/pickup/colliPruefung";
+import { RestUebernehmenKnopf, UeberschneidungHinweis } from "@/components/pickup/RestUebernehmen";
 
 function PosStatusBadge({ status, vermisstAm, vermisstVon }: { status: string; vermisstAm?: Date | string | null; vermisstVon?: string | null }) {
   const gefunden = status === "GEFUNDEN";
@@ -296,6 +297,7 @@ export default function PickupDetailPage() {
               </button>
             </>
           )}
+          <RestUebernehmenKnopf auftragId={id} offen={offen} />
           <button
             onClick={() => setLoeschDialog(true)}
             className="inline-flex items-center gap-2 px-4 rounded-xl border border-[#fa3e3e]/40 text-[#fa3e3e] text-sm font-bold hover:bg-[#fa3e3e]/10 transition-colors min-h-[56px]"
@@ -373,6 +375,10 @@ export default function PickupDetailPage() {
           bestehendeLogIds={new Set(data.positionen.map((p) => p.logId))}
           onDone={() => utils.pickup.details.invalidate({ id })}
         />
+      )}
+
+      {data.status === "offen" && offen > 0 && (
+        <UeberschneidungHinweis auftragId={id} logIds={nichtGefundene.map((p) => p.logId)} />
       )}
 
       {/* Positionen gruppiert nach Colli */}

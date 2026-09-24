@@ -47,6 +47,28 @@ export default function PickupNeuPage() {
     return new Set(logRes.positionen.map((p) => p.colli ?? "—")).size;
   }, [logRes]);
 
+  // Stehen Geräte schon in einem OFFENEN Auftrag? (Paket 4, 24.09.2026: 114 LogIDs
+  // gleichzeitig in #168 und #183 — der alte war nie geschlossen worden.)
+  const alleIds = useMemo(() => {
+    if (typ === "COLLI") return (colliRes?.stellplaetze ?? []).flatMap((sp) => sp.collis.map((c) => c.nummerDigits));
+    return (logRes?.positionen ?? []).map((p) => p.logId);
+  }, [typ, logRes, colliRes]);
+  const offenQ = api.pickup.bereitsOffen.useQuery(
+    { logIds: alleIds },
+    { enabled: alleIds.length > 0 && alleIds.length <= 5000, staleTime: 0 },
+  );
+  const schonOffen = useMemo(() => new Set((offenQ.data?.treffer ?? []).map((t) => t.logId)), [offenQ.data]);
+  const offenJeAuftrag = useMemo(() => {
+    const m = new Map<number, { name: string; anzahl: number }>();
+    for (const t of offenQ.data?.treffer ?? []) {
+      const e = m.get(t.auftragId) ?? { name: t.auftrag, anzahl: 0 };
+      e.anzahl++;
+      m.set(t.auftragId, e);
+    }
+    return [...m.entries()].sort((a, b) => b[1].anzahl - a[1].anzahl);
+  }, [offenQ.data]);
+  const [ohneDoppelte, setOhneDoppelte] = useState(true);
+
   const erstellen = api.pickup.erstellen.useMutation({
     onSuccess: (r) => { show("✅ Pickup-Auftrag angelegt", "success"); router.push(`/admin/pickup/${r.id}`); },
     onError:   (e) => show(e.message, "error"),
@@ -94,7 +116,9 @@ export default function PickupNeuPage() {
     }
   }
 
-  const total = typ === "COLLI" ? (colliRes?.total ?? 0) : (logRes?.total ?? 0);
+  const totalRoh = typ === "COLLI" ? (colliRes?.total ?? 0) : (logRes?.total ?? 0);
+  const weglassen = ohneDoppelte ? schonOffen.size : 0;
+  const total = Math.max(0, totalRoh - weglassen);
   const kannAnlegen = total > 0 && !!name.trim() && !erstellen.isPending;
 
   function anlegen() {
@@ -112,7 +136,8 @@ export default function PickupNeuPage() {
         : (logRes?.positionen ?? []).map((p) => ({
             logId: p.logId, colli: p.colli, stellplatz: p.stellplatz, bezeichnung: p.bezeichnung,
           }));
-    erstellen.mutate({ name: name.trim(), typ, bemerkung: bemerkung.trim() || undefined, positionen });
+    const gefiltert = ohneDoppelte ? positionen.filter((p) => !schonOffen.has(p.logId)) : positionen;
+    erstellen.mutate({ name: name.trim(), typ, bemerkung: bemerkung.trim() || undefined, positionen: gefiltert });
   }
 
   const akzent = typ === "COLLI" ? "#7c3aed" : "#008BD2";
@@ -287,6 +312,26 @@ export default function PickupNeuPage() {
           </div>
         )}
 
+        {offenJeAuftrag.length > 0 && (
+          <div role="status" className="rounded-xl border-2 border-[#BA7517] bg-[#BA7517]/10 px-4 py-3 text-sm text-[#1a1a1a] dark:text-[#e4e6eb] space-y-2">
+            <div className="font-black text-[#8A5A00] dark:text-[#f7b928]">
+              ⚠ {schonOffen.size} {schonOffen.size === 1 ? "steht" : "stehen"} schon in offenen Aufträgen
+            </div>
+            <ul className="space-y-0.5">
+              {offenJeAuftrag.map(([aid, a]) => (
+                <li key={aid}>#{aid} {a.name} — {a.anzahl}</li>
+              ))}
+            </ul>
+            <label className="flex items-center gap-2 font-bold min-h-[44px]">
+              <input type="checkbox" className="w-5 h-5" checked={ohneDoppelte} onChange={(e) => setOhneDoppelte(e.target.checked)} />
+              Diese nicht noch einmal aufnehmen
+            </label>
+            <p className="text-[#65676b] dark:text-[#b0b3b8]">
+              Soll der alte Auftrag ersetzt werden? Dort „Rest in neuen Auftrag“ nutzen — der schließt den alten gleich mit.
+            </p>
+          </div>
+        )}
+
         <div className="flex justify-end pt-1">
           <button
             type="button"
@@ -295,7 +340,7 @@ export default function PickupNeuPage() {
             className="inline-flex items-center gap-2 px-6 rounded-xl text-white text-sm font-bold disabled:opacity-40 transition-colors shadow-sm min-h-[56px]"
             style={{ background: akzent }}
           >
-            {erstellen.isPending ? "Lege an…" : "Auftrag anlegen"}
+            {erstellen.isPending ? "Lege an…" : weglassen > 0 ? `Auftrag mit ${total} anlegen` : "Auftrag anlegen"}
           </button>
         </div>
       </div>

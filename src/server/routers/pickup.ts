@@ -3,7 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import type { SessionUser } from "@/core/types";
-import { normalizeLogId } from "@/lib/pickup/logId";
+import { normalizeLogId, formatLogId } from "@/lib/pickup/logId";
+import { planeRest, restName, type LagerfuchsStand } from "@/lib/pickup/restAuftrag";
 import { bereinigePositionsFelder } from "@/lib/pickup/position";
 import { nurZiffern } from "@/lib/format/ziffern";
 import { emitToAdmins } from "@/modules/realtime/socket";
@@ -82,6 +83,45 @@ async function ladeOffenenAuftragOderWirf(auftragId: number): Promise<void> {
   }
 }
 
+// „Rest übernehmen": offene Positionen des Auftrags + Lagerfuchs-Stand je LogID.
+// Der Lagerfuchs schreibt LogIDs MIT Punkten („212.652.351"), der Pickup ohne —
+// deshalb wird nach beiden Schreibweisen gesucht und über die Ziffern verbunden.
+async function ladeRestPlan(id: number, ohneAusgeschiedene: boolean, ortAktualisieren: boolean) {
+  const auftrag = await prisma.pickupAuftrag.findUnique({
+    where:  { id },
+    select: {
+      id: true, name: true, typ: true, status: true, createdAt: true,
+      positionen: { where: { status: "OFFEN" }, select: { logId: true, colli: true, stellplatz: true, bezeichnung: true } },
+    },
+  });
+  if (!auftrag) throw new TRPCError({ code: "NOT_FOUND", message: "Pickup-Auftrag nicht gefunden" });
+
+  const stand = new Map<string, LagerfuchsStand>();
+  // Colli-Aufträge führen Colli-Nummern, keine Geräte — der Lagerfuchs hilft dort nicht.
+  if (auftrag.typ === "LOGID" && auftrag.positionen.length > 0) {
+    const schluessel = [...new Set(auftrag.positionen.flatMap((p) => {
+      const d = nurZiffern(p.logId);
+      return d ? [d, formatLogId(d)] : [];
+    }))];
+    for (let i = 0; i < schluessel.length; i += 1000) {
+      const rows = await prisma.logIdStand.findMany({
+        where:  { logId: { in: schluessel.slice(i, i + 1000) } },
+        select: { logId: true, stellplatz: true, colli: true, zuletztGesehen: true, ausgeschieden: true, ausgeschiedenAm: true },
+      });
+      for (const row of rows) stand.set(nurZiffern(row.logId), row);
+    }
+  }
+  const plan = planeRest({
+    positionen: auftrag.positionen, stand, auftragAngelegt: auftrag.createdAt, ohneAusgeschiedene, ortAktualisieren,
+  });
+  const letzterImport = await prisma.logIdImport.findFirst({
+    where:   { status: "fertig", typ: "LAGERFUCHS" },
+    orderBy: { importiertAm: "desc" },
+    select:  { importiertAm: true },
+  });
+  return { auftrag, plan, lagerfuchsStand: letzterImport?.importiertAm ?? null };
+}
+
 export const pickupRouter = createTRPCRouter({
 
   // Alle Aufträge mit Zählern (gesamt/offen/gefunden), neueste zuerst.
@@ -104,6 +144,33 @@ export const pickupRouter = createTRPCRouter({
       zaehler.set(c.auftragId, e);
     }
 
+    // Ordnung (Paket 4, 24.09.2026): Geräte, die gleichzeitig in MEHREREN offenen
+    // Aufträgen stehen (am 23.09. 114 LogIDs in #168 und #183), und als „nicht da"
+    // gemeldete Positionen — beides braucht jemanden im Büro.
+    const offeneIds = auftraege.filter((a) => a.status === "offen").map((a) => a.id);
+    const offenPos = offeneIds.length
+      ? await prisma.pickupPosition.findMany({
+          where:  { auftragId: { in: offeneIds }, status: "OFFEN" },
+          select: { auftragId: true, logId: true },
+        })
+      : [];
+    const auftraegeJeLogId = new Map<string, Set<number>>();
+    for (const x of offenPos) {
+      const set = auftraegeJeLogId.get(x.logId) ?? new Set<number>();
+      set.add(x.auftragId);
+      auftraegeJeLogId.set(x.logId, set);
+    }
+    const doppelt = new Map<number, number>();
+    for (const x of offenPos) {
+      if ((auftraegeJeLogId.get(x.logId)?.size ?? 0) > 1) doppelt.set(x.auftragId, (doppelt.get(x.auftragId) ?? 0) + 1);
+    }
+    const vermisst = await prisma.pickupPosition.groupBy({
+      by:     ["auftragId"],
+      where:  { status: "OFFEN", vermisstAm: { not: null } },
+      _count: { _all: true },
+    });
+    const vermisstJe = new Map(vermisst.map((v) => [v.auftragId, v._count._all]));
+
     return auftraege.map((a) => ({
       id:              a.id,
       name:            a.name,
@@ -114,6 +181,8 @@ export const pickupRouter = createTRPCRouter({
       abgeschlossenAm: a.abgeschlossenAm,
       ersteller:       a.ersteller?.kuerzel ?? a.ersteller?.name ?? "—",
       ...(zaehler.get(a.id) ?? { gesamt: 0, offen: 0, gefunden: 0 }),
+      doppelt:         doppelt.get(a.id) ?? 0,
+      vermisst:        vermisstJe.get(a.id) ?? 0,
     }));
   }),
 
@@ -288,6 +357,7 @@ export const pickupRouter = createTRPCRouter({
     const auftraege = await prisma.pickupAuftrag.findMany({
       where:   { status: "offen" },
       orderBy: { createdAt: "desc" },
+      include: { ersteller: { select: { name: true, kuerzel: true } } },
     });
     const ids = auftraege.map((a) => a.id);
     const counts = ids.length
@@ -304,12 +374,28 @@ export const pickupRouter = createTRPCRouter({
       if (c.status === "GEFUNDEN") e.gefunden += c._count._all;
       zaehler.set(c.auftragId, e);
     }
+    // Für die Picker-Liste: Wie viel Weg steckt drin? (Plätze mit noch zu Suchendem)
+    const zuSuchen = ids.length
+      ? await prisma.pickupPosition.findMany({
+          where:  { auftragId: { in: ids }, status: "OFFEN", vermisstAm: null },
+          select: { auftragId: true, stellplatz: true },
+        })
+      : [];
+    const plaetze = new Map<number, Set<string>>();
+    for (const x of zuSuchen) {
+      const set = plaetze.get(x.auftragId) ?? new Set<string>();
+      set.add(x.stellplatz ?? "");
+      plaetze.set(x.auftragId, set);
+    }
     return auftraege.map((a) => ({
-      id:        a.id,
-      name:      a.name,
-      typ:       a.typ,
-      bemerkung: a.bemerkung,
-      createdAt: a.createdAt,
+      id:         a.id,
+      name:       a.name,
+      typ:        a.typ,
+      // Die automatische Technik-Bemerkung ist Büro-Wissen, nicht für den Picker.
+      bemerkung:  a.bemerkung?.startsWith("Automatisch aus dem Technik-Export") ? null : a.bemerkung,
+      createdAt:  a.createdAt,
+      ersteller:  a.ersteller?.kuerzel ?? a.ersteller?.name ?? null,
+      plaetze:    plaetze.get(a.id)?.size ?? 0,
       ...(zaehler.get(a.id) ?? { gesamt: 0, gefunden: 0 }),
     }));
   }),
@@ -562,6 +648,75 @@ export const pickupRouter = createTRPCRouter({
       void emitFortschritt(input.id);
 
       return { ...zusammenfassung, schonAbgeschlossen: false };
+    }),
+
+  // „Rest in neuen Auftrag übernehmen" — Vorschau: was käme mit, was nicht?
+  restVorschau: pickupManage
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const { auftrag, plan, lagerfuchsStand } = await ladeRestPlan(input.id, true, true);
+      return {
+        name:            auftrag.name,
+        typ:             auftrag.typ,
+        status:          auftrag.status,
+        vorschlagName:   restName(auftrag.name),
+        offen:           auftrag.positionen.length,
+        uebernehmen:     plan.uebernehmen.length,
+        umgezogen:       plan.umgezogen,
+        unbekannt:       plan.unbekannt,
+        ausgeschieden:   plan.ausgeschieden.length,
+        ausgeschiedenBeispiele: plan.ausgeschieden.slice(0, 20),
+        lagerfuchsStand,
+      };
+    }),
+
+  // Rest übernehmen: neuer Auftrag mit den offenen Positionen, alter wird
+  // abgeschlossen — in EINER Transaktion, damit nie beide offen sind (genau das
+  // war das Problem: 114 LogIDs gleichzeitig in #168 und #183).
+  restUebernehmen: pickupManage
+    .input(z.object({
+      id:                 z.number().int().positive(),
+      name:               z.string().trim().min(1).max(200),
+      ohneAusgeschiedene: z.boolean(),
+      ortAktualisieren:   z.boolean(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const user = ctx.session.user as SessionUser;
+      const { auftrag, plan } = await ladeRestPlan(input.id, input.ohneAusgeschiedene, input.ortAktualisieren);
+      if (plan.uebernehmen.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Nichts zu übernehmen — es ist kein Gerät mehr offen." });
+      }
+      const neu = await prisma.$transaction(async (tx) => {
+        const a = await tx.pickupAuftrag.create({
+          data: {
+            name: input.name.trim(), typ: auftrag.typ, status: "offen", erstelltVon: user.id,
+            bemerkung: `Rest aus „${auftrag.name}" (#${auftrag.id})`,
+          },
+        });
+        await tx.pickupPosition.createMany({
+          data: plan.uebernehmen.map((p) => ({
+            auftragId: a.id,
+            logId:     p.logId,
+            ...bereinigePositionsFelder(p),
+            status:    "OFFEN",
+          })),
+        });
+        if (auftrag.status === "offen") {
+          await tx.pickupAuftrag.update({
+            where: { id: auftrag.id },
+            data:  { status: "abgeschlossen", abgeschlossenAm: new Date(), abgeschlossenVon: user.id },
+          });
+        }
+        return a;
+      }, { timeout: 30_000 });
+      void emitFortschritt(auftrag.id);
+      void emitFortschritt(neu.id);
+      return {
+        id:          neu.id,
+        anzahl:      plan.uebernehmen.length,
+        umgezogen:   input.ortAktualisieren ? plan.umgezogen : 0,
+        ausgelassen: input.ohneAusgeschiedene ? plan.ausgeschieden.length : 0,
+      };
     }),
 
   // Auftrag wieder öffnen (nur Admin / PICKUP_MANAGE) — für Korrekturen.

@@ -62,6 +62,7 @@ export default function TechnikPickupPage() {
   }, [offenQ.data]);
 
   const erstellen = api.pickup.erstellen.useMutation();
+  const utils = api.useUtils();
 
   /** Zeilen einer Gruppe nach Abzug der schon eingeplanten Geräte. */
   function zuAnlegen(zeilen: TechnikZeile[]): TechnikZeile[] {
@@ -130,11 +131,20 @@ export default function TechnikPickupPage() {
         show("Nichts anzulegen — alle Geräte stehen schon auf offenen Aufträgen.", "warning");
       } else {
         show(`✅ ${ergebnis.length} Auftrag${ergebnis.length === 1 ? "" : "e"} angelegt`, "success");
-        setAngelegt(ergebnis);
       }
     } catch (e) {
-      show(e instanceof Error ? e.message : "Anlegen fehlgeschlagen", "error");
+      // ⚠️ Teilfehler: Was schon angelegt ist, MUSS sichtbar sein — vorher stand nur
+      // die Fehlermeldung da, und ein zweiter Klick legte die fertigen Gruppen ein
+      // zweites Mal an (Code-Prüfung 23.09.2026, Befund 17).
+      show(
+        `${e instanceof Error ? e.message : "Anlegen fehlgeschlagen"}${ergebnis.length ? ` — ${ergebnis.length} Auftrag/Aufträge wurden trotzdem angelegt (siehe unten). Nochmal klicken legt nur den Rest an.` : ""}`,
+        "error",
+      );
     } finally {
+      if (ergebnis.length > 0) setAngelegt(ergebnis);
+      // Sofort neu prüfen, was jetzt eingeplant ist — der Cache hielt sonst 30 s den
+      // alten Stand, und ein zweiter Klick (oder dieselbe Datei nochmal) legte doppelt an.
+      await utils.pickup.bereitsOffen.invalidate();
       setLaeuft(false);
     }
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSocket } from "@/hooks/useSocket";
@@ -12,6 +12,10 @@ type Auftrag = {
   id: number; name: string; typ: "LOGID" | "COLLI"; bemerkung: string | null; status: string;
   createdAt: Date | string; abgeschlossenAm: Date | string | null;
   ersteller: string; gesamt: number; gefunden: number; offen: number;
+  /** Offene Positionen, die gleichzeitig in einem ANDEREN offenen Auftrag stehen. */
+  doppelt: number;
+  /** Vom Picker als „nicht da" gemeldet (Klärfall). */
+  vermisst: number;
 };
 
 // Badge: offen / Vollständig (grün) / Nicht komplett (orange) — abgeleitet aus nichtGefunden.
@@ -29,8 +33,11 @@ function fmtDatum(d: Date | string): string {
   return new Date(d).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function AuftragKarte({ a }: { a: Auftrag }) {
+function AuftragKarte({ a, onAbschliessen, schliesst }: { a: Auftrag; onAbschliessen?: (id: number) => void; schliesst?: boolean }) {
   const pct = a.gesamt > 0 ? Math.round((a.gefunden / a.gesamt) * 100) : 0;
+  // Gemessen 23.09.2026: 28 Aufträge wurden erst über einen Tag nach dem letzten
+  // Scan geschlossen, #175 stand zwei Tage bei 41/41 — sichtbar machen.
+  const fertigAberOffen = a.status === "offen" && a.gesamt > 0 && a.gefunden === a.gesamt;
   return (
     <Link
       href={`/admin/pickup/${a.id}`}
@@ -46,6 +53,19 @@ function AuftragKarte({ a }: { a: Auftrag }) {
       {a.bemerkung ? (
         <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mb-3 truncate" title={a.bemerkung}>📝 {a.bemerkung}</div>
       ) : <div className="mb-3" />}
+      {(a.doppelt > 0 || a.vermisst > 0 || fertigAberOffen) && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {fertigAberOffen && (
+            <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold bg-[#04B475]/15 text-[#037A4F] dark:text-[#3ddc97]">✓ alles gefunden — noch nicht abgeschlossen</span>
+          )}
+          {a.doppelt > 0 && (
+            <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold bg-[#BA7517]/15 text-[#8A5A00] dark:text-[#f7b928]">⚠ {a.doppelt} auch in anderem offenen Auftrag</span>
+          )}
+          {a.vermisst > 0 && (
+            <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold bg-[#BA7517]/15 text-[#8A5A00] dark:text-[#f7b928]">⚠ {a.vermisst} als „nicht da" gemeldet</span>
+          )}
+        </div>
+      )}
       <div className="mb-2">
         <div className="flex items-center justify-between text-xs font-semibold mb-1">
           <span className="text-[#65676b] dark:text-[#b0b3b8]">Gefunden</span>
@@ -60,6 +80,16 @@ function AuftragKarte({ a }: { a: Auftrag }) {
           ? `Abgeschlossen: ${fmtDatum(a.abgeschlossenAm)}`
           : `${fmtDatum(a.createdAt)} · ${a.ersteller}`}
       </div>
+      {fertigAberOffen && onAbschliessen && (
+        <button
+          type="button"
+          disabled={schliesst}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAbschliessen(a.id); }}
+          className="mt-3 w-full rounded-xl bg-[#037A4F] text-white text-sm font-bold min-h-[48px] disabled:opacity-50"
+        >
+          {schliesst ? "Schließe ab…" : "✓ Jetzt abschließen"}
+        </button>
+      )}
     </Link>
   );
 }
@@ -71,6 +101,16 @@ export default function PickupListePage() {
 
   // Live-Fortschritt (Socket): Liste invalidieren → Karten + offen↔archiv ohne Reload.
   const utils = api.useUtils();
+  const [schliesse, setSchliesse] = useState<Set<number>>(new Set());
+  const abschliessen = api.pickup.abschliessen.useMutation();
+  async function schliesseAb(ids: number[]) {
+    setSchliesse((alt) => new Set([...alt, ...ids]));
+    for (const aid of ids) {
+      try { await abschliessen.mutateAsync({ id: aid }); } catch { /* Karte bleibt offen — sichtbar genug */ }
+    }
+    setSchliesse(new Set());
+    void utils.pickup.liste.invalidate();
+  }
   const { on, off, connected } = useSocket();
   useEffect(() => {
     const h = () => { void utils.pickup.liste.invalidate(); };
@@ -91,6 +131,7 @@ export default function PickupListePage() {
   }
 
   const offene        = (data ?? []).filter((a) => a.status === "offen");
+  const fertigeOffene = offene.filter((a) => a.gesamt > 0 && a.gefunden === a.gesamt);
   const abgeschlossene = (data ?? []).filter((a) => a.status === "abgeschlossen");
   const gridCls = "grid gap-3";
   const gridStyle = { gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" } as const;
@@ -135,13 +176,28 @@ export default function PickupListePage() {
             <h2 className="text-sm font-black uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">
               Offen <span className="text-[#008BD2] dark:text-[#45bdff]">({offene.length})</span>
             </h2>
+            {fertigeOffene.length > 1 && (
+              <div className="flex items-center justify-between gap-3 flex-wrap rounded-2xl border-2 border-[#04B475] bg-[#04B475]/10 px-4 py-3">
+                <span className="text-sm font-bold text-[#037A4F] dark:text-[#3ddc97]">
+                  ✓ {fertigeOffene.length} Aufträge sind komplett gefunden, aber noch offen.
+                </span>
+                <button
+                  type="button"
+                  disabled={schliesse.size > 0}
+                  onClick={() => void schliesseAb(fertigeOffene.map((a) => a.id))}
+                  className="px-5 rounded-xl bg-[#037A4F] text-white text-sm font-bold min-h-[48px] disabled:opacity-50"
+                >
+                  Alle {fertigeOffene.length} abschließen
+                </button>
+              </div>
+            )}
             {offene.length === 0 ? (
               <div className="text-center py-10 text-[#65676b] dark:text-[#b0b3b8] border border-dashed border-[#ced4da] dark:border-[#3e4042] rounded-2xl">
                 Keine offenen Aufträge.
               </div>
             ) : (
               <div className={gridCls} style={gridStyle}>
-                {offene.map((a) => <AuftragKarte key={a.id} a={a} />)}
+                {offene.map((a) => <AuftragKarte key={a.id} a={a} onAbschliessen={(aid) => void schliesseAb([aid])} schliesst={schliesse.has(a.id)} />)}
               </div>
             )}
           </section>

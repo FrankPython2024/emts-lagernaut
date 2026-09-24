@@ -243,9 +243,9 @@ EOF
   bei nicht gefundener Überschrift `0`/`null` und schrieb das durch — eine umbenannte Spalte hätte
   **alle Bestände auf null** gesetzt. Regel: `undefined` = „stand nicht in der Datei" = nicht
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
-- **Verify-Gate sind FÜNFZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
+- **Verify-Gate sind SECHZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan` (zusammen 595) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest` (zusammen 611) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1286,7 +1286,33 @@ Jetzt: `src/lib/pickup/scanAuswertung.ts` (Test `npm run test:scan`, 34):
   der Picker braucht das Wort nicht), „Nicht mitnehmen" statt „Gehört nicht dazu", Starthinweis nur
   vor dem ersten Fund, automatische Technik-Bemerkung beim Picker ausgeblendet, Hilfe unter die Liste.
 
-Offen aus derselben Prüfung (Paket 4): Auftrags-Hygiene
+**Paket 4 (24.09.2026) — Ordnung bei den Aufträgen:**
+- ⚠️ **„Rest in neuen Auftrag übernehmen"** (Admin-Detailseite, `pickup.restVorschau` /
+  `pickup.restUebernehmen`, Regel in `src/lib/pickup/restAuftrag.ts`, Test `npm run test:rest`):
+  offene Positionen in einen neuen Auftrag, der alte wird **in derselben Transaktion**
+  abgeschlossen — nie beide offen. Vorher wurde der Rest von Hand neu angelegt und der alte blieb
+  liegen (1.339 LogIDs so neu angelegt; am 23.09. 114 LogIDs gleichzeitig in #168 und #183).
+  Abgleich mit dem Lagerfuchs: ausgeschiedene Geräte weglassen, umgezogene mit neuem Ort — ⚠️ **nur
+  wenn der Lagerfuchs JÜNGER ist als der alte Auftrag** (der Auftrag kommt aus einer frischen
+  ReForm-Datei). Am 24.09. war der letzte Lagerfuchs-Import vom 07.09. → für #168/#183/#182
+  0 Änderungen; die Funktion hilft erst mit frischem Lagerfuchs-Export. LogIDs: Lagerfuchs MIT
+  Punkten, Pickup ohne — Abgleich über die Ziffern.
+- **Warnungen:** Neuanlage prüft `bereitsOffen` und bietet „nicht noch einmal aufnehmen" an
+  (Standard an); Admin-Detail zeigt, welche offenen Geräte AUCH in anderen offenen Aufträgen
+  stehen; Admin-Liste zeigt je Auftrag „⚠ N auch in anderem offenen Auftrag", „⚠ N nicht da" und
+  „✓ alles gefunden — noch nicht abgeschlossen" samt Knopf (bei mehreren: „Alle abschließen").
+  Gemessen: 28 Aufträge erst über einen Tag nach dem letzten Scan geschlossen, #175 zwei Tage 41/41.
+- **Picker-Liste:** angefangene zuerst, dann die ÄLTESTEN (vorher neueste zuerst → „Zustand H"
+  stand unter „ab 10", obwohl zuerst dran), komplett gefundene unten; je Auftrag „📍 N Plätze ·
+  N Geräte offen" und „angelegt … · Kürzel" (gleich heißende Aufträge unterscheidbar); lädt alle
+  30 s neu; automatische Technik-Bemerkung ausgeblendet.
+- **Technik-Import:** Nach einem Teilfehler werden die schon angelegten Aufträge angezeigt, und
+  `bereitsOffen` wird sofort neu geladen — vorher legte ein zweiter Klick (oder dieselbe Datei
+  innerhalb von 30 s) die fertigen Gruppen doppelt an.
+
+Noch offen: Inventur (#182 „Smartphones prüfen", 4.916 Geräte) als eigene Funktion statt als
+Riesen-Pickup; IT-Seite (DataWedge-Profil für Chrome mit Zeichenabstand, Vollbild-Web-App).
+Frühere Liste der Auftrags-Hygiene
 (114 LogIDs gleichzeitig in #168 und #183, #175 seit Tagen 41/41 offen, #182 „Smartphones prüfen"
 = Inventur mit 4.916 Geräten, doppelte Namen). Gemessen: 75 % der Pick-Zeit steckt in Pausen > 60 s,
 Colli-Wechsel am selben Platz 35 s, anderer Platz 66 s, gleiche Colli 4 s; von 2.518 Collis wurden

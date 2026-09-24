@@ -14,7 +14,11 @@ function fmtDatum(d: Date | string): string {
 export default function PickupHomePage() {
   const { has, isLoading: permsLoading } = usePermissions();
   const darfPick = has("PICKUP_PICK");
-  const { data, isLoading } = api.pickup.offeneAuftraege.useQuery(undefined, { enabled: !permsLoading && darfPick });
+  // Lädt alle 30 s neu — neue Aufträge erscheinen, ohne dass jemand die Seite neu lädt.
+  const { data, isLoading } = api.pickup.offeneAuftraege.useQuery(undefined, {
+    enabled: !permsLoading && darfPick,
+    refetchInterval: 30_000,
+  });
   // Scans, die auf diesem Gerät noch nicht gespeichert sind (Scan-Seite verlassen,
   // während das WLAN weg war). Sie liegen sicher im Gerät, gehen aber erst beim
   // Öffnen ihres Auftrags raus — deshalb hier unübersehbar.
@@ -31,6 +35,18 @@ export default function PickupHomePage() {
       </div>
     );
   }
+
+  // Reihenfolge (Paket 4, 24.09.2026): Vorher „neueste zuerst" — die Technik legt
+  // „Zustand H", „R-B bis 9", „ab 10" nacheinander an, und H (zuerst dran) stand
+  // unten. Jetzt: angefangene zuerst (weitermachen), dann die ältesten; komplett
+  // gefundene ganz unten („nur noch abschließen").
+  const fertig = (a: { gesamt: number; gefunden: number }) => a.gesamt > 0 && a.gefunden === a.gesamt;
+  const sortiert = [...(data ?? [])].sort((a, b) => {
+    if (fertig(a) !== fertig(b)) return fertig(a) ? 1 : -1;
+    const angefA = a.gefunden > 0, angefB = b.gefunden > 0;
+    if (angefA !== angefB) return angefA ? -1 : 1;
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
 
   return (
     <div className="space-y-5">
@@ -65,8 +81,10 @@ export default function PickupHomePage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {data.map((a) => {
+          {sortiert.map((a) => {
             const pct = a.gesamt > 0 ? Math.round((a.gefunden / a.gesamt) * 100) : 0;
+            const istFertig = fertig(a);
+            const offen = a.gesamt - a.gefunden;
             return (
               <Link
                 key={a.id}
@@ -80,6 +98,12 @@ export default function PickupHomePage() {
                   </div>
                   <span className="text-base font-black text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">{a.gefunden}/{a.gesamt}</span>
                 </div>
+                {/* Wie viel Weg steckt drin? — damit man vor dem Losgehen weiß, was kommt. */}
+                <div className="mt-1 text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                  {istFertig
+                    ? <span className="text-[#04713f] dark:text-[#3ddc97]">✓ Alles gefunden — nur noch abschließen</span>
+                    : <>📍 {a.plaetze} {a.plaetze === 1 ? "Platz" : "Plätze"} · {offen} {offen === 1 ? "Gerät" : "Geräte"} offen</>}
+                </div>
                 {a.bemerkung && (
                   <div className="mt-1 text-sm text-[#008BD2] dark:text-[#45bdff] font-semibold truncate" title={a.bemerkung}>
                     📝 {a.bemerkung}
@@ -88,7 +112,10 @@ export default function PickupHomePage() {
                 <div className="h-3 w-full rounded-full bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden mt-3" role="progressbar" aria-valuenow={a.gefunden} aria-valuemin={0} aria-valuemax={a.gesamt}>
                   <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: "#04B475" }} />
                 </div>
-                <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-2">{fmtDatum(a.createdAt)}</div>
+                <div className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-2">
+                  {/* Wer und wann — gleich heißende Aufträge („ab 10") sind so unterscheidbar. */}
+                  angelegt {fmtDatum(a.createdAt)}{a.ersteller ? ` · ${a.ersteller}` : ""}
+                </div>
               </Link>
             );
           })}
