@@ -243,9 +243,9 @@ EOF
   bei nicht gefundener Überschrift `0`/`null` und schrieb das durch — eine umbenannte Spalte hätte
   **alle Bestände auf null** gesetzt. Regel: `undefined` = „stand nicht in der Datei" = nicht
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
-- **Verify-Gate sind VIERZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
+- **Verify-Gate sind FÜNFZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route` (zusammen 561) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan` (zusammen 595) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1218,6 +1218,47 @@ Logik rein in `src/lib/pickup/route.ts`, Test `npm run test:route` (35, mit der 
 - Knopf **„↑ Nach oben"** unten rechts, sobald man > 400 px in die Liste gescrollt hat (bei offenem
   Dialog ausgeblendet). Bewusst kein Dreifach-Tipp (Wunsch war „dreimal tippen"): Der erste Tipp
   träfe fast immer ein Gerät oder eine Karte und öffnete dort schon etwas.
+
+**Kein Scan geht verloren (Paket 1, 24.09.2026)** — Ergebnis einer Prüfung mit vier Agents (Code,
+Produktionsdaten, Handgeräte-UX, Zebra/Chrome). Vorher wartete die Scan-Seite bei jedem Scan auf den
+Server, und das kostete Scans:
+- `if (!scan.isPending) scan.mutate(…)` **verwarf einen zweiten Scan still**, solange der erste lief;
+  das Feld wurde erst in `onSettled` geleert → die Ziffern des nächsten Scans klebten an die alten
+  (18 Stellen → „nicht erkannt"), danach zeigte das Banner den grünen Haken des VORIGEN Geräts.
+- **Kein `onError`**: Speicherfehler ohne Ton und Meldung, Feld trotzdem leer.
+- Colli-Prüfung per Server-Abfrage: Netzfehler klang wie „nichts Gesuchtes hier" (Picker ließ vollen
+  Karton stehen), und `staleTime: 30 s` zeigte schon gefundene Geräte als Treffer.
+- Scans bei offenem Detail-Dialog liefen ins Leere; während des Ladens gab es kein Scan-Feld; jeder
+  Ladefehler hieß „Auftrag nicht gefunden".
+
+Jetzt: `src/lib/pickup/scanAuswertung.ts` (Test `npm run test:scan`, 34):
+- **Das Gerät entscheidet sofort** (`werteScanAus`) — dieselbe Weiche und dieselbe Regel wie
+  `pickup.scan`/`pickup.colliPruefen` (beide lesen NUR die Positionen des Auftrags, die das Gerät
+  hat). ⚠️ Wer die Server-Regel ändert, zieht die Datei mit. `colliPruefen` ruft die Seite nicht mehr.
+- **Funde gehen in eine Warteschlange** (`OffenerScan`), die der Reihe nach speichert. `fehlerArt`:
+  Netz/502/Serverfehler → wiederholen (1-2-4-8, dann alle 15 s, sofort bei `online`/Rückkehr);
+  UNAUTHORIZED → Scans BEHALTEN bis zur Neuanmeldung; PRECONDITION_FAILED/NOT_FOUND/FORBIDDEN →
+  aufgeben mit rotem Hinweis und Fehlerton. Die Schlange liegt zusätzlich in
+  `localStorage["pickup-warteschlange-<id>"]` — Neuladen verliert nichts; die Auftragsliste zeigt
+  wartende Scans unübersehbar an (`wartendeAuftraege`).
+- **Refs als Wahrheit, nicht State:** Der Scanner feuert schneller, als React zeichnet. `lokalRef`
+  (lokal gebuchte Funde) überlagert den Server-Stand (`mitLokalenFunden`), damit ein Doppelscan
+  sofort „schon gefunden" ergibt und ein Neuladen des älteren Server-Stands keinen Haken wegnimmt.
+  Nach 1,5 s Scan-Ruhe wird einmal abgeglichen, bestätigte Funde fallen aus der Überlagerung.
+- Feld wird **sofort** beim Enter geleert. Scans vor dem Laden werden gemerkt und nachgeholt.
+  Ein Scan schließt offene Fenster (außer beim Abschließen selbst). Abschließen ist gesperrt,
+  solange Scans unterwegs sind — der Server nähme danach nichts mehr an.
+- **Server:** `pickup.scan` schreibt per `updateMany where status = OFFEN` (vorher lesen-dann-
+  schreiben: zwei gleichzeitige Scans galten beide als Fund). Ist die Position schon vom SELBEN
+  Nutzer gebucht, kommt `GEFUNDEN` statt `SCHON` — das ist die Wiederholung eines Scans, dessen
+  Antwort verloren ging.
+
+Offen aus derselben Prüfung (Pakete 2–4): feste Ergebnisleiste + Vibration + unterscheidbare
+Tonfamilien + Wake Lock; „Colli nicht da"-Knopf, flache Liste, klares Ende; Auftrags-Hygiene
+(114 LogIDs gleichzeitig in #168 und #183, #175 seit Tagen 41/41 offen, #182 „Smartphones prüfen"
+= Inventur mit 4.916 Geräten, doppelte Namen). Gemessen: 75 % der Pick-Zeit steckt in Pausen > 60 s,
+Colli-Wechsel am selben Platz 35 s, anderer Platz 66 s, gleiche Colli 4 s; von 2.518 Collis wurden
+1.364 ganz, 1.152 gar nicht und nur 2 teilweise gefunden.
 
 ### Notizbuch (Sep 2026)
 

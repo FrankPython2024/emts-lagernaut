@@ -348,21 +348,39 @@ export const pickupRouter = createTRPCRouter({
       // Nicht auf dieser Liste → NICHTS in der DB ändern.
       if (!pos) return { result: "FREMD" as const, logId, position: null };
 
-      // Schon gefunden → nur melden.
+      // ⚠️ Die Scan-Seite entscheidet seit 24.09.2026 selbst (src/lib/pickup/
+      // scanAuswertung.ts) und schickt Funde über eine Warteschlange mit
+      // Wiederholung. Ging nur die ANTWORT verloren, kommt derselbe Scan erneut —
+      // das ist dann kein „schon gefunden", sondern der eigene Fund. Wer die
+      // Position selbst gebucht hat, bekommt deshalb GEFUNDEN zurück.
       if (pos.status === "GEFUNDEN") {
-        return { result: "SCHON" as const, logId, position: shapePos(pos) };
+        const eigener = pos.gefundenVon === user.id;
+        return { result: eigener ? ("GEFUNDEN" as const) : ("SCHON" as const), logId, position: shapePos(pos) };
       }
 
-      // OFFEN → als GEFUNDEN persistieren.
-      const updated = await prisma.pickupPosition.update({
+      // OFFEN → GEFUNDEN, aber NUR, wenn sie in diesem Moment noch offen ist.
+      // Vorher: lesen, dann bedingungslos schreiben — scannten zwei Picker dasselbe
+      // Gerät gleichzeitig, galt es für beide als gefunden, der Letzte gewann.
+      const { count } = await prisma.pickupPosition.updateMany({
+        where: { id: pos.id, status: "OFFEN" },
+        data:  { status: "GEFUNDEN", gefundenVon: user.id, gefundenAm: new Date() },
+      });
+      const aktuell = await prisma.pickupPosition.findUniqueOrThrow({
         where:   { id: pos.id },
-        data:    { status: "GEFUNDEN", gefundenVon: user.id, gefundenAm: new Date() },
         include: { finder: { select: { name: true, kuerzel: true } } },
       });
+      if (count === 0) {
+        const eigener = aktuell.gefundenVon === user.id;
+        return { result: eigener ? ("GEFUNDEN" as const) : ("SCHON" as const), logId, position: shapePos(aktuell) };
+      }
       void emitFortschritt(input.auftragId); // Admin-Live-Update (ohne Ton/Toast)
-      return { result: "GEFUNDEN" as const, logId, position: shapePos(updated) };
+      return { result: "GEFUNDEN" as const, logId, position: shapePos(aktuell) };
     }),
 
+  // ⚠️ Seit 24.09.2026 von der Scan-Seite NICHT mehr aufgerufen: Die Prüfung läuft
+  // auf dem Gerät (`werteScanAus` in src/lib/pickup/scanAuswertung.ts) mit genau
+  // dieser Regel — ohne Netz und ohne den 30-s-Cache, der alte Treffer zeigte.
+  // Wer die Regel hier ändert, muss sie dort mitziehen.
   // Colli-Inhalt akustisch prüfen (nur LOGID-Aufträge). REIN LESEND — ändert nichts
   // in der DB, hakt nichts ab. Quelle sind AUSSCHLIESSLICH die Positionen des Auftrags
   // (deren Colli-Nr aus der beim Auftrag frisch gezogenen CSV = aktueller Standort).

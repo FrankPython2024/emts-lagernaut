@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePermissions } from "@/hooks/usePermissions";
 import { TypBadge } from "@/components/pickup/ModusBanner";
 import { api } from "@/trpc/react";
+import { wartendeAuftraege } from "@/lib/pickup/scanAuswertung";
 
 function fmtDatum(d: Date | string): string {
   return new Date(d).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -13,6 +15,11 @@ export default function PickupHomePage() {
   const { has, isLoading: permsLoading } = usePermissions();
   const darfPick = has("PICKUP_PICK");
   const { data, isLoading } = api.pickup.offeneAuftraege.useQuery(undefined, { enabled: !permsLoading && darfPick });
+  // Scans, die auf diesem Gerät noch nicht gespeichert sind (Scan-Seite verlassen,
+  // während das WLAN weg war). Sie liegen sicher im Gerät, gehen aber erst beim
+  // Öffnen ihres Auftrags raus — deshalb hier unübersehbar.
+  const [wartend, setWartend] = useState<{ auftragId: number; anzahl: number }[]>([]);
+  useEffect(() => { setWartend(wartendeAuftraege()); }, []);
 
   if (permsLoading) {
     return <div className="py-16 text-center text-[#65676b] dark:text-[#b0b3b8]">Lade Berechtigungen…</div>;
@@ -31,6 +38,24 @@ export default function PickupHomePage() {
         <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">Offene Aufträge</h1>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">Auftrag antippen, um mit dem Scannen zu beginnen.</p>
       </div>
+
+      {wartend.map((w) => {
+        const name = data?.find((a) => a.id === w.auftragId)?.name ?? `Auftrag #${w.auftragId}`;
+        return (
+          <Link
+            key={w.auftragId}
+            href={`/pickup/${w.auftragId}`}
+            role="alert"
+            className="flex items-center gap-3 rounded-2xl border-2 px-4 py-3 min-h-[56px]"
+            style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.12)" }}
+          >
+            <span className="text-2xl" aria-hidden>⏳</span>
+            <span className="text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+              {w.anzahl} {w.anzahl === 1 ? "Scan" : "Scans"} von „{name}" noch nicht gespeichert. Hier antippen, dann gehen sie raus.
+            </span>
+          </Link>
+        );
+      })}
 
       {isLoading ? (
         <div className="py-16 text-center text-[#65676b] dark:text-[#b0b3b8]">Lade Aufträge…</div>

@@ -5,22 +5,23 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { api } from "@/trpc/react";
+import { useSession } from "next-auth/react";
+import type { SessionUser } from "@/core/types";
 import { formatLogId } from "@/lib/pickup/logId";
 import { GeraetDetail, type PickupPos } from "../GeraetDetail";
 import { nurZiffern } from "@/lib/format/ziffern";
 import { playScanSound, playComplete, playColliKomplett, playNegativeSound, playWagenTreffer, playWagenLeer, type ScanResult } from "@/lib/pickup/scanSound";
 import { ordneWeg, planeRunden, naechsterHalt, richtungVon } from "@/lib/pickup/route";
+import {
+  werteScanAus, fehlerArt, wartezeitMs, ladeWarteschlange, speichereWarteschlange,
+  mitLokalenFunden, type OffenerScan,
+} from "@/lib/pickup/scanAuswertung";
 
 // Farben wie ModusBanner: Blau = LogID-Auftrag, Violett = Colli-Auftrag.
 // Status nie NUR über Farbe — immer zusätzlich Icon + Klartext.
 const BLAU    = "#008BD2";
 const VIOLETT = "#7c3aed";
 
-// Auto-Erkennung der Scan-Art an der Ziffernlänge (kein Überlapp: LogIDs sind
-// einheitlich 9-stellig, Collis 6–7-stellig). Leicht anpassbar.
-const LOGID_LEN = 9;
-const COLLI_MIN = 6;
-const COLLI_MAX = 7;
 
 type ScanPos = {
   id: number; logId: string; colli: string | null; stellplatz: string | null;
@@ -32,7 +33,8 @@ type Feedback =
   | { kind: "logid"; result: ScanResult; logId: string; position: ScanPos | null }
   | { kind: "colli"; colliNummer: string; colliBekannt: boolean; treffer: { logId: string; bezeichnung: string | null }[]; anzahlTreffer: number }
   | { kind: "vorabscan"; hauptcolli: string; stellplatz: string | null; kartons: { karton: string; anzahl: number }[] }
-  | { kind: "unbekannt"; wert: string };
+  | { kind: "unbekannt"; wert: string }
+  | { kind: "gemerkt"; anzahl: number };
 
 function fmtZeit(d: Date | string | null): string {
   if (!d) return "";
@@ -152,6 +154,18 @@ function ErgebnisBanner({ fb, istColli }: { fb: Feedback | null; istColli: boole
     );
   }
 
+  // ── Auftrag lädt noch — Scan ist gemerkt, nicht verloren ──
+  if (fb.kind === "gemerkt") {
+    return (
+      <div role="status" aria-live="assertive" className="flex items-center gap-3 rounded-xl border-2 px-3 min-h-[56px]" style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.12)" }}>
+        <span className="text-2xl" aria-hidden>⏳</span>
+        <span className="text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+          Auftrag lädt noch — {fb.anzahl} {fb.anzahl === 1 ? "Scan" : "Scans"} gemerkt
+        </span>
+      </div>
+    );
+  }
+
   // ── Nicht erkannt (falsche Ziffernlänge) ──
   if (fb.kind === "unbekannt") {
     return (
@@ -247,7 +261,6 @@ export default function PickupScanPage() {
   // Session-Liste „Gehört nicht dazu": fremde LogIDs + nicht passende Collis.
   const [nichtDazu, setNichtDazu] = useState<{ art: "logid" | "colli"; wert: string; zeit: Date }[]>([]);
   const [ansicht, setAnsicht] = useState<"offen" | "gefunden" | "fremd">("offen");
-  const [colliBusy, setColliBusy] = useState(false);
   // Wegführung (src/lib/pickup/route.ts): der Stellplatz, an dem der Picker gerade
   // ist — gesetzt beim Start (vollster Platz), beim Scannen (der Halt folgt dem
   // Menschen) und automatisch weiter, sobald ein Platz leer gepickt ist.
@@ -301,35 +314,160 @@ export default function PickupScanPage() {
     if (haltToastTimerRef.current) clearTimeout(haltToastTimerRef.current);
   }, []);
 
+  const [abschlussFehler, setAbschlussFehler] = useState<string | null>(null);
   const abschliessen = api.pickup.abschliessen.useMutation({
+    onMutate: () => setAbschlussFehler(null),
     onSuccess: (r) => {
       setAbschlussErgebnis({ name: r.name, gesamt: r.gesamt, gefunden: r.gefunden, nichtGefunden: r.nichtGefunden });
       setTimeout(() => router.push("/pickup"), 1800);
     },
+    onError: (e) => setAbschlussFehler(e.message || "Abschließen hat nicht geklappt. Bitte nochmal tippen."),
   });
 
-  const { data, isLoading, error } = api.pickup.pickDetails.useQuery(
+  const { data: serverDaten, isLoading, error, refetch } = api.pickup.pickDetails.useQuery(
     { id },
     { enabled: !permsLoading && darfPick && Number.isInteger(id) && id > 0 },
   );
+  const { data: session } = useSession();
+  const meinKuerzel = (session?.user as SessionUser | undefined)?.kuerzel ?? null;
 
-  const scan = api.pickup.scan.useMutation({
-    onSuccess: (res, vars) => {
-      setFeedback({ kind: "logid", result: res.result, logId: res.logId, position: res.position as ScanPos | null });
-      playScanSound(res.result);
-      if (res.result === "FREMD") {
-        setNichtDazu((prev) => [{ art: "logid" as const, wert: res.logId || vars.logIdRaw, zeit: new Date() }, ...prev].slice(0, 50));
-      } else if (res.position) {
-        // Wer hier scannt, steht hier — der Halt folgt ihm.
-        wechselHalt(res.position.stellplatz ?? "");
+  // ── Kein Scan geht verloren (Paket 1, 24.09.2026) ─────────────────────────
+  // Vorher wartete die Seite bei jedem Scan auf den Server: Ein zweiter Scan
+  // während einer laufenden Anfrage wurde still verworfen (`if (!scan.isPending)`),
+  // seine Ziffern klebten an die alten, Speicherfehler blieben stumm.
+  // Jetzt: Das Gerät entscheidet sofort (src/lib/pickup/scanAuswertung.ts), Funde
+  // gehen in eine Warteschlange, die der Reihe nach speichert und bei Netzfehlern
+  // selbst wiederholt. Die Schlange liegt zusätzlich im localStorage — Neuladen
+  // oder abgelaufene Anmeldung verlieren nichts. `lokalRef` hält Funde sichtbar
+  // abgehakt, bis der Server sie bestätigt, auch wenn die Seite zwischendurch den
+  // älteren Server-Stand neu lädt.
+  // ⚠️ Refs statt State als Wahrheit: Der Scanner feuert schneller, als React neu
+  // zeichnet — ein Doppelscan desselben Geräts muss schon beim zweiten Mal „schon
+  // gefunden" ergeben, nicht ein zweites Mal in die Schlange.
+  const lokalRef = useRef<Map<string, number>>(new Map());
+  const [lokalStand, setLokalStand] = useState(0);
+  const schlangeRef = useRef<OffenerScan[]>([]);
+  const [schlange, setSchlange] = useState<OffenerScan[]>([]);
+  const [sendeStatus, setSendeStatus] = useState<"ok" | "wartet" | "anmelden">("ok");
+  const [speicherFehler, setSpeicherFehler] = useState<string | null>(null);
+  const sendetRef = useRef(false);
+  const weckerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abgleichRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Scans, die kamen, bevor der Auftrag geladen war.
+  const vorLadenRef = useRef<string[]>([]);
+
+  function setzeLokal(logId: string, am: number | null) {
+    if (am === null) lokalRef.current.delete(logId); else lokalRef.current.set(logId, am);
+    setLokalStand((n) => n + 1);
+  }
+  function setzeSchlange(neu: OffenerScan[]) {
+    schlangeRef.current = neu;
+    setSchlange(neu);
+    speichereWarteschlange(id, neu);
+  }
+
+  const data = useMemo(() => {
+    if (!serverDaten) return undefined;
+    const positionen = mitLokalenFunden(serverDaten.positionen, lokalRef.current, meinKuerzel);
+    return { ...serverDaten, positionen, gefunden: positionen.filter((p) => p.status === "GEFUNDEN").length };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverDaten, lokalStand, meinKuerzel]);
+
+  const scanSpeichern = api.pickup.scan.useMutation();
+  const sendeWeiterRef = useRef<() => Promise<void>>(async () => {});
+  sendeWeiterRef.current = async () => {
+    if (sendetRef.current) return;
+    sendetRef.current = true;
+    if (weckerRef.current) { clearTimeout(weckerRef.current); weckerRef.current = null; }
+    let allesGesendet = false;
+    try {
+      while (schlangeRef.current.length > 0) {
+        const s = schlangeRef.current[0]!;
+        try {
+          const res = await scanSpeichern.mutateAsync({ auftragId: id, logIdRaw: s.logId });
+          setzeSchlange(schlangeRef.current.filter((x) => x.key !== s.key));
+          // Die Position gibt es nicht mehr (Auftrag geändert) → Haken zurücknehmen.
+          if (res.result === "FREMD") setzeLokal(s.logId, null);
+          setSendeStatus("ok");
+        } catch (err) {
+          const art = fehlerArt(err);
+          if (art === "aufgeben") {
+            setzeSchlange(schlangeRef.current.filter((x) => x.key !== s.key));
+            setzeLokal(s.logId, null);
+            setSpeicherFehler(`${formatLogId(s.logId)} ist NICHT gespeichert: ${(err as Error)?.message || "vom Server abgelehnt"}`);
+            playNegativeSound();
+            continue;
+          }
+          if (art === "anmelden") { setSendeStatus("anmelden"); return; }
+          setzeSchlange(schlangeRef.current.map((x) => (x.key === s.key ? { ...x, versuche: x.versuche + 1 } : x)));
+          setSendeStatus("wartet");
+          weckerRef.current = setTimeout(() => { void sendeWeiterRef.current(); }, wartezeitMs(s.versuche + 1));
+          return;
+        }
       }
-      void utils.pickup.pickDetails.invalidate({ id });
-    },
-    onSettled: () => { setEingabe(""); inputRef.current?.focus({ preventScroll: true }); },
-  });
+      allesGesendet = true;
+    } finally {
+      sendetRef.current = false;
+    }
+    if (!allesGesendet) return;
+    // Alles gespeichert → mit dem Server abgleichen. Erst nach 1,5 s Ruhe: Beim
+    // zügigen Scannen würde sonst nach JEDEM Gerät der ganze Auftrag neu geladen.
+    if (abgleichRef.current) clearTimeout(abgleichRef.current);
+    abgleichRef.current = setTimeout(async () => {
+      abgleichRef.current = null;
+      const frisch = await refetch();
+      if (!frisch.data) return; // kein Netz → Überlagerung bleibt, nichts geht verloren
+      // Vom Server bestätigte Funde aus der Überlagerung nehmen — ab jetzt gilt
+      // der Server-Stand (auch wenn z. B. ein Admin einen Fund zurücksetzt).
+      const unterwegs = new Set(schlangeRef.current.map((x) => x.logId));
+      const bestaetigt = new Set(frisch.data.positionen.filter((x) => x.status === "GEFUNDEN").map((x) => nurZiffern(x.logId)));
+      let geaendert = false;
+      for (const k of [...lokalRef.current.keys()]) {
+        if (!unterwegs.has(k) && bestaetigt.has(k)) { lokalRef.current.delete(k); geaendert = true; }
+      }
+      if (geaendert) setLokalStand((n) => n + 1);
+    }, 1500);
+  };
+
+  // Beim Öffnen: unsendete Scans vom letzten Mal übernehmen und losschicken.
+  useEffect(() => {
+    const alt = ladeWarteschlange(id);
+    lokalRef.current = new Map(alt.map((x) => [x.logId, x.erfasstAm]));
+    setLokalStand((n) => n + 1);
+    schlangeRef.current = alt;
+    setSchlange(alt);
+    setSendeStatus("ok");
+    setSpeicherFehler(null);
+    vorLadenRef.current = [];
+    if (alt.length > 0) void sendeWeiterRef.current();
+    return () => {
+      if (weckerRef.current) clearTimeout(weckerRef.current);
+      if (abgleichRef.current) clearTimeout(abgleichRef.current);
+    };
+  }, [id]);
+
+  // WLAN wieder da / zurück in der App → sofort weitersenden statt auf den Wecker warten.
+  useEffect(() => {
+    const los = () => { void sendeWeiterRef.current(); };
+    window.addEventListener("online", los);
+    document.addEventListener("visibilitychange", los);
+    return () => {
+      window.removeEventListener("online", los);
+      document.removeEventListener("visibilitychange", los);
+    };
+  }, []);
 
   const zuruecksetzen = api.pickup.treffersZuruecksetzen.useMutation({
+    // Auch ein nur lokal gebuchter (noch nicht gesendeter) Fund wird zurückgenommen.
+    onMutate: ({ positionId }) => {
+      const pos = data?.positionen.find((x) => x.id === positionId);
+      if (!pos) return;
+      const d = nurZiffern(pos.logId);
+      setzeLokal(d, null);
+      setzeSchlange(schlangeRef.current.filter((x) => x.logId !== d));
+    },
     onSuccess: () => { void utils.pickup.pickDetails.invalidate({ id }); inputRef.current?.focus({ preventScroll: true }); },
+    onError: () => setSpeicherFehler("Zurücksetzen hat nicht geklappt. Bitte nochmal tippen."),
   });
 
   // Nach jedem Ergebnis Fokus zurück ins Scan-Feld (Handheld-tauglich).
@@ -508,30 +646,7 @@ export default function PickupScanPage() {
     () => new Map((wagenKarteQ.data?.zuordnung ?? []).map((m) => [m.untercolli, m.hauptcolli])),
     [wagenKarteQ.data],
   );
-
-  async function pruefeColli(raw: string) {
-    if (colliBusy) return;
-    setColliBusy(true);
-    try {
-      const res = await utils.pickup.colliPruefen.fetch({ auftragId: id, colliNummer: raw });
-      setFeedback({ kind: "colli", colliNummer: res.colliZiffern, colliBekannt: res.colliBekannt, treffer: res.treffer, anzahlTreffer: res.anzahlTreffer });
-      if (res.anzahlTreffer > 0) {
-        playScanSound("GEFUNDEN");
-        // Gesuchter Colli in der Hand → der Picker steht an dessen Stellplatz.
-        const pos = (data?.positionen ?? []).find((p) => p.logId === res.treffer[0]?.logId);
-        if (pos) wechselHalt(pos.stellplatz ?? "");
-      } else {
-        playNegativeSound();
-        setNichtDazu((prev) => [{ art: "colli" as const, wert: res.colliZiffern || raw, zeit: new Date() }, ...prev].slice(0, 50));
-      }
-    } catch {
-      playNegativeSound();
-    } finally {
-      setColliBusy(false);
-      setEingabe("");
-      inputRef.current?.focus({ preventScroll: true });
-    }
-  }
+  const hauptcolliSet = useMemo(() => new Set(hauptcolliMap.keys()), [hauptcolliMap]);
 
   // Lokales Negativ-Feedback ohne Server (z. B. falsche Länge, klar fremd).
   // Gerätedetails: welche Position gerade angetippt wurde.
@@ -548,6 +663,18 @@ export default function PickupScanPage() {
   const dialogOffen = !!detail || abschlussDialog || unvollDialog || !!abschlussErgebnis;
   const dialogOffenRef = useRef(dialogOffen);
   dialogOffenRef.current = dialogOffen;
+  // Ein Scan hat Vorrang vor einem offenen Fenster: Vorher liefen Scans ins Leere,
+  // solange z. B. die Gerätedetails offen waren — ohne jeden Ton. Nur während des
+  // Abschließens selbst bleibt das Fenster stehen.
+  const schliesseFuerScanRef = useRef<() => boolean>(() => false);
+  schliesseFuerScanRef.current = () => {
+    if (abschlussErgebnis || abschliessen.isPending) return false;
+    setDetail(null);
+    setAbschlussDialog(false);
+    setUnvollDialog(false);
+    dialogOffenRef.current = false;
+    return true;
+  };
   useEffect(() => {
     const istAnderesFeld = (el: Element | null) =>
       !!el && el !== inputRef.current &&
@@ -560,6 +687,10 @@ export default function PickupScanPage() {
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (dialogOffenRef.current && /^\d$/.test(e.key) && schliesseFuerScanRef.current()) {
+        inputRef.current?.focus({ preventScroll: true });
+        return;
+      }
       if (e.key.length === 1 || e.key === "Enter") holen();
     };
     let t: ReturnType<typeof setTimeout> | null = null;
@@ -603,13 +734,6 @@ export default function PickupScanPage() {
     setEingabe("");
     inputRef.current?.focus({ preventScroll: true });
   }
-  function meldeNichtDazu(wert: string, art: "logid" | "colli") {
-    setFeedback({ kind: "logid", result: "FREMD", logId: wert, position: null });
-    playScanSound("FREMD");
-    setNichtDazu((prev) => [{ art, wert, zeit: new Date() }, ...prev].slice(0, 50));
-    setEingabe("");
-    inputRef.current?.focus({ preventScroll: true });
-  }
 
   // Karton-(Untercolli-)Schlüssel einer Position — bei COLLI-Aufträgen ist die
   // Position selbst der Untercolli (logId), bei LOGID-Aufträgen steckt der Karton
@@ -640,43 +764,74 @@ export default function PickupScanPage() {
     inputRef.current?.focus({ preventScroll: true });
   }
 
-  // Auto-Routing: Scan-Art an der Ziffernlänge erkennen.
-  function handleScan() {
-    const v = eingabe.trim();
-    if (!v) return;
-    setVonHand(false);
-    const ziffern = nurZiffern(v);
-    const len = ziffern.length;
+  // Ein Scan: sofort auf dem Gerät auswerten, Funde in die Warteschlange.
+  function verarbeiteScan(v: string) {
+    if (!serverDaten) {
+      vorLadenRef.current.push(v);
+      setFeedback({ kind: "gemerkt", anzahl: vorLadenRef.current.length });
+      return;
+    }
+    if (serverDaten.status !== "offen") {
+      setSpeicherFehler("Dieser Auftrag ist schon abgeschlossen. Scans werden nicht gespeichert.");
+      playNegativeSound();
+      return;
+    }
+    setSpeicherFehler(null);
+    const positionen = mitLokalenFunden(serverDaten.positionen, lokalRef.current, meinKuerzel);
+    const urteil = werteScanAus({ roh: v, istColli: serverDaten.typ === "COLLI", positionen, hauptcollis: hauptcolliSet });
 
-    if (istColli) {
-      // Hauptcolli zuerst (Wagen-Vorabscan): Haupt- und Untercolli sind beide
-      // 7-stellig → Unterscheidung NUR über die Lagerwagen-Tabelle, nie über die
-      // Länge. Bekannter Hauptcolli → Wegweisung, hakt nichts ab.
-      if (hauptcolliMap.has(ziffern)) { handleVorabscan(ziffern); return; }
-      // Colli-Auftrag: 6–7 → Position-Match; 9 → gehört nicht dazu; sonst nicht erkannt.
-      if (len >= COLLI_MIN && len <= COLLI_MAX) {
-        if (!scan.isPending) scan.mutate({ auftragId: id, logIdRaw: v });
-      } else if (len === LOGID_LEN) {
-        meldeNichtDazu(ziffern, "logid");
+    if (urteil.art === "vorabscan") { handleVorabscan(urteil.hauptcolli); return; }
+    if (urteil.art === "unbekannt") { meldeUnbekannt(urteil.wert); return; }
+    if (urteil.art === "colli") {
+      setFeedback({ kind: "colli", colliNummer: urteil.colliNummer, colliBekannt: urteil.colliBekannt, treffer: urteil.treffer, anzahlTreffer: urteil.treffer.length });
+      if (urteil.treffer.length > 0) {
+        playScanSound("GEFUNDEN");
+        // Gesuchter Colli in der Hand → der Picker steht an dessen Stellplatz.
+        const pos = positionen.find((x) => nurZiffern(x.logId) === urteil.treffer[0]!.logId);
+        if (pos) wechselHalt(pos.stellplatz ?? "");
       } else {
-        meldeUnbekannt(ziffern);
+        playNegativeSound();
+        setNichtDazu((prev) => [{ art: "colli" as const, wert: urteil.colliNummer, zeit: new Date() }, ...prev].slice(0, 50));
       }
       return;
     }
 
-    // LogID-Auftrag: 9 → LogID-Match; 6–7 → Hauptcolli-Vorabscan ODER Colli-Prüfung;
-    // sonst nicht erkannt.
-    if (len === LOGID_LEN) {
-      if (!scan.isPending) scan.mutate({ auftragId: id, logIdRaw: v });
-    } else if (len >= COLLI_MIN && len <= COLLI_MAX) {
-      // Hauptcolli zuerst: Haupt- und Untercolli sind beide ~7-stellig → Unter-
-      // scheidung NUR über die Lagerwagen-Tabelle. Bekannter Hauptcolli → Wagen-
-      // Vorabscan (hakt nichts ab); sonst bisherige Colli-/Karton-Prüfung.
-      if (hauptcolliMap.has(ziffern)) { handleVorabscan(ziffern); return; }
-      pruefeColli(v);
-    } else {
-      meldeUnbekannt(ziffern);
+    // Gerät (bzw. Colli im Colli-Auftrag)
+    setFeedback({ kind: "logid", result: urteil.result, logId: urteil.logId, position: urteil.position as ScanPos | null });
+    playScanSound(urteil.result);
+    if (urteil.result === "FREMD") {
+      setNichtDazu((prev) => [{ art: "logid" as const, wert: urteil.logId, zeit: new Date() }, ...prev].slice(0, 50));
+      return;
     }
+    // Wer hier scannt, steht hier — der Halt folgt ihm.
+    if (urteil.position) wechselHalt(urteil.position.stellplatz ?? "");
+    if (urteil.result === "GEFUNDEN") {
+      const jetzt = Date.now();
+      setzeLokal(urteil.logId, jetzt);
+      setzeSchlange([...schlangeRef.current, { key: `${urteil.logId}-${jetzt}`, logId: urteil.logId, erfasstAm: jetzt, versuche: 0 }]);
+      void sendeWeiterRef.current();
+    }
+  }
+
+  // Was vor dem Laden gescannt wurde, jetzt nachholen.
+  useEffect(() => {
+    if (!serverDaten || vorLadenRef.current.length === 0) return;
+    const liste = vorLadenRef.current;
+    vorLadenRef.current = [];
+    for (const v of liste) verarbeiteScan(v);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverDaten]);
+
+  function handleScan() {
+    const v = eingabe.trim();
+    // ⚠️ SOFORT leeren. Vorher erst nach der Server-Antwort — die Ziffern des
+    // nächsten Scans hängten sich an die alten (18 Stellen → „nicht erkannt").
+    setEingabe("");
+    if (inputRef.current) inputRef.current.value = "";
+    inputRef.current?.focus({ preventScroll: true });
+    if (!v) return;
+    setVonHand(false);
+    verarbeiteScan(v);
   }
 
   if (permsLoading) {
@@ -816,7 +971,11 @@ export default function PickupScanPage() {
               />
             )}
 
-            {/* Scan-Feld: Eingabe-Toggle (Handscanner/Mobil) + Feld + OK */}
+          </>
+        )}
+
+            {/* Scan-Feld — IMMER da, auch während der Auftrag noch lädt (Scans
+                werden dann gemerkt statt verloren). */}
             <form onSubmit={(e) => { e.preventDefault(); handleScan(); }} className="space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <label htmlFor="scan-input" className="text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
@@ -852,7 +1011,7 @@ export default function PickupScanPage() {
                 {tastatur && (
                   <button
                     type="submit"
-                    disabled={!eingabe.trim() || scan.isPending || colliBusy}
+                    disabled={!eingabe.trim()}
                     className="px-6 rounded-xl text-white text-base font-bold disabled:opacity-40 transition-colors min-h-[56px] min-w-[72px]"
                     style={{ background: aktivFarbe }}
                   >
@@ -882,7 +1041,7 @@ export default function PickupScanPage() {
                       {!istColli && (
                         <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
                           ℹ️ Colli scannen (6–7 Stellen): Du hörst und siehst, ob ein gesuchtes Gerät drin ist.
-                          Wenn ja, die LogIDs (9 Stellen) darin scannen. Die Colli-Prüfung nutzt die Lagerfuchs-Daten (Stand: letzter Import).
+                          Wenn ja, die LogIDs (9 Stellen) darin scannen. Die Prüfung nutzt die Daten dieses Auftrags.
                         </p>
                       )}
                     </div>
@@ -899,6 +1058,35 @@ export default function PickupScanPage() {
             >
               <ErgebnisBanner fb={feedback} istColli={!!istColli} />
             </div>
+
+            {/* Noch nicht gespeichert — erst zeigen, wenn es wirklich hakt (sonst
+                flackerte bei jedem Scan kurz „wird gespeichert"). */}
+            {schlange.length > 0 && (sendeStatus !== "ok" || schlange.length >= 3) && (
+              <div role="status" aria-live="polite" className="flex items-center gap-3 rounded-xl border-2 px-3 py-2 min-h-[56px]" style={{ borderColor: "#BA7517", background: "rgba(186,117,23,0.12)" }}>
+                <span className="text-2xl" aria-hidden>⏳</span>
+                <span className="text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                  {sendeStatus === "anmelden"
+                    ? `Abgemeldet — ${schlange.length} ${schlange.length === 1 ? "Scan wartet" : "Scans warten"}. Bitte neu anmelden, dann gehen sie raus.`
+                    : `${schlange.length} ${schlange.length === 1 ? "Scan" : "Scans"} noch nicht gespeichert — wird wiederholt. Einfach weiterscannen.`}
+                </span>
+              </div>
+            )}
+            {speicherFehler && (
+              <div role="alert" className="flex items-center gap-3 rounded-xl border-2 px-3 py-2 min-h-[56px]" style={{ borderColor: "#fa3e3e", background: "rgba(250,62,62,0.12)" }}>
+                <span className="text-2xl" aria-hidden>✗</span>
+                <span className="flex-1 min-w-0 text-base font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">{speicherFehler}</span>
+                <button
+                  type="button"
+                  onClick={() => setSpeicherFehler(null)}
+                  className="px-4 rounded-lg border-2 border-[#fa3e3e] text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] min-h-[48px] flex-shrink-0"
+                >
+                  OK
+                </button>
+              </div>
+            )}
+
+        {data && (
+          <>
 
             {/* Drei Bereiche — kompakt umschaltbar (Segmented Control) */}
             <div role="group" aria-label="Listen umschalten" className="grid grid-cols-3 gap-1.5">
@@ -927,16 +1115,28 @@ export default function PickupScanPage() {
         )}
       </div>
 
-      {/* ── LISTE — normale Blockliste, scrollt mit dem Seiten-Body ──
-          Scanner-Fokus-Sicherung: ein Tipp in die Liste (auch auf eine reine
-          Zeile) entzieht dem Scan-Feld auf Touch-Geräten den Fokus → der
-          Hardware-Scanner schriebe ins Leere. Nur im Handscanner-Modus
-          (inputMode='none') refokussieren, damit im Mobil-Modus nicht bei jedem
-          Tipp die Bildschirmtastatur aufpoppt. */}
-      <div onClickCapture={() => { if (!tastatur) inputRef.current?.focus({ preventScroll: true }); }}>
+      {/* ── LISTE — normale Blockliste, scrollt mit dem Seiten-Body. Den Fokus
+          aufs Scan-Feld holt der Fokus-Wächter oben zurück. */}
+      <div>
         {error || (!isLoading && !data) ? (
-          <div className="p-8 text-center text-sm text-[#65676b] dark:text-[#b0b3b8] bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042]">
-            Auftrag nicht gefunden.
+          <div className="p-6 text-center space-y-3 bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042]">
+            {/* ⚠️ Vorher stand bei JEDEM Ladefehler „Auftrag nicht gefunden." —
+                auch wenn nur das WLAN weg war. */}
+            {!error || error.data?.code === "NOT_FOUND" ? (
+              <p className="text-base text-[#65676b] dark:text-[#b0b3b8]">Auftrag nicht gefunden.</p>
+            ) : (
+              <>
+                <p className="text-lg font-black text-[#202F61] dark:text-[#e4e6eb]">Keine Verbindung zum Server.</p>
+                <p className="text-base text-[#1a1a1a] dark:text-[#e4e6eb]">Scans werden gemerkt und später gespeichert.</p>
+                <button
+                  type="button"
+                  onClick={() => void refetch()}
+                  className="px-6 rounded-xl bg-[#008BD2] text-white text-base font-bold min-h-[56px]"
+                >
+                  Nochmal laden
+                </button>
+              </>
+            )}
           </div>
         ) : data ? (
           <>
@@ -1019,14 +1219,15 @@ export default function PickupScanPage() {
                 <strong>{data.gefunden}</strong> von <strong>{data.gesamt}</strong> Geräten gefunden.
               </div>
             </div>
+            <AbschlussHinweis offen={schlange.length} fehler={abschlussFehler} />
             <div className="flex gap-3 px-6 pb-6">
               <button onClick={() => setAbschlussDialog(false)} disabled={abschliessen.isPending}
                 className="flex-1 text-sm text-[#65676b] dark:text-[#b0b3b8] font-semibold border border-[#ced4da] dark:border-[#3e4042] rounded-xl hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[56px] disabled:opacity-50">
                 Abbrechen
               </button>
-              <button onClick={() => abschliessen.mutate({ id })} disabled={abschliessen.isPending}
+              <button onClick={() => abschliessen.mutate({ id })} disabled={abschliessen.isPending || schlange.length > 0}
                 className="flex-1 bg-[#037A4F] text-white text-sm font-bold rounded-xl hover:bg-[#039c64] disabled:opacity-50 transition-colors min-h-[56px]">
-                {abschliessen.isPending ? "Schließe ab…" : "Ja, abschließen"}
+                {schlange.length > 0 ? "Speichere noch…" : abschliessen.isPending ? "Schließe ab…" : "Ja, abschließen"}
               </button>
             </div>
           </div>
@@ -1065,14 +1266,15 @@ export default function PickupScanPage() {
                   ))}
                 </div>
               </div>
+              <AbschlussHinweis offen={schlange.length} fehler={abschlussFehler} />
               <div className="flex gap-3 px-6 py-5">
                 <button onClick={() => setUnvollDialog(false)} disabled={abschliessen.isPending}
                   className="flex-1 text-sm text-[#65676b] dark:text-[#b0b3b8] font-semibold border border-[#ced4da] dark:border-[#3e4042] rounded-xl hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] transition-colors min-h-[56px] disabled:opacity-50">
                   Abbrechen
                 </button>
-                <button onClick={() => abschliessen.mutate({ id })} disabled={abschliessen.isPending}
+                <button onClick={() => abschliessen.mutate({ id })} disabled={abschliessen.isPending || schlange.length > 0}
                   className="flex-1 bg-[#BA7517] text-white text-sm font-bold rounded-xl hover:bg-[#9c6213] disabled:opacity-50 transition-colors min-h-[56px]">
-                  {abschliessen.isPending ? "Melde…" : "Als nicht komplett melden"}
+                  {schlange.length > 0 ? "Speichere noch…" : abschliessen.isPending ? "Melde…" : "Als nicht komplett melden"}
                 </button>
               </div>
             </div>
@@ -1452,6 +1654,22 @@ function ColliKarte({ colliKey, items, istColli, onDetail }: { colliKey: string;
           {items.map((p) => <PositionZeile key={p.id} p={p} onDetail={onDetail} />)}
         </div>
       )}
+    </div>
+  );
+}
+
+// Warum „Abschließen" gerade nicht geht — ungespeicherte Scans würden beim
+// Abschließen verloren gehen (der Server nimmt danach nichts mehr an).
+function AbschlussHinweis({ offen, fehler }: { offen: number; fehler: string | null }) {
+  if (offen === 0 && !fehler) return null;
+  return (
+    <div className="px-6 pb-2 space-y-1" role="status" aria-live="polite">
+      {offen > 0 && (
+        <p className="text-sm font-bold text-[#8A5A00] dark:text-[#f7b928]">
+          ⏳ {offen} {offen === 1 ? "Scan wird" : "Scans werden"} noch gespeichert — gleich geht es.
+        </p>
+      )}
+      {fehler && <p className="text-sm font-bold text-[#b3261e] dark:text-[#ff6b6b]">✗ {fehler}</p>}
     </div>
   );
 }
