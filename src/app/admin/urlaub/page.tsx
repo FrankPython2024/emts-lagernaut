@@ -15,8 +15,9 @@ import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { istImUrlaubTeam } from "@/lib/urlaub/team";
 import { addiereTage } from "@/lib/zeit/berlin";
+import { besteZeitpunkte } from "@/lib/urlaub/brueckentage";
 import {
-  ABWESENHEIT_ARTEN, ART_TEXT, arbeitstage, feiertag, freieTage, istArbeitstag, wochentag,
+  ABWESENHEIT_ARTEN, ART_TEXT, arbeitstage, feiertag, freieTage, istArbeitstag, ueberschneiden, wochentag,
   type AbwesenheitArt, type UrlaubStatus,
 } from "@/lib/urlaub/tage";
 
@@ -130,6 +131,9 @@ export default function UrlaubSeite() {
               ))}
             </div>
 
+            <Brueckentage jahr={jahr} meineId={meineId} personen={d.personen} eintraege={d.eintraege}
+              onEintragen={(userId, von, bis) => setEntwurf({ userId, art: "URLAUB", von, bis, halberTag: false, status: "GEPLANT", notiz: "" })} />
+
             <Monat jahr={jahr} monat={monat} setMonat={setMonat} personen={d.personen} eintraege={d.eintraege}
               onNeu={neuerEintrag} onEintrag={bearbeiten} />
 
@@ -202,6 +206,114 @@ export default function UrlaubSeite() {
         )}
       </Modal>
     </div>
+  );
+}
+
+// ── Beste Zeitpunkte (Brückentage) ────────────────────────────────────────────
+// Rechnet im Browser (src/lib/urlaub/brueckentage.ts) — alle Daten liegen schon
+// vor. Eigene Einträge sind gesperrt; auf Wunsch auch die Zeiten der anderen.
+function Brueckentage({ jahr, meineId, personen, eintraege, onEintragen }: {
+  jahr: number; meineId: number;
+  personen: { id: number; name: string; anspruchGesetzt: boolean; konto: { verfuegbar: number } }[];
+  eintraege: Eintrag[];
+  onEintragen: (userId: number, von: string, bis: string) => void;
+}) {
+  const [person, setPerson] = useState(() => (personen.some((p) => p.id === meineId) ? meineId : personen[0]?.id ?? 0));
+  const [max, setMax] = useState(5);
+  const [ohneAndere, setOhneAndere] = useState(false);
+  const [alle, setAlle] = useState(false);
+  const h = heute();
+  const aktuellesJahr = Number(h.slice(0, 4));
+  const von = jahr === aktuellesJahr ? addiereTage(h, 1) : `${jahr}-01-01`;
+  const bis = `${jahr}-12-31`;
+  const p = personen.find((x) => x.id === person);
+
+  const vorschlaege = useMemo(() => {
+    if (jahr < aktuellesJahr) return [];
+    const sperren = eintraege
+      .filter((e) => e.userId === person || ohneAndere)
+      .map((e) => ({ von: e.von, bis: e.bis }));
+    return besteZeitpunkte({ von, bis, maxUrlaubstage: max, sperren, anzahl: 20 });
+  }, [jahr, aktuellesJahr, eintraege, person, ohneAndere, von, bis, max]);
+
+  const namen = new Map(personen.map((x) => [x.id, x.name]));
+  const andereWeg = (uv: string, ub: string) => [...new Set(eintraege
+    .filter((e) => e.userId !== person && ueberschneiden({ von: uv, bis: ub }, { von: e.von, bis: e.bis }))
+    .map((e) => namen.get(e.userId) ?? `#${e.userId}`))];
+  const sichtbar = alle ? vorschlaege : vorschlaege.slice(0, 6);
+
+  return (
+    <section className={`${karte} p-4 space-y-3`}>
+      <div>
+        <h2 className="font-black text-[#202F61] dark:text-[#e4e6eb]">💡 Beste Zeitpunkte für Urlaub {jahr}</h2>
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
+          Wo wenige Urlaubstage mit Wochenenden, Feiertagen und freien Tagen die meiste Zeit am Stück ergeben.
+          {jahr === aktuellesJahr ? " Ab morgen." : ""}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        {personen.map((x) => (
+          <button key={x.id} type="button" aria-pressed={person === x.id} onClick={() => setPerson(x.id)}
+            className={`px-3 rounded-xl text-sm font-bold min-h-[44px] border-2 ${person === x.id ? "border-[#008BD2] bg-[#008BD2]/10 text-[#0064d2] dark:text-[#45bdff]" : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"}`}>
+            {x.name}
+          </button>
+        ))}
+        <label className="inline-flex items-center gap-2 text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] ml-1">
+          höchstens
+          <select value={max} onChange={(e) => setMax(Number(e.target.value))}
+            className="px-2 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] min-h-[44px]">
+            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          Urlaubstage
+        </label>
+        <label className="inline-flex items-center gap-2 text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] min-h-[44px]">
+          <input type="checkbox" className="w-5 h-5" checked={ohneAndere} onChange={(e) => setOhneAndere(e.target.checked)} />
+          nur wenn sonst niemand weg ist
+        </label>
+      </div>
+
+      {jahr < aktuellesJahr ? (
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Das Jahr liegt zurück.</p>
+      ) : vorschlaege.length === 0 ? (
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Keine lohnenden Brückentage mehr {jahr === aktuellesJahr ? "in diesem Jahr" : `in ${jahr}`} — oder alle schon verplant.</p>
+      ) : (
+        <ul className="space-y-2">
+          {sichtbar.map((v) => {
+            const weg = andereWeg(v.urlaubVon, v.urlaubBis);
+            const reicht = !p?.anspruchGesetzt || v.urlaubstage <= p.konto.verfuegbar;
+            return (
+              <li key={`${v.urlaubVon}-${v.urlaubBis}`} className="rounded-xl border border-[#ced4da] dark:border-[#3e4042] px-3 py-2 flex items-center gap-3 flex-wrap">
+                <div className="text-center min-w-[4.5rem]">
+                  <div className="text-2xl font-black text-[#037A4F] dark:text-[#3ddc97]">{v.freieTage}</div>
+                  <div className="text-[11px] font-bold text-[#65676b] dark:text-[#b0b3b8]">Tage frei</div>
+                </div>
+                <div className="min-w-0 flex-1 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                  <div className="font-bold">
+                    {lang(v.freiVon)} – {lang(v.freiBis)}
+                  </div>
+                  <div>
+                    für <strong>{v.urlaubstage} {v.urlaubstage === 1 ? "Urlaubstag" : "Urlaubstage"}</strong>
+                    {" "}({v.urlaubVon === v.urlaubBis ? kurz(v.urlaubVon) : `${kurz(v.urlaubVon)}–${kurz(v.urlaubBis)}`})
+                    <span className="text-[#65676b] dark:text-[#b0b3b8]"> · {v.anlass.join(", ")}</span>
+                  </div>
+                  {weg.length > 0 && <div className="text-xs font-bold text-[#8A5A00] dark:text-[#f7b928]">⚠ Dann ist schon weg: {weg.join(", ")}</div>}
+                  {!reicht && <div className="text-xs font-bold text-[#d93025]">Reicht nicht — {p?.name} hat noch {zahl(p?.konto.verfuegbar ?? 0)} Tage frei</div>}
+                </div>
+                <span className="text-xs font-bold px-2 py-1 rounded-lg bg-[#04B475]/10 text-[#037A4F] dark:text-[#3ddc97]" title="freie Tage je Urlaubstag">
+                  ×{zahl(Math.round(v.faktor * 10) / 10)}
+                </span>
+                <button type="button" className={knopfRand} onClick={() => onEintragen(person, v.urlaubVon, v.urlaubBis)}>Eintragen</button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {vorschlaege.length > 6 && (
+        <button type="button" className="text-sm font-bold text-[#0064d2] dark:text-[#45bdff] underline min-h-[44px]" onClick={() => setAlle(!alle)}>
+          {alle ? "Weniger zeigen" : `Alle ${vorschlaege.length} zeigen`}
+        </button>
+      )}
+    </section>
   );
 }
 

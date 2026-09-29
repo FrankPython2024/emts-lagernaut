@@ -10,6 +10,7 @@ import {
   istGueltigesDatum, tageZwischen,
 } from "../src/lib/urlaub/tage";
 import { istImUrlaubTeam } from "../src/lib/urlaub/team";
+import { besteZeitpunkte } from "../src/lib/urlaub/brueckentage";
 
 let passed = 0;
 let failed = 0;
@@ -93,6 +94,27 @@ check("Arlett (36, Admin) NICHT", istImUrlaubTeam(36), false);
 check("Ronny Wellnitz (17) NICHT", istImUrlaubTeam(17), false);
 check("Id als Text", istImUrlaubTeam("12"), true);
 check("ohne Id", istImUrlaubTeam(undefined), false);
+
+console.log("\n── Brückentage: beste Zeitpunkte ──");
+const rest26 = besteZeitpunkte({ von: "2026-09-30", bis: "2026-12-31", maxUrlaubstage: 10, anzahl: 20 });
+const kurzV = (v: { urlaubVon: string; urlaubBis: string; freiVon: string; freiBis: string; urlaubstage: number; freieTage: number }) =>
+  `${v.urlaubstage}:${v.urlaubVon}..${v.urlaubBis}->${v.freieTage}:${v.freiVon}..${v.freiBis}`;
+check("Rest 2026: Oktober/November nichts (3.10. und 31.10. sind Samstage)", rest26.every((v) => v.urlaubVon >= "2026-12-01"), true);
+check("Weihnachten 2026: 3 Tage (28.–30.12.) → 11 frei (24.12.–3.1.)", rest26.some((v) => kurzV(v) === "3:2026-12-28..2026-12-30->11:2026-12-24..2027-01-03"), true);
+check("Weihnachten 2026: 6 Tage → 16 frei (19.12.–3.1.)", rest26.some((v) => kurzV(v) === "6:2026-12-21..2026-12-30->16:2026-12-19..2027-01-03"), true);
+check("Stufen ohne Mehrwert fallen weg (2 Tage an Weihnachten)", rest26.some((v) => v.urlaubstage === 2), false);
+check("Bester zuerst: Faktor 5", rest26[0]?.faktor, 5);
+const j27 = besteZeitpunkte({ von: "2027-01-01", bis: "2027-12-31", maxUrlaubstage: 10, anzahl: 30 });
+check("Ostern 2027: Gründonnerstag → 5 frei (25.–29.3.)", j27.some((v) => kurzV(v) === "1:2027-03-25..2027-03-25->5:2027-03-25..2027-03-29"), true);
+check("Ostern 2027: 4 Tage → 10 frei", j27.some((v) => kurzV(v) === "4:2027-03-22..2027-03-25->10:2027-03-20..2027-03-29"), true);
+check("Himmelfahrt 2027: Brückentag Fr 7.5. → 4 frei", j27.some((v) => kurzV(v) === "1:2027-05-07..2027-05-07->4:2027-05-06..2027-05-09"), true);
+check("nie unter doppelt so vielen freien Tagen", j27.every((v) => v.faktor >= 2), true);
+check("jeder Tipp hängt an einem freien Werktag", j27.every((v) => v.anlass.length > 0), true);
+check("Budget 1 → nur Ein-Tages-Tipps", besteZeitpunkte({ von: "2027-01-01", bis: "2027-12-31", maxUrlaubstage: 1 }).every((v) => v.urlaubstage === 1), true);
+const gesperrt = besteZeitpunkte({ von: "2026-09-30", bis: "2026-12-31", maxUrlaubstage: 10, sperren: [{ von: "2026-12-28", bis: "2026-12-28" }] });
+check("gesperrte Tage (schon eingetragen) werden nie vorgeschlagen", gesperrt.every((v) => !(v.urlaubVon <= "2026-12-28" && "2026-12-28" <= v.urlaubBis)), true);
+check("Freizeit links nie vor dem frühesten Tag (keine Vergangenheit)",
+  besteZeitpunkte({ von: "2026-12-28", bis: "2026-12-31", maxUrlaubstage: 3 }).every((v) => v.freiVon >= "2026-12-28"), true);
 
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);
 process.exit(failed === 0 ? 0 : 1);

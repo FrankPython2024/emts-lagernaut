@@ -245,7 +245,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind NEUNZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 778) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 791) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1494,6 +1494,16 @@ per Code-Änderung dazu, nicht per Klick.
   noch Violett/Schulung; geplant gestreift, genehmigt voll; leeres Feld antippen = eintragen, farbiges =
   ändern), darunter die freien Tage des Monats und aufklappbar des Jahres. Jahresliste mit Status-Knopf,
   Ändern, Löschen (Rückfrage).
+- **💡 Beste Zeitpunkte / Brückentage** (`src/lib/urlaub/brueckentage.ts`, rechnet im Browser, Wunsch Frank
+  29.09.2026): Urlaub = zusammenhängender Block von Arbeitstagen, die freie Zeit wächst über angrenzende
+  Wochenenden/freie Tage. **Nur Blöcke mit einem freien Tag unter der Woche** (sonst stünde jeder Montag
+  drin). Je Anlass (erster freier Werktag) nur die **Stufen, die sich lohnen**: eine Stufe kommt dazu, wenn
+  die zusätzlichen Urlaubstage mehr freie Tage bringen als sich selbst, UND mindestens **×2**
+  (`MIN_FAKTOR`) — sonst kommt der Gewinn nur aus Wochenenden (10 Tage → 17 frei nach Neujahr 2027).
+  ⚠️ Erste Fassung zeigte je Anlass nur „günstigste + längste" und verschluckte genau die Stufe, um die es
+  geht (Weihnachten 2026: 1 → 5 frei, **3 → 11**, 6 → 16). Links wächst die freie Zeit nie vor „morgen".
+  Eigene Einträge gesperrt, optional „nur wenn sonst niemand weg ist"; zeigt sonst, wer dann schon weg ist,
+  und ob der Rest vom Konto reicht. „Eintragen" öffnet den Dialog vorbelegt (geplant).
   „Heute" in deutscher Zeit (`Intl … Europe/Berlin`), nicht UTC.
 
 ### Notizbuch (Sep 2026)
