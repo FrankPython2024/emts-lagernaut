@@ -12,6 +12,7 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 import { StandortProvider } from "@/lib/standort/standortContext";
 import { StandortSwitcher } from "@/components/StandortSwitcher";
 import { usePermissions } from "@/hooks/usePermissions";
+import { istImUrlaubTeam } from "@/lib/urlaub/team";
 import { useNeueAnfragenZaehler } from "@/hooks/useNeueAnfragenZaehler";
 import { MeinProfilModal } from "@/app/admin/_components/MeinProfilModal";
 import { NotificationProvider } from "@/lib/notifications/notificationContext";
@@ -41,6 +42,8 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/admin/karton-schilder", label: "Karton-Beschriftungen", icon: "🗃️", permission: "ARTIKEL_VIEW" },
       { href: "/admin/notizbuch",       label: "Notizbuch", icon: "📓", permission: "NOTIZBUCH_VIEW" },
       { href: "/admin/druck",           label: "3D-Druck",  icon: "🖨️", permission: "ARTIKEL_VIEW" },
+      // Kein Recht im Rollensystem: nur drei feste Konten (src/lib/urlaub/team.ts).
+      { href: "/admin/urlaub",          label: "Urlaubsplanung", icon: "🏖️", permission: "URLAUB_TEAM" },
       { href: "/admin/pickup",          label: "Pickup",     icon: "🛻", permission: "PICKUP_MANAGE" },
       { href: "/admin/schrott",         label: "Schrottabholung", icon: "♻️", permission: "ENTSORGUNG_VIEW" },
       { href: "/admin/batterien",       label: "Batterietransport", icon: "🔋", permission: "ENTSORGUNG_VIEW" },
@@ -194,7 +197,10 @@ function Sidebar({ collapsed, onClose, onSearch, onProfile }: { collapsed: boole
           </div>
         ) : (
           NAV_SECTIONS.map((section) => {
-            const sichtbare = section.items.filter(it => has(it.permission));
+            const sichtbare = section.items.filter(it =>
+              it.permission === "URLAUB_TEAM"
+                ? istImUrlaubTeam((session?.user as { id?: number | string } | undefined)?.id)
+                : has(it.permission));
             if (sichtbare.length === 0) return null;
             return (
               <div key={section.title} className="mb-1">

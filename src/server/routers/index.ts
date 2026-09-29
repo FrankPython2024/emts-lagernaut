@@ -44,6 +44,7 @@ import { geraeteFotosRouter }        from "./geraeteFotos";
 import { bestellanfragenRouter }     from "./bestellanfragen";
 import { notizbuchRouter }           from "./notizbuch";
 import { druckRouter }               from "./druck";
+import { urlaubRouter }              from "./urlaub";
 import { impactRouter }              from "./impact";
 import { kartonSchildRouter }        from "./kartonSchild";
 import { teilespenderRouter }        from "./teilespender";
@@ -97,6 +98,7 @@ export const appRouter = createTRPCRouter({
   bestellanfragen:    bestellanfragenRouter,
   notizbuch:          notizbuchRouter,
   druck:              druckRouter,
+  urlaub:             urlaubRouter,
   impact:             impactRouter,
   kartonSchild:       kartonSchildRouter,
   teilespender:       teilespenderRouter,

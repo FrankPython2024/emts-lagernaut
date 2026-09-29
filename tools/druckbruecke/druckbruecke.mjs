@@ -46,7 +46,11 @@ import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
-export const VERSION = "1.3.0";
+export const VERSION = "1.3.1";
+// Endcodes für laufen.cmd (Autostart mit Neustart nach Absturz): Bei diesen beiden
+// hilft ein Neustart nichts — dann NICHT im Kreis neu starten.
+export const ENDE_EINSTELLUNGEN = 2;
+export const ENDE_LAEUFT_SCHON = 3;
 /** Standard-Adresse von Lagernaut (Drucken von jedem PC über den Server). */
 export const LAGERNAUT_STANDARD = "https://emts-lagernaut.duckdns.org";
 /** Alle so viele ms meldet sich die Brücke bei Lagernaut. */
@@ -728,7 +732,7 @@ function starteLagernaut(e, verbindung) {
   void runde();
 }
 
-function starteServer(e, verbindung) {
+function starteServer(e, verbindung, bereit) {
   const server = http.createServer((req, res) => {
     // Schutz gegen DNS-Rebinding: nur echte Aufrufe an 127.0.0.1/localhost.
     const host = String(req.headers.host ?? "").replace(/:\d+$/, "");
@@ -764,15 +768,18 @@ function starteServer(e, verbindung) {
     res.writeHead(404).end();
   });
   server.on("error", (err) => {
-    console.error(err.code === "EADDRINUSE"
-      ? `⚠ Port ${e.port} ist belegt — läuft die Brücke schon in einem anderen Fenster?`
-      : `⚠ Webserver: ${err.message}`);
+    if (err.code === "EADDRINUSE") {
+      console.error(`⚠ Port ${e.port} ist belegt — die Brücke läuft schon (anderes Fenster oder Autostart).`);
+      process.exit(ENDE_LAEUFT_SCHON);
+    }
+    console.error(`⚠ Webserver: ${err.message}`);
     process.exit(1);
   });
   server.listen(e.port, "127.0.0.1", () => {
     console.log(`Lagernaut-Druckbrücke ${VERSION} — bereit auf http://127.0.0.1:${e.port}`);
     console.log(`Drucker ${e.druckerIp} · Seriennummer ${e.seriennummer}`);
     console.log("Fenster offen lassen, solange gedruckt wird. Beenden mit Strg+C.");
+    bereit();
   });
 }
 
@@ -782,10 +789,13 @@ if (direkt) {
   const e = leseEinstellungen();
   if (e.fehlt) {
     console.error(`⚠ ${e.fehlt}`);
-    process.exit(1);
+    process.exit(ENDE_EINSTELLUNGEN);
   }
   const v = new DruckerVerbindung(e);
-  starteServer(e, v);
-  v.starten();
-  starteLagernaut(e, v);
+  // Erst wenn der Port sicher uns gehört, mit Drucker und Lagernaut verbinden —
+  // eine versehentlich doppelt gestartete Brücke darf nie einen Auftrag abholen.
+  starteServer(e, v, () => {
+    v.starten();
+    starteLagernaut(e, v);
+  });
 }

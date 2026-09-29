@@ -1885,3 +1885,43 @@ model DruckerStand {
   platteFreiVon  String?   @db.VarChar(50)
   platteFreiAm   DateTime?
 }
+
+// ── Urlaubsplanung (29.09.2026) ─────────────────────────────────────────────
+// Nur für drei feste Konten (src/lib/urlaub/team.ts) — bewusst ohne Recht im
+// Rollensystem, weil Admins per Wildcard jedes Recht hätten.
+// Datum als reiner Kalendertag (@db.Date): Ein Urlaubstag ist keine Zeitspanne.
+model Abwesenheit {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  // URLAUB | KRANK | SCHULUNG | GLEITZEIT | SONSTIGES — nur URLAUB zählt aufs Konto
+  art          String    @db.VarChar(20)
+  von          DateTime  @db.Date
+  bis          DateTime  @db.Date
+  // Nur bei einem einzelnen Tag (von = bis) — zählt 0,5.
+  halberTag    Boolean   @default(false)
+  // GEPLANT | GENEHMIGT
+  status       String    @db.VarChar(20)
+  notiz        String?   @db.VarChar(500)
+  erstelltVon  String    @db.VarChar(50)
+  geaendertVon String?   @db.VarChar(50)
+  genehmigtVon String?   @db.VarChar(50)
+  genehmigtAm  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([von, bis])
+}
+
+// Urlaubsanspruch je Person und Jahr, dazu der Übertrag aus dem Vorjahr.
+model UrlaubAnspruch {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  jahr         Int
+  tage         Decimal  @db.Decimal(4, 1)
+  uebertrag    Decimal  @default(0) @db.Decimal(4, 1)
+  geaendertVon String   @db.VarChar(50)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, jahr])
+}

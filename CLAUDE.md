@@ -243,9 +243,9 @@ EOF
   bei nicht gefundener Überschrift `0`/`null` und schrieb das durch — eine umbenannte Spalte hätte
   **alle Bestände auf null** gesetzt. Regel: `undefined` = „stand nicht in der Datei" = nicht
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
-- **Verify-Gate sind ACHTZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
+- **Verify-Gate sind NEUNZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke` (zusammen 726) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 770) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1447,6 +1447,49 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   Zusammenspiel Brücke ↔ Server am 24.09. mit einem Nachbau der Endpunkte geprüft (Meldung, Abholen,
   Datei, Ablehnung einer ungültigen Datei VOR dem Drucker, Ergebnis) — ohne Druck. Nach Deploy + Koppeln
   am 24.09.2026 im Betrieb bestätigt (Frank: „funktioniert“).
+- **Autostart (24.09.2026, Brücke 1.3.1):** `tools/druckbruecke/einrichten.cmd` (ohne Adminrechte)
+  kopiert Brücke + `laufen.cmd` nach **`%LOCALAPPDATA%\Lagernaut-Druckbruecke`** (NICHT aus dem Worktree
+  laufen lassen — der kann aufgeräumt werden) und legt im Autostart-Ordner `Lagernaut-Druckbruecke.cmd`
+  an (`start /min laufen.cmd`). **Update = `einrichten.cmd` erneut ausführen, dann Brücke neu starten.**
+  `laufen.cmd` startet nach einem Absturz nach 10 s neu, aber NICHT bei Endcode 2 (Einstellungen fehlen)
+  oder 3 (Port belegt = läuft schon) — sonst Neustart im Kreis. Node über den festen Pfad
+  `%ProgramFiles%\nodejs\node.exe` (PATH-Falle auf diesem Laptop).
+  ⚠️ **Warten per `ping -n 11 127.0.0.1`, nicht `timeout.exe`:** timeout bricht ohne echte
+  Tastatureingabe sofort ab (gemessen) — ein Absturz liefe dann ohne Pause im Kreis.
+  ⚠️ **Eine doppelt gestartete Brücke darf nie einen Auftrag abholen:** Drucker- und Lagernaut-
+  Verbindung starten erst, NACHDEM der Port gebunden ist (vorher meldete sich die zweite Instanz noch
+  kurz bei Lagernaut, bevor sie am belegten Port scheiterte). Alle drei Fälle (läuft schon,
+  Einstellungen fehlen, harter Absturz → 10 s → wieder da) am 24.09. am Laptop nachgeprüft.
+  Grenze: Schläft der Laptop oder ist der Deckel zu, ist die Brücke aus — die Druckerkarte zeigt dann
+  „Druckbrücke aus · zuletzt …", Aufträge warten.
+
+### Urlaubsplanung (29.09.2026)
+
+Seite `/admin/urlaub` (Nav „🏖️ Urlaubsplanung", Betrieb). **Nur für drei feste Konten:** FRANK (Id 1,
+Admin), Christian Roth (CR, Id 12), Ronny Schorg (RS, Id 15) — `src/lib/urlaub/team.ts`.
+⚠️ **Bewusst KEIN Recht im Rollensystem:** Admins bekommen jedes Recht per Wildcard, ein Recht „Urlaub"
+hätte also jeden Admin eingeschlossen (z. B. Arlett, AD). Der Menüpunkt trägt die Pseudo-Kennung
+`URLAUB_TEAM` (Layout prüft die Konto-Id der Sitzung), der Server prüft JEDEN Aufruf (`team`-Procedure).
+Nicht dabei: Franks Techniker-Konto FS (Id 2) und Ronny Wellnitz (RW, Id 17). Wer dazukommt, kommt nur
+per Code-Änderung dazu, nicht per Klick.
+- **Schema:** `Abwesenheit` (userId, art URLAUB|KRANK|SCHULUNG|GLEITZEIT|SONSTIGES, von/bis **`@db.Date`**,
+  halberTag, status GEPLANT|GENEHMIGT, notiz, erstelltVon/geaendertVon/genehmigtVon+Am) und
+  `UrlaubAnspruch` (userId+jahr unique, tage, uebertrag, Dezimal mit halben Tagen). **`db push`**, kein seed.
+- **Rechnen** (`src/lib/urlaub/tage.ts`, Test `npm run test:urlaub`): nur über Kalendertage „JJJJ-MM-TT",
+  nie über Uhrzeiten. Arbeitstage Mo–Fr ohne **Feiertage Thüringen** (inkl. Weltkindertag 20.09. seit
+  2019 und Reformationstag; ohne Fronleichnam — nur Eichsfeld; 24./31.12. zählen als Arbeitstage).
+  Ostern nach Meeus/Jones/Butcher. Halber Tag nur bei einem Tag (0,5). Einträge über Silvester zählen
+  anteilig je Jahr. Nur URLAUB zählt aufs Konto: **verfügbar = Anspruch + Übertrag − genehmigt − geplant**.
+- **Im Team darf jeder alles** (eintragen, ändern, löschen, genehmigen); wer es war, steht am Eintrag.
+  ⚠️ Eine Genehmigung gilt für einen bestimmten Zeitraum: Ändert sich Zeitraum, Person oder Art, stellt
+  der Dialog auf „geplant" zurück (mit Hinweis); wer wieder „genehmigt" wählt, wird neuer Genehmiger.
+- **Überschneidung:** Warnung im Dialog (`urlaub.pruefen`) und nach dem Speichern, wenn eine andere Person
+  an einem ARBEITStag ebenfalls fehlt (nur Wochenende berührt zählt nicht); im Kalender ⚠ über dem Tag.
+  Nur Warnung, kein Verbot.
+- **Oberfläche:** Urlaubskonto je Person (frei / genehmigt / geplant, Warnung ohne Anspruch),
+  Monatskalender Personen × Tage (Wochenende/Feiertag grau, geplant gestreift, genehmigt voll; leeres
+  Feld antippen = eintragen, farbiges = ändern), Jahresliste mit Status-Knopf, Ändern, Löschen (Rückfrage).
+  „Heute" in deutscher Zeit (`Intl … Europe/Berlin`), nicht UTC.
 
 ### Notizbuch (Sep 2026)
 
