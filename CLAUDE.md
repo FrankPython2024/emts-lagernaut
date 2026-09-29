@@ -1526,8 +1526,9 @@ per Code-Änderung dazu, nicht per Klick.
   geprüft). Mit Franks eigenen Daten befüllt ist der Gesamttext identisch mit seinem Original.
   Von-Datum und Datum unten waren in Word in 4–5 Läufe zerfallen und sind jetzt je EIN Lauf (gleiche
   Formatierung). ⚠️ **Nicht unter `public/`** (Personaldaten im Original) — der Docker-Runner kopiert
-  `src/`, gelesen wird über `process.cwd()`. Kein LibreOffice/Word am Laptop → optisch nur von Frank in
-  Word prüfbar; strukturell über `test:urlaub` gegen die echte Vorlage.
+  `src/`, gelesen wird über `process.cwd()`. Kein LibreOffice/Word am Laptop → optisch von Frank in Word
+  geprüft (29.09.2026, zwei Probedateien neben dem Original: „sieht gut aus"); strukturell über
+  `test:urlaub` gegen die echte Vorlage.
   Befüllen: `fuelleAntrag` (`src/lib/urlaub/antrag.ts`) über `src/lib/zip/einfach.ts` (ZIP lesen/schreiben
   nur mit zlib, eigene CRC-32 — keine Pakete). Werte XML-sicher verpackt; ohne Sondergrund bleiben die
   Unterstriche; `docProps/core.xml` „zuletzt geändert von" = Antragsteller. Download
