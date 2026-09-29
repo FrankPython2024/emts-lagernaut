@@ -119,6 +119,9 @@ check("Weihnachten 2026: 3 Tage (28.–30.12.) → 11 frei (24.12.–3.1.)", res
 check("Weihnachten 2026: 6 Tage → 16 frei (19.12.–3.1.)", rest26.some((v) => kurzV(v) === "6:2026-12-21..2026-12-30->16:2026-12-19..2027-01-03"), true);
 check("Stufen ohne Mehrwert fallen weg (2 Tage an Weihnachten)", rest26.some((v) => v.urlaubstage === 2), false);
 check("Bester zuerst: Faktor 5", rest26[0]?.faktor, 5);
+check("Anlass-Gruppe: Weihnachts-Stufen (3 und 6 Tage) gehören zu Heiligabend",
+  rest26.filter((v) => v.urlaubstage === 3 || v.urlaubstage === 6).map((v) => v.gruppe), ["2026-12-24", "2026-12-24"]);
+check("Anlass-Gruppe: Silvester-Tag 30.12. ist eigener Anlass", rest26.find((v) => v.urlaubVon === "2026-12-30" && v.urlaubstage === 1)?.gruppe, "2026-12-31");
 const j27 = besteZeitpunkte({ von: "2027-01-01", bis: "2027-12-31", maxUrlaubstage: 10, anzahl: 30 });
 check("Ostern 2027: Gründonnerstag → 5 frei (25.–29.3.)", j27.some((v) => kurzV(v) === "1:2027-03-25..2027-03-25->5:2027-03-25..2027-03-29"), true);
 check("Ostern 2027: 4 Tage → 10 frei", j27.some((v) => kurzV(v) === "4:2027-03-22..2027-03-25->10:2027-03-20..2027-03-29"), true);

@@ -34,6 +34,8 @@ export type Vorschlag = {
   faktor:      number;
   /** Namen der freien Tage unter der Woche im Block. */
   anlass:      string[];
+  /** Anlass-Schlüssel: erster freier Werktag im Block — Vorschläge zum selben Anlass sind Stufen. */
+  gruppe:      string;
 };
 
 /**
@@ -57,7 +59,7 @@ export function besteZeitpunkte(args: {
 }): Vorschlag[] {
   const max = Math.max(1, Math.floor(args.maxUrlaubstage));
   const arbeit = tageZwischen(args.von, args.bis).filter(istArbeitstag);
-  const kandidaten: (Vorschlag & { gruppe: string })[] = [];
+  const kandidaten: Vorschlag[] = [];
 
   for (let i = 0; i < arbeit.length; i++) {
     for (let j = i; j < arbeit.length && j - i + 1 <= max; j++) {
@@ -101,8 +103,7 @@ export function besteZeitpunkte(args: {
     for (const n of [...jeStufe.keys()].sort((a, b) => a - b)) {
       const k = jeStufe.get(n)!;
       if (k.freieTage - zuletztFrei > n - zuletztTage && k.faktor >= MIN_FAKTOR) {
-        const { gruppe: _g, ...v } = k as Vorschlag & { gruppe: string };
-        raus.push(v);
+        raus.push(k);
         zuletztTage = n;
         zuletztFrei = k.freieTage;
       }

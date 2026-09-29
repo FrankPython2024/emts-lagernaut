@@ -245,7 +245,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind NEUNZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 826) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 828) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1516,6 +1516,13 @@ per Code-Änderung dazu, nicht per Klick.
   **Der Rest vom Konto ist die Obergrenze** (`vorschlagsBudget`, halbe Resttage abgerundet): kein Rest →
   keine Vorschläge, nur „keine Urlaubstage mehr frei"; ohne Anspruch → Hinweis statt Vorschlägen (Frank,
   29.09.2026). „Eintragen" öffnet den Dialog vorbelegt (geplant).
+  **Darstellung als Jahresplaner** (Wunsch Frank 29.09.2026, statt Liste): Monatskalender Mo–So ab dem
+  laufenden Monat (plus Januar danach, wenn ein Vorschlag über Silvester reicht). Je Anlass
+  (`Vorschlag.gruppe` = erster freier Werktag im Block) die Stufen als Knöpfe („3 Tage → 11 frei");
+  gewählte Stufe: freie Zeit grün umrandet, Urlaubstage dunkelgrün mit „U", darunter „Diesen Zeitraum
+  eintragen". Ohne Auswahl ist die günstigste Stufe je Anlass hellgrün angedeutet. Klick auf einen Tag im
+  Vorschlag wählt die Stufe, Klick auf einen freien Arbeitstag trägt ab dort ein. Orangener Punkt =
+  jemand anderes weg. Eigene Einträge in ihrer Farbe (geplant gestreift, dann dunkle Schrift).
 - **📄 Urlaubsantrag als Word-Datei** (29.09.2026, Wunsch Frank: „genau so, nur mit den jeweiligen Daten").
   ⚠️ **Kein nachgebautes Dokument, sondern Franks Original als Vorlage:**
   `src/lib/urlaub/vorlage/urlaubsantrag.docx` — nur Texte durch Platzhalter ersetzt (`{{NACHNAME}}`,
