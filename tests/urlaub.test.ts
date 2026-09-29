@@ -10,7 +10,7 @@ import {
   istGueltigesDatum, tageZwischen,
 } from "../src/lib/urlaub/tage";
 import { istImUrlaubTeam, darfBearbeiten } from "../src/lib/urlaub/team";
-import { besteZeitpunkte } from "../src/lib/urlaub/brueckentage";
+import { besteZeitpunkte, vorschlagsBudget } from "../src/lib/urlaub/brueckentage";
 
 let passed = 0;
 let failed = 0;
@@ -56,6 +56,9 @@ check("zwei Wochen mit Wochenende = 10", arbeitstage({ von: "2026-10-05", bis: "
 check("Osterwoche Mo–Fr mit Karfreitag = 4", arbeitstage({ von: "2026-03-30", bis: "2026-04-03" }), 4);
 check("Woche mit Ostermontag = 4", arbeitstage({ von: "2026-04-06", bis: "2026-04-10" }), 4);
 check("halber Tag = 0,5", arbeitstage({ von: "2026-10-05", bis: "2026-10-05", halberTag: true }), 0.5);
+check("nur Wochenende (Sa–So) = 0 Arbeitstage → wird abgelehnt", arbeitstage({ von: "2026-10-10", bis: "2026-10-11" }), 0);
+check("nur freie Tage (24.–27.12.2026) = 0", arbeitstage({ von: "2026-12-24", bis: "2026-12-27" }), 0);
+check("über ein Wochenende hinweg (Fr–Mo) = 2", arbeitstage({ von: "2026-10-09", bis: "2026-10-12" }), 2);
 check("halber Tag am Samstag = 0", arbeitstage({ von: "2026-10-10", bis: "2026-10-10", halberTag: true }), 0);
 check("halber Tag über mehrere Tage wird ignoriert", arbeitstage({ von: "2026-10-05", bis: "2026-10-06", halberTag: true }), 2);
 check("Weihnachten 21.12.–1.1. = 6 (24./25./31.12. und 1.1. frei)", arbeitstage({ von: "2026-12-21", bis: "2027-01-01" }), 6);
@@ -121,6 +124,12 @@ check("jeder Tipp hängt an einem freien Werktag", j27.every((v) => v.anlass.len
 check("Budget 1 → nur Ein-Tages-Tipps", besteZeitpunkte({ von: "2027-01-01", bis: "2027-12-31", maxUrlaubstage: 1 }).every((v) => v.urlaubstage === 1), true);
 const gesperrt = besteZeitpunkte({ von: "2026-09-30", bis: "2026-12-31", maxUrlaubstage: 10, sperren: [{ von: "2026-12-28", bis: "2026-12-28" }] });
 check("gesperrte Tage (schon eingetragen) werden nie vorgeschlagen", gesperrt.every((v) => !(v.urlaubVon <= "2026-12-28" && "2026-12-28" <= v.urlaubBis)), true);
+check("Budget: Rest begrenzt die Auswahl (5 gewählt, 2 frei → 2)", vorschlagsBudget(true, 2, 5), 2);
+check("Budget: kein Urlaub mehr → 0 (keine Vorschläge)", vorschlagsBudget(true, 0, 5), 0);
+check("Budget: überzogen (−1,5) → 0", vorschlagsBudget(true, -1.5, 5), 0);
+check("Budget: halber Rest abgerundet (1,5 → 1)", vorschlagsBudget(true, 1.5, 5), 1);
+check("Budget: genug frei → die Auswahl gilt", vorschlagsBudget(true, 21, 5), 5);
+check("Budget: ohne Anspruch → nicht rechenbar", vorschlagsBudget(false, 0, 5), null);
 check("Freizeit links nie vor dem frühesten Tag (keine Vergangenheit)",
   besteZeitpunkte({ von: "2026-12-28", bis: "2026-12-31", maxUrlaubstage: 3 }).every((v) => v.freiVon >= "2026-12-28"), true);
 

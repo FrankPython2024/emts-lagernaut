@@ -245,7 +245,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind NEUNZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 797) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 806) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1486,6 +1486,10 @@ per Code-Änderung dazu, nicht per Klick.
   eintragen): eintragen, ändern, löschen, geplant/genehmigt markieren UND den Urlaubsanspruch. Die Einträge
   der anderen sind nur lesbar (Ansicht-Fenster, leere Felder fremder Zeilen nicht anklickbar, keine
   Knöpfe). Entscheidung Frank: **genehmigen nur selbst** (nicht Vier-Augen), **Anspruch nur selbst**.
+  ⚠️ **Kein Eintrag ohne Arbeitstag:** Wochenenden und freie Tage sind im Kalender nicht zum Eintragen
+  anklickbar, der Dialog sperrt „Speichern", der Server lehnt ab (vorher ließ sich ein Samstag als
+  Urlaub eintragen — zählte 0 Tage, stand aber sinnlos im Kalender; Frank, 29.09.2026). Ein Zeitraum ÜBER
+  ein Wochenende (Fr–Mo) bleibt erlaubt.
   Server: `darfBearbeiten(ich, besitzer)` in `team.ts`, geprüft in `speichern` (neue UND bestehende
   userId — sonst ließe sich ein fremder Eintrag mit der eigenen Id „umschreiben"), `status`, `loeschen`,
   `anspruchSetzen`. Der Brückentage-Rechner rechnet nur noch für das eigene Konto.
@@ -1508,8 +1512,10 @@ per Code-Änderung dazu, nicht per Klick.
   (`MIN_FAKTOR`) — sonst kommt der Gewinn nur aus Wochenenden (10 Tage → 17 frei nach Neujahr 2027).
   ⚠️ Erste Fassung zeigte je Anlass nur „günstigste + längste" und verschluckte genau die Stufe, um die es
   geht (Weihnachten 2026: 1 → 5 frei, **3 → 11**, 6 → 16). Links wächst die freie Zeit nie vor „morgen".
-  Eigene Einträge gesperrt, optional „nur wenn sonst niemand weg ist"; zeigt sonst, wer dann schon weg ist,
-  und ob der Rest vom Konto reicht. „Eintragen" öffnet den Dialog vorbelegt (geplant).
+  Eigene Einträge gesperrt, optional „nur wenn sonst niemand weg ist"; zeigt sonst, wer dann schon weg ist.
+  **Der Rest vom Konto ist die Obergrenze** (`vorschlagsBudget`, halbe Resttage abgerundet): kein Rest →
+  keine Vorschläge, nur „keine Urlaubstage mehr frei"; ohne Anspruch → Hinweis statt Vorschlägen (Frank,
+  29.09.2026). „Eintragen" öffnet den Dialog vorbelegt (geplant).
   „Heute" in deutscher Zeit (`Intl … Europe/Berlin`), nicht UTC.
 
 ### Notizbuch (Sep 2026)

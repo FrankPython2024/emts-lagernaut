@@ -18,7 +18,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { istImUrlaubTeam } from "@/lib/urlaub/team";
 import { addiereTage } from "@/lib/zeit/berlin";
-import { besteZeitpunkte } from "@/lib/urlaub/brueckentage";
+import { besteZeitpunkte, vorschlagsBudget } from "@/lib/urlaub/brueckentage";
 import {
   ABWESENHEIT_ARTEN, ART_TEXT, arbeitstage, feiertag, freieTage, istArbeitstag, ueberschneiden, wochentag,
   type AbwesenheitArt, type UrlaubStatus,
@@ -262,14 +262,18 @@ function Brueckentage({ jahr, meineId, personen, eintraege, onEintragen }: {
   const von = jahr === aktuellesJahr ? addiereTage(h, 1) : `${jahr}-01-01`;
   const bis = `${jahr}-12-31`;
   const p = personen.find((x) => x.id === person);
+  // Der Rest vom Konto begrenzt die Vorschläge; ohne Resttage gibt es keine.
+  const rest = p?.anspruchGesetzt ? Math.floor(Math.max(0, p.konto.verfuegbar)) : 0;
+  const budget = vorschlagsBudget(!!p?.anspruchGesetzt, p?.konto.verfuegbar ?? 0, max);
+  const auswahl = Math.max(1, Math.min(10, rest));
 
   const vorschlaege = useMemo(() => {
-    if (jahr < aktuellesJahr) return [];
+    if (jahr < aktuellesJahr || !budget) return [];
     const sperren = eintraege
       .filter((e) => e.userId === person || ohneAndere)
       .map((e) => ({ von: e.von, bis: e.bis }));
-    return besteZeitpunkte({ von, bis, maxUrlaubstage: max, sperren, anzahl: 20 });
-  }, [jahr, aktuellesJahr, eintraege, person, ohneAndere, von, bis, max]);
+    return besteZeitpunkte({ von, bis, maxUrlaubstage: budget, sperren, anzahl: 20 });
+  }, [jahr, aktuellesJahr, eintraege, person, ohneAndere, von, bis, budget]);
 
   const namen = new Map(personen.map((x) => [x.id, x.name]));
   const andereWeg = (uv: string, ub: string) => [...new Set(eintraege
@@ -286,30 +290,36 @@ function Brueckentage({ jahr, meineId, personen, eintraege, onEintragen }: {
           {jahr === aktuellesJahr ? " Ab morgen." : ""}
         </p>
       </div>
+      {!!budget && (
       <div className="flex items-center gap-2 flex-wrap">
         <label className="inline-flex items-center gap-2 text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
           höchstens
-          <select value={max} onChange={(e) => setMax(Number(e.target.value))}
+          <select value={Math.min(max, auswahl)} onChange={(e) => setMax(Number(e.target.value))}
             className="px-2 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] min-h-[44px]">
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}
+            {Array.from({ length: auswahl }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
           Urlaubstage
+          <span className="font-normal text-[#65676b] dark:text-[#b0b3b8]">(noch {zahl(p?.konto.verfuegbar ?? 0)} frei)</span>
         </label>
         <label className="inline-flex items-center gap-2 text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] min-h-[44px]">
           <input type="checkbox" className="w-5 h-5" checked={ohneAndere} onChange={(e) => setOhneAndere(e.target.checked)} />
           nur wenn sonst niemand weg ist
         </label>
       </div>
+      )}
 
       {jahr < aktuellesJahr ? (
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Das Jahr liegt zurück.</p>
+      ) : budget === null ? (
+        <p className="text-sm font-bold text-[#8A5A00] dark:text-[#f7b928]">Trag zuerst deinen Urlaubsanspruch für {jahr} ein — dann rechnet das hier mit deinem Rest.</p>
+      ) : budget === 0 ? (
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Du hast für {jahr} keine Urlaubstage mehr frei — deshalb keine Vorschläge.</p>
       ) : vorschlaege.length === 0 ? (
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Keine lohnenden Brückentage mehr {jahr === aktuellesJahr ? "in diesem Jahr" : `in ${jahr}`} — oder alle schon verplant.</p>
       ) : (
         <ul className="space-y-2">
           {sichtbar.map((v) => {
             const weg = andereWeg(v.urlaubVon, v.urlaubBis);
-            const reicht = !p?.anspruchGesetzt || v.urlaubstage <= p.konto.verfuegbar;
             return (
               <li key={`${v.urlaubVon}-${v.urlaubBis}`} className="rounded-xl border border-[#ced4da] dark:border-[#3e4042] px-3 py-2 flex items-center gap-3 flex-wrap">
                 <div className="text-center min-w-[4.5rem]">
@@ -326,7 +336,6 @@ function Brueckentage({ jahr, meineId, personen, eintraege, onEintragen }: {
                     <span className="text-[#65676b] dark:text-[#b0b3b8]"> · {v.anlass.join(", ")}</span>
                   </div>
                   {weg.length > 0 && <div className="text-xs font-bold text-[#8A5A00] dark:text-[#f7b928]">⚠ Dann ist schon weg: {weg.join(", ")}</div>}
-                  {!reicht && <div className="text-xs font-bold text-[#d93025]">Reicht nicht — {p?.name} hat noch {zahl(p?.konto.verfuegbar ?? 0)} Tage frei</div>}
                 </div>
                 <span className="text-xs font-bold px-2 py-1 rounded-lg bg-[#04B475]/10 text-[#037A4F] dark:text-[#3ddc97]" title="freie Tage je Urlaubstag">
                   ×{zahl(Math.round(v.faktor * 10) / 10)}
@@ -337,7 +346,7 @@ function Brueckentage({ jahr, meineId, personen, eintraege, onEintragen }: {
           })}
         </ul>
       )}
-      {vorschlaege.length > 6 && (
+      {!!budget && vorschlaege.length > 6 && (
         <button type="button" className="text-sm font-bold text-[#0064d2] dark:text-[#45bdff] underline min-h-[44px]" onClick={() => setAlle(!alle)}>
           {alle ? "Weniger zeigen" : `Alle ${vorschlaege.length} zeigen`}
         </button>
@@ -421,14 +430,16 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, meineId, onNeu, onE
                     : undefined;
                   const text = e
                     ? `${p.name}: ${ART_TEXT[e.art as AbwesenheitArt]} ${e.status === "GENEHMIGT" ? "(genehmigt)" : "(geplant)"} ${kurz(e.von)}–${kurz(e.bis)}${e.halberTag ? ", halber Tag" : ""}`
-                    : `${p.name}, ${lang(t)}${feiertag(t) ? ` — ${feiertag(t)}` : ""}${p.id === meineId ? ": eintragen" : ""}`;
-                  // Leere Felder anderer Personen sind nicht anklickbar — dort kann ich nichts eintragen.
-                  const klickbar = !!e || p.id === meineId;
+                    : `${p.name}, ${lang(t)}${feiertag(t) ? ` — ${feiertag(t)}` : !istArbeitstag(t) ? " — Wochenende" : ""}${p.id === meineId && istArbeitstag(t) ? ": eintragen" : ""}`;
+                  // Anklickbar: vorhandene Einträge (ansehen/ändern) und leere ARBEITStage in meiner
+                  // Zeile. Wochenenden und freie Tage nicht — Urlaub dort zählt 0 Tage und ist sinnlos
+                  // (Frank, 29.09.2026). Leere Felder anderer Personen auch nicht.
+                  const klickbar = !!e || (p.id === meineId && istArbeitstag(t));
                   return (
                     <td key={t} className="p-0">
                       <button type="button" title={text} aria-label={text} disabled={!klickbar}
                         onClick={() => (e ? onEintrag(e) : onNeu(t))}
-                        className={`block w-full h-11 rounded-md ${!e ? (p.id === meineId ? leer(t) : leer(t).replace(/hover:\S+/g, "")) : ""} ${!klickbar ? "cursor-default" : ""} ${t === h ? "ring-2 ring-[#008BD2]" : ""}`}
+                        className={`block w-full h-11 rounded-md ${!e ? (klickbar ? leer(t) : leer(t).replace(/hover:\S+/g, "")) : ""} ${!klickbar ? "cursor-default" : ""} ${t === h ? "ring-2 ring-[#008BD2]" : ""}`}
                         style={stil}>
                         {e?.halberTag && <span className="text-[10px] font-black text-white">½</span>}
                       </button>
@@ -447,7 +458,7 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, meineId, onNeu, onE
         <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: "repeating-linear-gradient(135deg,#008BD2 0 3px,#008BD255 3px 6px)" }} />gestreift = geplant</span>
         <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-[#e4e6eb] dark:bg-[#3a3b3c]" />Wochenende</span>
         <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-[#fce4ec] dark:bg-[#4a2433] border border-[#ad1457]/40" />Feiertag (arbeitsfrei)</span>
-        <span>Leeres Feld in deiner Zeile antippen = eintragen; farbiges = ansehen bzw. bei dir ändern.</span>
+        <span>Leeren Arbeitstag in deiner Zeile antippen = eintragen; farbiges = ansehen bzw. bei dir ändern.</span>
       </div>
 
       {/* Feiertage: im Monat ausgeschrieben, das ganze Jahr zum Aufklappen. */}
@@ -491,6 +502,8 @@ function EintragDialog({ entwurf, name, onClose, onGespeichert, onLoeschen }: {
   const einTag = e.von === e.bis;
   const gueltig = !!e.von && !!e.bis && e.von <= e.bis;
   const tage = gueltig ? arbeitstage({ von: e.von, bis: e.bis, halberTag: einTag && e.halberTag }) : 0;
+  // Ganz ohne Arbeitstag (nur Wochenende/Feiertag) ergibt ein Eintrag keinen Sinn.
+  const ohneArbeitstag = gueltig && arbeitstage({ von: e.von, bis: e.bis }) === 0;
   const pruefen = api.urlaub.pruefen.useQuery(
     { id: e.id, userId: e.userId, von: e.von, bis: e.bis },
     { enabled: gueltig, staleTime: 5000 },
@@ -558,7 +571,9 @@ function EintragDialog({ entwurf, name, onClose, onGespeichert, onLoeschen }: {
         </div>
 
         <div className="rounded-xl bg-[#f0f2f5] dark:bg-[#18191a] px-3 py-2 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-          {gueltig ? <><strong>{zahl(tage)}</strong> {tage === 1 ? "Arbeitstag" : "Arbeitstage"}{e.art === "URLAUB" ? " vom Urlaubskonto" : ""}</> : "„Bis“ liegt vor „von“."}
+          {!gueltig ? "„Bis“ liegt vor „von“."
+            : ohneArbeitstag ? <span className="font-bold text-[#d93025]">Im gewählten Zeitraum liegt kein Arbeitstag (nur Wochenende/freie Tage) — da muss nichts eingetragen werden.</span>
+            : <><strong>{zahl(tage)}</strong> {tage === 1 ? "Arbeitstag" : "Arbeitstage"}{e.art === "URLAUB" ? " vom Urlaubskonto" : ""}</>}
         </div>
         {(pruefen.data?.length ?? 0) > 0 && (
           <div role="alert" className="rounded-xl bg-[#BA7517]/10 px-3 py-2 text-sm text-[#8A5A00] dark:text-[#f7b928]">
@@ -573,7 +588,7 @@ function EintragDialog({ entwurf, name, onClose, onGespeichert, onLoeschen }: {
           )}
           <button type="button" onClick={onClose} disabled={speichern.isPending}
             className="flex-1 text-sm font-semibold border border-[#ced4da] dark:border-[#3e4042] rounded-xl text-[#65676b] dark:text-[#b0b3b8] min-h-[56px]">Abbrechen</button>
-          <button type="button" disabled={!gueltig || speichern.isPending}
+          <button type="button" disabled={!gueltig || ohneArbeitstag || speichern.isPending}
             onClick={() => speichern.mutate({
               id: e.id, userId: e.userId, art: e.art, von: e.von, bis: e.bis,
               halberTag: einTag && e.halberTag, status: e.status, notiz: e.notiz.trim() || null,

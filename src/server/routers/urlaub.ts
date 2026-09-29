@@ -121,6 +121,9 @@ export const urlaubRouter = createTRPCRouter({
     .input(eintragInput)
     .mutation(async ({ ctx, input }) => {
       nurEigene(ctx, input.userId);
+      if (arbeitstage({ von: input.von, bis: input.bis }) === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Im Zeitraum liegt kein Arbeitstag — nur Wochenende oder freie Tage." });
+      }
       const wer = kuerzelVon(ctx);
       const genehmigt = input.status === "GENEHMIGT";
       const daten = {

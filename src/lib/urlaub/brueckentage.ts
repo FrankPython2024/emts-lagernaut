@@ -110,3 +110,15 @@ export function besteZeitpunkte(args: {
   }
   return raus.sort(besser).slice(0, args.anzahl ?? 12);
 }
+
+/**
+ * Wie viele Urlaubstage darf ein Vorschlag höchstens kosten? Der Rest vom
+ * Urlaubskonto begrenzt die gewählte Obergrenze (Frank, 29.09.2026: „wenn kein
+ * Urlaubstag mehr vorhanden ist, soll er den besten Zeitpunkt nicht mehr
+ * anzeigen"). Halbe Resttage abgerundet — Vorschläge kosten ganze Tage.
+ * 0 = keine Vorschläge; null = kein Anspruch eingetragen, also nichts rechenbar.
+ */
+export function vorschlagsBudget(anspruchGesetzt: boolean, verfuegbar: number, gewaehlt: number): number | null {
+  if (!anspruchGesetzt) return null;
+  return Math.max(0, Math.min(Math.floor(gewaehlt), Math.floor(verfuegbar)));
+}
