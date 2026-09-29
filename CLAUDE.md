@@ -34,8 +34,13 @@ Produktion. Inklusiv by design: **WCAG 2.1 AA, leichte Sprache, 56px Touch-Targe
 
 ## ⚠️ Deploy-Regeln (WICHTIG)
 
-**Claude Code committet und pusht NIE selbst.** Frank macht `git add` / commit / push mit
-**explizit benannten Pfaden** (kein `git add -A`, solange keine `.gitignore` existiert).
+**Claude Code committet und pusht selbst** (Freigabe Frank, 29.09.2026 — vorher lief alles über
+kopierte Befehle). Ablauf nach jedem fertigen, geprüften Baustein (tsc + Testreihen grün):
+`git add` mit **explizit benannten Pfaden** (kein `git add -A`, solange keine `.gitignore` existiert)
+→ `git status --short` prüfen (nichts Geändertes/Neues vergessen?) → `git commit` → `git fetch` und
+nur bei sauberem Stand `git push origin HEAD:main`. **Kein Force-Push, kein Rebase/Reset auf
+`main`, keine Hooks überspringen.** Scheitert der Push (main ist weiter), erst zusammenführen und
+Frank melden, nie überschreiben. Danach Frank Commit-Hash und Deploy-Befehl nennen.
 
 **NIEMALS stagen:** `.claude/settings.local.json`, `tsconfig.tsbuildinfo`, `*_AUDIT.md`,
 `*_DIAGNOSE.md`, `*.csv`
