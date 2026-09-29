@@ -28,12 +28,14 @@ type Props = {
   teiltypen: string[];
   /** LogID des Zielgeräts — landet als Bezug im Pickup-Auftrag. */
   zielLogId?: string | null;
+  /** Weitere Zielgeräte, wenn mehrere Anfragen gebündelt gesucht werden. */
+  weitereZielLogIds?: string[];
 };
 
 const karte =
   "bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] dark:border-[#3e4042] p-3";
 
-export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId }: Props) {
+export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId, weitereZielLogIds }: Props) {
   const { has } = usePermissions();
   const darfPickup = has("PICKUP_MANAGE");
   // Entnahmen zu vermerken ist ein Schreibvorgang (nimmt ein Gerät für alle aus
@@ -48,7 +50,7 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
 
   const q = api.teilespender.fuerGruppe.useQuery(
     // zielLogId mitgeben: Das Gerät auf der Werkbank ist kein Spender für sich.
-    { geraeteName, teiltypen, zielLogId: zielLogId ?? null },
+    { geraeteName, teiltypen, zielLogId: zielLogId ?? null, ...(weitereZielLogIds?.length ? { weitereZielLogIds } : {}) },
     { enabled: open && teiltypen.length > 0 && geraeteName.trim().length > 0 },
   );
   const pickupErstellen = api.pickup.erstellen.useMutation();
@@ -120,7 +122,9 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId 
 
   async function pickupAnlegen(): Promise<void> {
     if (gewaehlteGeraete.length === 0) return;
-    const bezug = zielLogId ? ` (für ${formatLogId(zielLogId.replace(/\D/g, ""))})` : "";
+    const bezug = weitereZielLogIds?.length
+      ? ` (für ${weitereZielLogIds.length + 1} Anfragen)`
+      : zielLogId ? ` (für ${formatLogId(zielLogId.replace(/\D/g, ""))})` : "";
     try {
       const { id } = await pickupErstellen.mutateAsync({
         name: `Ersatzteile ${geraeteName}`.slice(0, 200),

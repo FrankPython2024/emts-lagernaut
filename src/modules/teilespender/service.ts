@@ -108,7 +108,7 @@ export function anfrageModellSchluessel(
  * Die Roh-Bezeichnung kommt aus dem Lagerfuchs, sonst aus dem Verwertungs-
  * Export (falls das Zielgerät selbst dort steht).
  */
-async function anfrageSchluesselFuer(
+export async function anfrageSchluesselFuer(
   anfragen: { id: number; logId: string | null; geraeteName: string | null; geraet: string | null }[],
 ): Promise<Map<number, string>> {
   const raus = new Map<number, string>();
@@ -672,6 +672,8 @@ export async function spenderFuerGruppe(args: {
   teiltypen: string[];
   /** LogID des Zielgeräts — es darf sich nicht selbst als Spender vorschlagen. */
   zielLogId?: string | null;
+  /** Weitere Zielgeräte (gebündelte Anfragen) — ebenfalls nie Spender. */
+  weitereZielLogIds?: string[];
 }): Promise<GruppenErgebnis> {
   const teiltypen = [...new Set(args.teiltypen.filter((t) => t.trim().length > 0))];
   const leer: GruppenErgebnis = {
@@ -731,7 +733,7 @@ export async function spenderFuerGruppe(args: {
 
   const treffer: GruppenSpender[] = [];
   const zaehler = new Map<string, number>(teiltypen.map((t) => [t, 0]));
-  const sperre = sperrMenge([args.zielLogId]);
+  const sperre = sperrMenge([args.zielLogId, ...(args.weitereZielLogIds ?? [])]);
 
   for (const g of geraete) {
     if (istGesperrt(sperre, g.logId)) continue;

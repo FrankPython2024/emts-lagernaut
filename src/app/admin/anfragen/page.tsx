@@ -18,6 +18,8 @@ import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { BelegModal, MehrBelegModal } from "@/components/ui/BelegModal";
 import { AuslagerModal } from "@/components/auslagern/AuslagerModal";
 import { AnfragenBoard } from "@/components/anfragen/AnfragenBoard";
+import { GleicheTeile, type BuendelZeile } from "@/components/anfragen/GleicheTeile";
+import { sichtbareBuendel } from "@/lib/anfragen/gleicheTeile";
 import { useStandortFilter } from "@/lib/standort/standortContext";
 import {
   buildAuslagerBelegHtml,
@@ -491,9 +493,42 @@ function AnfragenPageInner() {
   const teilespenderHinweise = teilespenderQ.data ?? {};
 
   // Welche Gruppe hat gerade das Spender-Panel offen?
+  // `weitere` = übrige Zielgeräte, wenn ein Bündel gleicher Teile sucht.
   const [spenderPanel, setSpenderPanel] = useState<
-    { geraeteName: string; teiltypen: string[]; logId: string | null } | null
+    { geraeteName: string; teiltypen: string[]; logId: string | null; weitere?: string[] } | null
   >(null);
+
+  // ── Gleiche Teile bündeln ─────────────────────────────────────────────────
+  // Der Server bündelt über ALLE offenen Anfragen (Modellschlüssel aus der
+  // Roh-Bezeichnung, wie der Teilespender); hier wird auf das zugeschnitten,
+  // was die Liste mit ihren Filtern gerade zeigt.
+  const gleicheQ = api.anfragen.gleicheTeile.useQuery(
+    { standortId: activeStandortId },
+    { enabled: quelle === "notebook", refetchInterval: 15_000, staleTime: 10_000 },
+  );
+  const { buendelSichtbar, buendelZeilen } = useMemo(() => {
+    const zeilen = new Map<number, BuendelZeile>();
+    for (const g of data ?? []) {
+      const gruppenKey = g.gruppenNr ?? `${g.techniker}__${g.logId}`;
+      for (const a of g.anfragen as (Anfrage & { bearbeitetVon?: string | null })[]) {
+        zeilen.set(a.id, {
+          id:            a.id,
+          logId:         a.logId,
+          techniker:     a.techniker,
+          datum:         a.datum,
+          status:        a.status,
+          menge:         a.menge ?? 1,
+          bearbeitetVon: a.bearbeitetVon ?? null,
+          geraeteName:   a.geraeteName ?? g.geraeteName ?? null,
+          gruppenKey,
+        });
+      }
+    }
+    return {
+      buendelSichtbar: sichtbareBuendel(gleicheQ.data ?? [], new Set(zeilen.keys())),
+      buendelZeilen:   zeilen,
+    };
+  }, [data, gleicheQ.data]);
 
   // ── Auto-Refresh ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -839,6 +874,20 @@ function AnfragenPageInner() {
           onTeilNichtVerfuegbar={(id, label) => setNvCandidate({ id, label })}
           onTeilLoeschen={(id, label) => setDeleteCandidate({ type: "single", id, label })}
           onTeilReprint={(a) => druckeBeleg(a)}
+        />
+      )}
+
+      {/* Gleiche Teile, mehrfach angefragt — gebündelt über der Liste */}
+      {ansicht === "liste" && (
+        <GleicheTeile
+          buendel={buendelSichtbar}
+          zeilen={buendelZeilen}
+          onSpender={canSpender ? (b) => setSpenderPanel({
+            geraeteName: b.geraeteName,
+            teiltypen:   [b.teil],
+            logId:       b.logIds[0] ?? null,
+            weitere:     b.logIds.slice(1),
+          }) : undefined}
         />
       )}
 
@@ -1443,6 +1492,7 @@ function AnfragenPageInner() {
           geraeteName={spenderPanel.geraeteName}
           teiltypen={spenderPanel.teiltypen}
           zielLogId={spenderPanel.logId}
+          weitereZielLogIds={spenderPanel.weitere}
         />
       )}
 

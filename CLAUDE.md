@@ -243,9 +243,9 @@ EOF
   bei nicht gefundener Überschrift `0`/`null` und schrieb das durch — eine umbenannte Spalte hätte
   **alle Bestände auf null** gesetzt. Regel: `undefined` = „stand nicht in der Datei" = nicht
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
-- **Verify-Gate sind NEUNZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
+- **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 828) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 853) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -321,6 +321,9 @@ EOF
   Jetzt: LogID eigene Zeile 11 pt/900, Grading schwarz umrandet, kein Emoji, alles #000. EINE Vorlage
   (`etikettHtml` + `ETIKETT_CSS`) für Vorschau, Einzel- und Sammeldruck — vorher dreifach im Code, die
   React-Fassung (Manager/Preview) war ungenutzt und ist entfernt. Gilt für jedes neue Etikett.
+  **QR-Code = LogID als reine Ziffern** (`qrInhalt`, Frank 29.09.2026). Vorher „AL:<Beleg-Nr>" — das hat
+  keine Stelle in Lagernaut ausgewertet, reine Deko. Ziffern passen in jedes Scanfeld (`normalizeLogId`).
+  Ohne LogID kein QR-Code.
 - **Socket.io-Panel ≠ Auth-State.** Sockets bestehen bis Tab-Reload, unabhängig vom Token.
 - **Geräte-Import:** nur HP, Lenovo, Dell, Fujitsu und **Microsoft/Surface** (typo-tolerant;
   HPE explizit abgelehnt = Server). Modellnummern bleiben erhalten ("Precision 7530");
@@ -1554,6 +1557,29 @@ per Code-Änderung dazu, nicht per Klick.
   an. Nach dem Speichern eines Urlaubs bietet die Seite den Antrag an; in der Jahresliste „📄 Antrag".
   **`db push`** (2 Spalten + 1 Tabelle, nur hinzufügend).
   „Heute" in deutscher Zeit (`Intl … Europe/Berlin`), nicht UTC.
+
+### Anfragen: gleiche Teile gebündelt (Sep 2026)
+
+Wunsch Frank 29.09.2026: „gleiche Anfragen zu einem Teiletyp zusammenfassen". Am selben Tag gemessen:
+30 offene Anfragen, darunter **6× Akku Dell Latitude 7490** von drei Technikern zwischen 05:29 und
+10:01 — in der Liste (nach Eingang sortiert) lagen zwölf andere Zeilen dazwischen.
+Über der Liste in `/admin/anfragen` steht jetzt der Kasten **„🔗 Gleiche Teile mehrfach angefragt"**:
+je Bündel eine Überschrift („6× Akku · Dell Latitude 7490 — für folgende Anfragen", Stückzahl wenn
+`menge` abweicht, Kürzel mit Anzahl) und die Anfragen **direkt darunter, ohne Aufklappen** (Frank
+wollte es so, nicht hinter Knöpfen). Antippen springt zur Gruppe in der Liste (`gruppe-<key>`, kurz
+cyan umrandet); „🔍 Spender suchen" je Bündel. Der Kasten lässt sich einklappen (`localStorage`).
+- Regel `src/lib/anfragen/gleicheTeile.ts` (Test `npm run test:gleicheteile`): offen = NEU,
+  IN_BEARBEITUNG, BEDARF; ab 2 Anfragen; **ohne** Sonderanfragen und Test-Anfragen; älteste zuerst,
+  Bündel mit den meisten Anfragen oben.
+- ⚠️ **Gleich = Modellschlüssel + Teiltyp, nie `geraeteName`.** Router `anfragen.gleicheTeile` holt
+  den Schlüssel über `anfrageSchluesselFuer` aus dem Teilespender (Roh-Bezeichnung des Zielgeräts) —
+  sonst wären „ThinkPad"/„Thinkpad" zwei Bündel und ein „Latitude 7320 Detachable" läge beim
+  normalen 7320. Der Server bündelt über ALLE offenen, die Seite schneidet mit `sichtbareBuendel`
+  auf ihre Filter zu (bleibt nur eine sichtbar, fällt das Bündel weg). Lädt alle 15 s.
+- ⚠️ **Spendersuche fürs Bündel sperrt ALLE Zielgeräte:** `spenderFuerGruppe`/`fuerGruppe`/`SpenderPanel`
+  haben dafür `weitereZielLogIds` — sonst schlüge sich ein Gerät auf der Werkbank für die anderen
+  fünf Anfragen als Spender vor.
+- Keine Schemaänderung, kein neues Recht (ANFRAGE_VIEW_ALL).
 
 ### Notizbuch (Sep 2026)
 

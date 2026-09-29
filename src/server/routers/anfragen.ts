@@ -24,6 +24,8 @@ import { bucheLager, syncBestandAusHistorie } from "@/modules/buchungen/service"
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
 import { invalidateTechnikerCache } from "@/modules/statistik/service";
 import { waehleQuelle } from "@/lib/artikel/pool";
+import { buendele, OFFENE_STATUS } from "@/lib/anfragen/gleicheTeile";
+import { anfrageSchluesselFuer } from "@/modules/teilespender/service";
 import { naechsteBelegNr } from "@/core/infra/belegnr";
 import { emitToAdmins, emitToUser, emitToAll, emitToBackoffice } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
@@ -486,6 +488,37 @@ export const anfragenRouter = createTRPCRouter({
       const sF = standortWhere(ctx, input?.standortId);
       const sId = sF.standortId as number | undefined ?? null;
       return getAnfragenGruppiert({ ...input, standortId: sId });
+    }),
+
+  // Gleiche Teile bündeln — offene Anfragen, die dasselbe Teil für dasselbe
+  // Modell wollen (Regel: src/lib/anfragen/gleicheTeile.ts). Liefert nur Ids;
+  // die Liste setzt die Zeilen aus ihren eigenen Daten zusammen und schneidet
+  // auf ihre Filter zu. Der Modellschlüssel kommt aus der Roh-Bezeichnung des
+  // Zielgeräts (wie im Teilespender), nie aus `geraeteName`.
+  gleicheTeile: anfragenReadProcedure
+    .input(z.object({ standortId: z.number().int().positive().nullish() }).optional())
+    .query(async ({ input, ctx }) => {
+      const sF = standortWhere(ctx, input?.standortId);
+      const sId = sF.standortId as number | undefined ?? null;
+      const offen = await ctx.prisma.anfrage.findMany({
+        where: {
+          status:           { in: [...OFFENE_STATUS] },
+          testModus:        false,
+          istSonderAnfrage: false,
+          ...(sId != null && { OR: [{ artikel: { standortId: sId } }, { artikelId: null }] }),
+        },
+        select: { id: true, teil: true, logId: true, geraeteName: true, geraet: true, status: true, datum: true },
+      });
+      const keys = await anfrageSchluesselFuer(offen);
+      return buendele(offen.map((a) => ({
+        id:               a.id,
+        teil:             a.teil,
+        schluessel:       keys.get(a.id) ?? "",
+        status:           a.status,
+        istSonderAnfrage: false,
+        testModus:        false,
+        datum:            a.datum,
+      })));
     }),
 
   // Anfragen löschen — nur ADMIN. Cascade auf Chat-Nachrichten (Nachricht.logId

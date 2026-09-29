@@ -82,6 +82,8 @@ export const teilespenderRouter = createTRPCRouter({
         teiltypen: z.array(z.string().trim().min(1).max(191)).min(1).max(30),
         // Zielgerät der Anfrage — es darf sich nicht selbst vorschlagen.
         zielLogId: z.string().trim().max(100).nullish(),
+        // Gebündelte Anfragen (gleiches Teil, gleiches Modell): alle Zielgeräte sperren.
+        weitereZielLogIds: z.array(z.string().trim().max(100)).max(100).optional(),
       }),
     )
     .query(async ({ input }) => {
