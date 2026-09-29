@@ -326,8 +326,9 @@ EOF
   Jetzt: LogID eigene Zeile 11 pt/900, Grading schwarz umrandet, kein Emoji, alles #000. EINE Vorlage
   (`etikettHtml` + `ETIKETT_CSS`) für Vorschau, Einzel- und Sammeldruck — vorher dreifach im Code, die
   React-Fassung (Manager/Preview) war ungenutzt und ist entfernt. Gilt für jedes neue Etikett.
-  **QR-Code = LogID als reine Ziffern** (`qrInhalt`, Frank 29.09.2026). Vorher „AL:<Beleg-Nr>" — das hat
-  keine Stelle in Lagernaut ausgewertet, reine Deko. Ziffern passen in jedes Scanfeld (`normalizeLogId`).
+  **QR-Code = LogID mit Punkten, „212.574.254"** (`qrInhalt` über `formatLogId`, Frank 29.09.2026).
+  Vorher „AL:<Beleg-Nr>" — das hat keine Stelle in Lagernaut ausgewertet, reine Deko. Die Punkte stören
+  kein Scanfeld (`normalizeLogId`); QR bleibt Version 1 (Punkt = alphanumerischer Zeichensatz).
   Ohne LogID kein QR-Code.
 - **Socket.io-Panel ≠ Auth-State.** Sockets bestehen bis Tab-Reload, unabhängig vom Token.
 - **Geräte-Import:** nur HP, Lenovo, Dell, Fujitsu und **Microsoft/Surface** (typo-tolerant;

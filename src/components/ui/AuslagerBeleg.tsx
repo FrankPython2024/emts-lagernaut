@@ -1,6 +1,6 @@
 "use client";
 import QRCode from "qrcode";
-import { normalizeLogId } from "@/lib/pickup/logId";
+import { normalizeLogId, formatLogId } from "@/lib/pickup/logId";
 
 // ── Auslager-Etikett 55×30 mm (Thermodrucker) ────────────────────────────────
 //
@@ -13,10 +13,11 @@ import { normalizeLogId } from "@/lib/pickup/logId";
 // Kästchen, kein Emoji. EINE Vorlage (`etikettHtml` + `ETIKETT_CSS`) für
 // Vorschau, Einzel- und Sammeldruck — vorher stand das Etikett dreimal im Code.
 //
-// QR-Code = die LogID als reine Ziffern (Frank, 29.09.2026). Vorher stand darin
-// „AL:<Beleg-Nr>", was nirgends in Lagernaut ausgewertet wurde — Deko. Reine
-// Ziffern passen in jedes Scanfeld (überall wird per normalizeLogId auf Ziffern
-// reduziert) und ergeben den gröbsten, am leichtesten lesbaren QR-Code.
+// QR-Code = die LogID in der Schreibweise mit Punkten, „212.574.254" (Frank,
+// 29.09.2026). Vorher stand darin „AL:<Beleg-Nr>", was nirgends in Lagernaut
+// ausgewertet wurde — Deko. Die Punkte stören kein Scanfeld (überall wird per
+// normalizeLogId auf Ziffern reduziert); der Punkt gehört zum alphanumerischen
+// QR-Zeichensatz, der Code bleibt Version 1 mit gleich großen Modulen.
 // Ohne LogID gibt es keinen QR-Code statt eines irreführenden.
 
 export type AuslagerBelegData = {
@@ -49,10 +50,10 @@ function esc(s: string | null | undefined): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/** Inhalt des QR-Codes: LogID als reine Ziffern, sonst nichts. */
+/** Inhalt des QR-Codes: LogID mit Punkten („212.574.254"), sonst nichts. */
 export function qrInhalt(d: Pick<AuslagerBelegData, "logId">): string | null {
   const ziffern = normalizeLogId(d.logId);
-  return ziffern.length >= 6 ? ziffern : null;
+  return ziffern.length >= 6 ? formatLogId(ziffern) : null;
 }
 
 async function qrFuer(d: AuslagerBelegData): Promise<string> {
