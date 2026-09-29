@@ -15,6 +15,8 @@ import {
   leseGeneration,
   istZustandH,
   teileAuf,
+  gruppeVon,
+  GRUPPEN_KURZNAME,
   zaehleZustaende,
   GENERATIONS_GRENZE,
   type TechnikZeile,
@@ -171,6 +173,29 @@ console.log("\n── Auftragsnamen für den Handscanner ──");
   const namen = teileAuf([]).gruppen.map((g) => g.kurzname);
   check("Kurznamen", namen, ["Zustand H", "R-B bis 9", "ab 10"]);
   check("kein Name länger als 10 Zeichen", namen.every((n) => n.length <= 10), true);
+}
+
+// ── Ein einzelnes Gerät (Sortierhilfe am Zebra) ───────────────────────────────
+console.log("\n── gruppeVon: ein Gerät, dieselbe Regel ──");
+{
+  check("H schlägt jede Generation", gruppeVon("H", 12), "ZUSTAND_H");
+  check("h klein geschrieben ist auch H", gruppeVon(" h ", null), "ZUSTAND_H");
+  check("R-B Gen 8 → bis 9", gruppeVon("R-B", 8), "GEN_ALT");
+  check("Grenze 9 gehört zu „bis 9“", gruppeVon("R-B", 9), "GEN_ALT");
+  check("R-A Gen 10 → ab 10", gruppeVon("R-A", 10), "GEN_NEU");
+  check("Generation als Text (Export)", gruppeVon("R-B", "11"), "GEN_NEU");
+  check("ohne Generation → nicht zuzuordnen", gruppeVon("R-B", null), null);
+  check("F ohne Generation → nicht zuzuordnen", gruppeVon("F", ""), null);
+  const zeilen = [zeile("1", "H", "8"), zeile("2", "R-B", "9"), zeile("3", "R-A", "10"), zeile("4", "R-B", null)];
+  const a = teileAuf(zeilen);
+  const ausTeileAuf = new Map<string, string | null>();
+  for (const g of a.gruppen) for (const z of g.zeilen) ausTeileAuf.set(z.logId, g.key);
+  for (const z of a.ohneZuordnung) ausTeileAuf.set(z.logId, null);
+  check("gruppeVon und teileAuf entscheiden gleich",
+    zeilen.map((z) => gruppeVon(z.zustand, z.generation)),
+    zeilen.map((z) => ausTeileAuf.get(z.logId)));
+  check("Auftragsnamen kommen aus GRUPPEN_KURZNAME",
+    a.gruppen.map((g) => g.kurzname), [GRUPPEN_KURZNAME.ZUSTAND_H, GRUPPEN_KURZNAME.GEN_ALT, GRUPPEN_KURZNAME.GEN_NEU]);
 }
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────

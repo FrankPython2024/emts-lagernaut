@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 853) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 863) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1336,6 +1336,24 @@ Jetzt: `src/lib/pickup/scanAuswertung.ts` (Test `npm run test:scan`, 34):
 - **Technik-Import:** Nach einem Teilfehler werden die schon angelegten Aufträge angezeigt, und
   `bereitsOffen` wird sofort neu geladen — vorher legte ein zweiter Klick (oder dieselbe Datei
   innerhalb von 30 s) die fertigen Gruppen doppelt an.
+
+**Sortierhilfe am Zebra `/pickup/sortieren` (29.09.2026):** LogID scannen → groß „Zustand H" /
+„R-B bis 9" / „ab 10" in der Auftragsfarbe, darunter Zustand, Generation, Gerät, Lagerfuchs-Ort.
+Anlass: Geräte vom Lagerwagen waren nicht auf das Wagen-Colli gebucht und standen in ReForm weiter
+auf TEC-Plätzen; ReForm bucht nur LogID für LogID um. Einstieg: Knopf oben auf `/pickup`.
+- **Quelle ist der Lagerfuchs, nicht der Technik-Export** (Vorschlag Frank): Der Lagerfuchs-Stand
+  vom 24.09.2026 enthielt alle 117 Geräte der Technik-Aufträge #188–190 (TEC-1/2/3, Zustand
+  H/R-B/R-A). Neu: **`LogIdStand.prozessorGen`** aus „AfB-Prozessorgeneration" (**`db push`**).
+  ⚠️ Fehlt die Spalte in einer Datei, bleibt der gespeicherte Wert stehen (`generationAus` →
+  `undefined`, `standFeldGleich` zählt das nicht als Änderung). „0" = keine Angabe → null.
+  ⚠️ Der **erste** Import nach dem Einbau schreibt die Generation bei rund 100.000 Geräten nach und
+  läuft einmalig länger.
+- **Eine Regel für Aufträge und Anzeige:** `gruppeVon(zustand, generation)` und `GRUPPEN_KURZNAME`
+  in `technikGruppen.ts`; `teileAuf` benutzt `gruppeVon` selbst (Test `test:technik` prüft, dass beide
+  gleich entscheiden). Weder H noch Generation → „Unklar", nie geraten.
+- Der Zustand ändert sich in der Technik — die Seite zeigt den **Lagerfuchs-Stand** und wird ab
+  24 h rot. Vor dem Sortieren frischen Lagerfuchs einlesen. Nur lesen (`pickup.sortierInfo`,
+  PICKUP_PICK), keine Buchung.
 
 Noch offen: Inventur (#182 „Smartphones prüfen", 4.916 Geräte) als eigene Funktion statt als
 Riesen-Pickup; IT-Seite (DataWedge-Profil für Chrome mit Zeichenabstand, Vollbild-Web-App).

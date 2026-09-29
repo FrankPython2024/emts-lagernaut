@@ -6,6 +6,7 @@ import type { SessionUser } from "@/core/types";
 import { normalizeLogId, formatLogId } from "@/lib/pickup/logId";
 import { planeRest, restName, type LagerfuchsStand } from "@/lib/pickup/restAuftrag";
 import { bereinigePositionsFelder } from "@/lib/pickup/position";
+import { gruppeVon } from "@/lib/pickup/technikGruppen";
 import { nurZiffern } from "@/lib/format/ziffern";
 import { emitToAdmins } from "@/modules/realtime/socket";
 import { EVENTS } from "@/modules/realtime/events";
@@ -433,6 +434,45 @@ export const pickupRouter = createTRPCRouter({
         gesamt:    positionen.length,
         gefunden:  positionen.filter((p) => p.status === "GEFUNDEN").length,
         positionen,
+      };
+    }),
+
+  // Sortierhilfe am Zebra (/pickup/sortieren): LogID scannen → Zustand und
+  // Generation aus dem Lagerfuchs, dazu die Gruppe (Zustand H / R-B bis 9 / ab 10)
+  // nach DERSELBEN Regel wie die Technik-Abholaufträge (`gruppeVon`).
+  // Nur lesen. Der Stand ist so frisch wie der letzte Lagerfuchs-Import — der
+  // Zustand ändert sich in der Technik, deshalb geht das Importdatum mit.
+  sortierInfo: pickupPick
+    .input(z.object({ logIdRaw: z.string().max(100) }))
+    .query(async ({ input }) => {
+      const ziffern = normalizeLogId(input.logIdRaw);
+      if (ziffern.length < 6) return { erkannt: false as const, eingabe: input.logIdRaw.trim() };
+      const [stand, letzterImport] = await Promise.all([
+        prisma.logIdStand.findFirst({
+          where: { logId: { in: [...new Set([ziffern, formatLogId(ziffern), input.logIdRaw.trim()])] } },
+          select: {
+            hersteller: true, bezeichnung: true, aktuellerZustand: true, prozessorGen: true,
+            stellplatz: true, colli: true, ausgeschieden: true, zuletztGesehen: true,
+          },
+        }),
+        prisma.logIdImport.findFirst({
+          where: { typ: "LAGERFUCHS", status: "fertig" },
+          orderBy: { importiertAm: "desc" },
+          select: { importiertAm: true },
+        }),
+      ]);
+      return {
+        erkannt:     true as const,
+        logId:       formatLogId(ziffern),
+        gefunden:    !!stand,
+        gruppe:      stand ? gruppeVon(stand.aktuellerZustand, stand.prozessorGen) : null,
+        zustand:     stand?.aktuellerZustand ?? null,
+        generation:  stand?.prozessorGen ?? null,
+        geraet:      stand ? [stand.hersteller, stand.bezeichnung].filter(Boolean).join(" ") : null,
+        stellplatz:  stand?.stellplatz ?? null,
+        colli:       stand?.colli ?? null,
+        ausgeschieden: stand?.ausgeschieden ?? false,
+        stand:       letzterImport?.importiertAm ?? null,
       };
     }),
 

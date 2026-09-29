@@ -33,6 +33,11 @@ export type StandFelder = {
   grading:           string | null;
   initialesGrading:  string | null;
   aktuellerZustand:  string | null;
+  /**
+   * „AfB-Prozessorgeneration". ⚠️ `undefined` = Spalte steht nicht in der Datei
+   * → gespeicherten Wert NICHT anfassen (fehlende Spalte ≠ leerer Wert).
+   */
+  prozessorGen:      number | null | undefined;
   blockiert:         boolean;
   begruendung:       string | null;
   blockiertVon:      string | null;
@@ -51,7 +56,7 @@ export const STAND_FELDER: (keyof StandFelder)[] = [
   "verbleib", "inVerbleibSeit", "inVerbleibDurch",
   "aufLagerGebuchtAm", "verweildauerTage", "letzteAenderungAm",
   "refurbished", "refurbishDatum",
-  "grading", "initialesGrading", "aktuellerZustand",
+  "grading", "initialesGrading", "aktuellerZustand", "prozessorGen",
   "blockiert", "begruendung", "blockiertVon", "blockiertAm",
   "salestatus", "ek",
 ];
@@ -175,6 +180,15 @@ export function istVerwertungsExport(raw: Record<string, string>): boolean {
   );
 }
 
+// „AfB-Prozessorgeneration" → Zahl. Spalte fehlt → undefined (nicht anfassen),
+// leer oder unlesbar → null. „0" steht im Export bei Geräten ohne Angabe
+// (4 von 28.546 am 01.09.2026) und ist keine Generation → null.
+export function generationAus(v: string | undefined): number | null | undefined {
+  if (v === undefined) return undefined;
+  const n = parseGanzzahl(v);
+  return n !== null && n > 0 && n < 100 ? n : null;
+}
+
 // Übersetzt eine CSV-Zeile in { logId, felder }. logId leer → null (Zeile wird
 // vom Importer übersprungen). Jede Spalte wird über eine Prioritätsliste
 // nachgeschlagen (neuer Header-Name zuerst, alter als Fallback).
@@ -213,6 +227,7 @@ export function mappeZeile(raw: Record<string, string>): GemappteZeile | null {
     grading:           strKurz(spalte(raw, ["Grading"])),
     initialesGrading:  strKurz(spalte(raw, ["Initiales Grading"])),
     aktuellerZustand:  strKurz(spalte(raw, ["Zustand aktuell", "Aktueller Zustand"])),
+    prozessorGen:      generationAus(spalte(raw, ["AfB-Prozessorgeneration"])),
     blockiert:         parseBool(spalte(raw, ["Blockiert"])),
     begruendung:       str(spalte(raw, ["Begründung"])),
     blockiertVon:      strKurz(spalte(raw, ["Blockiert von"])),

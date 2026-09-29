@@ -52,6 +52,8 @@ function strNorm(v: unknown): string | null {
 
 // Feldweise Gleichheit für die Stand-Änderungserkennung (kein Bewegungs-Effekt).
 function standFeldGleich(feld: keyof StandFelder, a: unknown, b: unknown): boolean {
+  // Spalte fehlt in der Datei → Wert bleibt, zählt nicht als Änderung.
+  if (b === undefined)        return true;
   if (feld === "ek")          return ekAlsZahl(a) === ekAlsZahl(b);
   if (feld === "lagernummer") return strNorm(a) === strNorm(b);
   return feldGleich(a, b);

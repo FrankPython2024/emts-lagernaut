@@ -86,6 +86,34 @@ export function istZustandH(zustand: string | null): boolean {
 }
 
 /**
+ * Kurzname je Gruppe — so heißen die Abholaufträge UND so zeigt die Sortierhilfe
+ * am Zebra (/pickup/sortieren) das Ziel an. Eine Quelle, damit Auftrag und
+ * Anzeige nie verschieden heißen.
+ */
+export const GRUPPEN_KURZNAME: Record<GruppenSchluessel, string> = {
+  ZUSTAND_H: "Zustand H",
+  // „R-B", weil die übrigen alten Geräte praktisch immer R-B sind (Export
+  // 07.09.2026: 18 von 18). Die Seite warnt, wenn ein anderer Zustand dabei ist.
+  GEN_ALT:   `R-B bis ${GENERATIONS_GRENZE}`,
+  GEN_NEU:   `ab ${GENERATIONS_GRENZE + 1}`,
+};
+
+/**
+ * Zu welcher Gruppe gehört EIN Gerät? Die Regel von `teileAuf` für ein
+ * einzelnes Gerät — „H" zuerst, dann die Generation. null = nicht zuzuordnen
+ * (nicht „H" und keine lesbare Generation); das wird nie geraten.
+ *
+ * Die Sortierhilfe am Zebra ruft das mit den Lagerfuchs-Daten auf
+ * (`LogIdStand.aktuellerZustand` / `prozessorGen`).
+ */
+export function gruppeVon(zustand: string | null, generation: string | number | null): GruppenSchluessel | null {
+  if (istZustandH(zustand)) return "ZUSTAND_H";
+  const gen = leseGeneration(generation == null ? null : String(generation));
+  if (gen === null) return null;
+  return gen <= GENERATIONS_GRENZE ? "GEN_ALT" : "GEN_NEU";
+}
+
+/**
  * Teilt die eingelesenen Zeilen auf die drei Aufträge auf.
  *
  * Jede Zeile landet in höchstens einer Gruppe. Die Summe aller Gruppen plus
@@ -98,14 +126,12 @@ export function teileAuf(zeilen: TechnikZeile[]): Aufteilung {
   const ohneZuordnung: TechnikZeile[] = [];
 
   for (const z of zeilen) {
-    // Vorrang: „H" zuerst, unabhängig von der Generation.
-    if (istZustandH(z.zustand)) { h.push(z); continue; }
-
-    const gen = leseGeneration(z.generation);
-    if (gen === null) { ohneZuordnung.push(z); continue; }
-
-    if (gen <= GENERATIONS_GRENZE) alt.push(z);
-    else                            neu.push(z);
+    // Vorrang: „H" zuerst, unabhängig von der Generation (steckt in gruppeVon).
+    const g = gruppeVon(z.zustand, z.generation);
+    if (g === "ZUSTAND_H")    h.push(z);
+    else if (g === "GEN_ALT") alt.push(z);
+    else if (g === "GEN_NEU") neu.push(z);
+    else                      ohneZuordnung.push(z);
   }
 
   return {
@@ -113,23 +139,21 @@ export function teileAuf(zeilen: TechnikZeile[]): Aufteilung {
       {
         key:        "ZUSTAND_H",
         titel:      "Zustand H",
-        kurzname:   "Zustand H",
+        kurzname:   GRUPPEN_KURZNAME.ZUSTAND_H,
         erklaerung: `Zustand aktuell = ${ZUSTAND_EIGENER_AUFTRAG}, unabhängig von der Prozessorgeneration`,
         zeilen:     h,
       },
       {
         key:        "GEN_ALT",
         titel:      `Generation bis ${GENERATIONS_GRENZE}`,
-        // „R-B", weil die übrigen alten Geräte praktisch immer R-B sind (Export
-        // 07.09.2026: 18 von 18). Die Seite warnt, wenn ein anderer Zustand dabei ist.
-        kurzname:   `R-B bis ${GENERATIONS_GRENZE}`,
+        kurzname:   GRUPPEN_KURZNAME.GEN_ALT,
         erklaerung: `übrige Geräte mit Prozessorgeneration bis einschließlich ${GENERATIONS_GRENZE}`,
         zeilen:     alt,
       },
       {
         key:        "GEN_NEU",
         titel:      `Generation ab ${GENERATIONS_GRENZE + 1}`,
-        kurzname:   `ab ${GENERATIONS_GRENZE + 1}`,
+        kurzname:   GRUPPEN_KURZNAME.GEN_NEU,
         erklaerung: `übrige Geräte mit Prozessorgeneration über ${GENERATIONS_GRENZE}`,
         zeilen:     neu,
       },

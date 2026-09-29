@@ -55,6 +55,15 @@ export default function PickupHomePage() {
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">Auftrag antippen, um mit dem Scannen zu beginnen.</p>
       </div>
 
+      {/* Sortierhilfe: LogID scannen → Zustand H / R-B bis 9 / ab 10 */}
+      <Link
+        href="/pickup/sortieren"
+        className="flex items-center justify-between gap-3 rounded-xl bg-[#202F61] text-white px-4 min-h-[56px] font-black"
+      >
+        <span>🔀 Sortieren: Zustand &amp; Generation</span>
+        <span aria-hidden>→</span>
+      </Link>
+
       {wartend.map((w) => {
         const name = data?.find((a) => a.id === w.auftragId)?.name ?? `Auftrag #${w.auftragId}`;
         return (

@@ -902,6 +902,10 @@ model LogIdStand {
   grading          String?
   initialesGrading String?
   aktuellerZustand String?
+  // ReForm-Spalte „AfB-Prozessorgeneration" (29.09.2026). Trägt die Sortierhilfe
+  // am Zebra (/pickup/sortieren): Zustand H → eigener Platz, sonst bis/ab Gen 10.
+  // Fehlt die Spalte in einer Datei, bleibt der gespeicherte Wert stehen.
+  prozessorGen     Int?
 
   blockiert    Boolean   @default(false)
   begruendung  String?   @db.Text
