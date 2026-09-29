@@ -11,6 +11,10 @@ import {
 } from "../src/lib/urlaub/tage";
 import { istImUrlaubTeam, darfBearbeiten } from "../src/lib/urlaub/team";
 import { besteZeitpunkte, vorschlagsBudget } from "../src/lib/urlaub/brueckentage";
+import { fuelleAntrag, antragDateiname } from "../src/lib/urlaub/antrag";
+import { leseZip, schreibeZip, crc32 } from "../src/lib/zip/einfach";
+import { zaehltAufsKonto } from "../src/lib/urlaub/tage";
+import fs from "fs";
 
 let passed = 0;
 let failed = 0;
@@ -132,6 +136,53 @@ check("Budget: genug frei → die Auswahl gilt", vorschlagsBudget(true, 21, 5), 
 check("Budget: ohne Anspruch → nicht rechenbar", vorschlagsBudget(false, 0, 5), null);
 check("Freizeit links nie vor dem frühesten Tag (keine Vergangenheit)",
   besteZeitpunkte({ von: "2026-12-28", bis: "2026-12-31", maxUrlaubstage: 3 }).every((v) => v.freiVon >= "2026-12-28"), true);
+
+console.log("\n── Urlaubsart: nur Erholungsurlaub zählt ──");
+check("Erholungsurlaub zählt", zaehltAufsKonto("URLAUB", "ERHOLUNG"), true);
+check("alte Einträge ohne Art zählen (waren Erholung)", zaehltAufsKonto("URLAUB", null), true);
+check("unbezahlter Urlaub zählt nicht", zaehltAufsKonto("URLAUB", "UNBEZAHLT"), false);
+check("Sonderurlaub zählt nicht", zaehltAufsKonto("URLAUB", "SONDER"), false);
+check("Krank zählt nicht", zaehltAufsKonto("KRANK", null), false);
+const k2 = urlaubskonto({ anspruch: 30, uebertrag: 0, jahr: 2026, eintraege: [
+  { art: "URLAUB", status: "GENEHMIGT", urlaubsart: "ERHOLUNG", von: "2026-10-05", bis: "2026-10-09" },
+  { art: "URLAUB", status: "GENEHMIGT", urlaubsart: "SONDER", von: "2026-10-12", bis: "2026-10-12" },
+  { art: "URLAUB", status: "GEPLANT", urlaubsart: "UNBEZAHLT", von: "2026-10-13", bis: "2026-10-16" },
+] });
+check("Konto: nur die 5 Tage Erholungsurlaub gehen ab", [k2.genehmigt, k2.geplant, k2.verfuegbar], [5, 0, 25]);
+
+console.log("\n── ZIP ──");
+check("CRC-32 Prüfwert", crc32(Buffer.from("123456789")).toString(16), "cbf43926");
+const zp = schreibeZip([{ name: "a.txt", daten: Buffer.from("Hallo Sömmerda") }, { name: "ordner/b.xml", daten: Buffer.from("<x/>") }]);
+check("schreiben und wieder lesen", leseZip(zp).map((e) => [e.name, e.daten.toString("utf8")]), [["a.txt", "Hallo Sömmerda"], ["ordner/b.xml", "<x/>"]]);
+
+console.log("\n── Urlaubsantrag aus der echten Vorlage ──");
+const vorlage = fs.readFileSync("src/lib/urlaub/vorlage/urlaubsantrag.docx");
+const vorlageTeile = leseZip(vorlage);
+const textVon = (buf: Buffer, name = "word/document.xml") => leseZip(buf).find((e) => e.name === name)!.daten.toString("utf8");
+const kreuze = (xml: string) => [...xml.matchAll(/<wps:txbx>[\s\S]*?<\/wps:txbx>/g)].map((m) => m[0].includes("<w:t>X</w:t>"));
+const antragFrank = fuelleAntrag(vorlage, { nachname: "Sus", vorname: "Frank", personalnr: "1583", von: "2026-10-07", bis: "2026-10-07", tage: 1, urlaubsart: "ERHOLUNG", sondergrund: null, datum: "2026-09-29" });
+const dF = textVon(antragFrank);
+check("Franks Original-Daten stehen an ihrer Stelle",
+  ["<w:t>Sus</w:t>", "<w:t>Frank</w:t>", "<w:t>1583</w:t>", "<w:t>07.10.2026</w:t>", "<w:t>1)</w:t>", "<w:t>29.09.2026</w:t>"].map((x) => dF.includes(x)),
+  [true, true, true, true, true, true]);
+check("kein Platzhalter übrig", dF.includes("{{"), false);
+check("X nur im Kästchen Erholungsurlaub", kreuze(dF), [true, false, false]);
+check("ohne Sonderurlaub bleiben die Unterstriche", dF.includes("Sonderurlaub wegen</w:t></w:r><w:r w:rsidR=\"00822EB6\"><w:t xml:space=\"preserve\"> ______"), true);
+check("alle anderen Teile unverändert (außer core.xml)", leseZip(antragFrank)
+  .filter((e) => e.name !== "word/document.xml" && e.name !== "docProps/core.xml")
+  .every((e) => Buffer.compare(e.daten, vorlageTeile.find((v) => v.name === e.name)!.daten) === 0), true);
+check("„zuletzt geändert von“ = Antragsteller", textVon(antragFrank, "docProps/core.xml").includes("<cp:lastModifiedBy>Sus, Frank</cp:lastModifiedBy>"), true);
+const antragSonder = fuelleAntrag(vorlage, { nachname: "Roth & Co", vorname: "Christian", personalnr: "42", von: "2026-12-28", bis: "2027-01-08", tage: 8.5, urlaubsart: "SONDER", sondergrund: "Umzug <neu>", datum: "2026-10-01" });
+const dS = textVon(antragSonder);
+check("Sonderurlaub: X im dritten Kästchen", kreuze(dS), [false, false, true]);
+check("Sonderurlaub: Grund statt Unterstriche, sicher verpackt", dS.includes("> Umzug &lt;neu&gt;</w:t>"), true);
+check("Sonderzeichen im Namen sicher verpackt", dS.includes("<w:t>Roth &amp; Co</w:t>"), true);
+check("halbe Tage mit Komma, Jahreswechsel im Datum",
+  [dS.includes("<w:t>8,5)</w:t>"), dS.includes("<w:t>28.12.2026</w:t>"), dS.includes("<w:t>08.01.2027</w:t>")], [true, true, true]);
+check("unbezahlt: X im zweiten Kästchen", kreuze(textVon(fuelleAntrag(vorlage, {
+  nachname: "A", vorname: "B", personalnr: "1", von: "2026-10-05", bis: "2026-10-05", tage: 1, urlaubsart: "UNBEZAHLT", sondergrund: null, datum: "2026-10-01",
+}))), [false, true, false]);
+check("Dateiname", antragDateiname("Roth", "2026-10-07"), "Urlaubsantrag Roth 2026-10-07.docx");
 
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);
 process.exit(failed === 0 ? 0 : 1);

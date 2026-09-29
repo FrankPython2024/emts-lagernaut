@@ -7,6 +7,7 @@ import { URLAUB_TEAM_IDS, darfBearbeiten, istImUrlaubTeam } from "@/lib/urlaub/t
 import {
   ABWESENHEIT_ARTEN, STATUS, arbeitstage, freieTage, istGueltigesDatum, ueberschneiden, urlaubskonto,
 } from "@/lib/urlaub/tage";
+import { URLAUBSARTEN } from "@/lib/urlaub/antrag";
 
 // ── Urlaubsplanung (29.09.2026) ───────────────────────────────────────────────
 // Nur für die drei Konten aus src/lib/urlaub/team.ts — geprüft bei JEDEM Aufruf,
@@ -46,13 +47,18 @@ const eintragInput = z.object({
   halberTag: z.boolean(),
   status:    z.enum(STATUS),
   notiz:     z.string().max(500).nullable(),
+  // Nur bei URLAUB; sonst ignoriert.
+  urlaubsart:  z.enum(URLAUBSARTEN).nullable().default(null),
+  sondergrund: z.string().trim().max(200).nullable().default(null),
 }).refine((e) => e.von <= e.bis, { message: "„Bis“ liegt vor „von“." })
+  .refine((e) => e.art !== "URLAUB" || e.urlaubsart !== "SONDER" || !!e.sondergrund, { message: "Bitte den Grund für den Sonderurlaub angeben." })
   .refine((e) => !e.halberTag || e.von === e.bis, { message: "Einen halben Tag gibt es nur für einen einzelnen Tag." })
   .refine((e) => e.bis <= `${Number(e.von.slice(0, 4)) + 1}-12-31`, { message: "Ein Eintrag darf höchstens bis Ende des Folgejahres gehen." });
 
 type EintragRoh = {
   id: number; userId: number; art: string; von: Date; bis: Date; halberTag: boolean; status: string;
   notiz: string | null; erstelltVon: string; geaendertVon: string | null; genehmigtVon: string | null; genehmigtAm: Date | null;
+  urlaubsart: string | null; sondergrund: string | null;
 };
 function shape(e: EintragRoh) {
   const z = { von: alsTag(e.von), bis: alsTag(e.bis), halberTag: e.halberTag };
@@ -77,7 +83,7 @@ export const urlaubRouter = createTRPCRouter({
   // Anspruch und Konto je Person, Feiertage.
   uebersicht: team
     .input(z.object({ jahr: z.number().int().min(2020).max(2100) }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const { jahr } = input;
       const [nutzer, eintraege, ansprueche] = await Promise.all([
         prisma.user.findMany({ where: { id: { in: [...URLAUB_TEAM_IDS] } }, select: { id: true, name: true, kuerzel: true } }),
@@ -95,7 +101,7 @@ export const urlaubRouter = createTRPCRouter({
           const anspruch = a ? Number(a.tage) : 0;
           const uebertrag = a ? Number(a.uebertrag) : 0;
           const eigene = eintraege.filter((e) => e.userId === u.id)
-            .map((e) => ({ art: e.art, status: e.status, von: alsTag(e.von), bis: alsTag(e.bis), halberTag: e.halberTag }));
+            .map((e) => ({ art: e.art, status: e.status, urlaubsart: e.urlaubsart, von: alsTag(e.von), bis: alsTag(e.bis), halberTag: e.halberTag }));
           return {
             id: u.id,
             name: u.kuerzel === "FRANK" ? "Frank" : u.name,
@@ -104,8 +110,11 @@ export const urlaubRouter = createTRPCRouter({
             konto: urlaubskonto({ anspruch, uebertrag, eintraege: eigene, jahr }),
           };
         });
+      // Antragsangaben nur die EIGENEN — Personalnummern der anderen gehen niemanden an.
+      const meineStammdaten = await prisma.urlaubStammdaten.findUnique({ where: { userId: ichVon(ctx) } });
       return {
         jahr,
+        meineStammdaten,
         personen,
         eintraege: eintraege.map(shape),
         feiertage: [...freieTage(jahr)].map(([tag, name]) => ({ tag, name })),
@@ -126,9 +135,12 @@ export const urlaubRouter = createTRPCRouter({
       }
       const wer = kuerzelVon(ctx);
       const genehmigt = input.status === "GENEHMIGT";
+      const istUrlaub = input.art === "URLAUB";
       const daten = {
         userId: input.userId, art: input.art, von: alsDate(input.von), bis: alsDate(input.bis),
         halberTag: input.halberTag, notiz: input.notiz?.trim() || null,
+        urlaubsart:  istUrlaub ? (input.urlaubsart ?? "ERHOLUNG") : null,
+        sondergrund: istUrlaub && input.urlaubsart === "SONDER" ? (input.sondergrund?.trim() || null) : null,
       };
       let id: number;
       if (input.id) {
@@ -141,7 +153,8 @@ export const urlaubRouter = createTRPCRouter({
         // jeder Zeitänderung auf „geplant" zurück; wer danach wieder „genehmigt"
         // wählt, wird als neuer Genehmiger vermerkt.
         const zeitGeaendert = alsTag(alt.von) !== input.von || alsTag(alt.bis) !== input.bis
-          || alt.halberTag !== input.halberTag || alt.userId !== input.userId || alt.art !== input.art;
+          || alt.halberTag !== input.halberTag || alt.userId !== input.userId || alt.art !== input.art
+          || (alt.urlaubsart ?? "ERHOLUNG") !== (daten.urlaubsart ?? "ERHOLUNG");
         const neuGenehmigt = genehmigt && (alt.status !== "GENEHMIGT" || zeitGeaendert);
         await prisma.abwesenheit.update({
           where: { id: input.id },
@@ -188,6 +201,19 @@ export const urlaubRouter = createTRPCRouter({
       if (!e) throw new TRPCError({ code: "NOT_FOUND", message: "Eintrag nicht gefunden" });
       nurEigene(ctx, e.userId);
       await prisma.abwesenheit.delete({ where: { id: input.id } });
+      return { ok: true };
+    }),
+
+  // Angaben für den Urlaubsantrag — nur die eigenen.
+  stammdatenSetzen: team
+    .input(z.object({
+      nachname:       z.string().trim().min(1).max(100),
+      vorname:        z.string().trim().min(1).max(100),
+      personalnummer: z.string().trim().min(1).max(30),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const userId = ichVon(ctx);
+      await prisma.urlaubStammdaten.upsert({ where: { userId }, create: { userId, ...input }, update: input });
       return { ok: true };
     }),
 

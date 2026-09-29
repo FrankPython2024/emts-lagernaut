@@ -245,7 +245,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind NEUNZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 806) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 826) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1516,6 +1516,28 @@ per Code-Änderung dazu, nicht per Klick.
   **Der Rest vom Konto ist die Obergrenze** (`vorschlagsBudget`, halbe Resttage abgerundet): kein Rest →
   keine Vorschläge, nur „keine Urlaubstage mehr frei"; ohne Anspruch → Hinweis statt Vorschlägen (Frank,
   29.09.2026). „Eintragen" öffnet den Dialog vorbelegt (geplant).
+- **📄 Urlaubsantrag als Word-Datei** (29.09.2026, Wunsch Frank: „genau so, nur mit den jeweiligen Daten").
+  ⚠️ **Kein nachgebautes Dokument, sondern Franks Original als Vorlage:**
+  `src/lib/urlaub/vorlage/urlaubsantrag.docx` — nur Texte durch Platzhalter ersetzt (`{{NACHNAME}}`,
+  `{{VORNAME}}`, `{{PERSONALNR}}`, `{{VON}}`, `{{BIS}}`, `{{TAGE}}`, `{{SONDERGRUND}}`, `{{DATUM}}`), in die
+  drei gezeichneten Kästchen (im Original leere Rechtecke, nichts angekreuzt) ein Textfeld für das „X"
+  (`{{X_ERHOLUNG|X_UNBEZAHLT|X_SONDER}}`, Innenabstand 0, Schrift ausdrücklich SCHWARZ — die Form erbt
+  sonst Weiß aus `fontRef lt1`). Alle anderen Teile der .docx sind Byte für Byte das Original (beim Bau
+  geprüft). Mit Franks eigenen Daten befüllt ist der Gesamttext identisch mit seinem Original.
+  Von-Datum und Datum unten waren in Word in 4–5 Läufe zerfallen und sind jetzt je EIN Lauf (gleiche
+  Formatierung). ⚠️ **Nicht unter `public/`** (Personaldaten im Original) — der Docker-Runner kopiert
+  `src/`, gelesen wird über `process.cwd()`. Kein LibreOffice/Word am Laptop → optisch nur von Frank in
+  Word prüfbar; strukturell über `test:urlaub` gegen die echte Vorlage.
+  Befüllen: `fuelleAntrag` (`src/lib/urlaub/antrag.ts`) über `src/lib/zip/einfach.ts` (ZIP lesen/schreiben
+  nur mit zlib, eigene CRC-32 — keine Pakete). Werte XML-sicher verpackt; ohne Sondergrund bleiben die
+  Unterstriche; `docProps/core.xml` „zuletzt geändert von" = Antragsteller. Download
+  `GET /api/urlaub/antrag/<id>`: nur eigene Einträge der Art URLAUB, Datum unten = Tag des Herunterladens.
+  **Urlaubsart** `Abwesenheit.urlaubsart` ERHOLUNG | UNBEZAHLT | SONDER (+ `sondergrund`, Pflicht bei SONDER);
+  ⚠️ **nur Erholungsurlaub zählt aufs Konto** (`zaehltAufsKonto(art, urlaubsart)`; null = alte Einträge =
+  Erholung). **`UrlaubStammdaten`** (Name, Vorname, Personal-Nr.) pflegt jeder nur für sich („Antragsdaten"
+  auf der eigenen Karte); `uebersicht` liefert nur die EIGENEN — Personalnummern der anderen gehen niemanden
+  an. Nach dem Speichern eines Urlaubs bietet die Seite den Antrag an; in der Jahresliste „📄 Antrag".
+  **`db push`** (2 Spalten + 1 Tabelle, nur hinzufügend).
   „Heute" in deutscher Zeit (`Intl … Europe/Berlin`), nicht UTC.
 
 ### Notizbuch (Sep 2026)

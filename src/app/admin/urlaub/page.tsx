@@ -19,6 +19,7 @@ import { Modal } from "@/components/ui/Modal";
 import { istImUrlaubTeam } from "@/lib/urlaub/team";
 import { addiereTage } from "@/lib/zeit/berlin";
 import { besteZeitpunkte, vorschlagsBudget } from "@/lib/urlaub/brueckentage";
+import { URLAUBSARTEN, URLAUBSART_TEXT, type Urlaubsart } from "@/lib/urlaub/antrag";
 import {
   ABWESENHEIT_ARTEN, ART_TEXT, arbeitstage, feiertag, freieTage, istArbeitstag, ueberschneiden, wochentag,
   type AbwesenheitArt, type UrlaubStatus,
@@ -44,15 +45,22 @@ function heute(): string {
 const kurz = (tag: string) => `${tag.slice(8, 10)}.${tag.slice(5, 7)}.`;
 const lang = (tag: string) => `${WT[wochentag(tag)]} ${tag.slice(8, 10)}.${tag.slice(5, 7)}.${tag.slice(0, 4)}`;
 const zahl = (n: number) => String(n).replace(".", ",");
+/** „Urlaub" bzw. „Sonderurlaub (Umzug)" / „Unbezahlter Urlaub" */
+function artText(e: { art: string; urlaubsart?: string | null; sondergrund?: string | null }): string {
+  if (e.art !== "URLAUB" || !e.urlaubsart || e.urlaubsart === "ERHOLUNG") return ART_TEXT[e.art as AbwesenheitArt] ?? e.art;
+  const t = URLAUBSART_TEXT[e.urlaubsart as Urlaubsart] ?? "Urlaub";
+  return e.urlaubsart === "SONDER" && e.sondergrund ? `${t} (${e.sondergrund})` : t;
+}
 
 type Eintrag = {
   id: number; userId: number; art: string; von: string; bis: string; halberTag: boolean; status: string;
   notiz: string | null; erstelltVon: string; geaendertVon: string | null; genehmigtVon: string | null; tage: number;
+  urlaubsart: string | null; sondergrund: string | null;
 };
 type Entwurf = {
   id?: number; userId: number; art: AbwesenheitArt; von: string; bis: string; halberTag: boolean;
-  status: UrlaubStatus; notiz: string;
-  original?: { userId: number; art: string; von: string; bis: string; halberTag: boolean; status: string };
+  status: UrlaubStatus; notiz: string; urlaubsart: Urlaubsart; sondergrund: string;
+  original?: { userId: number; art: string; von: string; bis: string; halberTag: boolean; status: string; urlaubsart: string };
 };
 
 export default function UrlaubSeite() {
@@ -65,6 +73,9 @@ export default function UrlaubSeite() {
   const [anspruchFuer, setAnspruchFuer] = useState<number | null>(null);
   const [loeschen, setLoeschen] = useState<Eintrag | null>(null);
   const [ansehen, setAnsehen] = useState<Eintrag | null>(null);
+  // Nach dem Speichern eines Urlaubs: Antrag anbieten (Wunsch Frank 29.09.2026).
+  const [antragFuer, setAntragFuer] = useState<number | null>(null);
+  const [stammdatenOffen, setStammdatenOffen] = useState(false);
   const { show } = useToast();
   const utils = api.useUtils();
 
@@ -83,14 +94,15 @@ export default function UrlaubSeite() {
   const namen = new Map((d?.personen ?? []).map((p) => [p.id, p.name]));
   // Eintragen immer nur für mich selbst.
   const neuerEintrag = (von = heute(), bis = von) =>
-    setEntwurf({ userId: meineId, art: "URLAUB", von, bis, halberTag: false, status: "GEPLANT", notiz: "" });
+    setEntwurf({ userId: meineId, art: "URLAUB", von, bis, halberTag: false, status: "GEPLANT", notiz: "", urlaubsart: "ERHOLUNG", sondergrund: "" });
   const istMeins = (e: { userId: number }) => e.userId === meineId;
   // Fremde Einträge öffnen nur eine Ansicht, eigene den Bearbeiten-Dialog.
   const oeffnen = (e: Eintrag) => (istMeins(e) ? bearbeiten(e) : setAnsehen(e));
   const bearbeiten = (e: Eintrag) => setEntwurf({
     id: e.id, userId: e.userId, art: e.art as AbwesenheitArt, von: e.von, bis: e.bis, halberTag: e.halberTag,
     status: e.status as UrlaubStatus, notiz: e.notiz ?? "",
-    original: { userId: e.userId, art: e.art, von: e.von, bis: e.bis, halberTag: e.halberTag, status: e.status },
+    urlaubsart: (e.urlaubsart as Urlaubsart | null) ?? "ERHOLUNG", sondergrund: e.sondergrund ?? "",
+    original: { userId: e.userId, art: e.art, von: e.von, bis: e.bis, halberTag: e.halberTag, status: e.status, urlaubsart: e.urlaubsart ?? "ERHOLUNG" },
   });
 
   return (
@@ -119,9 +131,14 @@ export default function UrlaubSeite() {
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-black text-[#202F61] dark:text-[#e4e6eb]">{p.name}</span>
                     {p.id === meineId && (
-                      <button type="button" className="text-xs font-bold text-[#0064d2] dark:text-[#45bdff] underline min-h-[32px]" onClick={() => setAnspruchFuer(p.id)}>
-                        {p.anspruchGesetzt ? "Anspruch ändern" : "Anspruch eintragen"}
-                      </button>
+                      <span className="flex gap-3">
+                        <button type="button" className="text-xs font-bold text-[#0064d2] dark:text-[#45bdff] underline min-h-[32px]" onClick={() => setAnspruchFuer(p.id)}>
+                          {p.anspruchGesetzt ? "Anspruch ändern" : "Anspruch eintragen"}
+                        </button>
+                        <button type="button" className="text-xs font-bold text-[#0064d2] dark:text-[#45bdff] underline min-h-[32px]" onClick={() => setStammdatenOffen(true)}>
+                          Antragsdaten
+                        </button>
+                      </span>
                     )}
                   </div>
                   {!p.anspruchGesetzt ? (
@@ -163,7 +180,7 @@ export default function UrlaubSeite() {
                         <span className="w-3 h-8 rounded" style={{ background: FARBE[art] }} aria-hidden />
                         <div className="min-w-0 flex-1">
                           <div className="font-bold text-[#202F61] dark:text-[#e4e6eb]">
-                            {namen.get(e.userId) ?? `#${e.userId}`} · {ART_TEXT[art]}
+                            {namen.get(e.userId) ?? `#${e.userId}`} · {artText(e)}
                             <span className="font-normal text-[#65676b] dark:text-[#b0b3b8]">
                               {" "}· {e.von === e.bis ? lang(e.von) : `${lang(e.von)} – ${lang(e.bis)}`}{e.halberTag ? " (halber Tag)" : ""} · {zahl(e.tage)} {e.tage === 1 ? "Tag" : "Tage"}
                             </span>
@@ -189,6 +206,9 @@ export default function UrlaubSeite() {
                         })()}
                         {istMeins(e) ? (
                           <>
+                            {e.art === "URLAUB" && (d.meineStammdaten
+                              ? <a href={`/api/urlaub/antrag/${e.id}`} className={knopfRand} title="Urlaubsantrag als Word-Datei">📄 Antrag</a>
+                              : <button type="button" className={knopfRand} onClick={() => setStammdatenOffen(true)} title="Erst Name und Personal-Nr. eintragen">📄 Antrag</button>)}
                             <button type="button" className={knopfRand} onClick={() => bearbeiten(e)}>Ändern</button>
                             <button type="button" className={`${knopfRand} text-[#d93025]`} onClick={() => setLoeschen(e)} aria-label="Löschen">🗑</button>
                           </>
@@ -206,11 +226,38 @@ export default function UrlaubSeite() {
 
       {entwurf && d && (
         <EintragDialog entwurf={entwurf} name={namen.get(meineId) ?? "dich"} onClose={() => setEntwurf(null)}
-          onGespeichert={(warnung) => { setEntwurf(null); neu(); show(warnung ?? "Gespeichert", warnung ? "warning" : "success"); }}
+          onGespeichert={(warnung, id, istUrlaub) => {
+            setEntwurf(null); neu(); show(warnung ?? "Gespeichert", warnung ? "warning" : "success");
+            if (istUrlaub) setAntragFuer(id);
+          }}
           onLoeschen={() => { const e = d.eintraege.find((x) => x.id === entwurf.id); setEntwurf(null); if (e) setLoeschen(e); }} />
       )}
+      {antragFuer != null && d && (
+        <Modal open onClose={() => setAntragFuer(null)} title="Urlaubsantrag">
+          <div className="space-y-3 text-base text-[#1a1a1a] dark:text-[#e4e6eb]">
+            {d.meineStammdaten ? (
+              <>
+                <p>Der Urlaub ist eingetragen. Hier ist der ausgefüllte Urlaubsantrag als Word-Datei zum Ausdrucken.</p>
+                <a href={`/api/urlaub/antrag/${antragFuer}`} onClick={() => setAntragFuer(null)}
+                  className="flex items-center justify-center rounded-xl bg-[#008BD2] text-white text-sm font-black min-h-[56px]">📄 Urlaubsantrag herunterladen</a>
+              </>
+            ) : (
+              <>
+                <p>Für den Urlaubsantrag fehlen noch Name, Vorname und Personal-Nr. — einmal eintragen, danach geht es mit einem Klick.</p>
+                <button type="button" onClick={() => setStammdatenOffen(true)}
+                  className="w-full rounded-xl bg-[#008BD2] text-white text-sm font-black min-h-[56px]">Angaben eintragen</button>
+              </>
+            )}
+            <button type="button" className={`${knopfRand} w-full min-h-[56px]`} onClick={() => setAntragFuer(null)}>Später</button>
+          </div>
+        </Modal>
+      )}
+      {stammdatenOffen && d && (
+        <StammdatenDialog vorher={d.meineStammdaten} onClose={() => setStammdatenOffen(false)}
+          onGespeichert={() => { setStammdatenOffen(false); neu(); }} />
+      )}
       {ansehen && (
-        <Modal open onClose={() => setAnsehen(null)} title={`${namen.get(ansehen.userId) ?? ""} · ${ART_TEXT[ansehen.art as AbwesenheitArt] ?? ansehen.art}`}>
+        <Modal open onClose={() => setAnsehen(null)} title={`${namen.get(ansehen.userId) ?? ""} · ${artText(ansehen)}`}>
           <div className="space-y-2 text-base text-[#1a1a1a] dark:text-[#e4e6eb]">
             <p>{ansehen.von === ansehen.bis ? lang(ansehen.von) : `${lang(ansehen.von)} – ${lang(ansehen.bis)}`}{ansehen.halberTag ? " (halber Tag)" : ""}</p>
             <p>{zahl(ansehen.tage)} {ansehen.tage === 1 ? "Arbeitstag" : "Arbeitstage"} · {ansehen.status === "GENEHMIGT" ? `✓ genehmigt${ansehen.genehmigtVon ? ` (${ansehen.genehmigtVon})` : ""}` : "○ geplant"}</p>
@@ -485,7 +532,7 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, meineId, onNeu, onE
 // ── Eintragen / Ändern ───────────────────────────────────────────────────────
 function EintragDialog({ entwurf, name, onClose, onGespeichert, onLoeschen }: {
   entwurf: Entwurf; name: string;
-  onClose: () => void; onGespeichert: (warnung: string | null) => void; onLoeschen: () => void;
+  onClose: () => void; onGespeichert: (warnung: string | null, id: number, istUrlaub: boolean) => void; onLoeschen: () => void;
 }) {
   const [e, setE] = useState<Entwurf>(entwurf);
   const { show } = useToast();
@@ -494,7 +541,8 @@ function EintragDialog({ entwurf, name, onClose, onGespeichert, onLoeschen }: {
   // Genehmigt war ein bestimmter Zeitraum: Ändert sich Zeitraum, Person oder
   // Art, geht der Eintrag auf „geplant" zurück — genehmigen muss man neu.
   const o = e.original;
-  const zeitGeaendert = !!o && (o.von !== e.von || o.bis !== e.bis || o.halberTag !== e.halberTag || o.userId !== e.userId || o.art !== e.art);
+  const zeitGeaendert = !!o && (o.von !== e.von || o.bis !== e.bis || o.halberTag !== e.halberTag || o.userId !== e.userId || o.art !== e.art
+    || (e.art === "URLAUB" && o.urlaubsart !== e.urlaubsart));
   useEffect(() => {
     if (zeitGeaendert && o?.status === "GENEHMIGT") setE((alt) => (alt.status === "GENEHMIGT" ? { ...alt, status: "GEPLANT" } : alt));
   }, [zeitGeaendert, o?.status]);
@@ -511,7 +559,7 @@ function EintragDialog({ entwurf, name, onClose, onGespeichert, onLoeschen }: {
   const speichern = api.urlaub.speichern.useMutation({
     onSuccess: (r) => onGespeichert(r.ueberschneidungen.length
       ? `Gespeichert — gleichzeitig weg: ${r.ueberschneidungen.map((u) => `${u.wer} (${kurz(u.von)}–${kurz(u.bis)})`).join(", ")}`
-      : null),
+      : null, r.id, e.art === "URLAUB"),
     onError: (err) => show(err.message, "error"),
   });
 
@@ -532,6 +580,26 @@ function EintragDialog({ entwurf, name, onClose, onGespeichert, onLoeschen }: {
           </div>
           {e.art !== "URLAUB" && <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">Zählt nicht aufs Urlaubskonto.</p>}
         </div>
+        {e.art === "URLAUB" && (
+          <div>
+            <span className={label}>Art des Urlaubs</span>
+            <div className="flex flex-wrap gap-2">
+              {URLAUBSARTEN.map((u) => (
+                <button key={u} type="button" aria-pressed={e.urlaubsart === u} onClick={() => set("urlaubsart", u)}
+                  className={`px-3 rounded-xl text-sm font-bold min-h-[44px] border-2 ${e.urlaubsart === u ? "border-[#008BD2] bg-[#008BD2]/10 text-[#0064d2] dark:text-[#45bdff]" : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"}`}>
+                  {URLAUBSART_TEXT[u]}
+                </button>
+              ))}
+            </div>
+            {e.urlaubsart === "SONDER" && (
+              <div className="mt-2">
+                <label htmlFor="u-grund" className={label}>Sonderurlaub wegen</label>
+                <input id="u-grund" className={feld} value={e.sondergrund} maxLength={200} onChange={(x) => set("sondergrund", x.target.value)} placeholder="z. B. Umzug, Hochzeit" />
+              </div>
+            )}
+            {e.urlaubsart !== "ERHOLUNG" && <p className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">Zählt nicht aufs Urlaubskonto.</p>}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="u-von" className={label}>Von</label>
@@ -573,7 +641,7 @@ function EintragDialog({ entwurf, name, onClose, onGespeichert, onLoeschen }: {
         <div className="rounded-xl bg-[#f0f2f5] dark:bg-[#18191a] px-3 py-2 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
           {!gueltig ? "„Bis“ liegt vor „von“."
             : ohneArbeitstag ? <span className="font-bold text-[#d93025]">Im gewählten Zeitraum liegt kein Arbeitstag (nur Wochenende/freie Tage) — da muss nichts eingetragen werden.</span>
-            : <><strong>{zahl(tage)}</strong> {tage === 1 ? "Arbeitstag" : "Arbeitstage"}{e.art === "URLAUB" ? " vom Urlaubskonto" : ""}</>}
+            : <><strong>{zahl(tage)}</strong> {tage === 1 ? "Arbeitstag" : "Arbeitstage"}{e.art === "URLAUB" && e.urlaubsart === "ERHOLUNG" ? " vom Urlaubskonto" : ""}</>}
         </div>
         {(pruefen.data?.length ?? 0) > 0 && (
           <div role="alert" className="rounded-xl bg-[#BA7517]/10 px-3 py-2 text-sm text-[#8A5A00] dark:text-[#f7b928]">
@@ -588,10 +656,12 @@ function EintragDialog({ entwurf, name, onClose, onGespeichert, onLoeschen }: {
           )}
           <button type="button" onClick={onClose} disabled={speichern.isPending}
             className="flex-1 text-sm font-semibold border border-[#ced4da] dark:border-[#3e4042] rounded-xl text-[#65676b] dark:text-[#b0b3b8] min-h-[56px]">Abbrechen</button>
-          <button type="button" disabled={!gueltig || ohneArbeitstag || speichern.isPending}
+          <button type="button" disabled={!gueltig || ohneArbeitstag || speichern.isPending || (e.art === "URLAUB" && e.urlaubsart === "SONDER" && !e.sondergrund.trim())}
             onClick={() => speichern.mutate({
               id: e.id, userId: e.userId, art: e.art, von: e.von, bis: e.bis,
               halberTag: einTag && e.halberTag, status: e.status, notiz: e.notiz.trim() || null,
+              urlaubsart: e.art === "URLAUB" ? e.urlaubsart : null,
+              sondergrund: e.art === "URLAUB" && e.urlaubsart === "SONDER" ? e.sondergrund.trim() : null,
             })}
             className="flex-1 rounded-xl bg-[#008BD2] text-white text-sm font-black min-h-[56px] disabled:opacity-50">
             {speichern.isPending ? "Speichere…" : "Speichern"}
@@ -634,6 +704,47 @@ function AnspruchDialog({ jahr, person, onClose, onGespeichert }: {
           <button type="button" className={`${knopfRand} flex-1 min-h-[56px]`} onClick={onClose}>Abbrechen</button>
           <button type="button" disabled={!ok(tage) || !ok(uebertrag) || m.isPending}
             onClick={() => m.mutate({ userId: person.id, jahr, tage: lies(tage), uebertrag: lies(uebertrag) })}
+            className="flex-1 rounded-xl bg-[#008BD2] text-white text-sm font-black min-h-[56px] disabled:opacity-50">Speichern</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Angaben für den Urlaubsantrag (Name, Vorname, Personal-Nr.) — nur die eigenen ──
+function StammdatenDialog({ vorher, onClose, onGespeichert }: {
+  vorher: { nachname: string; vorname: string; personalnummer: string } | null;
+  onClose: () => void; onGespeichert: () => void;
+}) {
+  const { show } = useToast();
+  const [nachname, setNachname] = useState(vorher?.nachname ?? "");
+  const [vorname, setVorname] = useState(vorher?.vorname ?? "");
+  const [nr, setNr] = useState(vorher?.personalnummer ?? "");
+  const m = api.urlaub.stammdatenSetzen.useMutation({
+    onSuccess: () => { show("Antragsdaten gespeichert", "success"); onGespeichert(); },
+    onError: (e) => show(e.message, "error"),
+  });
+  const ok = nachname.trim() && vorname.trim() && nr.trim();
+  return (
+    <Modal open onClose={onClose} title="Angaben für den Urlaubsantrag">
+      <div className="space-y-3">
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">So stehen sie oben im Antrag. Sehen kannst nur du sie.</p>
+        <div>
+          <label htmlFor="s-nach" className={label}>Name</label>
+          <input id="s-nach" className={feld} value={nachname} maxLength={100} onChange={(x) => setNachname(x.target.value)} />
+        </div>
+        <div>
+          <label htmlFor="s-vor" className={label}>Vorname</label>
+          <input id="s-vor" className={feld} value={vorname} maxLength={100} onChange={(x) => setVorname(x.target.value)} />
+        </div>
+        <div>
+          <label htmlFor="s-nr" className={label}>Personal-Nr.</label>
+          <input id="s-nr" className={feld} value={nr} maxLength={30} onChange={(x) => setNr(x.target.value)} />
+        </div>
+        <div className="flex gap-3">
+          <button type="button" className={`${knopfRand} flex-1 min-h-[56px]`} onClick={onClose}>Abbrechen</button>
+          <button type="button" disabled={!ok || m.isPending}
+            onClick={() => m.mutate({ nachname: nachname.trim(), vorname: vorname.trim(), personalnummer: nr.trim() })}
             className="flex-1 rounded-xl bg-[#008BD2] text-white text-sm font-black min-h-[56px] disabled:opacity-50">Speichern</button>
         </div>
       </div>

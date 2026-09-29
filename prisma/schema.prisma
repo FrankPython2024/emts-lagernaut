@@ -1901,6 +1901,11 @@ model Abwesenheit {
   halberTag    Boolean   @default(false)
   // GEPLANT | GENEHMIGT
   status       String    @db.VarChar(20)
+  // Nur bei URLAUB: ERHOLUNG | UNBEZAHLT | SONDER (Kästchen im Urlaubsantrag).
+  // null = Erholungsurlaub (Einträge von vor dem 29.09.2026). Nur Erholungsurlaub
+  // zählt aufs Urlaubskonto.
+  urlaubsart   String?   @db.VarChar(20)
+  sondergrund  String?   @db.VarChar(200)
   notiz        String?   @db.VarChar(500)
   erstelltVon  String    @db.VarChar(50)
   geaendertVon String?   @db.VarChar(50)
@@ -1924,4 +1929,14 @@ model UrlaubAnspruch {
   updatedAt    DateTime @updatedAt
 
   @@unique([userId, jahr])
+}
+
+// Angaben für den Urlaubsantrag (Word-Vorlage): Name, Vorname, Personal-Nr.
+// Pflegt jeder nur für sich selbst.
+model UrlaubStammdaten {
+  userId         Int      @id
+  nachname       String   @db.VarChar(100)
+  vorname        String   @db.VarChar(100)
+  personalnummer String   @db.VarChar(30)
+  updatedAt      DateTime @updatedAt
 }

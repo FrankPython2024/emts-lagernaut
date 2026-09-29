@@ -22,8 +22,13 @@ export const ART_TEXT: Record<AbwesenheitArt, string> = {
 export const STATUS = ["GEPLANT", "GENEHMIGT"] as const;
 export type UrlaubStatus = (typeof STATUS)[number];
 
-/** Nur Urlaub zählt aufs Urlaubskonto. */
-export const zaehltAufsKonto = (art: string) => art === "URLAUB";
+/**
+ * Nur ERHOLUNGSurlaub zählt aufs Urlaubskonto — unbezahlter Urlaub und
+ * Sonderurlaub nehmen keine Urlaubstage weg. `urlaubsart` null = Einträge von
+ * vor der Unterscheidung (29.09.2026), die waren alle Erholungsurlaub.
+ */
+export const zaehltAufsKonto = (art: string, urlaubsart?: string | null) =>
+  art === "URLAUB" && (urlaubsart == null || urlaubsart === "ERHOLUNG");
 
 const ymd = (j: number, m: number, t: number) =>
   `${j}-${String(m).padStart(2, "0")}-${String(t).padStart(2, "0")}`;
@@ -132,7 +137,7 @@ export function ueberschneiden(a: Zeitraum, b: Zeitraum): boolean {
   return tageZwischen(von, bis).some(istArbeitstag);
 }
 
-export type KontoEintrag = Zeitraum & { art: string; status: string };
+export type KontoEintrag = Zeitraum & { art: string; status: string; urlaubsart?: string | null };
 export type Konto = {
   anspruch:   number;
   uebertrag:  number;
@@ -145,7 +150,7 @@ export type Konto = {
 export function urlaubskonto(args: { anspruch: number; uebertrag: number; eintraege: KontoEintrag[]; jahr: number }): Konto {
   let genehmigt = 0, geplant = 0;
   for (const e of args.eintraege) {
-    if (!zaehltAufsKonto(e.art)) continue;
+    if (!zaehltAufsKonto(e.art, e.urlaubsart)) continue;
     const t = arbeitstage(e, args.jahr);
     if (e.status === "GENEHMIGT") genehmigt += t;
     else geplant += t;
