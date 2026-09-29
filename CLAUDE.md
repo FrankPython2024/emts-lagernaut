@@ -245,7 +245,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind NEUNZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 791) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 797) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1482,7 +1482,13 @@ per Code-Änderung dazu, nicht per Klick.
   getrennt von `feiertageThueringen`, zusammen in `freieTage`).
   Ostern nach Meeus/Jones/Butcher. Halber Tag nur bei einem Tag (0,5). Einträge über Silvester zählen
   anteilig je Jahr. Nur URLAUB zählt aufs Konto: **verfügbar = Anspruch + Übertrag − genehmigt − geplant**.
-- **Im Team darf jeder alles** (eintragen, ändern, löschen, genehmigen); wer es war, steht am Eintrag.
+- ⚠️ **Jeder bearbeitet NUR seine eigenen Sachen** (Frank, 29.09.2026 — vorher konnte z. B. Ronny bei Frank
+  eintragen): eintragen, ändern, löschen, geplant/genehmigt markieren UND den Urlaubsanspruch. Die Einträge
+  der anderen sind nur lesbar (Ansicht-Fenster, leere Felder fremder Zeilen nicht anklickbar, keine
+  Knöpfe). Entscheidung Frank: **genehmigen nur selbst** (nicht Vier-Augen), **Anspruch nur selbst**.
+  Server: `darfBearbeiten(ich, besitzer)` in `team.ts`, geprüft in `speichern` (neue UND bestehende
+  userId — sonst ließe sich ein fremder Eintrag mit der eigenen Id „umschreiben"), `status`, `loeschen`,
+  `anspruchSetzen`. Der Brückentage-Rechner rechnet nur noch für das eigene Konto.
   ⚠️ Eine Genehmigung gilt für einen bestimmten Zeitraum: Ändert sich Zeitraum, Person oder Art, stellt
   der Dialog auf „geplant" zurück (mit Hinweis); wer wieder „genehmigt" wählt, wird neuer Genehmiger.
 - **Überschneidung:** Warnung im Dialog (`urlaub.pruefen`) und nach dem Speichern, wenn eine andere Person

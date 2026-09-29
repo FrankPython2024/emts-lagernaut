@@ -13,3 +13,14 @@ export function istImUrlaubTeam(userId: number | string | null | undefined): boo
   const id = typeof userId === "string" ? Number(userId) : userId;
   return typeof id === "number" && URLAUB_TEAM_IDS.includes(id);
 }
+
+/**
+ * Darf `ich` den Eintrag / Anspruch von `besitzer` anlegen, ändern, löschen oder
+ * als geplant/genehmigt markieren? Nur den eigenen (Frank, 29.09.2026: „nur
+ * derjenige aktive Nutzer … bei sich eintragen"; genehmigen und Anspruch
+ * ebenfalls nur selbst). Die Einträge der anderen sind nur lesbar.
+ */
+export function darfBearbeiten(ich: number | string | null | undefined, besitzer: number): boolean {
+  const id = typeof ich === "string" ? Number(ich) : ich;
+  return istImUrlaubTeam(id) && id === besitzer;
+}

@@ -9,7 +9,7 @@ import {
   ostersonntag, feiertageThueringen, freieTage, feiertag, istArbeitstag, arbeitstage, ueberschneiden, urlaubskonto,
   istGueltigesDatum, tageZwischen,
 } from "../src/lib/urlaub/tage";
-import { istImUrlaubTeam } from "../src/lib/urlaub/team";
+import { istImUrlaubTeam, darfBearbeiten } from "../src/lib/urlaub/team";
 import { besteZeitpunkte } from "../src/lib/urlaub/brueckentage";
 
 let passed = 0;
@@ -94,6 +94,14 @@ check("Arlett (36, Admin) NICHT", istImUrlaubTeam(36), false);
 check("Ronny Wellnitz (17) NICHT", istImUrlaubTeam(17), false);
 check("Id als Text", istImUrlaubTeam("12"), true);
 check("ohne Id", istImUrlaubTeam(undefined), false);
+
+console.log("\n── Nur eigene Einträge bearbeiten ──");
+check("Ronny (15) bei Ronny → ja", darfBearbeiten(15, 15), true);
+check("Ronny (15) bei Frank (1) → nein", darfBearbeiten(15, 1), false);
+check("Frank (1) bei Christian (12) → nein", darfBearbeiten(1, 12), false);
+check("Id als Text", darfBearbeiten("12", 12), true);
+check("Nicht im Team, auch nicht bei sich selbst (Arlett 36)", darfBearbeiten(36, 36), false);
+check("ohne Anmeldung → nein", darfBearbeiten(undefined, 1), false);
 
 console.log("\n── Brückentage: beste Zeitpunkte ──");
 const rest26 = besteZeitpunkte({ von: "2026-09-30", bis: "2026-12-31", maxUrlaubstage: 10, anzahl: 20 });

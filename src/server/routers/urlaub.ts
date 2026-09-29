@@ -3,21 +3,29 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import type { SessionUser } from "@/core/types";
-import { URLAUB_TEAM_IDS, istImUrlaubTeam } from "@/lib/urlaub/team";
+import { URLAUB_TEAM_IDS, darfBearbeiten, istImUrlaubTeam } from "@/lib/urlaub/team";
 import {
   ABWESENHEIT_ARTEN, STATUS, arbeitstage, freieTage, istGueltigesDatum, ueberschneiden, urlaubskonto,
 } from "@/lib/urlaub/tage";
 
 // ── Urlaubsplanung (29.09.2026) ───────────────────────────────────────────────
 // Nur für die drei Konten aus src/lib/urlaub/team.ts — geprüft bei JEDEM Aufruf,
-// nicht nur im Menü. Innerhalb des Teams darf jeder alles (eintragen, ändern,
-// löschen, genehmigen); wer was getan hat, steht am Eintrag.
+// nicht nur im Menü. Lesen dürfen alle drei alles; SCHREIBEN (eintragen, ändern,
+// löschen, geplant/genehmigt, Anspruch) jeder nur bei sich selbst — `darfBearbeiten`.
+// Vorher konnte z. B. Ronny bei Frank eintragen (Frank, 29.09.2026).
 
 const team = protectedProcedure.use(({ ctx, next }) => {
   const user = ctx.session.user as SessionUser;
   if (!istImUrlaubTeam(user.id)) throw new TRPCError({ code: "FORBIDDEN", message: "Kein Zugang zur Urlaubsplanung." });
   return next({ ctx });
 });
+
+const ichVon = (ctx: { session: { user?: unknown } }) => Number((ctx.session.user as SessionUser | undefined)?.id);
+function nurEigene(ctx: { session: { user?: unknown } }, besitzer: number) {
+  if (!darfBearbeiten(ichVon(ctx), besitzer)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Du kannst nur deine eigenen Einträge bearbeiten." });
+  }
+}
 
 const kuerzelVon = (ctx: { session: { user?: unknown } }) =>
   ((ctx.session.user as SessionUser | undefined)?.kuerzel ?? "?").slice(0, 50);
@@ -112,7 +120,7 @@ export const urlaubRouter = createTRPCRouter({
   speichern: team
     .input(eintragInput)
     .mutation(async ({ ctx, input }) => {
-      if (!istImUrlaubTeam(input.userId)) throw new TRPCError({ code: "BAD_REQUEST", message: "Diese Person gehört nicht zur Urlaubsplanung." });
+      nurEigene(ctx, input.userId);
       const wer = kuerzelVon(ctx);
       const genehmigt = input.status === "GENEHMIGT";
       const daten = {
@@ -123,6 +131,9 @@ export const urlaubRouter = createTRPCRouter({
       if (input.id) {
         const alt = await prisma.abwesenheit.findUnique({ where: { id: input.id } });
         if (!alt) throw new TRPCError({ code: "NOT_FOUND", message: "Eintrag nicht gefunden" });
+        // Auch der BESTEHENDE Eintrag muss meiner sein — sonst ließe sich ein
+        // fremder Eintrag „umschreiben", indem man die eigene userId mitschickt.
+        nurEigene(ctx, alt.userId);
         // Genehmigt war ein bestimmter Zeitraum. Der Dialog stellt deshalb bei
         // jeder Zeitänderung auf „geplant" zurück; wer danach wieder „genehmigt"
         // wählt, wird als neuer Genehmiger vermerkt.
@@ -154,6 +165,9 @@ export const urlaubRouter = createTRPCRouter({
   status: team
     .input(z.object({ id: z.number().int().positive(), status: z.enum(STATUS) }))
     .mutation(async ({ ctx, input }) => {
+      const e = await prisma.abwesenheit.findUnique({ where: { id: input.id }, select: { userId: true } });
+      if (!e) throw new TRPCError({ code: "NOT_FOUND", message: "Eintrag nicht gefunden" });
+      nurEigene(ctx, e.userId);
       const wer = kuerzelVon(ctx);
       await prisma.abwesenheit.update({
         where: { id: input.id },
@@ -166,7 +180,10 @@ export const urlaubRouter = createTRPCRouter({
 
   loeschen: team
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const e = await prisma.abwesenheit.findUnique({ where: { id: input.id }, select: { userId: true } });
+      if (!e) throw new TRPCError({ code: "NOT_FOUND", message: "Eintrag nicht gefunden" });
+      nurEigene(ctx, e.userId);
       await prisma.abwesenheit.delete({ where: { id: input.id } });
       return { ok: true };
     }),
@@ -180,7 +197,7 @@ export const urlaubRouter = createTRPCRouter({
       uebertrag: z.number().min(0).max(60).multipleOf(0.5),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (!istImUrlaubTeam(input.userId)) throw new TRPCError({ code: "BAD_REQUEST", message: "Diese Person gehört nicht zur Urlaubsplanung." });
+      nurEigene(ctx, input.userId);
       const daten = { tage: input.tage, uebertrag: input.uebertrag, geaendertVon: kuerzelVon(ctx) };
       await prisma.urlaubAnspruch.upsert({
         where:  { userId_jahr: { userId: input.userId, jahr: input.jahr } },

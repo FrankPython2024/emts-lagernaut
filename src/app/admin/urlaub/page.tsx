@@ -4,6 +4,9 @@
 // Nur für Frank (FRANK), Christian Roth (CR) und Ronny Schorg (RS) —
 // src/lib/urlaub/team.ts. Der Server prüft das bei jedem Aufruf; hier wird nur
 // die Seite für alle anderen gar nicht erst gezeigt.
+// ⚠️ Jeder bearbeitet NUR seine eigenen Einträge und seinen eigenen Anspruch
+// (Frank, 29.09.2026) — die der anderen sind nur lesbar. Der Server prüft das
+// ebenso (`darfBearbeiten`); hier werden die Knöpfe nur gar nicht erst gezeigt.
 // Urlaubskonto je Person (Anspruch + Übertrag − genehmigt − geplant),
 // Monatskalender Personen × Tage (Wochenenden/Feiertage Thüringen grau,
 // geplant gestreift, genehmigt voll), Liste des Jahres mit Ändern/Löschen/Genehmigen.
@@ -61,6 +64,7 @@ export default function UrlaubSeite() {
   const [entwurf, setEntwurf] = useState<Entwurf | null>(null);
   const [anspruchFuer, setAnspruchFuer] = useState<number | null>(null);
   const [loeschen, setLoeschen] = useState<Eintrag | null>(null);
+  const [ansehen, setAnsehen] = useState<Eintrag | null>(null);
   const { show } = useToast();
   const utils = api.useUtils();
 
@@ -77,8 +81,12 @@ export default function UrlaubSeite() {
 
   const d = q.data;
   const namen = new Map((d?.personen ?? []).map((p) => [p.id, p.name]));
-  const neuerEintrag = (userId = meineId, von = heute()) =>
-    setEntwurf({ userId, art: "URLAUB", von, bis: von, halberTag: false, status: "GEPLANT", notiz: "" });
+  // Eintragen immer nur für mich selbst.
+  const neuerEintrag = (von = heute(), bis = von) =>
+    setEntwurf({ userId: meineId, art: "URLAUB", von, bis, halberTag: false, status: "GEPLANT", notiz: "" });
+  const istMeins = (e: { userId: number }) => e.userId === meineId;
+  // Fremde Einträge öffnen nur eine Ansicht, eigene den Bearbeiten-Dialog.
+  const oeffnen = (e: Eintrag) => (istMeins(e) ? bearbeiten(e) : setAnsehen(e));
   const bearbeiten = (e: Eintrag) => setEntwurf({
     id: e.id, userId: e.userId, art: e.art as AbwesenheitArt, von: e.von, bis: e.bis, halberTag: e.halberTag,
     status: e.status as UrlaubStatus, notiz: e.notiz ?? "",
@@ -110,12 +118,16 @@ export default function UrlaubSeite() {
                 <div key={p.id} className={`${karte} p-4 space-y-2`}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-black text-[#202F61] dark:text-[#e4e6eb]">{p.name}</span>
-                    <button type="button" className="text-xs font-bold text-[#0064d2] dark:text-[#45bdff] underline min-h-[32px]" onClick={() => setAnspruchFuer(p.id)}>
-                      {p.anspruchGesetzt ? "Anspruch ändern" : "Anspruch eintragen"}
-                    </button>
+                    {p.id === meineId && (
+                      <button type="button" className="text-xs font-bold text-[#0064d2] dark:text-[#45bdff] underline min-h-[32px]" onClick={() => setAnspruchFuer(p.id)}>
+                        {p.anspruchGesetzt ? "Anspruch ändern" : "Anspruch eintragen"}
+                      </button>
+                    )}
                   </div>
                   {!p.anspruchGesetzt ? (
-                    <p className="text-sm font-bold text-[#8A5A00] dark:text-[#f7b928]">⚠ Für {jahr} ist noch kein Urlaubsanspruch eingetragen.</p>
+                    <p className="text-sm font-bold text-[#8A5A00] dark:text-[#f7b928]">
+                      ⚠ Für {jahr} ist noch kein Urlaubsanspruch eingetragen{p.id === meineId ? "." : ` — das kann nur ${p.name} selbst.`}
+                    </p>
                   ) : (
                     <>
                       <div className={`text-3xl font-black ${p.konto.verfuegbar < 0 ? "text-[#d93025]" : "text-[#037A4F] dark:text-[#3ddc97]"}`}>
@@ -132,10 +144,10 @@ export default function UrlaubSeite() {
             </div>
 
             <Brueckentage jahr={jahr} meineId={meineId} personen={d.personen} eintraege={d.eintraege}
-              onEintragen={(userId, von, bis) => setEntwurf({ userId, art: "URLAUB", von, bis, halberTag: false, status: "GEPLANT", notiz: "" })} />
+              onEintragen={(von, bis) => neuerEintrag(von, bis)} />
 
             <Monat jahr={jahr} monat={monat} setMonat={setMonat} personen={d.personen} eintraege={d.eintraege}
-              onNeu={neuerEintrag} onEintrag={bearbeiten} />
+              meineId={meineId} onNeu={(tag) => neuerEintrag(tag)} onEintrag={oeffnen} />
 
             {/* Liste des Jahres */}
             <section className={`${karte} overflow-hidden`}>
@@ -162,16 +174,27 @@ export default function UrlaubSeite() {
                             {e.notiz ? ` · ${e.notiz}` : ""}
                           </div>
                         </div>
-                        <button type="button" disabled={statusSetzen.isPending}
-                          onClick={() => statusSetzen.mutate({ id: e.id, status: e.status === "GENEHMIGT" ? "GEPLANT" : "GENEHMIGT" })}
-                          title={e.status === "GENEHMIGT" ? "Zurück auf geplant" : "Als genehmigt markieren"}
-                          className={`inline-flex items-center px-3 rounded-xl text-sm font-bold min-h-[44px] border-2 ${e.status === "GENEHMIGT"
+                        {(() => {
+                          const stil = `inline-flex items-center px-3 rounded-xl text-sm font-bold min-h-[44px] border-2 ${e.status === "GENEHMIGT"
                             ? "border-[#04B475] bg-[#04B475]/10 text-[#037A4F] dark:text-[#3ddc97]"
-                            : "border-dashed border-[#BA7517] text-[#8A5A00] dark:text-[#f7b928]"}`}>
-                          {e.status === "GENEHMIGT" ? "✓ genehmigt" : "○ geplant"}
-                        </button>
-                        <button type="button" className={knopfRand} onClick={() => bearbeiten(e)}>Ändern</button>
-                        <button type="button" className={`${knopfRand} text-[#d93025]`} onClick={() => setLoeschen(e)} aria-label="Löschen">🗑</button>
+                            : "border-dashed border-[#BA7517] text-[#8A5A00] dark:text-[#f7b928]"}`;
+                          const text = e.status === "GENEHMIGT" ? "✓ genehmigt" : "○ geplant";
+                          return istMeins(e) ? (
+                            <button type="button" disabled={statusSetzen.isPending} className={stil}
+                              onClick={() => statusSetzen.mutate({ id: e.id, status: e.status === "GENEHMIGT" ? "GEPLANT" : "GENEHMIGT" })}
+                              title={e.status === "GENEHMIGT" ? "Zurück auf geplant" : "Als genehmigt markieren"}>
+                              {text}
+                            </button>
+                          ) : <span className={stil}>{text}</span>;
+                        })()}
+                        {istMeins(e) ? (
+                          <>
+                            <button type="button" className={knopfRand} onClick={() => bearbeiten(e)}>Ändern</button>
+                            <button type="button" className={`${knopfRand} text-[#d93025]`} onClick={() => setLoeschen(e)} aria-label="Löschen">🗑</button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-[#65676b] dark:text-[#b0b3b8] min-w-[6rem] text-right">nur {namen.get(e.userId) ?? "die Person"} selbst</span>
+                        )}
                       </li>
                     );
                   })}
@@ -182,9 +205,20 @@ export default function UrlaubSeite() {
         )}
 
       {entwurf && d && (
-        <EintragDialog entwurf={entwurf} personen={d.personen} onClose={() => setEntwurf(null)}
+        <EintragDialog entwurf={entwurf} name={namen.get(meineId) ?? "dich"} onClose={() => setEntwurf(null)}
           onGespeichert={(warnung) => { setEntwurf(null); neu(); show(warnung ?? "Gespeichert", warnung ? "warning" : "success"); }}
           onLoeschen={() => { const e = d.eintraege.find((x) => x.id === entwurf.id); setEntwurf(null); if (e) setLoeschen(e); }} />
+      )}
+      {ansehen && (
+        <Modal open onClose={() => setAnsehen(null)} title={`${namen.get(ansehen.userId) ?? ""} · ${ART_TEXT[ansehen.art as AbwesenheitArt] ?? ansehen.art}`}>
+          <div className="space-y-2 text-base text-[#1a1a1a] dark:text-[#e4e6eb]">
+            <p>{ansehen.von === ansehen.bis ? lang(ansehen.von) : `${lang(ansehen.von)} – ${lang(ansehen.bis)}`}{ansehen.halberTag ? " (halber Tag)" : ""}</p>
+            <p>{zahl(ansehen.tage)} {ansehen.tage === 1 ? "Arbeitstag" : "Arbeitstage"} · {ansehen.status === "GENEHMIGT" ? `✓ genehmigt${ansehen.genehmigtVon ? ` (${ansehen.genehmigtVon})` : ""}` : "○ geplant"}</p>
+            {ansehen.notiz && <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">{ansehen.notiz}</p>}
+            <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Ändern kann diesen Eintrag nur {namen.get(ansehen.userId) ?? "die Person"} selbst.</p>
+            <button type="button" className={`${knopfRand} w-full min-h-[56px]`} onClick={() => setAnsehen(null)}>Schließen</button>
+          </div>
+        </Modal>
       )}
       {anspruchFuer != null && d && (
         <AnspruchDialog jahr={jahr} person={d.personen.find((p) => p.id === anspruchFuer)!} onClose={() => setAnspruchFuer(null)}
@@ -216,9 +250,10 @@ function Brueckentage({ jahr, meineId, personen, eintraege, onEintragen }: {
   jahr: number; meineId: number;
   personen: { id: number; name: string; anspruchGesetzt: boolean; konto: { verfuegbar: number } }[];
   eintraege: Eintrag[];
-  onEintragen: (userId: number, von: string, bis: string) => void;
+  onEintragen: (von: string, bis: string) => void;
 }) {
-  const [person, setPerson] = useState(() => (personen.some((p) => p.id === meineId) ? meineId : personen[0]?.id ?? 0));
+  // Nur für mich — eintragen darf ich ohnehin nur bei mir.
+  const person = meineId;
   const [max, setMax] = useState(5);
   const [ohneAndere, setOhneAndere] = useState(false);
   const [alle, setAlle] = useState(false);
@@ -245,20 +280,14 @@ function Brueckentage({ jahr, meineId, personen, eintraege, onEintragen }: {
   return (
     <section className={`${karte} p-4 space-y-3`}>
       <div>
-        <h2 className="font-black text-[#202F61] dark:text-[#e4e6eb]">💡 Beste Zeitpunkte für Urlaub {jahr}</h2>
+        <h2 className="font-black text-[#202F61] dark:text-[#e4e6eb]">💡 Beste Zeitpunkte für deinen Urlaub {jahr}</h2>
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
           Wo wenige Urlaubstage mit Wochenenden, Feiertagen und freien Tagen die meiste Zeit am Stück ergeben.
           {jahr === aktuellesJahr ? " Ab morgen." : ""}
         </p>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
-        {personen.map((x) => (
-          <button key={x.id} type="button" aria-pressed={person === x.id} onClick={() => setPerson(x.id)}
-            className={`px-3 rounded-xl text-sm font-bold min-h-[44px] border-2 ${person === x.id ? "border-[#008BD2] bg-[#008BD2]/10 text-[#0064d2] dark:text-[#45bdff]" : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"}`}>
-            {x.name}
-          </button>
-        ))}
-        <label className="inline-flex items-center gap-2 text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] ml-1">
+        <label className="inline-flex items-center gap-2 text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
           höchstens
           <select value={max} onChange={(e) => setMax(Number(e.target.value))}
             className="px-2 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] min-h-[44px]">
@@ -302,7 +331,7 @@ function Brueckentage({ jahr, meineId, personen, eintraege, onEintragen }: {
                 <span className="text-xs font-bold px-2 py-1 rounded-lg bg-[#04B475]/10 text-[#037A4F] dark:text-[#3ddc97]" title="freie Tage je Urlaubstag">
                   ×{zahl(Math.round(v.faktor * 10) / 10)}
                 </span>
-                <button type="button" className={knopfRand} onClick={() => onEintragen(person, v.urlaubVon, v.urlaubBis)}>Eintragen</button>
+                <button type="button" className={knopfRand} onClick={() => onEintragen(v.urlaubVon, v.urlaubBis)}>Eintragen</button>
               </li>
             );
           })}
@@ -318,10 +347,11 @@ function Brueckentage({ jahr, meineId, personen, eintraege, onEintragen }: {
 }
 
 // ── Monatskalender: Personen × Tage ───────────────────────────────────────────
-function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }: {
+function Monat({ jahr, monat, setMonat, personen, eintraege, meineId, onNeu, onEintrag }: {
   jahr: number; monat: number; setMonat: (m: number) => void;
   personen: { id: number; name: string; kuerzel: string }[]; eintraege: Eintrag[];
-  onNeu: (userId: number, tag: string) => void; onEintrag: (e: Eintrag) => void;
+  meineId: number;
+  onNeu: (tag: string) => void; onEintrag: (e: Eintrag) => void;
 }) {
   const erster = `${jahr}-${String(monat + 1).padStart(2, "0")}-01`;
   const tage = useMemo(() => {
@@ -377,7 +407,9 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }:
           <tbody>
             {personen.map((p) => (
               <tr key={p.id}>
-                <th className="sticky left-0 z-10 bg-white dark:bg-[#242526] pr-2 text-left text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">{p.name}</th>
+                <th className="sticky left-0 z-10 bg-white dark:bg-[#242526] pr-2 text-left text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">
+                  {p.name}{p.id === meineId && <span className="text-xs font-normal text-[#008BD2]"> (du)</span>}
+                </th>
                 {tage.map((t) => {
                   const e = eintragAm(p.id, t);
                   const farbe = e ? FARBE[e.art as AbwesenheitArt] : null;
@@ -389,12 +421,14 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }:
                     : undefined;
                   const text = e
                     ? `${p.name}: ${ART_TEXT[e.art as AbwesenheitArt]} ${e.status === "GENEHMIGT" ? "(genehmigt)" : "(geplant)"} ${kurz(e.von)}–${kurz(e.bis)}${e.halberTag ? ", halber Tag" : ""}`
-                    : `${p.name}, ${lang(t)}${feiertag(t) ? ` — ${feiertag(t)}` : ""}: eintragen`;
+                    : `${p.name}, ${lang(t)}${feiertag(t) ? ` — ${feiertag(t)}` : ""}${p.id === meineId ? ": eintragen" : ""}`;
+                  // Leere Felder anderer Personen sind nicht anklickbar — dort kann ich nichts eintragen.
+                  const klickbar = !!e || p.id === meineId;
                   return (
                     <td key={t} className="p-0">
-                      <button type="button" title={text} aria-label={text}
-                        onClick={() => (e ? onEintrag(e) : onNeu(p.id, t))}
-                        className={`block w-full h-11 rounded-md ${!e ? leer(t) : ""} ${t === h ? "ring-2 ring-[#008BD2]" : ""}`}
+                      <button type="button" title={text} aria-label={text} disabled={!klickbar}
+                        onClick={() => (e ? onEintrag(e) : onNeu(t))}
+                        className={`block w-full h-11 rounded-md ${!e ? (p.id === meineId ? leer(t) : leer(t).replace(/hover:\S+/g, "")) : ""} ${!klickbar ? "cursor-default" : ""} ${t === h ? "ring-2 ring-[#008BD2]" : ""}`}
                         style={stil}>
                         {e?.halberTag && <span className="text-[10px] font-black text-white">½</span>}
                       </button>
@@ -413,7 +447,7 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }:
         <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: "repeating-linear-gradient(135deg,#008BD2 0 3px,#008BD255 3px 6px)" }} />gestreift = geplant</span>
         <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-[#e4e6eb] dark:bg-[#3a3b3c]" />Wochenende</span>
         <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-[#fce4ec] dark:bg-[#4a2433] border border-[#ad1457]/40" />Feiertag (arbeitsfrei)</span>
-        <span>Leeres Feld antippen = eintragen, farbiges = ändern.</span>
+        <span>Leeres Feld in deiner Zeile antippen = eintragen; farbiges = ansehen bzw. bei dir ändern.</span>
       </div>
 
       {/* Feiertage: im Monat ausgeschrieben, das ganze Jahr zum Aufklappen. */}
@@ -438,8 +472,8 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }:
 }
 
 // ── Eintragen / Ändern ───────────────────────────────────────────────────────
-function EintragDialog({ entwurf, personen, onClose, onGespeichert, onLoeschen }: {
-  entwurf: Entwurf; personen: { id: number; name: string }[];
+function EintragDialog({ entwurf, name, onClose, onGespeichert, onLoeschen }: {
+  entwurf: Entwurf; name: string;
   onClose: () => void; onGespeichert: (warnung: string | null) => void; onLoeschen: () => void;
 }) {
   const [e, setE] = useState<Entwurf>(entwurf);
@@ -471,17 +505,8 @@ function EintragDialog({ entwurf, personen, onClose, onGespeichert, onLoeschen }
   return (
     <Modal open onClose={() => { if (!speichern.isPending) onClose(); }} title={e.id ? "Eintrag ändern" : "Abwesenheit eintragen"}>
       <div className="space-y-4">
-        <div>
-          <span className={label}>Wer?</span>
-          <div className="flex flex-wrap gap-2">
-            {personen.map((p) => (
-              <button key={p.id} type="button" aria-pressed={e.userId === p.id} onClick={() => set("userId", p.id)}
-                className={`px-4 rounded-xl text-sm font-bold min-h-[48px] border-2 ${e.userId === p.id ? "border-[#008BD2] bg-[#008BD2]/10 text-[#0064d2] dark:text-[#45bdff]" : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"}`}>
-                {p.name}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Keine Personenwahl: Eingetragen wird immer nur für das eigene Konto. */}
+        <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Für: <strong className="text-[#202F61] dark:text-[#e4e6eb]">{name}</strong></p>
         <div>
           <span className={label}>Was?</span>
           <div className="flex flex-wrap gap-2">
