@@ -16,7 +16,7 @@ import { Modal } from "@/components/ui/Modal";
 import { istImUrlaubTeam } from "@/lib/urlaub/team";
 import { addiereTage } from "@/lib/zeit/berlin";
 import {
-  ABWESENHEIT_ARTEN, ART_TEXT, arbeitstage, feiertag, istArbeitstag, wochentag,
+  ABWESENHEIT_ARTEN, ART_TEXT, arbeitstage, feiertag, feiertageThueringen, istArbeitstag, wochentag,
   type AbwesenheitArt, type UrlaubStatus,
 } from "@/lib/urlaub/tage";
 
@@ -221,6 +221,12 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }:
   const eintragAm = (userId: number, tag: string) => eintraege.find((e) => e.userId === userId && e.von <= tag && tag <= e.bis);
   // Tage, an denen mehr als eine Person fehlt (nur Arbeitstage) — Überschneidung.
   const mehrfach = new Set(tage.filter((t) => istArbeitstag(t) && personen.filter((p) => eintragAm(p.id, t)).length > 1));
+  const feiertageImMonat = tage.filter((t) => feiertag(t)).map((t) => ({ tag: t, name: feiertag(t)! }));
+  const alleFeiertage = [...feiertageThueringen(jahr)].sort(([a], [b]) => a.localeCompare(b));
+  // Feiertag (Thüringen, arbeitsfrei) rosa — bewusst weder Rot (Krank) noch Violett (Schulung).
+  const leer = (t: string) => feiertag(t)
+    ? "bg-[#fce4ec] dark:bg-[#4a2433]"
+    : !istArbeitstag(t) ? "bg-[#e4e6eb] dark:bg-[#3a3b3c]" : "bg-[#f0f2f5] dark:bg-[#18191a] hover:bg-[#008BD2]/15";
 
   return (
     <section className={`${karte} p-4 space-y-3`}>
@@ -232,17 +238,24 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }:
           <span className="text-sm font-bold text-[#8A5A00] dark:text-[#f7b928]">⚠ An {mehrfach.size} {mehrfach.size === 1 ? "Arbeitstag" : "Arbeitstagen"} fehlen mehrere gleichzeitig</span>
         )}
       </div>
+      {/* Volle Breite, alle Tagesspalten gleich breit; unter ~58rem scrollt die Tabelle seitlich. */}
       <div className="overflow-x-auto">
-        <table className="border-separate" style={{ borderSpacing: 2 }}>
+        <table className="w-full border-separate" style={{ borderSpacing: 2, tableLayout: "fixed", minWidth: "58rem" }}>
+          <colgroup>
+            <col style={{ width: "8rem" }} />
+            {tage.map((t) => <col key={t} />)}
+          </colgroup>
           <thead>
             <tr>
               <th className="sticky left-0 z-10 bg-white dark:bg-[#242526]" />
               {tage.map((t) => {
+                const ft = feiertag(t);
                 const frei = !istArbeitstag(t);
                 return (
-                  <th key={t} title={feiertag(t) ?? undefined}
-                    className={`text-[11px] font-bold w-8 min-w-[2rem] leading-tight ${t === h ? "text-[#008BD2]" : frei ? "text-[#9aa0a6]" : "text-[#202F61] dark:text-[#e4e6eb]"}`}>
+                  <th key={t} title={ft ? `${ft} (Feiertag, arbeitsfrei)` : undefined}
+                    className={`text-xs font-bold leading-tight py-1 rounded-md ${ft ? "bg-[#fce4ec] dark:bg-[#4a2433] text-[#ad1457] dark:text-[#f48fb1]" : ""} ${t === h ? "text-[#008BD2]" : !ft && frei ? "text-[#9aa0a6]" : !ft ? "text-[#202F61] dark:text-[#e4e6eb]" : ""}`}>
                     {WT[wochentag(t)]}<br />{t.slice(8, 10)}
+                    {ft && <div className="text-[10px]" aria-label={`Feiertag: ${ft}`}>FT</div>}
                     {mehrfach.has(t) && <div className="text-[#BA7517]" aria-label="mehrere fehlen">⚠</div>}
                   </th>
                 );
@@ -255,7 +268,6 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }:
                 <th className="sticky left-0 z-10 bg-white dark:bg-[#242526] pr-2 text-left text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">{p.name}</th>
                 {tage.map((t) => {
                   const e = eintragAm(p.id, t);
-                  const frei = !istArbeitstag(t);
                   const farbe = e ? FARBE[e.art as AbwesenheitArt] : null;
                   const geplant = e?.status !== "GENEHMIGT";
                   const stil = farbe
@@ -270,7 +282,7 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }:
                     <td key={t} className="p-0">
                       <button type="button" title={text} aria-label={text}
                         onClick={() => (e ? onEintrag(e) : onNeu(p.id, t))}
-                        className={`block w-8 h-10 rounded-md ${!e ? (frei ? "bg-[#e4e6eb] dark:bg-[#3a3b3c]" : "bg-[#f0f2f5] dark:bg-[#18191a] hover:bg-[#008BD2]/15") : ""} ${t === h ? "ring-2 ring-[#008BD2]" : ""}`}
+                        className={`block w-full h-11 rounded-md ${!e ? leer(t) : ""} ${t === h ? "ring-2 ring-[#008BD2]" : ""}`}
                         style={stil}>
                         {e?.halberTag && <span className="text-[10px] font-black text-white">½</span>}
                       </button>
@@ -287,9 +299,28 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }:
           <span key={a} className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: FARBE[a] }} />{ART_TEXT[a]}</span>
         ))}
         <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: "repeating-linear-gradient(135deg,#008BD2 0 3px,#008BD255 3px 6px)" }} />gestreift = geplant</span>
-        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-[#e4e6eb] dark:bg-[#3a3b3c]" />Wochenende/Feiertag</span>
+        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-[#e4e6eb] dark:bg-[#3a3b3c]" />Wochenende</span>
+        <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-[#fce4ec] dark:bg-[#4a2433] border border-[#ad1457]/40" />Feiertag (arbeitsfrei)</span>
         <span>Leeres Feld antippen = eintragen, farbiges = ändern.</span>
       </div>
+
+      {/* Feiertage: im Monat ausgeschrieben, das ganze Jahr zum Aufklappen. */}
+      <div className="rounded-xl bg-[#fce4ec]/60 dark:bg-[#4a2433]/60 px-3 py-2 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+        <span className="font-bold text-[#ad1457] dark:text-[#f48fb1]">Feiertage im {MONATE[monat]}:</span>{" "}
+        {feiertageImMonat.length === 0 ? "keine" : feiertageImMonat.map((f) => `${lang(f.tag)} ${f.name}`).join(" · ")}
+      </div>
+      <details className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+        <summary className="cursor-pointer font-bold text-[#202F61] dark:text-[#e4e6eb] min-h-[44px] flex items-center">
+          Alle Feiertage {jahr} in Thüringen ({alleFeiertage.length}) — an diesen Tagen wird nicht gearbeitet
+        </summary>
+        <ul className="mt-1 grid gap-x-6 gap-y-1" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+          {alleFeiertage.map(([tag, name]) => (
+            <li key={tag} className={!istArbeitstag(tag) && wochentag(tag) % 6 === 0 ? "text-[#65676b] dark:text-[#b0b3b8]" : ""}>
+              <strong>{lang(tag)}</strong> {name}{wochentag(tag) % 6 === 0 ? " (fällt aufs Wochenende)" : ""}
+            </li>
+          ))}
+        </ul>
+      </details>
     </section>
   );
 }
