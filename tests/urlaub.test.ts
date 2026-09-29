@@ -6,7 +6,7 @@
  */
 
 import {
-  ostersonntag, feiertageThueringen, istArbeitstag, arbeitstage, ueberschneiden, urlaubskonto,
+  ostersonntag, feiertageThueringen, freieTage, feiertag, istArbeitstag, arbeitstage, ueberschneiden, urlaubskonto,
   istGueltigesDatum, tageZwischen,
 } from "../src/lib/urlaub/tage";
 import { istImUrlaubTeam } from "../src/lib/urlaub/team";
@@ -34,7 +34,16 @@ check("Pfingstmontag 25.5.", f26.get("2026-05-25"), "Pfingstmontag");
 check("Weltkindertag 20.9. (Thüringen)", f26.get("2026-09-20"), "Weltkindertag");
 check("Reformationstag 31.10.", f26.get("2026-10-31"), "Reformationstag");
 check("kein Fronleichnam (nur Eichsfeld)", f26.get("2026-06-04"), undefined);
-check("Heiligabend kein Feiertag", f26.get("2026-12-24"), undefined);
+check("Heiligabend kein GESETZLICHER Feiertag", f26.get("2026-12-24"), undefined);
+
+console.log("\n── Betriebsfrei bei AfB: 24.12. und 31.12. ──");
+check("13 freie Tage 2026 (11 gesetzlich + 2 betriebsfrei)", freieTage(2026).size, 13);
+check("Heiligabend frei", feiertag("2026-12-24"), "Heiligabend (betriebsfrei)");
+check("Silvester frei", feiertag("2026-12-31"), "Silvester (betriebsfrei)");
+check("24.12.2026 (Do) ist kein Arbeitstag", istArbeitstag("2026-12-24"), false);
+check("31.12.2026 (Do) ist kein Arbeitstag", istArbeitstag("2026-12-31"), false);
+check("23.12. bleibt Arbeitstag", istArbeitstag("2026-12-23"), true);
+check("freieTage nach Datum sortiert", [...freieTage(2026).keys()].slice(-4), ["2026-12-24", "2026-12-25", "2026-12-26", "2026-12-31"]);
 
 console.log("\n── Arbeitstage ──");
 check("Montag ist Arbeitstag", istArbeitstag("2026-09-28"), true);
@@ -48,10 +57,11 @@ check("Woche mit Ostermontag = 4", arbeitstage({ von: "2026-04-06", bis: "2026-0
 check("halber Tag = 0,5", arbeitstage({ von: "2026-10-05", bis: "2026-10-05", halberTag: true }), 0.5);
 check("halber Tag am Samstag = 0", arbeitstage({ von: "2026-10-10", bis: "2026-10-10", halberTag: true }), 0);
 check("halber Tag über mehrere Tage wird ignoriert", arbeitstage({ von: "2026-10-05", bis: "2026-10-06", halberTag: true }), 2);
-check("Weihnachten 21.12.–1.1. = 8 (24./31. zählen, 25.12. und 1.1. nicht)", arbeitstage({ von: "2026-12-21", bis: "2027-01-01" }), 8);
-check("… davon 2026: 8", arbeitstage({ von: "2026-12-21", bis: "2027-01-01" }, 2026), 8);
+check("Weihnachten 21.12.–1.1. = 6 (24./25./31.12. und 1.1. frei)", arbeitstage({ von: "2026-12-21", bis: "2027-01-01" }), 6);
+check("… davon 2026: 6", arbeitstage({ von: "2026-12-21", bis: "2027-01-01" }, 2026), 6);
 check("… davon 2027: 0 (1.1. ist Feiertag)", arbeitstage({ von: "2026-12-21", bis: "2027-01-01" }, 2027), 0);
-check("über Silvester anteilig: 28.12.–8.1. → 2026: 4, 2027: 5", [arbeitstage({ von: "2026-12-28", bis: "2027-01-08" }, 2026), arbeitstage({ von: "2026-12-28", bis: "2027-01-08" }, 2027)], [4, 5]);
+check("über Silvester anteilig: 28.12.–8.1. → 2026: 3, 2027: 5", [arbeitstage({ von: "2026-12-28", bis: "2027-01-08" }, 2026), arbeitstage({ von: "2026-12-28", bis: "2027-01-08" }, 2027)], [3, 5]);
+check("halber Tag an Heiligabend = 0", arbeitstage({ von: "2026-12-24", bis: "2026-12-24", halberTag: true }), 0);
 
 console.log("\n── Überschneidung ──");
 check("überlappend", ueberschneiden({ von: "2026-10-05", bis: "2026-10-09" }, { von: "2026-10-08", bis: "2026-10-12" }), true);
@@ -68,8 +78,8 @@ const k = urlaubskonto({
     { art: "KRANK", status: "GENEHMIGT", von: "2026-10-12", bis: "2026-10-16" },
   ],
 });
-check("genehmigt 5, geplant 8,5, Krank zählt nicht", [k.genehmigt, k.geplant], [5, 8.5]);
-check("verfügbar = 30 + 2,5 − 5 − 8,5 = 19", k.verfuegbar, 19);
+check("genehmigt 5, geplant 6,5, Krank zählt nicht", [k.genehmigt, k.geplant], [5, 6.5]);
+check("verfügbar = 30 + 2,5 − 5 − 6,5 = 21", k.verfuegbar, 21);
 
 console.log("\n── Datum & Team ──");
 check("gültiges Datum", istGueltigesDatum("2026-02-28"), true);

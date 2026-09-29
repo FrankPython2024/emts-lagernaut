@@ -5,7 +5,7 @@ import { prisma } from "@/core/db/prisma";
 import type { SessionUser } from "@/core/types";
 import { URLAUB_TEAM_IDS, istImUrlaubTeam } from "@/lib/urlaub/team";
 import {
-  ABWESENHEIT_ARTEN, STATUS, arbeitstage, feiertageThueringen, istGueltigesDatum, ueberschneiden, urlaubskonto,
+  ABWESENHEIT_ARTEN, STATUS, arbeitstage, freieTage, istGueltigesDatum, ueberschneiden, urlaubskonto,
 } from "@/lib/urlaub/tage";
 
 // ── Urlaubsplanung (29.09.2026) ───────────────────────────────────────────────
@@ -100,7 +100,7 @@ export const urlaubRouter = createTRPCRouter({
         jahr,
         personen,
         eintraege: eintraege.map(shape),
-        feiertage: [...feiertageThueringen(jahr)].map(([tag, name]) => ({ tag, name })),
+        feiertage: [...freieTage(jahr)].map(([tag, name]) => ({ tag, name })),
       };
     }),
 

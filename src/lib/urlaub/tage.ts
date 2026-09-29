@@ -5,8 +5,10 @@
 // verschieben (der Container läuft auf UTC, siehe Statistik-Regel 2).
 //
 // Gezählt werden Arbeitstage Mo–Fr ohne gesetzliche Feiertage in THÜRINGEN
-// (Standort Sömmerda). Nicht enthalten: Fronleichnam (nur in Teilen des
-// Eichsfelds) sowie 24.12./31.12. (keine gesetzlichen Feiertage).
+// (Standort Sömmerda) und ohne die betriebsfreien Tage bei AfB: Heiligabend und
+// Silvester sind gesetzlich Arbeitstage, bei AfB aber frei (Frank, 29.09.2026) —
+// sie gehen also nicht vom Urlaub ab. Nicht enthalten: Fronleichnam (nur in
+// Teilen des Eichsfelds).
 //
 // Reine Logik, Test: `npm run test:urlaub`.
 
@@ -63,8 +65,23 @@ export function feiertageThueringen(jahr: number): Map<string, string> {
   return f;
 }
 
+/** Bei AfB arbeitsfrei, obwohl gesetzlich Arbeitstage. */
+export function betriebsfreieTage(jahr: number): Map<string, string> {
+  return new Map([
+    [ymd(jahr, 12, 24), "Heiligabend (betriebsfrei)"],
+    [ymd(jahr, 12, 31), "Silvester (betriebsfrei)"],
+  ]);
+}
+
+/** Alle arbeitsfreien Tage eines Jahres: gesetzlich (Thüringen) + betriebsfrei, nach Datum. */
+export function freieTage(jahr: number): Map<string, string> {
+  return new Map([...feiertageThueringen(jahr), ...betriebsfreieTage(jahr)].sort(([a], [b]) => a.localeCompare(b)));
+}
+
+/** Name des freien Tags (Feiertag oder betriebsfrei), sonst null. */
 export function feiertag(tag: string): string | null {
-  return feiertageThueringen(Number(tag.slice(0, 4))).get(tag) ?? null;
+  const jahr = Number(tag.slice(0, 4));
+  return feiertageThueringen(jahr).get(tag) ?? betriebsfreieTage(jahr).get(tag) ?? null;
 }
 
 /** 0 = Sonntag … 6 = Samstag */

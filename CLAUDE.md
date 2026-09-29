@@ -245,7 +245,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind NEUNZEHN Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 770) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub` (zusammen 778) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1477,7 +1477,9 @@ per Code-Änderung dazu, nicht per Klick.
   `UrlaubAnspruch` (userId+jahr unique, tage, uebertrag, Dezimal mit halben Tagen). **`db push`**, kein seed.
 - **Rechnen** (`src/lib/urlaub/tage.ts`, Test `npm run test:urlaub`): nur über Kalendertage „JJJJ-MM-TT",
   nie über Uhrzeiten. Arbeitstage Mo–Fr ohne **Feiertage Thüringen** (inkl. Weltkindertag 20.09. seit
-  2019 und Reformationstag; ohne Fronleichnam — nur Eichsfeld; 24./31.12. zählen als Arbeitstage).
+  2019 und Reformationstag; ohne Fronleichnam — nur Eichsfeld) und ohne die **betriebsfreien Tage
+  24.12. und 31.12.** (gesetzlich Arbeitstage, bei AfB frei — Frank, 29.09.2026; `betriebsfreieTage`,
+  getrennt von `feiertageThueringen`, zusammen in `freieTage`).
   Ostern nach Meeus/Jones/Butcher. Halber Tag nur bei einem Tag (0,5). Einträge über Silvester zählen
   anteilig je Jahr. Nur URLAUB zählt aufs Konto: **verfügbar = Anspruch + Übertrag − genehmigt − geplant**.
 - **Im Team darf jeder alles** (eintragen, ändern, löschen, genehmigen); wer es war, steht am Eintrag.
@@ -1487,8 +1489,11 @@ per Code-Änderung dazu, nicht per Klick.
   an einem ARBEITStag ebenfalls fehlt (nur Wochenende berührt zählt nicht); im Kalender ⚠ über dem Tag.
   Nur Warnung, kein Verbot.
 - **Oberfläche:** Urlaubskonto je Person (frei / genehmigt / geplant, Warnung ohne Anspruch),
-  Monatskalender Personen × Tage (Wochenende/Feiertag grau, geplant gestreift, genehmigt voll; leeres
-  Feld antippen = eintragen, farbiges = ändern), Jahresliste mit Status-Knopf, Ändern, Löschen (Rückfrage).
+  Monatskalender Personen × Tage auf **voller Fensterbreite** (`table-layout: fixed`, gleich breite Tage,
+  unter 58rem seitlich scrollbar; Wochenende grau, **freie Tage rosa mit „FT"** — bewusst weder Rot/Krank
+  noch Violett/Schulung; geplant gestreift, genehmigt voll; leeres Feld antippen = eintragen, farbiges =
+  ändern), darunter die freien Tage des Monats und aufklappbar des Jahres. Jahresliste mit Status-Knopf,
+  Ändern, Löschen (Rückfrage).
   „Heute" in deutscher Zeit (`Intl … Europe/Berlin`), nicht UTC.
 
 ### Notizbuch (Sep 2026)

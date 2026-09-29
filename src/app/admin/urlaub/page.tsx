@@ -16,7 +16,7 @@ import { Modal } from "@/components/ui/Modal";
 import { istImUrlaubTeam } from "@/lib/urlaub/team";
 import { addiereTage } from "@/lib/zeit/berlin";
 import {
-  ABWESENHEIT_ARTEN, ART_TEXT, arbeitstage, feiertag, feiertageThueringen, istArbeitstag, wochentag,
+  ABWESENHEIT_ARTEN, ART_TEXT, arbeitstage, feiertag, freieTage, istArbeitstag, wochentag,
   type AbwesenheitArt, type UrlaubStatus,
 } from "@/lib/urlaub/tage";
 
@@ -89,7 +89,7 @@ export default function UrlaubSeite() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb]">🏖️ Urlaubsplanung</h1>
-          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">Nur für Frank, Christian und Ronny sichtbar. Gezählt werden Arbeitstage — Wochenenden und Feiertage in Thüringen nicht.</p>
+          <p className="text-sm text-[#65676b] dark:text-[#b0b3b8] mt-1">Nur für Frank, Christian und Ronny sichtbar. Gezählt werden Arbeitstage — Wochenenden, Feiertage in Thüringen sowie 24.12. und 31.12. (betriebsfrei) nicht.</p>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" className={knopfRand} onClick={() => setJahr(jahr - 1)} aria-label="Vorjahr">‹</button>
@@ -222,7 +222,7 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }:
   // Tage, an denen mehr als eine Person fehlt (nur Arbeitstage) — Überschneidung.
   const mehrfach = new Set(tage.filter((t) => istArbeitstag(t) && personen.filter((p) => eintragAm(p.id, t)).length > 1));
   const feiertageImMonat = tage.filter((t) => feiertag(t)).map((t) => ({ tag: t, name: feiertag(t)! }));
-  const alleFeiertage = [...feiertageThueringen(jahr)].sort(([a], [b]) => a.localeCompare(b));
+  const alleFeiertage = [...freieTage(jahr)];
   // Feiertag (Thüringen, arbeitsfrei) rosa — bewusst weder Rot (Krank) noch Violett (Schulung).
   const leer = (t: string) => feiertag(t)
     ? "bg-[#fce4ec] dark:bg-[#4a2433]"
@@ -252,7 +252,7 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }:
                 const ft = feiertag(t);
                 const frei = !istArbeitstag(t);
                 return (
-                  <th key={t} title={ft ? `${ft} (Feiertag, arbeitsfrei)` : undefined}
+                  <th key={t} title={ft ? `${ft} — arbeitsfrei` : undefined}
                     className={`text-xs font-bold leading-tight py-1 rounded-md ${ft ? "bg-[#fce4ec] dark:bg-[#4a2433] text-[#ad1457] dark:text-[#f48fb1]" : ""} ${t === h ? "text-[#008BD2]" : !ft && frei ? "text-[#9aa0a6]" : !ft ? "text-[#202F61] dark:text-[#e4e6eb]" : ""}`}>
                     {WT[wochentag(t)]}<br />{t.slice(8, 10)}
                     {ft && <div className="text-[10px]" aria-label={`Feiertag: ${ft}`}>FT</div>}
@@ -306,12 +306,12 @@ function Monat({ jahr, monat, setMonat, personen, eintraege, onNeu, onEintrag }:
 
       {/* Feiertage: im Monat ausgeschrieben, das ganze Jahr zum Aufklappen. */}
       <div className="rounded-xl bg-[#fce4ec]/60 dark:bg-[#4a2433]/60 px-3 py-2 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-        <span className="font-bold text-[#ad1457] dark:text-[#f48fb1]">Feiertage im {MONATE[monat]}:</span>{" "}
+        <span className="font-bold text-[#ad1457] dark:text-[#f48fb1]">Freie Tage im {MONATE[monat]}:</span>{" "}
         {feiertageImMonat.length === 0 ? "keine" : feiertageImMonat.map((f) => `${lang(f.tag)} ${f.name}`).join(" · ")}
       </div>
       <details className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
         <summary className="cursor-pointer font-bold text-[#202F61] dark:text-[#e4e6eb] min-h-[44px] flex items-center">
-          Alle Feiertage {jahr} in Thüringen ({alleFeiertage.length}) — an diesen Tagen wird nicht gearbeitet
+          Alle freien Tage {jahr} ({alleFeiertage.length}) — Feiertage Thüringen und betriebsfrei, an diesen Tagen wird nicht gearbeitet
         </summary>
         <ul className="mt-1 grid gap-x-6 gap-y-1" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
           {alleFeiertage.map(([tag, name]) => (
