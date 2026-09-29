@@ -1,5 +1,6 @@
 "use client";
 import QRCode from "qrcode";
+import { normalizeLogId } from "@/lib/pickup/logId";
 
 // ── Auslager-Etikett 55×30 mm (Thermodrucker) ────────────────────────────────
 //
@@ -11,6 +12,12 @@ import QRCode from "qrcode";
 // Deshalb: LogID groß (11 pt) in eigener Zeile, Grading als schwarz umrandetes
 // Kästchen, kein Emoji. EINE Vorlage (`etikettHtml` + `ETIKETT_CSS`) für
 // Vorschau, Einzel- und Sammeldruck — vorher stand das Etikett dreimal im Code.
+//
+// QR-Code = die LogID als reine Ziffern (Frank, 29.09.2026). Vorher stand darin
+// „AL:<Beleg-Nr>", was nirgends in Lagernaut ausgewertet wurde — Deko. Reine
+// Ziffern passen in jedes Scanfeld (überall wird per normalizeLogId auf Ziffern
+// reduziert) und ergeben den gröbsten, am leichtesten lesbaren QR-Code.
+// Ohne LogID gibt es keinen QR-Code statt eines irreführenden.
 
 export type AuslagerBelegData = {
   belegNr:            string;
@@ -40,6 +47,17 @@ function etlKlartext(code: string): string | null {
 
 function esc(s: string | null | undefined): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Inhalt des QR-Codes: LogID als reine Ziffern, sonst nichts. */
+export function qrInhalt(d: Pick<AuslagerBelegData, "logId">): string | null {
+  const ziffern = normalizeLogId(d.logId);
+  return ziffern.length >= 6 ? ziffern : null;
+}
+
+async function qrFuer(d: AuslagerBelegData): Promise<string> {
+  const inhalt = qrInhalt(d);
+  return inhalt ? genQrSvg(inhalt) : "";
 }
 
 // ── QR-Code als SVG Data-URL ─────────────────────────────────────────────────
@@ -88,14 +106,14 @@ function etikettHtml(d: AuslagerBelegData, qr: string): string {
         <div class="ort">${esc(ort)}</div>
         <div class="bnr">${esc(d.belegNr)}</div>
       </div>
-      <div class="right"><div class="emts">EMTS</div><img class="qr" src="${qr}" alt="" /></div>
+      <div class="right"><div class="emts">EMTS</div>${qr ? `<img class="qr" src="${qr}" alt="" />` : `<div class="qr"></div>`}</div>
     </div>`;
 }
 
 // ── HTML-Builder (für iframe-Vorschau und Einzeldruck) ───────────────────────
 
 export async function buildAuslagerBelegHtml(data: AuslagerBelegData): Promise<string> {
-  const qr = await genQrSvg(`AL:${data.belegNr}`);
+  const qr = await qrFuer(data);
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     @media screen {
@@ -136,7 +154,7 @@ export async function printMehrereAuslagerBelege(liste: AuslagerBelegData[]): Pr
   if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
 
   const entries = await Promise.all(
-    liste.map(async (d) => ({ d, qr: await genQrSvg(`AL:${d.belegNr}`) })),
+    liste.map(async (d) => ({ d, qr: await qrFuer(d) })),
   );
 
   const css = `
