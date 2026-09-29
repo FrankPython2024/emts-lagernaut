@@ -314,6 +314,13 @@ EOF
   weiteren Konten. ⚠️ Der Test stornierte über `storniereAnfrage({ logId, teil })` — diese Variante
   sucht die erste offene Anfrage mit gleicher LogID und gleichem Teil, **ohne Marker**, und hätte
   unter echten Kürzeln echte Anfragen treffen können (ist nicht passiert). Jetzt über die Id.
+- ⚠️ **Etiketten für den Thermodrucker: nur reines Schwarz, alles fett, nichts unter 6,5 pt.** Das
+  Auslager-Etikett (55×30 mm, `components/ui/AuslagerBeleg.tsx`) druckte LogID, Techniker und Beleg-Nr.
+  in Grau (#555/#888), „Direkt" in Orange und das Grading als farbige Plakette mit weißer Schrift — ein
+  Thermodrucker rastert das zu blassen Punkten („die LogID erkennt man gar nicht", Frank 29.09.2026).
+  Jetzt: LogID eigene Zeile 11 pt/900, Grading schwarz umrandet, kein Emoji, alles #000. EINE Vorlage
+  (`etikettHtml` + `ETIKETT_CSS`) für Vorschau, Einzel- und Sammeldruck — vorher dreifach im Code, die
+  React-Fassung (Manager/Preview) war ungenutzt und ist entfernt. Gilt für jedes neue Etikett.
 - **Socket.io-Panel ≠ Auth-State.** Sockets bestehen bis Tab-Reload, unabhängig vom Token.
 - **Geräte-Import:** nur HP, Lenovo, Dell, Fujitsu und **Microsoft/Surface** (typo-tolerant;
   HPE explizit abgelehnt = Server). Modellnummern bleiben erhalten ("Precision 7530");
