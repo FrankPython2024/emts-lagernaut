@@ -42,6 +42,17 @@
   --warning:  #f7b928;
   --purple:   #7c3aed;
 
+  /* Techniker-Portal: „oft angefragt" (30.09.2026). Bernstein, damit es sich vom
+     Cyan für „ausgewählt" klar abhebt. Rand gegen Kartenfläche ≥ 3:1 (WCAG 1.4.11),
+     Schild-Schrift immer dunkel auf Gelb (> 10:1) — in hell wie dunkel. */
+  --oft-bg:        #FFF3D6;
+  --oft-border:    #B7791F;
+  --oft-schild-bg: #F7B928;
+  --oft-schild-fg: #1a1a1a;
+  /* Schrift auf „ausgewählt"-Flächen (Cyan-Hauch). Im Dunkelmodus hell — vorher stand
+     #005fa3 fest drin und war auf #1F2329 kaum lesbar (1,9:1). */
+  --auswahl-fg:    #005fa3;
+
   /* Shadows */
   --shadow-sm: 0 2px 8px rgba(32,47,97,0.08);
   --shadow-md: 0 4px 16px rgba(32,47,97,0.12);
@@ -66,6 +77,10 @@
   --text:     #e4e6eb;
   --text-dim: #b0b3b8;
   --border:   #3A3F47;
+
+  --oft-bg:        #3A2F16;
+  --oft-border:    #F7B928;
+  --auswahl-fg:    #45bdff;
 }
 
 /* ── Basis-Styles ────────────────────────────────────────────────────────────── */

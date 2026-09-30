@@ -392,7 +392,7 @@ function ChatBadge({ anfrageIds }: { anfrageIds: number[] }) {
       alignItems:   "center",
       gap:          5,
       background:   "rgba(0,139,210,0.10)",
-      color:        "#005fa3",
+      color:        "var(--auswahl-fg)",
       borderRadius: 20,
       padding:      "3px 10px",
       fontSize:     "0.82rem",
@@ -844,9 +844,10 @@ function AnfrageFlow({
                       style={{
                         padding:        "0.9rem 0.5rem 0.75rem",
                         borderRadius:   12,
-                        border:         sel ? `2px solid ${CYAN}` : "1.5px solid var(--border)",
-                        background:     sel ? "rgba(0,139,210,0.08)" : "var(--card-bg)",
-                        color:          sel ? "#005fa3" : "var(--text)",
+                        // Ausgewählt = Cyan (hat Vorrang), oft angefragt = Bernstein (Frank 30.09.2026).
+                        border:         sel ? `2px solid ${CYAN}` : t.oft ? "2px solid var(--oft-border)" : "1.5px solid var(--border)",
+                        background:     sel ? "rgba(0,139,210,0.08)" : t.oft ? "var(--oft-bg)" : "var(--card-bg)",
+                        color:          sel ? "var(--auswahl-fg)" : "var(--text)",
                         cursor:         "pointer",
                         fontWeight:     sel ? 800 : 600,
                         fontFamily:     "'Ubuntu', sans-serif",
@@ -865,19 +866,19 @@ function AnfrageFlow({
                     >
                       <Icon
                         size={28}
-                        style={{ color: sel ? "#005fa3" : "var(--text-dim)", flexShrink: 0 }}
+                        style={{ color: sel ? "var(--auswahl-fg)" : "var(--text-dim)", flexShrink: 0 }}
                       />
                       <span>{t.teiltyp}</span>
                       {t.oft && (
                         <span
                           aria-label={`oft angefragt: ${t.anfragen}-mal für dieses Gerät`}
                           style={{
-                            fontSize:     "0.72rem",
+                            fontSize:     "0.74rem",
                             fontWeight:   800,
-                            color:        "var(--text)",   // lesbar in hell UND dunkel
-                            background:   "rgba(186,117,23,0.14)",
+                            color:        "var(--oft-schild-fg)",
+                            background:   "var(--oft-schild-bg)",
                             borderRadius: 999,
-                            padding:      "0.1rem 0.5rem",
+                            padding:      "0.15rem 0.55rem",
                             lineHeight:   1.3,
                           }}
                         >
@@ -885,7 +886,7 @@ function AnfrageFlow({
                         </span>
                       )}
                       {isTastatur && sel && tastaturBeschr && (
-                        <span style={{ fontSize: "0.72rem", color: "#005fa3", lineHeight: 1.2 }}>
+                        <span style={{ fontSize: "0.72rem", color: "var(--auswahl-fg)", lineHeight: 1.2 }}>
                           {tastaturBeschr.startsWith("Einzeltasten:")
                             ? tastaturBeschr.replace("Einzeltasten:", "").trim().split(",").length + " Tasten"
                             : "Komplett"}
@@ -949,7 +950,7 @@ function AnfrageFlow({
                             </span>
                           )}
                           {tastaturHint && (
-                            <span style={{ fontWeight: 600, fontSize: "0.78rem", color: "#005fa3" }}>
+                            <span style={{ fontWeight: 600, fontSize: "0.78rem", color: "var(--auswahl-fg)" }}>
                               · {tastaturHint}
                             </span>
                           )}
@@ -1307,7 +1308,7 @@ function TastenAuswahlModal({
     borderRadius: 12,
     border:       active ? `2px solid ${CYAN}` : "1.5px solid var(--border)",
     background:   active ? "rgba(0,139,210,0.08)" : "var(--card-bg)",
-    color:        active ? "#005fa3" : "var(--text)",
+    color:        active ? "var(--auswahl-fg)" : "var(--text)",
     cursor:       "pointer",
     fontWeight:   active ? 700 : 500,
     fontFamily:   "'Ubuntu', sans-serif",

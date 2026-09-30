@@ -1865,6 +1865,12 @@ E14 Gen 4 Füße vorne 51 von 66, X1 Yoga Gen 6 Akku 23 von 38, 5520 D Cover/Tas
   Scheitert die Zählung, bleibt die gewohnte Reihenfolge. ⚠️ **Nur im Techniker-Portal** — Einlager-
   Assistent und LogID-Lookup nutzen `getByGeraetMitStandard` unverändert in fester Reihenfolge.
   Nach Deploy am 30.09.2026 im Betrieb bestätigt (Frank: beim 7490 steht der Akku ganz oben).
+- **Kennzeichnung** (Wunsch Frank, gleicher Tag): „oft angefragt"-Kacheln mit Bernstein-Hintergrund und
+  -Rand plus gelbem Schild (`--oft-*` in `globals.css`, hell und dunkel), „ausgewählt" bleibt Cyan und hat
+  Vorrang. An ALLEN 181 Gerätetypen mit Anfragen gegen die Produktion geprüft: jeder Scan findet seine
+  Zählung, Reihenfolge überall absteigend, 82 Typen mit Markierung; nur 2 alte „Mainboard"-Anfragen ohne
+  Kachel (Teiltyp bewusst deaktiviert). Nebenbei: Schrift auf ausgewählten Flächen stand fest auf
+  `#005fa3` und war im Dunkelmodus kaum lesbar (1,9:1) → `--auswahl-fg` (hell #005fa3, dunkel #45bdff).
 
 ### Notizbuch (Sep 2026)
 
