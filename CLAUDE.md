@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 996) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1004) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1843,6 +1843,27 @@ cyan umrandet); „🔍 Spender suchen" je Bündel. Der Kasten lässt sich einkl
   haben dafür `weitereZielLogIds` — sonst schlüge sich ein Gerät auf der Werkbank für die anderen
   fünf Anfragen als Spender vor.
 - Keine Schemaänderung, kein neues Recht (ANFRAGE_VIEW_ALL).
+
+### Techniker-Portal: häufigste Teile zuerst (30.09.2026)
+
+Wunsch Frank: „nach Scan der LogID pro Gerätetyp das Ersatzteil zuerst, das für diesen Typ am
+häufigsten angefragt wird — z. B. beim Dell 7490 der Akku, dann die anderen absteigend."
+Gemessen am selben Tag (1.574 Anfragen seit 28.05.2026, 181 Modelle): 7490 Akku 20 von 26,
+E14 Gen 4 Füße vorne 51 von 66, X1 Yoga Gen 6 Akku 23 von 38, 5520 D Cover/Tastatur/Akku fast gleich.
+- Regel `src/lib/anfragen/haeufigkeit.ts` (Test in `test:gleicheteile`): Anzahl absteigend, **Gleichstand
+  und 0 in der gewohnten Reihenfolge** (`Teiltyp.sortierung`) — ein Modell ohne Anfragen sieht aus wie
+  immer (96 Modelle haben < 5 Anfragen). „★ oft angefragt" auf höchstens 3 Kacheln mit ≥ 3 Anfragen,
+  damit die Techniker verstehen, warum die Kacheln woanders stehen. Teilnamen verglichen über
+  `teilNorm` („D Cover" in Anfragen = Kachel „D-Cover").
+- Zählung `src/modules/anfragen/haeufigkeit.ts`: letzte 12 Monate, ohne Storno, Test-Modus und
+  Sonderanfragen, je Modellschlüssel über die **Roh-Bezeichnung** (`anfrageSchluesselFuer`) — ein
+  „Latitude 7320 Detachable" hat seine eigene Reihenfolge (Akku 7, Tastatur 4, Displaymodul 3), nicht
+  die des normalen 7320. Alle Modelle einmal gezählt und 10 min im Prozessspeicher: erster Scan danach
+  ~0,7 s, jeder weitere wenige ms (an der Produktion gemessen).
+- Router `kompatibilitaet.teilHaeufigkeit` (protectedProcedure wie `getByGeraetMitStandard`). Das Portal
+  zeichnet die Kacheln erst, wenn BEIDE Abfragen da sind — sonst sprängen sie unter dem Finger weg.
+  Scheitert die Zählung, bleibt die gewohnte Reihenfolge. ⚠️ **Nur im Techniker-Portal** — Einlager-
+  Assistent und LogID-Lookup nutzen `getByGeraetMitStandard` unverändert in fester Reihenfolge.
 
 ### Notizbuch (Sep 2026)
 

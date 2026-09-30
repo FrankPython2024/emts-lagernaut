@@ -10,6 +10,7 @@
  */
 
 import { buendele, sichtbareBuendel, teilSchluessel, type BuendelAnfrage } from "../src/lib/anfragen/gleicheTeile";
+import { sortiereNachHaeufigkeit, teilNorm } from "../src/lib/anfragen/haeufigkeit";
 
 let passed = 0;
 let failed = 0;
@@ -141,6 +142,27 @@ console.log("\n── Auf die sichtbare Liste zuschneiden ──");
   check("nur noch eine sichtbar → kein Bündel", sichtbareBuendel(b, new Set([27744])), []);
   check("nichts sichtbar → nichts", sichtbareBuendel(b, new Set()), []);
   check("Original bleibt unverändert", b[0]?.anfrageIds.length, 6);
+}
+
+console.log("\n── Techniker-Portal: häufigste Teile zuerst (30.09.2026) ──");
+{
+  // Gewohnte Reihenfolge (Teiltyp.sortierung) — gekürzt.
+  const standard = ["Mainboard", "Display", "Displaymodul", "Touchpad", "Touchpad Buttons", "Tastatur", "Füße vorne", "Akku", "D-Cover"].map((teiltyp) => ({ teiltyp }));
+  // Echte Zahlen Dell Latitude 7490, 30.09.2026
+  const l7490 = [{ teil: "Akku", anzahl: 20 }, { teil: "Displaymodul", anzahl: 2 }, { teil: "Touchpad Buttons", anzahl: 1 }, { teil: "Touchpad", anzahl: 1 }, { teil: "Tastatur", anzahl: 1 }, { teil: "Füße vorne", anzahl: 1 }];
+  const s7490 = sortiereNachHaeufigkeit(standard, l7490);
+  check("7490: Akku zuerst, dann absteigend, Gleichstand in gewohnter Reihenfolge", s7490.map((t) => t.teiltyp),
+    ["Akku", "Displaymodul", "Touchpad", "Touchpad Buttons", "Tastatur", "Füße vorne", "Mainboard", "Display", "D-Cover"]);
+  check("7490: nur der Akku ist „oft angefragt“ (ab 3)", s7490.filter((t) => t.oft).map((t) => [t.teiltyp, t.anfragen]), [["Akku", 20]]);
+  check("ohne Anfragen: alles wie immer, nichts markiert", sortiereNachHaeufigkeit(standard, []).map((t) => t.teiltyp), standard.map((t) => t.teiltyp));
+  check("Abfrage fehlgeschlagen (undefined) → wie immer", sortiereNachHaeufigkeit(standard, undefined).map((t) => t.teiltyp)[0], "Mainboard");
+  const viele = sortiereNachHaeufigkeit(standard, [
+    { teil: "D Cover", anzahl: 18 }, { teil: "Tastatur", anzahl: 17 }, { teil: "Akku", anzahl: 14 }, { teil: "Displaymodul", anzahl: 14 },
+  ]);
+  check("5520: „D Cover“ trifft die Kachel „D-Cover“", viele[0]?.teiltyp, "D-Cover");
+  check("höchstens 3 markiert", viele.filter((t) => t.oft).map((t) => t.teiltyp), ["D-Cover", "Tastatur", "Displaymodul"]);
+  check("Teilnamen vergleichbar", [teilNorm("D-Cover"), teilNorm(" d  cover "), teilNorm("Füße_vorne")], ["d cover", "d cover", "füße vorne"]);
+  check("zusätzliche Felder bleiben erhalten", sortiereNachHaeufigkeit([{ teiltyp: "Akku", bestand: 4 }], [{ teil: "Akku", anzahl: 5 }])[0], { teiltyp: "Akku", bestand: 4, anfragen: 5, oft: true });
 }
 
 console.log(`\n${passed} bestanden, ${failed} fehlgeschlagen\n`);

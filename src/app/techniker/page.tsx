@@ -14,6 +14,7 @@ import { getLucideIcon } from "@/lib/icons/getLucideIcon";
 import { useTestModus, darfTestModus } from "@/lib/testModus/testModus";
 import { usePermissions } from "@/hooks/usePermissions";
 import MobilAnfrageBereich from "./MobilAnfrageBereich";
+import { sortiereNachHaeufigkeit } from "@/lib/anfragen/haeufigkeit";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -524,6 +525,12 @@ function AnfrageFlow({
     { geraet: selectedGeraet?.bereinigt ?? "" },
     { enabled: !!selectedGeraet, staleTime: 60_000 },
   );
+  // Häufigste Teile dieses Gerätetyps zuerst (Wunsch Frank 30.09.2026). Schlägt die
+  // Abfrage fehl, bleibt die gewohnte Reihenfolge — die Anfrage geht trotzdem.
+  const haeufigkeitQuery = api.kompatibilitaet.teilHaeufigkeit.useQuery(
+    { logId: selectedGeraet && selectedGeraet.logId !== "---" ? selectedGeraet.logId : null, geraet: selectedGeraet?.bereinigt ?? "" },
+    { enabled: !!selectedGeraet, staleTime: 5 * 60_000, retry: false },
+  );
 
   const addItemsBulkMutation = api.warenkorb.addItemsBulk.useMutation();
   const addSonderMutation    = api.warenkorb.addSonderAnfrage.useMutation();
@@ -706,7 +713,10 @@ function AnfrageFlow({
     }
   }
 
-  const teile    = teileQuery.data?.teile ?? [];
+  const teile    = useMemo(
+    () => sortiereNachHaeufigkeit(teileQuery.data?.teile ?? [], haeufigkeitQuery.data),
+    [teileQuery.data, haeufigkeitQuery.data],
+  );
   const canSend  = selectedTeile.size > 0 || sonderBeschr.trim().length > 0;
   const sendLabel = (() => {
     const n = selectedTeile.size + (sonderBeschr.trim() ? 1 : 0);
@@ -816,7 +826,7 @@ function AnfrageFlow({
               Welche Teile brauchst du?
             </p>
 
-            {teileQuery.isLoading ? (
+            {teileQuery.isLoading || haeufigkeitQuery.isLoading ? (
               <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>
                 Teile werden geladen…
               </div>
@@ -858,6 +868,22 @@ function AnfrageFlow({
                         style={{ color: sel ? "#005fa3" : "var(--text-dim)", flexShrink: 0 }}
                       />
                       <span>{t.teiltyp}</span>
+                      {t.oft && (
+                        <span
+                          aria-label={`oft angefragt: ${t.anfragen}-mal für dieses Gerät`}
+                          style={{
+                            fontSize:     "0.72rem",
+                            fontWeight:   800,
+                            color:        "var(--text)",   // lesbar in hell UND dunkel
+                            background:   "rgba(186,117,23,0.14)",
+                            borderRadius: 999,
+                            padding:      "0.1rem 0.5rem",
+                            lineHeight:   1.3,
+                          }}
+                        >
+                          ★ oft angefragt
+                        </span>
+                      )}
                       {isTastatur && sel && tastaturBeschr && (
                         <span style={{ fontSize: "0.72rem", color: "#005fa3", lineHeight: 1.2 }}>
                           {tastaturBeschr.startsWith("Einzeltasten:")

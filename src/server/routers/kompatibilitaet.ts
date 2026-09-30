@@ -17,6 +17,7 @@ import {
   massAutoVerknuepfung,
 } from "@/modules/kompatibilitaet/service";
 import { prisma } from "@/core/db/prisma";
+import { teilHaeufigkeitFuer } from "@/modules/anfragen/haeufigkeit";
 
 export const kompatibilitaetRouter = createTRPCRouter({
 
@@ -64,6 +65,12 @@ export const kompatibilitaetRouter = createTRPCRouter({
         standortIds: standortIds ?? undefined,
       });
     }),
+
+  // Wie oft wurde welches Teil für diesen Gerätetyp angefragt? — Reihenfolge der
+  // Kacheln im Techniker-Portal (Wunsch Frank 30.09.2026, src/lib/anfragen/haeufigkeit.ts).
+  teilHaeufigkeit: protectedProcedure
+    .input(z.object({ logId: z.string().max(40).nullable(), geraet: z.string().min(1).max(300) }))
+    .query(({ input }) => teilHaeufigkeitFuer(input.logId, input.geraet)),
 
   // ─── Modell-Verknüpfung (Admin) ────────────────────────────────────────────
 
