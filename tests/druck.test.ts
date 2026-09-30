@@ -7,7 +7,7 @@
  */
 
 import {
-  planeDruckliste, dateiArt, teiltypenAus, teiltypenText,
+  planeDruckliste, dateiArt, teiltypenAus, teiltypenText, verteileBestand,
   type BedarfZeile, type VorlageKurz,
 } from "../src/lib/druck/druckliste";
 import { darfStarten, darfPlatteFreigeben, platteNachBericht, haengt, istDerAuftrag, materialPasst } from "../src/lib/druck/warteschlange";
@@ -86,6 +86,51 @@ const s = planeDruckliste([
   b("c", "Füße vorne", { anfragen: 1, stueck: 0, offenStueck: 9 }),
 ], [v(1, ["a", "c"])], OPTS);
 check("größte Lücke zuerst", s.drucken.map((x) => x.key), ["c", "a"]);
+
+console.log("\n── Bestand verteilen: geteilte Artikel und Pool (Audit 30.09.2026) ──");
+{
+  const art = (id: number, bestand: number, poolPartnerId: number | null = null) => [id, { id, bestand, poolPartnerId }] as const;
+  // E14 Gen 2 und Gen 3 teilen sich einen Artikel mit 79 Stück, je 60 Stück Bedarf.
+  const e14 = verteileBestand(
+    [{ zeile: "gen2", artikelId: 1 }, { zeile: "gen3", artikelId: 1 }],
+    new Map([art(1, 79)]),
+    () => 60,
+  );
+  check("geteilter Artikel: nicht zweimal 79", [e14.jeZeile.get("gen2"), e14.jeZeile.get("gen3")], [39, 39]);
+  check("… abgerundet: zusammen nie mehr als der echte Bestand", (e14.jeZeile.get("gen2") ?? 0) + (e14.jeZeile.get("gen3") ?? 0) <= 79, true);
+  const plan = planeDruckliste(
+    [{ key: "gen2", teiltyp: "Füße vorne", name: "E14 Gen 2", anfragen: 20, stueck: 60, offenStueck: 60, bestand: e14.jeZeile.get("gen2")! },
+     { key: "gen3", teiltyp: "Füße vorne", name: "E14 Gen 3", anfragen: 20, stueck: 60, offenStueck: 60, bestand: e14.jeZeile.get("gen3")! }],
+    [{ id: 9, name: "E14", teiltypen: ["Füße vorne"], modellKeys: ["gen2", "gen3"], stueckProPlatte: 10 }],
+    { tage: 90, vorratTage: 30, minAnfragenKonstruieren: 2 },
+  );
+  check("… damit erscheint die echte Lücke in der Druckliste", plan.drucken.map((z) => [z.key, z.fehlt]), [["gen2", 41], ["gen3", 41]]);
+
+  // Nach Nachfrage: 90 Stück, Gen 2 hat dreimal so viel Bedarf wie Gen 3.
+  const gewichtet = verteileBestand(
+    [{ zeile: "a", artikelId: 1 }, { zeile: "b", artikelId: 1 }],
+    new Map([art(1, 80)]),
+    (z) => (z === "a" ? 30 : 10),
+  );
+  check("nach Nachfrage verteilt", [gewichtet.jeZeile.get("a"), gewichtet.jeZeile.get("b")], [60, 20]);
+
+  // Pool: hinten 0 Stück, vorne 200 Stück desselben Teils.
+  const pool = verteileBestand(
+    [{ zeile: "hinten", artikelId: 2 }, { zeile: "vorne", artikelId: 3 }],
+    new Map([art(2, 0, 3), art(3, 200, 2)]),
+    (z) => (z === "hinten" ? 10 : 30),
+  );
+  check("Pool: hinten bekommt einen Anteil vom gemeinsamen Bestand", [pool.jeZeile.get("hinten"), pool.jeZeile.get("vorne")], [50, 150]);
+  check("Pool: eine Gruppe mit 200", [...pool.gruppeBestand.values()], [200]);
+  check("Pool: beide Zeilen hängen an derselben Gruppe", [pool.gruppenJeZeile.get("hinten"), pool.gruppenJeZeile.get("vorne")], [[2], [2]]);
+
+  const ohne = verteileBestand([{ zeile: "x", artikelId: 5 }, { zeile: "y", artikelId: 5 }], new Map([art(5, 10)]), () => 0);
+  check("ohne Nachfrage zu gleichen Teilen", [ohne.jeZeile.get("x"), ohne.jeZeile.get("y")], [5, 5]);
+  const doppelt = verteileBestand([{ zeile: "x", artikelId: 6 }, { zeile: "x", artikelId: 6 }], new Map([art(6, 7)]), () => 1);
+  check("zwei Kompatibilitäten desselben Artikels am selben Modell: einmal", doppelt.jeZeile.get("x"), 7);
+  const partnerFehlt = verteileBestand([{ zeile: "x", artikelId: 7 }], new Map([art(7, 4, 99)]), () => 1);
+  check("Pool-Partner nicht geladen (anderer Standort) → nur eigener Bestand", partnerFehlt.jeZeile.get("x"), 4);
+}
 
 console.log("\n── Dateiarten ──");
 check(".gcode.3mf = Druckdatei", dateiArt("E14 Fuss vorne 40x.gcode.3mf"), "DRUCK");

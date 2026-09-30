@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 986) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 996) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1701,11 +1701,26 @@ Einbuchen). Frank: „der Lagernaut wird zum Monster" → abarbeiten in Paketen,
   abgewiesen, `/status` und `/roh` nur direkt), `erlaubteSeiten`, FTP `holen/liste/loeschen`,
   `vorlageId` am DruckenKnopf, `gekoppeltAm`, Exporte im Etikett. Zustand „aktiv" überall aus `DRUCKT`.
 
-**Noch offen (Pakete 3–4):** Druckliste: Bestand
-doppelt bei Artikeln an mehreren Modellen, Pool nicht berücksichtigt, Nachfrage über `geraeteName`
-statt Roh-Bezeichnung (Detachable); Barrierefreiheit: Drucken-Knopf 2,7:1, `aria-live` auf der ganzen
-Karte (alle 3 s vorgelesen), Knöpfe 36–44 px. Kleinere: Einbuchen/Zurücknehmen nicht atomar, Gramm
-nicht im Protokoll festgehalten, fehlender Index `DruckProtokoll.buchungId`.
+**Paket 3 „Druckliste rechnet richtig" (**`db push`**: `DruckProtokoll.gramm` + Index `buchungId`):**
+- ⚠️ **Bestand genau einmal:** `verteileBestand()` in `src/lib/druck/druckliste.ts` — Artikel samt
+  Pool-Partner bilden EINE Bestandsgruppe, deren Bestand auf alle Zeilen (Modell + Teiltyp) verteilt
+  wird, die daran hängen, nach Nachfrage (ohne Nachfrage zu gleichen Teilen), abgerundet. Die
+  Vorlagen-Karten zählen jede Gruppe einmal. An der Produktion verglichen (alt gegen neu, 30.09.2026):
+  E14 Gen 4 + Gen 2 teilen einen Artikel mit 75 Stück → vorher je 75, jetzt 58 + 15; EliteBook 850
+  G6/G5 100 → 80 + 20; **LifeBook U7411 vorne stand mit „Bestand 0, 3 fehlen" auf „Konstruieren",
+  obwohl hinten 230 baugleiche Füße im Pool liegen** → jetzt 115 + 115. Sonst keine Zeile anders.
+- Nachfrage über die Roh-Bezeichnung des Zielgeräts (`anfrageSchluesselFuer`) wie Teilespender und
+  „gleiche Teile" — nicht mehr über `geraeteName`.
+- Bedarfsrechnung liegt jetzt in `src/modules/druck/bedarf.ts` (vorher im Router), mit Standortfilter.
+- Filament-Gramm werden beim Einbuchen im Protokoll festgehalten; die Auswertung nimmt sie vor der
+  heutigen Druckdatei (alte Materialkosten ändern sich nicht mehr beim Neu-Slicen).
+- Zurücknehmen: nur am eigenen Standort; ist die Buchung schon über die Buchungsseite gelöscht, wird
+  nur das Protokoll abgeschlossen (vorher „schon ausgegeben"); ein zweiter Klick aus einem anderen Tab
+  ist kein Fehler mehr. Einbuchen zeigt den Standort, sobald Artikel mehrerer Standorte zur Wahl stehen.
+
+**Noch offen (Paket 4 und Rest):** Barrierefreiheit: Drucken-Knopf 2,7:1, `aria-live` auf der ganzen
+Karte (alle 3 s vorgelesen), Knöpfe 36–44 px. Kleinere: Einbuchen legt Buchung und Protokoll nicht in EINER
+Transaktion an (`bucheLager` hat seine eigene) — scheitert das Protokoll, bleibt eine Buchung ohne Protokoll.
 
 ### Urlaubsplanung (29.09.2026)
 

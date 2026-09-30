@@ -1851,12 +1851,16 @@ model DruckProtokoll {
   // das Protokoll soll dann nicht mitverschwinden.
   buchungId          Int?
   gedrucktVon        String        @db.VarChar(50)
+  // Filament laut Druckdatei zum Zeitpunkt des Einbuchens (Audit 30.09.2026) — sonst
+  // änderten sich alte Materialkosten, sobald die Vorlage neu geslict wird.
+  gramm              Decimal?      @db.Decimal(10, 2)
   zurueckgenommenAm  DateTime?
   zurueckgenommenVon String?       @db.VarChar(50)
   createdAt          DateTime      @default(now())
 
   @@index([vorlageId])
   @@index([createdAt])
+  @@index([buchungId])
 }
 
 // Einstellungen der 3D-Druck-Auswertung (30.09.2026), eine Zeile (id = 1).

@@ -544,6 +544,8 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
   }, [ziel.data]);
 
   const artikel = ziel.data?.artikel ?? [];
+  // Admins sehen alle Standorte — dann muss man sehen, wohin gebucht wird (Audit 30.09.2026).
+  const mehrereStandorte = new Set(artikel.map((a) => a.standort)).size > 1;
   const gewaehlt = artikel.find((a) => a.id === artikelId) ?? artikel[0] ?? null;
   const plattenZahl = zahlOderNull(platten);
   const stueckVorschlag = plattenZahl && stueckProPlatte ? plattenZahl * stueckProPlatte : null;
@@ -625,7 +627,7 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
                     className={`w-full text-left px-4 min-h-[56px] rounded-xl border-2 flex items-center justify-between gap-3 ${an ? "border-[#008BD2] bg-[#008BD2]/10" : "border-[#ced4da] dark:border-[#3e4042]"}`}>
                     <span className="text-sm text-[#202F61] dark:text-[#e4e6eb]">
                       <strong>{a.bezeichnung}</strong>
-                      <span className="text-[#65676b] dark:text-[#b0b3b8]"> · {a.geraete} {a.geraete === 1 ? "Gerät" : "Geräte"}</span>
+                      <span className="text-[#65676b] dark:text-[#b0b3b8]"> · {a.geraete} {a.geraete === 1 ? "Gerät" : "Geräte"}{mehrereStandorte ? ` · Standort ${a.standort}` : ""}</span>
                     </span>
                     <span className="text-sm font-black text-[#202F61] dark:text-[#e4e6eb] whitespace-nowrap">Bestand {a.bestand}</span>
                   </button>
@@ -634,7 +636,7 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
             </div>
             {artikel.length > 8 && (
               <select className={`${feld} mt-2`} value={gewaehlt?.id ?? ""} onChange={(e) => setArtikelId(Number(e.target.value))} aria-label="Weitere Artikel">
-                {artikel.map((a) => <option key={a.id} value={a.id}>{a.bezeichnung} · Bestand {a.bestand}</option>)}
+                {artikel.map((a) => <option key={a.id} value={a.id}>{a.bezeichnung}{mehrereStandorte ? ` (${a.standort})` : ""} · Bestand {a.bestand}</option>)}
               </select>
             )}
           </div>

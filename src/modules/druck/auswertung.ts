@@ -55,6 +55,23 @@ async function grammJeVorlage(): Promise<Map<number, { grammJePlatte: number | n
   return out;
 }
 
+/** Gramm für einen Druck-Eingang aus der neuesten Druckdatei der Vorlage — null, wenn unbekannt. */
+export async function grammFuerEinbuchen(
+  vorlageId: number, stueckProPlatte: number | null, platten: number | null, stueck: number,
+): Promise<number | null> {
+  try {
+    const datei = await prisma.druckvorlageDatei.findFirst({
+      where: { vorlageId, art: "DRUCK" }, orderBy: { createdAt: "desc" }, select: { id: true },
+    });
+    if (!datei) return null;
+    const info = await druckdateiInfo(datei.id);
+    const grammJePlatte = info ? (waehlePlatte(info, null)?.gramm ?? null) : null;
+    return grammFuerDruck({ grammJePlatte, stueckProPlatte, platten, stueck });
+  } catch {
+    return null;   // Einbuchen darf nie am Materialwert scheitern
+  }
+}
+
 export async function ladeAuswertung(tage: number | null, artikelFilter: Prisma.ArtikelWhereInput) {
   const jetzt = new Date();
   const von = tage ? zeitraum(tage, jetzt).von : null;
@@ -83,7 +100,7 @@ export async function ladeAuswertung(tage: number | null, artikelFilter: Prisma.
   const druckIds = buchungen.filter((b) => b.typ === "EINGANG" && b.herkunftArt === "DRUCK").map((b) => b.id);
   const protokolle = druckIds.length === 0 ? [] : await prisma.druckProtokoll.findMany({
     where: { buchungId: { in: druckIds } },
-    select: { buchungId: true, vorlageId: true, platten: true, stueck: true },
+    select: { buchungId: true, vorlageId: true, platten: true, stueck: true, gramm: true },
   });
   const protokollZu = new Map(protokolle.map((p) => [p.buchungId, p]));
   const katPreis = new Map(kategoriePreise.map((k) => [k.kategorie, Number(k.preis)]));
@@ -103,8 +120,9 @@ export async function ladeAuswertung(tage: number | null, artikelFilter: Prisma.
     if (druck) {
       const p = protokollZu.get(b.id);
       const v = p?.vorlageId != null ? vorlagen.get(p.vorlageId) : undefined;
-      gramm = p && v
-        ? grammFuerDruck({ grammJePlatte: v.grammJePlatte, stueckProPlatte: v.stueckProPlatte, platten: p.platten, stueck: b.menge })
+      // Beim Einbuchen festgehalten (ab 30.09.2026) schlägt die heutige Druckdatei.
+      gramm = p?.gramm != null ? Number(p.gramm)
+        : p && v ? grammFuerDruck({ grammJePlatte: v.grammJePlatte, stueckProPlatte: v.stueckProPlatte, platten: p.platten, stueck: b.menge })
         : null;
     }
     return {

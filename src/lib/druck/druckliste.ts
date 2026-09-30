@@ -27,9 +27,68 @@ export type BedarfZeile = {
   stueck:      number;
   /** Stück in noch offenen Anfragen (NEU, BEDARF, IN_BEARBEITUNG). */
   offenStueck: number;
-  /** Bestand aller Artikel dieses Modells und Teiltyps. */
+  /** Bestand dieses Modells und Teiltyps — geteilte Artikel anteilig (siehe verteileBestand). */
   bestand:     number;
+  /** Bestandsgruppen (Artikel samt Pool-Partner), an denen die Zeile hängt. */
+  gruppen?:    number[];
 };
+
+// ── Bestand verteilen (Audit 30.09.2026) ─────────────────────────────────────
+// ⚠️ Vorher zählte jede Zeile den vollen Bestand ihrer Artikel. Hängt ein Artikel
+// an zwei Modellen (E14 Gen 2 und Gen 3, 79 Stück), stand er in BEIDEN Zeilen
+// mit 79 — bei je 60 Stück Bedarf erschien keine Lücke, obwohl 120 > 79.
+// Und der Ersatzteil-Pool (vorne ↔ hinten baugleich, src/lib/artikel/pool.ts)
+// fehlte ganz: „hinten" 0 Stück hieß „Jetzt drucken", obwohl das Techniker-
+// Portal aus den 200 Stück „vorne" bedient.
+// Jetzt: Artikel und Pool-Partner bilden EINE Bestandsgruppe, und deren Bestand
+// wird auf alle Zeilen, die daran hängen, nach ihrer Nachfrage verteilt (ohne
+// Nachfrage zu gleichen Teilen). Zusammen ergibt das genau den echten Bestand.
+
+export type ArtikelBestand = { id: number; bestand: number; poolPartnerId: number | null };
+
+/** Gruppe eines Artikels: mit Pool-Partner die kleinere Id der beiden. */
+export function bestandsGruppe(a: ArtikelBestand, alle: ReadonlyMap<number, ArtikelBestand>): number {
+  const p = a.poolPartnerId;
+  return p != null && alle.has(p) ? Math.min(a.id, p) : a.id;
+}
+
+export function verteileBestand(
+  links: readonly { zeile: string; artikelId: number }[],
+  artikel: ReadonlyMap<number, ArtikelBestand>,
+  gewicht: (zeile: string) => number,
+): { jeZeile: Map<string, number>; gruppenJeZeile: Map<string, number[]>; gruppeBestand: Map<number, number> } {
+  const gruppeBestand = new Map<number, number>();
+  const zeilenJeGruppe = new Map<number, Set<string>>();
+  const gruppenJeZeile = new Map<string, number[]>();
+  for (const { zeile, artikelId } of links) {
+    const a = artikel.get(artikelId);
+    if (!a) continue;
+    const g = bestandsGruppe(a, artikel);
+    if (!gruppeBestand.has(g)) {
+      const mitglieder = new Set([a.id, ...(a.poolPartnerId != null && artikel.has(a.poolPartnerId) ? [a.poolPartnerId] : [])]);
+      gruppeBestand.set(g, [...mitglieder].reduce((s, id) => s + Math.max(0, artikel.get(id)!.bestand), 0));
+    }
+    const z = zeilenJeGruppe.get(g) ?? new Set<string>();
+    z.add(zeile);
+    zeilenJeGruppe.set(g, z);
+    const gl = gruppenJeZeile.get(zeile) ?? [];
+    if (!gl.includes(g)) gl.push(g);
+    gruppenJeZeile.set(zeile, gl);
+  }
+  const roh = new Map<string, number>();
+  for (const [g, zeilen] of zeilenJeGruppe) {
+    const bestand = gruppeBestand.get(g) ?? 0;
+    const liste = [...zeilen];
+    const summe = liste.reduce((s, z) => s + Math.max(0, gewicht(z)), 0);
+    for (const z of liste) {
+      const anteil = summe > 0 ? Math.max(0, gewicht(z)) / summe : 1 / liste.length;
+      roh.set(z, (roh.get(z) ?? 0) + bestand * anteil);
+    }
+  }
+  // Abrunden: nie mehr Bestand versprechen, als da ist (lieber ein Stück mehr drucken).
+  const jeZeile = new Map([...roh].map(([z, b]) => [z, Math.floor(b + 1e-9)]));
+  return { jeZeile, gruppenJeZeile, gruppeBestand };
+}
 
 export type VorlageKurz = {
   id:              number;

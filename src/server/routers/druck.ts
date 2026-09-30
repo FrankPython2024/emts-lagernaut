@@ -3,21 +3,20 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, permissionProcedure } from "@/server/trpc";
 import { prisma } from "@/core/db/prisma";
 import type { SessionUser } from "@/core/types";
-import { zeitraum } from "@/lib/zeit/berlin";
 import { fuersArchiv } from "@/lib/bilder/groesse";
-import { zerlegeGeraetename } from "@/lib/geraete/schildName";
 import { modellSchluessel } from "@/modules/teilespender/service";
 import { bucheLager, loescheBuchung } from "@/modules/buchungen/service";
 import { standortWhere } from "@/lib/auth/standortFilter";
-import { BuchungsTyp, type Prisma } from "@prisma/client";
+import { BuchungsTyp, Prisma } from "@prisma/client";
 import { STAND_ID, hashSchluessel, neuerSchluessel } from "@/modules/druck/bruecke";
 import { BRUECKE_STILL_MS, darfPlatteFreigeben, darfStarten, istDerAuftrag } from "@/lib/druck/warteschlange";
 import {
   DRUCK_TEILTYPEN_STANDARD, planeDruckliste, teiltypenAus, teiltypenText,
-  type BedarfZeile, type VorlageKurz,
+  type VorlageKurz,
 } from "@/lib/druck/druckliste";
 import { druckdateiInfo, waehlePlatte } from "@/modules/druck/vorschau";
-import { ladeAuswertung, setzeFilamentPreis } from "@/modules/druck/auswertung";
+import { grammFuerEinbuchen, ladeAuswertung, setzeFilamentPreis } from "@/modules/druck/auswertung";
+import { ladeBedarf, sauberName } from "@/modules/druck/bedarf";
 
 // ── 3D-Druck: Druckvorlagen + Druckliste (Paket 1, 24.09.2026) ───────────────
 // Lesen: ARTIKEL_VIEW. Pflegen: ARTIKEL_EDIT. Kein neues Recht, kein seed-rbac.
@@ -33,110 +32,10 @@ const ZURUECK_STUNDEN = 24;
 
 const TAGE = 90;
 const VORRAT_TAGE = 30;
-const OFFEN = ["NEU", "BEDARF", "IN_BEARBEITUNG"] as const;
 const FOTO_MAX_BYTES = 12 * 1024 * 1024;
 
 function kuerzelVon(ctx: { session: { user?: unknown } }): string {
   return ((ctx.session.user as SessionUser | undefined)?.kuerzel ?? "?").slice(0, 50);
-}
-
-/** „Lenovo ThinkPad L13 Gen 1 20R4-S37W0N" → „Lenovo ThinkPad L13 Gen 1". */
-function sauberName(name: string, hersteller?: string | null): string {
-  const s = zerlegeGeraetename(name, hersteller);
-  return [s.hersteller ?? "", s.serie, s.modell, s.zusatz].filter((x) => x).join(" ").trim() || name.trim();
-}
-
-/**
- * Nachfrage und Bestand je Modellschlüssel + Teiltyp.
- * Nachfrage = Anfragen der letzten `tage` Tage ohne Storno und Test-Modus —
- * auch „nicht verfügbar": genau das ist die ungedeckte Nachfrage.
- * Offen = heute noch offene Anfragen, unabhängig vom Zeitraum.
- */
-// `liste` und `druckliste` brauchen dieselbe Rechnung und laden gleichzeitig (Audit
-// 30.09.2026: jede Seite rechnete sie doppelt — alle Anfragen von 90 Tagen plus alle
-// Kompatibilitäten). Gleiche Anfrage innerhalb von 15 s → dasselbe Ergebnis.
-const BEDARF_MERKEN_MS = 15_000;
-const bedarfGemerkt = new Map<string, { bis: number; wert: Promise<BedarfZeile[]> }>();
-function ladeBedarf(teiltypen: string[], tage: number): Promise<BedarfZeile[]> {
-  const schluessel = `${tage}|${[...teiltypen].sort().join("|")}`;
-  const jetzt = Date.now();
-  const alt = bedarfGemerkt.get(schluessel);
-  if (alt && alt.bis > jetzt) return alt.wert;
-  const wert = ladeBedarfFrisch(teiltypen, tage);
-  bedarfGemerkt.set(schluessel, { bis: jetzt + BEDARF_MERKEN_MS, wert });
-  wert.catch(() => bedarfGemerkt.delete(schluessel));
-  for (const [k, v] of bedarfGemerkt) if (v.bis <= jetzt) bedarfGemerkt.delete(k);
-  return wert;
-}
-
-async function ladeBedarfFrisch(teiltypen: string[], tage: number): Promise<BedarfZeile[]> {
-  if (teiltypen.length === 0) return [];
-  const { von } = zeitraum(tage);
-  const [imZeitraum, offen, kompat] = await Promise.all([
-    prisma.anfrage.findMany({
-      where:  { teil: { in: teiltypen }, testModus: false, status: { not: "STORNIERT" }, datum: { gte: von } },
-      select: { geraeteName: true, geraet: true, teil: true, menge: true },
-    }),
-    prisma.anfrage.findMany({
-      where:  { teil: { in: teiltypen }, testModus: false, status: { in: [...OFFEN] } },
-      select: { geraeteName: true, geraet: true, teil: true, menge: true },
-    }),
-    prisma.kompatibilitaet.findMany({
-      where:  { teiltyp: { in: teiltypen }, artikel: { bestand: { gt: 0 } } },
-      select: { geraet: true, teiltyp: true, artikel: { select: { id: true, bestand: true } } },
-    }),
-  ]);
-
-  const zeilen = new Map<string, BedarfZeile & { namen: Map<string, number> }>();
-  const zeile = (key: string, teiltyp: string) => {
-    const k = `${key}\u0000${teiltyp}`;
-    let z = zeilen.get(k);
-    if (!z) {
-      z = { key, teiltyp, name: "", anfragen: 0, stueck: 0, offenStueck: 0, bestand: 0, namen: new Map() };
-      zeilen.set(k, z);
-    }
-    return z;
-  };
-  const merkeName = (z: { namen: Map<string, number> }, roh: string) => {
-    const n = sauberName(roh);
-    z.namen.set(n, (z.namen.get(n) ?? 0) + 1);
-  };
-
-  for (const a of imZeitraum) {
-    const roh = a.geraeteName ?? a.geraet;
-    const key = modellSchluessel(roh);
-    if (!key) continue;
-    const z = zeile(key, a.teil);
-    z.anfragen++;
-    z.stueck += Math.max(1, a.menge);
-    merkeName(z, roh);
-  }
-  for (const a of offen) {
-    const roh = a.geraeteName ?? a.geraet;
-    const key = modellSchluessel(roh);
-    if (!key) continue;
-    const z = zeile(key, a.teil);
-    z.offenStueck += Math.max(1, a.menge);
-    merkeName(z, roh);
-  }
-  // Ein Artikel kann über mehrere Kompatibilitäts-Zeilen am selben Modell
-  // hängen — Bestand nur einmal zählen.
-  const gezaehlt = new Set<string>();
-  for (const k of kompat) {
-    const key = modellSchluessel(k.geraet);
-    if (!key) continue;
-    const merk = `${key}\u0000${k.teiltyp}\u0000${k.artikel.id}`;
-    if (gezaehlt.has(merk)) continue;
-    gezaehlt.add(merk);
-    const z = zeile(key, k.teiltyp);
-    z.bestand += k.artikel.bestand;
-    merkeName(z, k.geraet);
-  }
-
-  return [...zeilen.values()].map(({ namen, ...z }) => ({
-    ...z,
-    name: [...namen].sort((a, b) => b[1] - a[1] || a[0].length - b[0].length)[0]?.[0] ?? z.key,
-  }));
 }
 
 /**
@@ -155,14 +54,14 @@ async function zielArtikelFuer(vorlageId: number, standortFilter: Record<string,
   const keys = new Set(v.modelle.map((m) => m.modellKey));
   const rows = keys.size === 0 ? [] : await prisma.kompatibilitaet.findMany({
     where:  { teiltyp: { in: teiltypen }, artikel: { ...standortFilter, kategorie: { in: teiltypen } } },
-    select: { geraet: true, artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true } } },
+    select: { geraet: true, artikel: { select: { id: true, bezeichnung: true, kategorie: true, bestand: true, standort: { select: { kurzname: true } } } } },
   });
-  const je = new Map<number, { id: number; bezeichnung: string; teiltyp: string; bestand: number; geraete: number }>();
+  const je = new Map<number, { id: number; bezeichnung: string; teiltyp: string; bestand: number; standort: string; geraete: number }>();
   for (const k of rows) {
     if (!keys.has(modellSchluessel(k.geraet))) continue;
     const e = je.get(k.artikel.id);
     if (e) e.geraete++;
-    else je.set(k.artikel.id, { id: k.artikel.id, bezeichnung: k.artikel.bezeichnung, teiltyp: k.artikel.kategorie, bestand: k.artikel.bestand, geraete: 1 });
+    else je.set(k.artikel.id, { id: k.artikel.id, bezeichnung: k.artikel.bezeichnung, teiltyp: k.artikel.kategorie, bestand: k.artikel.bestand, standort: k.artikel.standort.kurzname, geraete: 1 });
   }
   const artikel = [...je.values()].sort((a, b) =>
     b.bestand - a.bestand || a.bezeichnung.length - b.bezeichnung.length || a.bezeichnung.localeCompare(b.bezeichnung));
@@ -195,7 +94,7 @@ const vorlageInput = z.object({
 export const druckRouter = createTRPCRouter({
 
   // Alle Vorlagen (ohne Bytes) mit Bestand/Nachfrage je Vorlage.
-  liste: lesen.query(async () => {
+  liste: lesen.query(async ({ ctx }) => {
     const vorlagen = await prisma.druckvorlage.findMany({
       orderBy: [{ aktiv: "desc" }, { name: "asc" }],
       select: {
@@ -207,26 +106,30 @@ export const druckRouter = createTRPCRouter({
       },
     });
     const alleTeiltypen = [...new Set(vorlagen.flatMap((v) => teiltypenAus(v.teiltypen)))];
-    const bedarf = await ladeBedarf(alleTeiltypen, TAGE);
-    const je = new Map(bedarf.map((b) => [`${b.key}\u0000${b.teiltyp}`, b]));
+    const bedarf = await ladeBedarf(alleTeiltypen, TAGE, standortWhere(ctx));
+    const je = new Map(bedarf.zeilen.map((b) => [`${b.key}\u0000${b.teiltyp}`, b]));
     return vorlagen.map((v) => {
       const tt = teiltypenAus(v.teiltypen);
-      let bestand = 0, stueck = 0, offenStueck = 0;
+      let stueck = 0, offenStueck = 0;
+      // Bestand: jede Gruppe (Artikel + Pool-Partner) genau einmal — ein Artikel an
+      // zwei Modellen der Vorlage zählte vorher doppelt.
+      const gruppen = new Set<number>();
       for (const m of v.modelle) for (const t of tt) {
         const b = je.get(`${m.modellKey}\u0000${t}`);
-        if (b) { bestand += b.bestand; stueck += b.stueck; offenStueck += b.offenStueck; }
+        if (b) { stueck += b.stueck; offenStueck += b.offenStueck; for (const g of b.gruppen ?? []) gruppen.add(g); }
       }
+      const bestand = [...gruppen].reduce((s, g) => s + (bedarf.gruppeBestand.get(g) ?? 0), 0);
       const { protokoll, ...rest } = v;
       return { ...rest, teiltypen: tt, bestand, stueck90: stueck, offenStueck, letzterDruck: protokoll[0] ?? null };
     });
   }),
 
   // Was drucken, was konstruieren? Aus den echten Anfragen.
-  druckliste: lesen.query(async () => {
+  druckliste: lesen.query(async ({ ctx }) => {
     const vorlagen = await ladeVorlagenKurz();
     const teiltypen = [...new Set([...DRUCK_TEILTYPEN_STANDARD, ...vorlagen.flatMap((v) => v.teiltypen)])];
-    const bedarf = await ladeBedarf(teiltypen, TAGE);
-    const liste = planeDruckliste(bedarf, vorlagen, { tage: TAGE, vorratTage: VORRAT_TAGE, minAnfragenKonstruieren: 2 });
+    const bedarf = await ladeBedarf(teiltypen, TAGE, standortWhere(ctx));
+    const liste = planeDruckliste(bedarf.zeilen, vorlagen, { tage: TAGE, vorratTage: VORRAT_TAGE, minAnfragenKonstruieren: 2 });
     return { ...liste, tage: TAGE, vorratTage: VORRAT_TAGE, anzahlVorlagen: vorlagen.length };
   }),
 
@@ -393,10 +296,12 @@ export const druckRouter = createTRPCRouter({
         herkunftLogId: null,
         herkunftArt:   "DRUCK",
       });
+      const gramm = await grammFuerEinbuchen(vorlage.id, vorlage.stueckProPlatte, input.platten, input.stueck);
       const eintrag = await prisma.druckProtokoll.create({
         data: {
           vorlageId: vorlage.id, vorlageName: vorlage.name, artikelId: ziel.id, teiltyp: ziel.teiltyp,
           platten: input.platten, stueck: input.stueck, buchungId: buchung.id, gedrucktVon: kuerzel,
+          gramm: gramm != null ? new Prisma.Decimal(gramm.toFixed(2)) : null,
         },
       });
       // Die Frage „fertig → einbuchen?" auf der Druckerkarte ist damit beantwortet.
@@ -427,15 +332,27 @@ export const druckRouter = createTRPCRouter({
       if (p.buchungId == null || p.createdAt.getTime() < Date.now() - ZURUECK_STUNDEN * 3600_000) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `Nur in den ersten ${ZURUECK_STUNDEN} Stunden möglich — danach über die Buchungen korrigieren.` });
       }
-      const a = await prisma.artikel.findUnique({ where: { id: p.artikelId }, select: { bestand: true } });
-      if (!a || a.bestand < p.stueck) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `Es sind nur noch ${a?.bestand ?? 0} Stück da — ein Teil wurde schon ausgegeben.` });
-      }
+      // Nur am eigenen Standort (wie beim Einbuchen).
+      const a = await prisma.artikel.findFirst({ where: { id: p.artikelId, ...standortWhere(ctx) }, select: { bestand: true } });
+      if (!a) throw new TRPCError({ code: "FORBIDDEN", message: "Dieser Artikel gehört zu einem anderen Standort." });
       const buchung = await prisma.buchung.findUnique({ where: { id: p.buchungId }, select: { id: true } });
-      if (buchung) await loescheBuchung(buchung.id);
+      // Buchung schon über die Buchungsseite gelöscht → Bestand ist bereits korrigiert;
+      // vorher kam hier die irreführende Meldung „schon ausgegeben" (Audit 30.09.2026).
+      if (buchung) {
+        if (a.bestand < p.stueck) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Es sind nur noch ${a.bestand} Stück da — ein Teil wurde schon ausgegeben.` });
+        }
+        try {
+          await loescheBuchung(buchung.id);
+        } catch (err) {
+          // Zweiter Klick aus einem anderen Tab: Die Buchung ist schon weg — kein Fehler.
+          const nochDa = await prisma.buchung.findUnique({ where: { id: buchung.id }, select: { id: true } });
+          if (nochDa) throw err;
+        }
+      }
       const user = ctx.session.user as SessionUser;
-      await prisma.druckProtokoll.update({
-        where: { id: p.id },
+      await prisma.druckProtokoll.updateMany({
+        where: { id: p.id, zurueckgenommenAm: null },
         data:  { zurueckgenommenAm: new Date(), zurueckgenommenVon: (user.kuerzel || user.name || "?").slice(0, 50) },
       });
       return { ok: true };
