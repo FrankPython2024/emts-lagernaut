@@ -124,7 +124,7 @@ check("Abholwagen / QS", stellplatzBedeutung("120-ETL-0-4-0")?.text, "EMTS-Abhol
 check("Broker mit Lagernummer 123", stellplatzBedeutung("123-Broker")?.kurz, "Broker fertig");
 check("Recycler ohne Lagernummer (wie im Lagerfuchs)", stellplatzBedeutung("Recycler")?.kurz, "Recycler fertig");
 check("nur ETL-0-9-0 liegt außerhalb", STANDARD_STELLPLAETZE.filter((b) => b.ausserhalb).map((b) => b.code), ["ETL-0-9-0"]);
-check("ETL-0-0-0 bewusst ohne Bedeutung (nicht auf dem Aushang)", stellplatzBedeutung("ETL-0-0-0"), null);
+check("ETL-0-0-0 = Altbestand vor Lagernaut", stellplatzBedeutung("120-ETL-0-0-0")?.kurz, "Altbestand");
 check("normaler Regalplatz bleibt normal", stellplatzBedeutung("HL-07-32-01"), null);
 check("leere oder fehlende Liste → nichts (vor dem ersten Laden)", [findeBedeutung(undefined, "ETL-0-9-0"), findeBedeutung([], "ETL-0-9-0")], [null, null]);
 check("jeder Standard-Code ist schon normalisiert", STANDARD_STELLPLAETZE.every((b) => normStellplatz(b.code) === b.code), true);

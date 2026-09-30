@@ -1122,8 +1122,9 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   0-7-0 Mobile R-B · 0-8-0 Wareneingänge mit LogID · **0-9-0 Lagerplätze außerhalb EMTS** (hervorgehoben,
   888 Spender am 30.09.) · „Broker"/„Recycler" = abgeschlossen (Collis).
   ⚠️ ReForm zeigt die Plätze MIT Lagernummer („120-ETL-0-4-0", „123-Broker"), Exporte und Lagernaut OHNE
-  — `normStellplatz` wirft sie weg. ⚠️ „ETL-0-0-0" (2.668 Geräte im Lagerfuchs) steht nicht auf dem
-  Aushang und hat deshalb bewusst KEINE Bedeutung, bis geklärt ist, was er ist.
+  — `normStellplatz` wirft sie weg. „ETL-0-0-0" (2.668 Geräte im Lagerfuchs) steht nicht auf dem
+  Aushang: **Altbestand aus der Zeit vor Lagernaut, ohne Ordnung — „Freiwild"** (Frank, 30.09.2026);
+  am selben Tag direkt in die Produktions-Tabelle eingetragen und in die Erstbefüllung aufgenommen.
   Angezeigt über `components/lager/StellplatzSchild.tsx` (ohne Emoji, Zebra-tauglich): Teilespender
   (`SpenderPanel`, `/admin/teilespender`, Kurzform in der Spenderauswahl), Pickup „Nächster Halt",
   Sortierhilfe, Lagerfuchs-Reiter „Standort" (Kacheln + Tabelle).

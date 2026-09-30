@@ -13,8 +13,8 @@
  * Verwertung, Lagerfuchs und Pickup. `normStellplatz` wirft die Lagernummer weg;
  * gespeichert wird nur die normalisierte Form.
  *
- * Nicht auf dem Aushang und deshalb anfangs ohne Bedeutung: „ETL-0-0-0"
- * (2.668 Geräte im Lagerfuchs am 30.09.2026) — die Pflegeseite schlägt ihn vor.
+ * „ETL-0-0-0" steht nicht auf dem Aushang: Altbestand aus der Zeit vor Lagernaut,
+ * ohne feste Ordnung (Frank, 30.09.2026: „Freiwild") — 2.668 Geräte im Lagerfuchs.
  *
  * Reine Logik — Test in tests/ort.test.ts (`npm run test:ort`).
  */
@@ -31,6 +31,7 @@ export type StellplatzBedeutung = {
 };
 
 export const STANDARD_STELLPLAETZE: readonly StellplatzBedeutung[] = [
+  { code: "ETL-0-0-0", kurz: "Altbestand",      text: "Altbestand aus der Zeit vor Lagernaut, ohne feste Ordnung (Freiwild)", ausserhalb: false },
   { code: "ETL-0-1-0", kurz: "Gitterboxen",     text: "Gitterboxen (zerlegte Geräte, Headsets usw.)", ausserhalb: false },
   { code: "ETL-0-2-0", kurz: "Recycler i. B.",  text: "Notebook Recycler in Bearbeitung (Collis)", ausserhalb: false },
   { code: "ETL-0-3-0", kurz: "Broker i. B.",    text: "Notebook Broker in Bearbeitung (Collis)", ausserhalb: false },
