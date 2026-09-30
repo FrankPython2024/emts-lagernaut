@@ -1521,6 +1521,7 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   Tab im Hintergrund = kein Abruf. Kein neues Recht, keine Schemaänderung.
   **Update am Laptop:** `einrichten.cmd` erneut ausführen, Brücke neu starten. Fehlersuche:
   `KAMERA_DEBUG=1` zeigt die RTSP-Schritte.
+  Nach Deploy + Brücken-Update am 30.09.2026 im Betrieb bestätigt (Frank: „Livebild ist da“).
 
 ### Urlaubsplanung (29.09.2026)
 
