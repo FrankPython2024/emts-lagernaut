@@ -20,6 +20,7 @@ import {
 import { entpackeVideoPaket, waehleBild } from "../src/lib/druck/videoSpieler";
 import { phaseVon, tempoText, wlanText, restText, fertigUm } from "../src/lib/druck/druckerPhase";
 import { plattenAusZip, waehlePlatte } from "../src/modules/druck/vorschau";
+import { herstellerVon, passtSuche, gruppiereNachHersteller } from "../src/lib/druck/vorlagenFilter";
 
 let passed = 0;
 let failed = 0;
@@ -237,6 +238,30 @@ console.log("\n── Druckerkarte: Vorschau aus der Druckdatei ──");
   const ohneGewicht = plattenAusZip([{ name: "Metadata/plate_1.gcode", daten: b("x") }, { name: "Metadata/slice_info.config", daten: b(`<plate><metadata key="index" value="1"/><filament id="1" used_g="1.5"/><filament id="2" used_g="0.23"/></plate>`) }]);
   check("ohne weight: Summe der Filamente", ohneGewicht.platten[0]!.gramm, 1.73);
   check("leere Datei → keine Platten", plattenAusZip([]).platten, []);
+}
+
+console.log("\n── Vorlagen-Liste: Hersteller, Suche, Gruppen ──");
+{
+  check("ausdrücklicher Name", herstellerVon(["HP EliteBook x360 830 G6"]), "HP");
+  check("nur Serie (Vorlagenname)", [herstellerVon(["EliteBook 840 G5 Füße"]), herstellerVon(["ThinkPad L13 Gen 1"]), herstellerVon(["Latitude 7310"]), herstellerVon(["LifeBook U7411"]), herstellerVon(["Surface Laptop 4"])], ["HP", "Lenovo", "Dell", "Fujitsu", "Microsoft"]);
+  check("Gerät schlägt Vorlagennamen", herstellerVon(["Dell Latitude 7310", "Füße vorne universal"]), "Dell");
+  check("unbekannt → Sonstige", herstellerVon(["Kabelhalter", null]), "Sonstige");
+  check("„SHPET“ ist kein HP (nur ganzes Wort)", herstellerVon(["SHPET Halter"]), "Sonstige");
+  const v = (name: string, anzeige: string[], teiltypen = ["Füße vorne"]) => ({ name, teiltypen, modelle: anzeige.map((a) => ({ anzeige: a })) });
+  const e830h = v("HP EliteBook x360 830 G6 Füße hinten", ["HP EliteBook x360 830 G6"], ["Füße hinten"]);
+  check("Suche über mehrere Wörter", passtSuche(e830h, "830 hinten"), true);
+  check("Suche: Wort fehlt", passtSuche(e830h, "830 vorne"), false);
+  check("Suche: ß/ss und Groß/klein egal", [passtSuche(e830h, "FUESSE"), passtSuche(e830h, "füsse")], [false, true]);
+  check("leere Suche passt immer", passtSuche(e830h, "  "), true);
+  check("Suche im Gerätenamen", passtSuche(v("Dell Latitude 7310", ["Dell Latitude 7310"]), "latitude"), true);
+  const gruppen = gruppiereNachHersteller([
+    v("HP ProBook x360 435 G8 Füße vorne", ["HP ProBook x360 435 G8"]),
+    v("Kabelhalter", []),
+    v("Dell Latitude 7310", ["Dell Latitude 7310"]),
+    v("HP EliteBook x360 830 G6 Füße hinten", ["HP EliteBook x360 830 G6"]),
+  ]);
+  check("Gruppen in fester Reihenfolge, Sonstige zuletzt", gruppen.map((g) => [g.hersteller, g.vorlagen.length]), [["Dell", 1], ["HP", 2], ["Sonstige", 1]]);
+  check("innen nach Name", gruppen[1]!.vorlagen.map((x) => x.name), ["HP EliteBook x360 830 G6 Füße hinten", "HP ProBook x360 435 G8 Füße vorne"]);
 }
 
 console.log("\n── Video: Bildwahl beim Abspielen ──");

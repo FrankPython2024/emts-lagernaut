@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 953) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 965) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1609,6 +1609,14 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   Karton drucken" mit Anzahl (mehrere Kartons/Beutel) — ⚠️ nicht automatisch: `window.open` muss im
   Klick passieren (Popup-Blocker). Nachdruck je Eintrag im Druckprotokoll („🏷️ Etikett").
   `druck.einbuchen` liefert dafür `etikett`, `druck.details.protokoll` den Lagerplatz mit.
+- **Vorlagen-Liste: Suche, Hersteller, Vorschaubilder** (Wunsch Frank 30.09.2026). Regel
+  `src/lib/druck/vorlagenFilter.ts` (Test in `test:druck`). Der Hersteller steht in keiner Spalte —
+  `herstellerVon` liest ihn aus den zugeordneten Geräten und dem Vorlagennamen: erst der Markenname
+  („HP", „Dell"), sonst die Serie (EliteBook → HP, ThinkPad → Lenovo, Latitude → Dell, LifeBook →
+  Fujitsu, Surface → Microsoft), nur ganze Wörter; sonst „Sonstige". Knöpfe je Hersteller mit Anzahl,
+  bei „Alle" Abschnitte untereinander (Dell, HP, Lenovo, Fujitsu, Microsoft, Sonstige), innen nach Name.
+  Suche: jedes Wort muss in Name, Teiltyp oder Gerät vorkommen („830 hinten"). Bild: eigenes Foto,
+  sonst die Draufsicht aus der Druckdatei (`/api/druck/vorschau/<dateiId>?ansicht=oben`), sonst 🖨️.
 
 ### Urlaubsplanung (29.09.2026)
 

@@ -11,6 +11,7 @@ import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { DruckerStatus } from "@/components/druck/DruckerStatus";
 import { DruckenKnopf } from "@/components/druck/DruckenKnopf";
+import { gruppiereNachHersteller, passtSuche } from "@/lib/druck/vorlagenFilter";
 
 type Reiter = "liste" | "vorlagen";
 const REITER_KEY = "druck-reiter";
@@ -33,6 +34,8 @@ export default function DruckPage() {
   const darfPflegen = has("ARTIKEL_EDIT");
   const darfEinbuchen = has("ARTIKEL_EINLAGERN");
   const [reiter, setReiter] = useState<Reiter>("liste");
+  const [suche, setSuche] = useState("");
+  const [hersteller, setHersteller] = useState("Alle");
   useEffect(() => {
     try { const r = localStorage.getItem(REITER_KEY); if (r === "liste" || r === "vorlagen") setReiter(r); } catch { /* egal */ }
   }, []);
@@ -53,6 +56,12 @@ export default function DruckPage() {
     const p = v.dateien.find((x) => x.art === "PROJEKT");
     if (p) projektDatei.set(v.id, p);
   }
+
+  // Vorlagen: Suche + Hersteller (Wunsch Frank 30.09.2026). Chips zählen über alle,
+  // bei „Alle" stehen die Hersteller als Abschnitte untereinander.
+  const alleGruppen = gruppiereNachHersteller(vorlagen.data ?? []);
+  const sichtbareGruppen = gruppiereNachHersteller((vorlagen.data ?? []).filter((v) => passtSuche(v, suche)))
+    .filter((g) => hersteller === "Alle" || g.hersteller === hersteller);
 
   return (
     <div className="space-y-5">
@@ -199,8 +208,45 @@ export default function DruckPage() {
           Noch keine Vorlagen. {darfPflegen && <Link href="/admin/druck/neu" className="font-bold text-[#008BD2]">Erste anlegen</Link>}
         </div>
       ) : (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <input
+              type="search"
+              value={suche}
+              onChange={(e) => setSuche(e.target.value)}
+              aria-label="Vorlagen durchsuchen"
+              placeholder="Suchen: Gerät, Name, Teiltyp – z. B. „830 hinten“"
+              className="flex-1 min-w-[240px] px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] text-base outline-none focus:border-[#008BD2] min-h-[48px]"
+            />
+            <div role="group" aria-label="Hersteller" className="flex flex-wrap gap-2">
+              {[{ hersteller: "Alle", anzahl: (vorlagen.data ?? []).length }, ...alleGruppen.map((g) => ({ hersteller: g.hersteller, anzahl: g.vorlagen.length }))].map((h) => (
+                <button
+                  key={h.hersteller}
+                  type="button"
+                  aria-pressed={hersteller === h.hersteller}
+                  onClick={() => setHersteller(h.hersteller)}
+                  className={`px-4 rounded-xl text-sm font-bold min-h-[48px] border transition-colors ${hersteller === h.hersteller
+                    ? "bg-[#202F61] text-white border-[#202F61] dark:bg-[#008BD2] dark:border-[#008BD2]"
+                    : "bg-white dark:bg-[#242526] border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] hover:border-[#008BD2]"}`}
+                >
+                  {h.hersteller} <span className="opacity-70">({h.anzahl})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {sichtbareGruppen.length === 0 ? (
+            <div className="text-center py-8 text-sm text-[#65676b] dark:text-[#b0b3b8] border border-dashed border-[#ced4da] dark:border-[#3e4042] rounded-2xl">
+              Keine Vorlage passt{suche.trim() ? <> zu „{suche.trim()}“</> : null}{hersteller !== "Alle" ? ` bei ${hersteller}` : ""}.{" "}
+              <button type="button" className="font-bold text-[#008BD2]" onClick={() => { setSuche(""); setHersteller("Alle"); }}>Alle zeigen</button>
+            </div>
+          ) : sichtbareGruppen.map((g) => (
+            <section key={g.hersteller} className="space-y-2">
+              <h2 className="text-sm font-black uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">
+                {g.hersteller} <span className="text-[#008BD2] dark:text-[#45bdff]">({g.vorlagen.length})</span>
+              </h2>
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
-          {(vorlagen.data ?? []).map((v) => {
+          {g.vorlagen.map((v) => {
             const d = druckDatei.get(v.id);
             const p = projektDatei.get(v.id);
             const details = [
@@ -211,14 +257,7 @@ export default function DruckPage() {
             return (
               <div key={v.id} className={`${karte} overflow-hidden flex flex-col ${v.aktiv ? "" : "opacity-60"}`}>
                 <Link href={`/admin/druck/${v.id}`} className="block">
-                  <div className="h-40 bg-[#f0f2f5] dark:bg-[#18191a] flex items-center justify-center">
-                    {v.fotoAm ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`/api/druck/foto/${v.id}?v=${new Date(v.fotoAm).getTime()}`} alt={v.name} className="h-full w-full object-contain" />
-                    ) : (
-                      <span className="text-4xl" aria-hidden>🖨️</span>
-                    )}
-                  </div>
+                  <VorlagenBild vorlageId={v.id} name={v.name} fotoAm={v.fotoAm} dateiId={d?.id ?? null} />
                   <div className="p-4 space-y-2">
                     <div className="font-black text-[#202F61] dark:text-[#e4e6eb]">{v.name}{!v.aktiv && " (inaktiv)"}</div>
                     <div className="flex flex-wrap gap-1">
@@ -255,6 +294,29 @@ export default function DruckPage() {
             );
           })}
         </div>
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Bild einer Vorlage: eigenes Foto, sonst die Draufsicht aus der Druckdatei (von
+ * Bambu Studio erzeugt, transparent in Filamentfarbe → heller Grund), sonst Symbol.
+ */
+function VorlagenBild({ vorlageId, name, fotoAm, dateiId }: { vorlageId: number; name: string; fotoAm: Date | string | null; dateiId: number | null }) {
+  const [fehlt, setFehlt] = useState(false);
+  const src = fotoAm ? `/api/druck/foto/${vorlageId}?v=${new Date(fotoAm).getTime()}`
+    : dateiId && !fehlt ? `/api/druck/vorschau/${dateiId}?ansicht=oben` : null;
+  return (
+    <div className={`h-40 flex items-center justify-center ${fotoAm ? "bg-[#f0f2f5] dark:bg-[#18191a]" : "bg-white border-b border-[#eef0f2] dark:border-[#3e4042]"}`}>
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={name} loading="lazy" onError={() => setFehlt(true)} className={`h-full w-full object-contain ${fotoAm ? "" : "p-3"}`} />
+      ) : (
+        <span className="text-4xl" aria-hidden>🖨️</span>
       )}
     </div>
   );
