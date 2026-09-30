@@ -99,6 +99,22 @@ function brauchbar(o: Ortsangabe | null): o is Ortsangabe {
   return o !== null && (norm(o.stellplatz) !== "" || norm(o.colli) !== "");
 }
 
+// ── Außenbereich ───────────────────────────────────────────────────────────────
+//
+// Stellplatz ETL-0-9-0 ist der Außenbereich des EMTS (Frank, 30.09.2026) — wer
+// dort ein Spendergerät holen will, muss nach draußen. Am selben Tag standen dort
+// 888 Geräte des Verwertungs-Exports, ein großer Teil aller Spender.
+// ReForm zeigt den Platz mit Lagernummer davor („120-ETL-0-9-0"), der Export
+// ohne („ETL-0-9-0") — beides zählt.
+
+export const AUSSENBEREICH_STELLPLATZ = "ETL-0-9-0";
+
+/** Steht das Gerät im Außenbereich des EMTS? Groß/klein, Leerzeichen und eine Lagernummer davor egal. */
+export function istAussenbereich(stellplatz: string | null | undefined): boolean {
+  const s = (stellplatz ?? "").trim().toUpperCase().replace(/\s+/g, "").replace(/^\d+-(?=ETL-)/, "");
+  return s === AUSSENBEREICH_STELLPLATZ;
+}
+
 /** Kurztext für die Anzeige, z. B. „ETL-HL-7-7-2 · Colli 3.186.244". */
 export function ortText(o: Pick<Ortsangabe, "stellplatz" | "colli">): string {
   const teile = [o.stellplatz, o.colli ? `Colli ${o.colli}` : null].filter(

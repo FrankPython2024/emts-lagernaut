@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 890) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 896) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1116,6 +1116,11 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   eine Anfrage mit nur einem brauchbaren Gerät leer ausgehen, wenn eine andere zuerst greift.
   ⚠️ Der Auslager-Dialog liest **`alleKandidaten`, nie `vorschau`** — sonst kann eine Anfrage mit
   „zugeteilt an #X" nicht vermerken, welches Gerät tatsächlich benutzt wurde.
+- **Außenbereich EMTS = Stellplatz `ETL-0-9-0`** (Frank, 30.09.2026; in ReForm „120-ETL-0-9-0", im Export
+  ohne Lagernummer). Am selben Tag standen dort **888** Spendergeräte. Schild „⛅ Außenbereich EMTS" unter
+  dem Stellplatz in `SpenderPanel` und `/admin/teilespender`, Kurzform „· ⛅ außen" in der Spenderauswahl
+  des Auslager-Dialogs (`components/teilespender/Aussenbereich.tsx`). Regel `istAussenbereich()` in
+  `src/lib/teilespender/ort.ts` (Test in `test:ort`) — ein weiterer Außenplatz kommt nur dort dazu.
 - **Suchfeld in beiden Geräte-Listen** (Panel und `/admin/teilespender`, letztere ab 6 Treffern):
   filtert LogID, Stellplatz, Colli und Bezeichnung; bei getippten LogIDs zählen **nur die Ziffern**
   („508795" findet „212.508.795").
@@ -1124,7 +1129,7 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   beim Weitertippen still aus dem Auftrag. Ebenso zählt die Kopfzeile die Gesamtzahl: Ein aktiver
   Filter darf nicht wie „Kein Spendergerät gefunden" aussehen.
 - **Tests:** `test:defekte` (52), `test:teilespender` (42), `test:auswahl` (15), `test:frische` (19),
-  `test:ort` (25), `test:bedarf` (29).
+  `test:ort` (31), `test:bedarf` (29).
 
 ### Statistik — Prüfung und Umbau (Sep 2026)
 

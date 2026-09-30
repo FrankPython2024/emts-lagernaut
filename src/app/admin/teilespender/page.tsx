@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { STANDARD_TEILTYPEN } from "@/lib/constants/teiltypen";
 import { formatLogId } from "@/lib/pickup/logId";
 import { ortText } from "@/lib/teilespender/ort";
+import { AussenbereichSchild } from "@/components/teilespender/Aussenbereich";
 
 // ── Teilespender — „Wo steckt mein Teil noch drin?" ──────────────────────────
 //
@@ -502,6 +503,7 @@ function TeilespenderPageInner() {
                   <div className="font-mono font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
                     {t.stellplatz ?? "—"}
                   </div>
+                  <AussenbereichSchild stellplatz={t.stellplatz} />
                   <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">Colli</div>
                   <div className="font-mono text-[#1a1a1a] dark:text-[#e4e6eb]">
                     {t.colli ?? "—"}

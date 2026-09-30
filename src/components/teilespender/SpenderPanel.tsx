@@ -9,6 +9,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { formatLogId } from "@/lib/pickup/logId";
 import { waehleWenigsteWege, abgedeckteTeile } from "@/lib/teilespender/auswahl";
 import { ortText } from "@/lib/teilespender/ort";
+import { AussenbereichSchild } from "@/components/teilespender/Aussenbereich";
 
 // ── Spender-Panel für eine Anfrage-Gruppe ────────────────────────────────────
 //
@@ -342,6 +343,7 @@ export function SpenderPanel({ open, onClose, geraeteName, teiltypen, zielLogId,
                     <div className="font-mono font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
                       {g.stellplatz ?? "—"}
                     </div>
+                    <AussenbereichSchild stellplatz={g.stellplatz} />
                     <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-1">Colli</div>
                     <div className="font-mono text-[#1a1a1a] dark:text-[#e4e6eb]">
                       {g.colli ?? "—"}

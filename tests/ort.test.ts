@@ -11,7 +11,7 @@
  * Reine Logik, kein Netz, keine Datenbank.
  */
 
-import { besterOrt, gleicherOrt, ortText } from "../src/lib/teilespender/ort";
+import { besterOrt, gleicherOrt, ortText, istAussenbereich } from "../src/lib/teilespender/ort";
 
 let passed = 0;
 let failed = 0;
@@ -108,6 +108,15 @@ check("nur Fach", ortText({ stellplatz: "ETL-1-2-3", colli: null }), "ETL-1-2-3"
 check("nur Karton", ortText({ stellplatz: null, colli: "3.186.244" }), "Colli 3.186.244");
 check("nichts", ortText({ stellplatz: null, colli: null }), "—");
 check("leere Zeichenkette zählt als nichts", ortText({ stellplatz: "  ", colli: "" }), "—");
+
+// ── Außenbereich EMTS (ETL-0-9-0) ──────────────────────────────────────────
+console.log("\n── Außenbereich ──");
+check("Export-Schreibweise", istAussenbereich("ETL-0-9-0"), true);
+check("mit Lagernummer wie in ReForm", istAussenbereich("120-ETL-0-9-0"), true);
+check("klein und mit Leerzeichen", istAussenbereich("  etl-0-9-0 "), true);
+check("Nachbarfach ist drinnen", istAussenbereich("ETL-0-9-1"), false);
+check("anderes Regal ist drinnen", istAussenbereich("ETL-10-9-0"), false);
+check("kein Stellplatz → nicht außen", [istAussenbereich(null), istAussenbereich("")], [false, false]);
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);
