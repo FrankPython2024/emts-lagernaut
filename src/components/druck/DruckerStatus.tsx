@@ -16,7 +16,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { useDruckerStand } from "./useDruckbruecke";
 import { DruckerCockpit } from "./DruckerCockpit";
-import { darfPlatteFreigeben } from "@/lib/druck/warteschlange";
+import { DRUCKT, darfPlatteFreigeben } from "@/lib/druck/warteschlange";
 
 const FARBE: Record<string, string> = {
   RUNNING: "bg-[#008BD2]/15 text-[#0064d2] dark:text-[#45bdff]",
@@ -79,7 +79,7 @@ export function DruckerStatus() {
   }
 
   const d = s.drucker;
-  const aktiv = d?.zustand === "RUNNING" || d?.zustand === "PREPARE" || d?.zustand === "PAUSE";
+  const aktiv = DRUCKT.includes(d?.zustand ?? "");
   const fehler = s.zuletzt.filter((a) => a.status === "FEHLER").slice(0, 2);
   // Dieselbe Regel wie der Server (darfPlatteFreigeben): nicht während einer
   // Übertragung und nicht direkt nach einem Start.

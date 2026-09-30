@@ -15,7 +15,6 @@ import { materialPasst } from "@/lib/druck/warteschlange";
 import { useDruckerStand } from "./useDruckbruecke";
 
 type Props = {
-  vorlageId?: number;
   titel: string;
   dateiId: number;
   dateiname: string;
@@ -43,7 +42,7 @@ export function DruckenKnopf({ titel, dateiId, dateiname, material, klein }: Pro
   );
 }
 
-function DruckenDialog({ titel, dateiId, dateiname, material, onClose }: Omit<Props, "klein" | "vorlageId"> & { onClose: () => void }) {
+function DruckenDialog({ titel, dateiId, dateiname, material, onClose }: Omit<Props, "klein"> & { onClose: () => void }) {
   const { show } = useToast();
   const utils = api.useUtils();
   const { data: s } = useDruckerStand();

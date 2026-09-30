@@ -52,7 +52,24 @@ function sauberName(name: string, hersteller?: string | null): string {
  * auch „nicht verfügbar": genau das ist die ungedeckte Nachfrage.
  * Offen = heute noch offene Anfragen, unabhängig vom Zeitraum.
  */
-async function ladeBedarf(teiltypen: string[], tage: number): Promise<BedarfZeile[]> {
+// `liste` und `druckliste` brauchen dieselbe Rechnung und laden gleichzeitig (Audit
+// 30.09.2026: jede Seite rechnete sie doppelt — alle Anfragen von 90 Tagen plus alle
+// Kompatibilitäten). Gleiche Anfrage innerhalb von 15 s → dasselbe Ergebnis.
+const BEDARF_MERKEN_MS = 15_000;
+const bedarfGemerkt = new Map<string, { bis: number; wert: Promise<BedarfZeile[]> }>();
+function ladeBedarf(teiltypen: string[], tage: number): Promise<BedarfZeile[]> {
+  const schluessel = `${tage}|${[...teiltypen].sort().join("|")}`;
+  const jetzt = Date.now();
+  const alt = bedarfGemerkt.get(schluessel);
+  if (alt && alt.bis > jetzt) return alt.wert;
+  const wert = ladeBedarfFrisch(teiltypen, tage);
+  bedarfGemerkt.set(schluessel, { bis: jetzt + BEDARF_MERKEN_MS, wert });
+  wert.catch(() => bedarfGemerkt.delete(schluessel));
+  for (const [k, v] of bedarfGemerkt) if (v.bis <= jetzt) bedarfGemerkt.delete(k);
+  return wert;
+}
+
+async function ladeBedarfFrisch(teiltypen: string[], tage: number): Promise<BedarfZeile[]> {
   if (teiltypen.length === 0) return [];
   const { von } = zeitraum(tage);
   const [imZeitraum, offen, kompat] = await Promise.all([
@@ -453,10 +470,9 @@ export const druckRouter = createTRPCRouter({
     const drucker = (stand?.drucker ?? null) as null | {
       zustand?: string | null; zustandText?: string; datei?: string | null; fortschritt?: number | null;
       restMinuten?: number | null; schicht?: number | null; schichten?: number | null;
-      duese?: number | null; dueseZiel?: number | null; bett?: number | null; bettZiel?: number | null;
       fehlercode?: number | null; meldungen?: number; spule?: { typ: string | null; farbe: string | null } | null;
-      // ab Brücke 1.5.1 (Druckerkarte): Arbeitsschritt, geplante Schritte, Tempo, Licht, WLAN, Platte
-      stufe?: number | null; stufen?: number[]; tempo?: number | null; licht?: boolean | null; wlan?: number | null; platte?: number | null;
+      // Druckerkarte: Arbeitsschritt, geplante Schritte, Platte der Druckdatei
+      stufe?: number | null; stufen?: number[]; platte?: number | null;
     };
     const online = !!stand?.gemeldetAm && jetzt.getTime() - stand.gemeldetAm.getTime() <= BRUECKE_STILL_MS;
     const start = darfStarten({
@@ -491,7 +507,6 @@ export const druckRouter = createTRPCRouter({
     return {
       aktuell,
       gekoppelt:     !!stand?.schluesselHash,
-      gekoppeltAm:   stand?.schluesselAm ?? null,
       online,
       gemeldetAm:    stand?.gemeldetAm ?? null,
       version:       stand?.version ?? null,

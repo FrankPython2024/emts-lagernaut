@@ -39,8 +39,7 @@
 // wie die Anmeldung (sonst ECONNRESET) — und die Verschlüsselung des
 // Datenkanals beginnt erst NACH dem Befehl (LIST/STOR), nicht vorher.
 //
-// Kamera (1.4.0 Standbild, 1.5.0 Video): nur solange in Lagernaut jemand zuschaut
-// — siehe „Kamera" unten.
+// Kamera (Standbild): nur solange in Lagernaut jemand zuschaut — siehe „Kamera" unten.
 //
 // Starten:  node druckbruecke.mjs      (oder „Druckbruecke starten.cmd")
 // Test:     npm run test:bruecke       (Paket-Kodierung + Statusauswertung)
@@ -69,10 +68,6 @@ export const MAX_DRUCKDATEI = 60 * 1024 * 1024;
 export const KAMERA_NACHLAUF_MS = 20_000;
 /** Mindestabstand zwischen zwei Uploads (die Kamera liefert ohnehin nur alle ~3–4 s). */
 export const KAMERA_UPLOAD_ABSTAND_MS = 1_500;
-/** Video: so oft geht ein Paket an Lagernaut (bestimmt die Verzögerung mit; 1.5.1: 400 → 250 ms). */
-export const VIDEO_TAKT_MS = 250;
-/** Video: mehr Rückstand als das (≈ 7 s bei 200 KB/s) → verwerfen und springen. */
-export const VIDEO_RUECKSTAND_BYTES = 1_500_000;
 /** In diesen Zuständen darf ein neuer Druck starten. */
 export const STARTBEREIT = ["IDLE", "FINISH", "FAILED"];
 export const STANDARD_PORT = 17350;
@@ -86,7 +81,6 @@ export const DRUCK_FRIST_MS = 4 * 60_000;
 export const DRUCKER_STILL_MS = 75_000;
 /** Größtes MQTT-Paket, das wir annehmen (ein Komplettbericht hat ~10 KB). */
 export const MQTT_MAX_PAKET = 1024 * 1024;
-const ERLAUBT_STANDARD = ["https://emts-lagernaut.duckdns.org", "http://localhost:3000"];
 
 // ── MQTT 3.1.1: Pakete bauen und zerlegen (reine Funktionen, getestet) ────────
 
@@ -229,21 +223,15 @@ export function fasseStatus(p) {
     restMinuten:  zahl(p.mc_remaining_time),
     schicht:      zahl(p.layer_num),
     schichten:    zahl(p.total_layer_num),
-    duese:        zahl(p.nozzle_temper),
-    dueseZiel:    zahl(p.nozzle_target_temper),
-    bett:         zahl(p.bed_temper),
-    bettZiel:     zahl(p.bed_target_temper),
     fehlercode:   zahl(p.print_error) || null,
     meldungen:    hms.length,
     // Externe Spule (P2S ohne AMS): print.vir_slot[0] — für den Material-Hinweis.
     spule:        spuleAus(p.vir_slot),
-    // Druckerkarte (1.5.1): Arbeitsschritt (stg_cur) und geplante Schritte (stg),
-    // Tempo-Stufe, Innenlicht, WLAN, Platte der Druckdatei. Klartext macht Lagernaut.
+    // Druckerkarte: Arbeitsschritt (stg_cur), geplante Schritte (stg), Platte der
+    // Druckdatei. Klartext macht Lagernaut. Temperaturen, Tempo, Licht und WLAN
+    // sind seit 1.6.0 raus (Audit 30.09.2026: niemand handelt danach).
     stufe:        zahl(p.stg_cur),
     stufen:       Array.isArray(p.stg) ? p.stg.map(zahl).filter((n) => n !== null).slice(0, 40) : [],
-    tempo:        zahl(p.spd_lvl),
-    licht:        Array.isArray(p.lights_report) ? p.lights_report.some((l) => l?.node === "chamber_light" && l?.mode === "on") : null,
-    wlan:         typeof p.wifi_signal === "string" ? zahl(p.wifi_signal.replace(/dBm/i, "")) : zahl(p.wifi_signal),
     platte:       zahl(p.plate_idx),
   };
 }
@@ -546,9 +534,6 @@ export class FtpsSitzung {
   }
 
   hochladen(pfad, inhalt) { return this.daten(`STOR ${pfad}`, inhalt); }
-  holen(pfad) { return this.daten(`RETR ${pfad}`); }
-  loeschen(pfad) { return this.befehl(`DELE ${pfad}`, "250"); }
-  async liste(pfad) { return (await this.daten(`LIST ${pfad}`)).toString("utf8"); }
 
   schliessen() {
     try { this.s?.write("QUIT\r\n"); } catch { /* egal */ }
@@ -567,7 +552,6 @@ export function leseEinstellungen(datei = EINSTELLUNGEN) {
       lagernautUrl: LAGERNAUT_STANDARD,
       brueckenSchluessel: "HIER_SCHLUESSEL_AUS_LAGERNAUT",
       port: STANDARD_PORT,
-      erlaubteSeiten: ERLAUBT_STANDARD,
     }, null, 2), "utf8");
     return { fehlt: `Einstellungsdatei angelegt: ${datei} — bitte IP, Seriennummer und Zugangscode eintragen und neu starten.` };
   }
@@ -593,7 +577,6 @@ export function leseEinstellungen(datei = EINSTELLUNGEN) {
     brueckenSchluessel: typeof e.brueckenSchluessel === "string" && e.brueckenSchluessel.trim() && !e.brueckenSchluessel.startsWith("HIER_")
       ? e.brueckenSchluessel.trim() : null,
     port:           Number(e.port) || STANDARD_PORT,
-    erlaubteSeiten: Array.isArray(e.erlaubteSeiten) && e.erlaubteSeiten.length ? e.erlaubteSeiten : ERLAUBT_STANDARD,
   };
 }
 
@@ -860,7 +843,9 @@ export class H264Sammler {
  *  - mittags (Druck/fertig): 30 Bilder/s, jede Sekunde ein Schlüsselbild, ~200 KB/s,
  *    läuft ohne Abbruch. Vier Sitzungen gleichzeitig nimmt er an.
  * Verlässlich in beiden Fällen: Jede neue Sitzung beginnt nach ~1–3 s mit einem
- * vollständigen Bild. Darauf bauen Schnappschuss (KameraStrom) und Video (VideoStrom).
+ * vollständigen Bild. Darauf baut der Schnappschuss (KameraStrom).
+ * Video (1.5.x) ist seit 1.6.0 wieder raus (Audit 30.09.2026): ~650 Zeilen, der
+ * größte Teil der Serverlast, und beim Drucken lieferte der P2S ohnehin nur Zeitlupe.
  */
 export const KAMERA_AUFBAU_MS = 15_000;
 export const KAMERA_STILL_MS = 4_000;
@@ -1028,124 +1013,6 @@ export class KameraStrom {
   }
 }
 
-/**
- * RTP-Zeitstempel (90 kHz, 32 Bit, läuft über) → Millisekunden seit einem Anker.
- * Liefert die neue Zeit und merkt sich den letzten Rohwert für den Überlauf.
- */
-export function rtpZuMs(anker, rtpTs) {
-  if (anker.letzterRtp === null) { anker.letzterRtp = rtpTs; anker.umlaeufe = 0; anker.erster = rtpTs; }
-  if (rtpTs < anker.letzterRtp && anker.letzterRtp - rtpTs > 0x80000000) anker.umlaeufe += 1;
-  anker.letzterRtp = rtpTs;
-  const voll = anker.umlaeufe * 0x100000000 + rtpTs - anker.erster;
-  return anker.startMs + voll / 90;
-}
-
-/**
- * Video: läuft durchgehend und gibt JEDES Bild weiter — beiBild({ daten, key, ts }),
- * ts = Anzeigezeit in ms (aus dem RTP-Takt, je Sitzung an die Wanduhr gehängt).
- * Jede Sitzung wird erst ab ihrem ersten Schlüsselbild weitergereicht.
- *
- * ⚠️ KEINE geplante Übergabe an eine zweite Sitzung. Erste Fassung öffnete nach
- * 25 s eine neue und meldete die alte ab, sobald die neue ihr erstes Schlüsselbild
- * hatte — gemessen am 30.09.2026 versiegte die NEUE daraufhin nach ~1,5 s (6 s
- * Loch). Der Drucker teilt die Quelle offenbar zwischen den Sitzungen, und das
- * Abmelden der einen stört die andere. Stattdessen: eine Sitzung, und versiegt sie
- * (Leerlauf, ~30 s), nach VIDEO_STILL_MS sofort neu verbinden — die neue beginnt
- * mit einem vollständigen Bild. Beim Drucken läuft eine Sitzung ohne Ende.
- */
-export const VIDEO_STILL_MS = 2_500;
-/**
- * Hängt das Video mehr als das hinter der Wirklichkeit her, wird neu verbunden.
- * Gemessen am 30.09.2026 BEIM DRUCKEN: Der P2S schafft dann nur ~20–80 KB/s statt
- * ~240 KB/s — die Bilder kommen langsamer an, als sie entstehen (Zeitlupe, der
- * Rückstand wächst, nach ~30 s gibt er auf). Eine neue Sitzung beginnt immer mit
- * dem AKTUELLEN Bild: lieber ruckelig und aktuell als flüssig und veraltet.
- */
-export const VIDEO_MAX_VERZUG_MS = 2_000;   // 1.5.1: 3 → 2 s (Frank: „noch ein wenig aktueller")
-
-export class VideoStrom {
-  constructor(e, beiBild) {
-    this.e = e; this.beiBild = beiBild;
-    this.aktiv = false; this.aktuell = null;
-    this.fehlerSerie = 0; this.neuVersuch = null; this.letzteTs = 0; this.gemeldet = false;
-  }
-  get laeuft() { return this.aktiv; }
-  get codec() { return codecAusSps(this.aktuell?.sitzung.sammler?.sps) ?? "avc1.640029"; }
-  starten() {
-    if (this.aktiv) return;
-    this.aktiv = true; this.fehlerSerie = 0;
-    this.aktuell = this.neueSitzung();
-  }
-  stoppen() {
-    this.aktiv = false; this.gemeldet = false;
-    clearTimeout(this.neuVersuch);
-    this.aktuell?.sitzung.stoppen();
-    this.aktuell = null;
-  }
-  neueSitzung() {
-    const eintrag = { sitzung: null, anker: null };
-    eintrag.sitzung = new RtspSitzung(this.e, (b) => this.bild(eintrag, b), (grund) => this.ende(eintrag, grund), VIDEO_STILL_MS);
-    eintrag.sitzung.starten();
-    return eintrag;
-  }
-  bild(eintrag, b) {
-    if (!this.aktiv || eintrag !== this.aktuell) return;
-    if (!eintrag.anker) {
-      if (!b.key) return;                                   // erst ab dem ersten Schlüsselbild
-      // Jede Sitzung setzt ihre Zeit NEU an der Wanduhr an. Erste Fassung nahm
-      // max(jetzt, letzte Zeit + 1) — weil die Druckerzeit minimal schneller läuft,
-      // schob sich der Vorsprung von Sitzung zu Sitzung weiter (gemessen: >1 s in
-      // Minuten), und die Verzugsprüfung unten wurde blind. Ein Rücksprung an der
-      // Sitzungsgrenze ist gewollt: Der Abspieler verwirft dann die alten Bilder.
-      eintrag.anker = { startMs: Date.now(), letzterRtp: null, umlaeufe: 0, erster: 0 };
-      this.fehlerSerie = 0;
-      if (!this.gemeldet) { this.gemeldet = true; log(`✓ Kamera läuft (Video, ${Math.round(b.daten.length / 1024)} KB je Schlüsselbild)`); }
-    }
-    const ts = rtpZuMs(eintrag.anker, b.rtpTs);
-    this.letzteTs = ts;
-    this.beiBild({ daten: b.daten, key: b.key, ts });
-    // Zu weit hinter der Wirklichkeit (Drucker liefert langsamer als Echtzeit) → frisch ansetzen.
-    if (Date.now() - ts > VIDEO_MAX_VERZUG_MS) {
-      this.verzugNeu = (this.verzugNeu ?? 0) + 1;
-      eintrag.sitzung.stoppen();
-      this.ende(eintrag, null);
-    }
-  }
-  ende(eintrag, grund) {
-    if (!this.aktiv || eintrag !== this.aktuell) return;
-    this.aktuell = null;
-    if (grund) { this.fehlerSerie += 1; log(`⚠ Kamera: ${grund}`); }
-    const pause = this.fehlerSerie >= 3 ? KAMERA_FEHLER_PAUSE_MS : 0;
-    if (this.fehlerSerie >= 3) this.fehlerSerie = 0;
-    clearTimeout(this.neuVersuch);
-    this.neuVersuch = setTimeout(() => { if (this.aktiv && !this.aktuell) this.aktuell = this.neueSitzung(); }, pause);
-  }
-}
-
-/**
- * Video-Paket für Lagernaut: [u32 Anzahl] und je Bild [u8 key][f64 ts][u32 Länge][Daten].
- * Dieselbe Form liest der Server (src/modules/druck/kamera.ts, entpackeVideo).
- */
-export function packeVideo(bilder) {
-  const teile = [Buffer.alloc(4)];
-  teile[0].writeUInt32BE(bilder.length, 0);
-  for (const b of bilder) {
-    const kopf = Buffer.alloc(13);
-    kopf.writeUInt8(b.key ? 1 : 0, 0);
-    kopf.writeDoubleBE(b.ts, 1);
-    kopf.writeUInt32BE(b.daten.length, 9);
-    teile.push(kopf, b.daten);
-  }
-  return Buffer.concat(teile);
-}
-
-// ── Kleiner Webserver nur für diesen PC ───────────────────────────────────────
-
-/** Darf diese Seite die Brücke fragen? Nur eingetragene Lagernaut-Adressen. */
-export function herkunftErlaubt(origin, erlaubte) {
-  return typeof origin === "string" && erlaubte.includes(origin.replace(/\/$/, ""));
-}
-
 // ── Druck ausführen: Datei → /cache → project_file ────────────────────────────
 const log = (...a) => console.log(new Date().toLocaleTimeString("de-DE"), ...a);
 let druckLaeuft = false;
@@ -1207,10 +1074,8 @@ function starteLagernaut(e, verbindung) {
     letzte = fehler;
   };
 
-  // Kamera: nur solange Lagernaut meldet, dass jemand zuschaut — Standbild
-  // (kamera: true) oder Video (video: true). Video hat Vorrang: Es liefert dem
-  // Server auch die Standbilder mit, beides zugleich braucht es nie.
-  let bildBis = 0, videoBis = 0;
+  // Kamera: nur solange Lagernaut meldet, dass jemand zuschaut (kamera: true).
+  let bildBis = 0;
   let hochladen = false;
   let letzterUpload = 0;
   const standbild = new KameraStrom(e, (bild, codec) => {
@@ -1227,48 +1092,10 @@ function starteLagernaut(e, verbindung) {
       .finally(() => { hochladen = false; });
   });
 
-  // Video: Bilder sammeln und alle VIDEO_TAKT_MS als ein Paket schicken. Hinkt der
-  // Upload hinterher (Gast-WLAN) oder geht ein Paket verloren, wird ab dem nächsten
-  // Schlüsselbild weitergemacht — Bilder dazwischen wären ohne Vorgänger nicht
-  // decodierbar. Beim Drucken kommt jede Sekunde eines.
-  let videoPuffer = [], videoBytes = 0, videoUpload = false, videoLuecke = false;
-  const video = new VideoStrom(e, (b) => {
-    if (videoLuecke) { if (!b.key) return; videoLuecke = false; }
-    videoPuffer.push(b);
-    videoBytes += b.daten.length;
-    if (videoBytes > VIDEO_RUECKSTAND_BYTES) {
-      videoPuffer = []; videoBytes = 0; videoLuecke = true;
-      log("⚠ Kamera: Upload zu langsam — Video springt zum nächsten vollständigen Bild");
-    }
-  });
-  const sendeVideo = async () => {
-    if (videoUpload || videoPuffer.length === 0) return;
-    const paket = videoPuffer;
-    videoPuffer = []; videoBytes = 0; videoUpload = true;
-    try {
-      const r = await fetch(`${e.lagernautUrl}/api/druck/bruecke/video`, {
-        method: "POST",
-        headers: { ...kopf, "Content-Type": "application/octet-stream", "X-Codec": video.codec },
-        body: packeVideo(paket), signal: AbortSignal.timeout(10_000),
-      });
-      if (!r.ok) throw new Error(String(r.status));
-      if ((await r.json())?.weiter === false) videoBis = 0;
-    } catch {
-      videoLuecke = true;                 // Paket verloren → erst ab dem nächsten Schlüsselbild weiter
-    } finally {
-      videoUpload = false;
-    }
-  };
-  setInterval(() => void sendeVideo(), VIDEO_TAKT_MS);
   setInterval(() => {
-    const jetzt = Date.now();
-    if (video.laeuft && jetzt > videoBis) {
-      video.stoppen(); videoPuffer = []; videoBytes = 0; videoLuecke = false;
-      log("Kamera aus (niemand schaut zu)");
-    }
-    if (standbild.laeuft && (jetzt > bildBis || video.laeuft)) {
+    if (standbild.laeuft && Date.now() > bildBis) {
       standbild.stoppen();
-      if (!video.laeuft) log("Kamera aus (niemand schaut zu)");
+      log("Kamera aus (niemand schaut zu)");
     }
   }, 2000);
 
@@ -1325,13 +1152,9 @@ function starteLagernaut(e, verbindung) {
           if (druckLaeuft) void meldeErgebnis(j.auftrag, { ok: false, beschaeftigt: true, fehler: "Die Druckbrücke überträgt gerade noch einen anderen Auftrag." });
           else void fuehreAus(j.auftrag);
         }
-        const verbunden = verbindung.status().verbindung === "verbunden";
-        if (j?.video === true) {
-          videoBis = Date.now() + KAMERA_NACHLAUF_MS;
-          if (!video.laeuft && verbunden) { standbild.stoppen(); video.starten(); }
-        } else if (j?.kamera === true) {
+        if (j?.kamera === true) {
           bildBis = Date.now() + KAMERA_NACHLAUF_MS;
-          if (!standbild.laeuft && !video.laeuft && verbunden) standbild.starten();
+          if (!standbild.laeuft && verbindung.status().verbindung === "verbunden") standbild.starten();
         }
       }
     } catch (err) {
@@ -1342,36 +1165,24 @@ function starteLagernaut(e, verbindung) {
   void runde();
 }
 
+// ── Kleiner Webserver nur für diesen PC ───────────────────────────────────────
+// Sperre gegen einen zweiten Start (Port belegt) und /status bzw. /roh zur
+// Fehlersuche im Browser dieses PCs. Seit 1.3.0 ruft keine Lagernaut-Seite ihn
+// mehr auf — deshalb 1.6.0 ohne CORS/Chrome-Freigabe: Anfragen AUS einer Webseite
+// (mit Origin) werden abgewiesen, nur direkt eingetippte Adressen gehen.
 function starteServer(e, verbindung, bereit) {
   const server = http.createServer((req, res) => {
     // Schutz gegen DNS-Rebinding: nur echte Aufrufe an 127.0.0.1/localhost.
     const host = String(req.headers.host ?? "").replace(/:\d+$/, "");
     if (host !== "127.0.0.1" && host !== "localhost") { res.writeHead(403).end(); return; }
-
-    const origin = req.headers.origin;
-    const erlaubt = herkunftErlaubt(origin, e.erlaubteSeiten);
-    if (origin && !erlaubt) { res.writeHead(403).end("Seite nicht freigegeben"); return; }
-    if (erlaubt) {
-      res.setHeader("Access-Control-Allow-Origin", origin);
-      res.setHeader("Vary", "Origin");
-    }
-    if (req.method === "OPTIONS") {
-      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-      res.setHeader("Access-Control-Max-Age", "600");
-      // Chrome: Anfragen einer Internetseite an den eigenen PC brauchen diese Freigabe.
-      res.setHeader("Access-Control-Allow-Private-Network", "true");
-      res.writeHead(204).end();
-      return;
-    }
+    if (req.headers.origin) { res.writeHead(403).end(); return; }
     res.setHeader("Cache-Control", "no-store");
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     if (req.method === "GET" && url.pathname === "/status") {
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify(verbindung.status()));
       return;
     }
-    // Nur zur Fehlersuche am PC selbst (ohne Origin, also nicht aus einer Webseite).
-    if (req.method === "GET" && url.pathname === "/roh" && !origin) {
+    if (req.method === "GET" && url.pathname === "/roh") {
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" }).end(JSON.stringify(verbindung.roh, null, 2));
       return;
     }

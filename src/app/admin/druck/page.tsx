@@ -146,7 +146,7 @@ export default function DruckPage() {
                             <Link href={`/admin/druck/${z.vorlageId}`} className={knopfRand}>Datei fehlt</Link>
                           )}
                           {druckDatei.get(z.vorlageId) && (
-                            <DruckenKnopf klein vorlageId={z.vorlageId} titel={z.vorlageName}
+                            <DruckenKnopf klein titel={z.vorlageName}
                               dateiId={druckDatei.get(z.vorlageId)!.id} dateiname={druckDatei.get(z.vorlageId)!.dateiname}
                               material={(vorlagen.data ?? []).find((v) => v.id === z.vorlageId)?.material} />
                           )}
@@ -283,7 +283,7 @@ export default function DruckPage() {
                 </Link>
                 {d && (
                   <div className="px-4 pb-2">
-                    <DruckenKnopf klein vorlageId={v.id} titel={v.name} dateiId={d.id} dateiname={d.dateiname} material={v.material} />
+                    <DruckenKnopf klein titel={v.name} dateiId={d.id} dateiname={d.dateiname} material={v.material} />
                   </div>
                 )}
                 <div className="px-4 pb-4 mt-auto flex gap-2">

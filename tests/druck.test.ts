@@ -14,11 +14,7 @@ import { darfStarten, darfPlatteFreigeben, platteNachBericht, haengt, istDerAuft
 import {
   KAMERA_NACHFRAGE_MS, codecGueltig, siehtAusWieH264, kameraAnfordern, kameraGewuenscht, kameraBildSpeichern, kameraBild,
 } from "../src/modules/druck/kamera";
-import {
-  VIDEO_VERALTET_MS, leererPuffer, packeVideo, entpackeVideo, fuegeHinzu, bilderFuer, videoAnfordern, videoGewuenscht,
-} from "../src/modules/druck/kameraVideo";
-import { entpackeVideoPaket, waehleBild } from "../src/lib/druck/videoSpieler";
-import { phaseVon, tempoText, wlanText, restText, fertigUm } from "../src/lib/druck/druckerPhase";
+import { phaseVon, restText, fertigUm } from "../src/lib/druck/druckerPhase";
 import { plattenAusZip, waehlePlatte, NUR_METADATEN } from "../src/modules/druck/vorschau";
 import { leseZip, schreibeZip } from "../src/lib/zip/einfach";
 import { herstellerVon, passtSuche, gruppiereNachHersteller } from "../src/lib/druck/vorlagenFilter";
@@ -171,47 +167,6 @@ console.log("\n── Kamera: Nachfrage und letztes Bild ──");
   check("JPEG ist kein H.264", siehtAusWieH264(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0])), false);
 }
 
-// ── Kamera-Video (Stufe 2) ─────────────────────────────────────────────────
-console.log("\n── Video: Paketform ──");
-{
-  const h = (n: number) => Buffer.from([0, 0, 0, 1, 0x65, n]);
-  const bilder = [{ key: true, ts: 1_790_000_000_123.5, daten: h(1) }, { key: false, ts: 1_790_000_000_156.8, daten: Buffer.from([0, 0, 0, 1, 0x41, 2, 3]) }];
-  const paket = packeVideo(bilder);
-  const zurueck = entpackeVideo(paket);
-  check("packen → entpacken (Server) gleich", zurueck?.map((b) => [b.key, b.ts, [...b.daten]]), bilder.map((b) => [b.key, b.ts, [...b.daten]]));
-  const ab = new Uint8Array(paket).buffer;
-  check("entpacken im Browser gleich", entpackeVideoPaket(ab)?.map((b) => [b.key, b.ts, [...b.daten]]), bilder.map((b) => [b.key, b.ts, [...b.daten]]));
-  check("abgeschnittenes Paket → null (Server)", entpackeVideo(paket.subarray(0, paket.length - 1)), null);
-  check("abgeschnittenes Paket → null (Browser)", entpackeVideoPaket(new Uint8Array(paket.subarray(0, paket.length - 1)).buffer), null);
-  check("Müll hinten dran → null", entpackeVideo(Buffer.concat([paket, Buffer.from([1])])), null);
-  check("leeres Paket", entpackeVideo(packeVideo([])), []);
-}
-
-console.log("\n── Video: Puffer ──");
-{
-  const T = 1_790_000_000_000;
-  const b = (key: boolean, ts: number) => ({ key, ts, daten: Buffer.from([0, 0, 0, 1, key ? 0x65 : 0x41, 0]) });
-  // Zwei Schlüsselbild-Abstände à 3 Bilder: K d d K d d K d
-  const p = leererPuffer();
-  fuegeHinzu(p, [b(true, 0), b(false, 33), b(false, 66)], "avc1.641029", T);
-  fuegeHinzu(p, [b(true, 100), b(false, 133), b(false, 166)], "avc1.641029", T + 400);
-  fuegeHinzu(p, [b(true, 200), b(false, 233)], "avc1.641029", T + 800);
-  check("Nummern laufen durch", p.seq, 8);
-  check("behalten ab dem VORLETZTEN Schlüsselbild", p.bilder.map((x) => x.seq), [4, 5, 6, 7, 8]);
-  check("neuer Zuschauer beginnt beim LETZTEN Schlüsselbild", bilderFuer(p, 0).map((x) => x.seq), [7, 8]);
-  check("Zuschauer mit Stand 5 bekommt 6, 7, 8", bilderFuer(p, 5).map((x) => x.seq), [6, 7, 8]);
-  check("Zuschauer mit Lücke (Stand 2) → ab Schlüsselbild", bilderFuer(p, 2).map((x) => x.seq), [7, 8]);
-  check("Zuschauer ist aktuell → nichts", bilderFuer(p, 8), []);
-  check("Zuschauer kennt mehr als der Server (Neustart) → ab Schlüsselbild", bilderFuer(p, 99).map((x) => x.seq), [7, 8]);
-  // Lange nichts gekommen → frischer Puffer, sonst spränge der Abspieler über Minuten
-  fuegeHinzu(p, [b(true, 90_000)], "avc1.641029", T + 800 + VIDEO_VERALTET_MS + 1);
-  check("nach langer Pause nur das Neue", p.bilder.map((x) => x.seq), [9]);
-  const leer = leererPuffer();
-  fuegeHinzu(leer, [b(false, 1), b(false, 2)], "avc1.641029", T);
-  check("ohne Schlüsselbild bekommt niemand etwas", bilderFuer(leer, 0), []);
-  check("Video-Nachfrage läuft ab", (() => { videoAnfordern(T); return [videoGewuenscht(T + 1000), videoGewuenscht(T + 31_000)]; })(), [true, false]);
-}
-
 console.log("\n── Druckerkarte: Phase und Klartexte ──");
 {
   // Echte Meldung vom P2S am 30.09.2026 (Füße-Druck)
@@ -223,9 +178,6 @@ console.log("\n── Druckerkarte: Phase und Klartexte ──");
   check("fertig → Zustandstext", phaseVon("FINISH", "fertig", 0, geplant), { text: "fertig", schritt: null, druckt: false, pause: false });
   check("Pause beim Drucken → Angehalten", phaseVon("PAUSE", "pausiert", 0, geplant), { text: "Angehalten", schritt: null, druckt: false, pause: true });
   check("Filament leer ist eine Pause", phaseVon("PAUSE", "pausiert", 6, []).pause, true);
-  check("Tempo", [tempoText(1), tempoText(2), tempoText(3), tempoText(4), tempoText(7), tempoText(null)], ["Leise", "Standard", "Sport", "Turbo", null, null]);
-  check("WLAN -64 dBm = gut (gemessen)", wlanText(-64), "gut");
-  check("WLAN Stufen", [wlanText(-50), wlanText(-70), wlanText(-80), wlanText(null)], ["sehr gut", "mäßig", "schwach", null]);
   check("Restzeit", [restText(25), restText(65), restText(120), restText(0), restText(null)], ["25 min", "1 h 05 min", "2 h 00 min", null, null]);
   // 30.09.2026 10:00 Uhr deutsche Zeit = 08:00 UTC
   const jetzt = new Date("2026-09-30T08:00:00Z");
@@ -388,16 +340,6 @@ console.log("\n── Auswertung: was bringt der Druck ein ──");
 
   const leer = werteAus({ artikel: [], bewegungen: [], grammSchaetzung: 2, euroProKg: 20, vonMonat: "2026-09", bisMonat: "2026-09" });
   check("ohne Daten: alles 0, ein Monat", [leer.gedruckt.stueck, leer.ergebnis, leer.monate.length], [0, 0, 1]);
-}
-
-console.log("\n── Video: Bildwahl beim Abspielen ──");
-{
-  const ts = [1000, 1033, 1066, 1100];
-  check("zur Zeit 1050 ist 1033 dran", waehleBild(ts, 1050), 1);
-  check("genau auf dem Zeitstempel", waehleBild(ts, 1066), 2);
-  check("noch vor dem ersten → keins", waehleBild(ts, 999), -1);
-  check("hinter dem letzten → das letzte", waehleBild(ts, 5000), 3);
-  check("leere Liste", waehleBild([], 1000), -1);
 }
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────

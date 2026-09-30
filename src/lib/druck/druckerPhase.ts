@@ -94,21 +94,6 @@ export function phaseVon(
   };
 }
 
-export const TEMPO_TEXT: Readonly<Record<number, string>> = { 1: "Leise", 2: "Standard", 3: "Sport", 4: "Turbo" };
-
-export function tempoText(stufe: number | null | undefined): string | null {
-  return stufe != null ? (TEMPO_TEXT[stufe] ?? null) : null;
-}
-
-/** WLAN-Signal (dBm) in Worten. */
-export function wlanText(dbm: number | null | undefined): string | null {
-  if (dbm == null || !Number.isFinite(dbm) || dbm >= 0) return null;
-  if (dbm >= -55) return "sehr gut";
-  if (dbm >= -67) return "gut";
-  if (dbm >= -75) return "mäßig";
-  return "schwach";
-}
-
 /** Restzeit in Worten: „25 min", „1 h 05 min". */
 export function restText(minuten: number | null | undefined): string | null {
   if (minuten == null || !Number.isFinite(minuten) || minuten <= 0) return null;

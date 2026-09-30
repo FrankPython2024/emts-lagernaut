@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1021) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 986) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1540,7 +1540,8 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   **Update am Laptop:** `einrichten.cmd` erneut ausführen, Brücke neu starten. Fehlersuche:
   `KAMERA_DEBUG=1` zeigt die RTSP-Schritte.
   Nach Deploy + Brücken-Update am 30.09.2026 im Betrieb bestätigt (Frank: „Livebild ist da“).
-- **Kamerabild, Stufe 2 „Video" (30.09.2026, Brücke 1.5.0):** Auf der Druckerkarte beim Livebild
+- **Kamerabild, Stufe 2 „Video" (30.09.2026, Brücke 1.5.0) — ⚠️ im Audit am selben Tag WIEDER ENTFERNT
+  (siehe „3D-Druck: Audit"), der Abschnitt bleibt als Messprotokoll:** Auf der Druckerkarte beim Livebild
   Umschalter **Video | Standbild** (Standard Video, je Browser gemerkt, `druck-livebild-modus`).
   ⚠️ **Wie viel der Drucker liefert, hängt von seinem Zustand ab** (am selben Tag gemessen): fertig/
   untätig ~240 KB/s, 30 Bilder/s, jede Sekunde ein Schlüsselbild (120–210 KB), läuft durch; **beim
@@ -1682,9 +1683,25 @@ Einbuchen). Frank: „der Lagernaut wird zum Monster" → abarbeiten in Paketen,
   slice_info entpacken (`NUR_METADATEN`), nie den G-Code; Zwischenspeicher verdrängt den ältesten statt
   alles zu leeren. Ein Ladefehler der Druckerkarte zeigt jetzt eine Meldung statt zu verschwinden.
 
-**Noch offen (Pakete 2–4):** Video entfernen (Standbild bleibt, ~650 Zeilen, größter Teil der
-Serverlast), Druckerkarte abspecken, `liste`/`druckliste` zusammenlegen, toter Code (lokaler
-CORS-Server der Brücke, ungenutzte FTP-Methoden, `vorlageId` am DruckenKnopf); Druckliste: Bestand
+**Paket 2 „verschlanken" (gleiche Brücke 1.6.0):**
+- ⚠️ **Video wieder raus** (Stufe 2 von heute Mittag): Brücke (`VideoStrom`, `packeVideo`, `rtpZuMs`),
+  Server (`kameraVideo.ts`, `/api/druck/bruecke/video`, `/api/druck/kamera/video`), Browser
+  (`videoSpieler.ts`, `KameraVideo.tsx`). Grund: größter Teil der Serverlast (~18 DB-Abfragen/s je
+  Zuschauer), konnte nach einer Pause ein altes Bild als „Live" zeigen, und beim Drucken lieferte der
+  P2S ohnehin nur Zeitlupe. Das Standbild beantwortet dieselbe Frage (liegt etwas auf der Platte,
+  läuft der Druck). Livebild ist jetzt ein An/Aus-Knopf. Eine alte Brücke 1.5.x bekommt nie mehr
+  `video: true` und macht nur noch Standbilder.
+- **Druckerkarte abgespeckt:** Düse/Bett, Tempo, Licht, WLAN raus (auch aus `fasseStatus` der Brücke).
+  **Phase mit „Schritt x von y" bleibt bewusst** — hatte Frank ausdrücklich gewünscht; unbekannte
+  Schritt-Codes fallen ohnehin auf „Vorbereitung (Schritt N)" zurück, da bricht nichts.
+  Schicht/Restzeit nur während des Drucks.
+- `liste` und `druckliste` teilen sich die Bedarfsrechnung (15 s gemerkt, gleichzeitige Aufrufe
+  bekommen dasselbe Ergebnis) — vorher lief sie je Seitenaufruf doppelt.
+- Toter Code weg: lokaler CORS/Private-Network-Teil der Brücke (Anfragen mit Origin werden jetzt
+  abgewiesen, `/status` und `/roh` nur direkt), `erlaubteSeiten`, FTP `holen/liste/loeschen`,
+  `vorlageId` am DruckenKnopf, `gekoppeltAm`, Exporte im Etikett. Zustand „aktiv" überall aus `DRUCKT`.
+
+**Noch offen (Pakete 3–4):** Druckliste: Bestand
 doppelt bei Artikeln an mehreren Modellen, Pool nicht berücksichtigt, Nachfrage über `geraeteName`
 statt Roh-Bezeichnung (Detachable); Barrierefreiheit: Drucken-Knopf 2,7:1, `aria-live` auf der ganzen
 Karte (alle 3 s vorgelesen), Knöpfe 36–44 px. Kleinere: Einbuchen/Zurücknehmen nicht atomar, Gramm

@@ -44,7 +44,7 @@ async function qrSvg(inhalt: string): Promise<string> {
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
-export const DRUCK_ETIKETT_CSS = `
+const DRUCK_ETIKETT_CSS = `
   .de    { width: 55mm; height: 30mm; padding: 1.5mm 1.8mm; display: flex; gap: 1.5mm; overflow: hidden;
            background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; box-sizing: border-box; }
   .links { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
@@ -61,7 +61,7 @@ export const DRUCK_ETIKETT_CSS = `
 `;
 
 /** Ein Etikett als HTML (für Vorschau und Druck). */
-export function druckEtikettHtml(e: DruckEtikett, qr: string): string {
+function druckEtikettHtml(e: DruckEtikett, qr: string): string {
   // Lange Namen: kleiner und bis zu 3 Zeilen statt abgeschnitten (am 30.09.2026 im Browser
   // gemessen: 59 Zeichen brauchen bei 7,5 pt drei Zeilen, Platz ist dafür da).
   const lang = e.artikel.length > 38;

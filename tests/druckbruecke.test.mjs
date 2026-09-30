@@ -8,9 +8,9 @@
 
 import {
   kodiereLaenge, baueConnect, baueSubscribe, bauePublish, zerlegePakete, lesePublish,
-  fuehreZusammen, fasseStatus, herkunftErlaubt, findePlatten, druckerDateiname, druckBefehl,
+  fuehreZusammen, fasseStatus, findePlatten, druckerDateiname, druckBefehl,
   leseZipEintrag, filamenteDerPlatte, spulenZuordnung,
-  H264Sammler, leseSdp, codecAusSps, digestAntwort, rtpZuMs, packeVideo,
+  H264Sammler, leseSdp, codecAusSps, digestAntwort,
   pruefeZertifikat, mitFrist, MQTT_MAX_PAKET,
 } from "../tools/druckbruecke/druckbruecke.mjs";
 import zlib from "node:zlib";
@@ -69,21 +69,13 @@ const st = fasseStatus({
   subtask_name: "L13 Fuss vorne 40x", print_error: 0, hms: [],
 });
 check("druckt, Fortschritt, Rest, Schicht", [st.zustandText, st.fortschritt, st.restMinuten, st.schicht, st.schichten], ["druckt", 43, 72, 50, 210]);
-check("Datei und Temperaturen", [st.datei, st.duese, st.bett], ["L13 Fuss vorne 40x", 219.8, 65]);
+check("Datei gelesen, Temperaturen nicht mehr übernommen", [st.datei, st.duese, st.bett], ["L13 Fuss vorne 40x", undefined, undefined]);
 check("print_error 0 → kein Fehler", st.fehlercode, null);
 check("Zahlen als Text werden gelesen", fasseStatus({ mc_percent: "12" }).fortschritt, 12);
 check("unbekannter Zustand bleibt lesbar", fasseStatus({ gcode_state: "offline" }).zustandText, "offline");
 check("kein Bericht → null", fasseStatus(undefined), null);
 check("externe Spule aus vir_slot (echter P2S-Bericht)", fasseStatus({ vir_slot: [{ id: "255", tray_type: "PLA", tray_color: "161616FF" }] }).spule, { typ: "PLA", farbe: "#161616" });
 check("ohne vir_slot → keine Spule", fasseStatus({ gcode_state: "IDLE" }).spule, null);
-
-console.log("\n── Freigegebene Seiten ──");
-const erl = ["https://emts-lagernaut.duckdns.org"];
-check("Lagernaut erlaubt", herkunftErlaubt("https://emts-lagernaut.duckdns.org", erl), true);
-check("mit Schrägstrich am Ende erlaubt", herkunftErlaubt("https://emts-lagernaut.duckdns.org/", erl), true);
-check("fremde Seite abgelehnt", herkunftErlaubt("https://boese.example", erl), false);
-check("ähnliche Seite abgelehnt", herkunftErlaubt("https://emts-lagernaut.duckdns.org.boese.example", erl), false);
-check("ohne Origin abgelehnt", herkunftErlaubt(undefined, erl), false);
 
 console.log("\n── Platten in der Druckdatei (ZIP-Inhaltsverzeichnis) ──");
 // Minimales ZIP ohne Inhalt: nur Zentralverzeichnis + Ende-Eintrag, wie es findePlatten liest.
@@ -233,21 +225,6 @@ console.log("\n── Kamera: Bilder aus RTP-Paketen ──");
   const s5 = new H264Sammler([SPS, PPS]);
   check("RTP mit CSRC und Auffüllung", s5.rtp(rtp(klein, { ts: 7, marker: true, cc: 2, pad: 4 }))?.equals(annexB(SPS, PPS, klein)), true);
   check("kein RTP (Version ≠ 2) → null", s5.rtp(Buffer.alloc(20)), null);
-}
-
-console.log("\n── Video: Zeitstempel und Paketform ──");
-{
-  const anker = { startMs: 1_000_000, letzterRtp: null, umlaeufe: 0, erster: 0 };
-  check("erstes Bild = Ankerzeit", rtpZuMs(anker, 90_000), 1_000_000);
-  check("eine Sekunde später (90 kHz)", rtpZuMs(anker, 180_000), 1_001_000);
-  const a2 = { startMs: 0, letzterRtp: null, umlaeufe: 0, erster: 0 };
-  rtpZuMs(a2, 0xffffff00);
-  check("Überlauf des 32-Bit-Zählers läuft weiter statt zurück", Math.round(rtpZuMs(a2, 0x100) * 90), 0x200);
-  const bilder = [{ key: true, ts: 1_790_000_000_123.5, daten: Buffer.from([0, 0, 0, 1, 0x65, 7]) }, { key: false, ts: 1_790_000_000_156.8, daten: Buffer.from([0, 0, 0, 1, 0x41]) }];
-  const p = packeVideo(bilder);
-  check("Paket: Anzahl vorn", p.readUInt32BE(0), 2);
-  check("Paket: erstes Bild key/ts/Länge", [p.readUInt8(4), p.readDoubleBE(5), p.readUInt32BE(13)], [1, 1_790_000_000_123.5, 6]);
-  check("Paket: Gesamtlänge", p.length, 4 + 13 + 6 + 13 + 5);
 }
 
 console.log("\n── Absicherung 1.6.0 (Audit 30.09.2026) ──");

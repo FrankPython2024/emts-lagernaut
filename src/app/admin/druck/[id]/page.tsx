@@ -449,7 +449,7 @@ function DateienKarte({ id, titel, material, dateien, darfPflegen }: {
                   <div className="font-bold text-sm text-[#202F61] dark:text-[#e4e6eb] break-all">{d.dateiname}</div>
                   <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{fmtGroesse(d.groesse)} · {fmtDatum(d.createdAt)} · {d.hochgeladenVon}</div>
                 </div>
-                {art === "DRUCK" && <DruckenKnopf klein vorlageId={id} titel={titel} dateiId={d.id} dateiname={d.dateiname} material={material} />}
+                {art === "DRUCK" && <DruckenKnopf klein titel={titel} dateiId={d.id} dateiname={d.dateiname} material={material} />}
                 <a href={`/api/druck/datei/${d.id}`} className={knopfRand}>⬇ Herunterladen</a>
                 {darfPflegen && (
                   <button type="button" className={`${knopfRand} text-[#fa3e3e]`} onClick={() => setLoeschId(d.id)} aria-label={`${d.dateiname} löschen`}>🗑</button>
