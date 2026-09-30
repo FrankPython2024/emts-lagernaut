@@ -11,9 +11,10 @@ import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { DruckerStatus } from "@/components/druck/DruckerStatus";
 import { DruckenKnopf } from "@/components/druck/DruckenKnopf";
+import { DruckAuswertung } from "@/components/druck/DruckAuswertung";
 import { gruppiereNachHersteller, passtSuche } from "@/lib/druck/vorlagenFilter";
 
-type Reiter = "liste" | "vorlagen";
+type Reiter = "liste" | "vorlagen" | "auswertung";
 const REITER_KEY = "druck-reiter";
 
 function fmtDauer(min: number | null): string | null {
@@ -37,7 +38,7 @@ export default function DruckPage() {
   const [suche, setSuche] = useState("");
   const [hersteller, setHersteller] = useState("Alle");
   useEffect(() => {
-    try { const r = localStorage.getItem(REITER_KEY); if (r === "liste" || r === "vorlagen") setReiter(r); } catch { /* egal */ }
+    try { const r = localStorage.getItem(REITER_KEY); if (r === "liste" || r === "vorlagen" || r === "auswertung") setReiter(r); } catch { /* egal */ }
   }, []);
   const wechsle = (r: Reiter) => { setReiter(r); try { localStorage.setItem(REITER_KEY, r); } catch { /* egal */ } };
 
@@ -77,8 +78,8 @@ export default function DruckPage() {
 
       <DruckerStatus />
 
-      <div role="tablist" className="flex gap-2">
-        {([["liste", "📋 Druckliste"], ["vorlagen", `🗂️ Vorlagen${vorlagen.data ? ` (${vorlagen.data.length})` : ""}`]] as const).map(([r, text]) => (
+      <div role="tablist" className="flex gap-2 flex-wrap">
+        {([["liste", "📋 Druckliste"], ["vorlagen", `🗂️ Vorlagen${vorlagen.data ? ` (${vorlagen.data.length})` : ""}`], ["auswertung", "📊 Auswertung"]] as const).map(([r, text]) => (
           <button
             key={r}
             role="tab"
@@ -93,7 +94,9 @@ export default function DruckPage() {
         ))}
       </div>
 
-      {reiter === "liste" ? (
+      {reiter === "auswertung" ? (
+        <DruckAuswertung darfPflegen={darfPflegen} />
+      ) : reiter === "liste" ? (
         liste.isLoading ? (
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Rechne Nachfrage…</p>
         ) : liste.isError ? (

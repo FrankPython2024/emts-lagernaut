@@ -9,7 +9,7 @@ import { zerlegeGeraetename } from "@/lib/geraete/schildName";
 import { modellSchluessel } from "@/modules/teilespender/service";
 import { bucheLager, loescheBuchung } from "@/modules/buchungen/service";
 import { standortWhere } from "@/lib/auth/standortFilter";
-import { BuchungsTyp } from "@prisma/client";
+import { BuchungsTyp, type Prisma } from "@prisma/client";
 import { STAND_ID, hashSchluessel, neuerSchluessel } from "@/modules/druck/bruecke";
 import { BRUECKE_STILL_MS, darfStarten, istDerAuftrag } from "@/lib/druck/warteschlange";
 import {
@@ -17,6 +17,7 @@ import {
   type BedarfZeile, type VorlageKurz,
 } from "@/lib/druck/druckliste";
 import { druckdateiInfo, waehlePlatte } from "@/modules/druck/vorschau";
+import { ladeAuswertung, setzeFilamentPreis } from "@/modules/druck/auswertung";
 
 // ── 3D-Druck: Druckvorlagen + Druckliste (Paket 1, 24.09.2026) ───────────────
 // Lesen: ARTIKEL_VIEW. Pflegen: ARTIKEL_EDIT. Kein neues Recht, kein seed-rbac.
@@ -566,6 +567,20 @@ export const druckRouter = createTRPCRouter({
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       await prisma.druckvorlageDatei.delete({ where: { id: input.id } });
+      return { ok: true };
+    }),
+
+  // ── Auswertung: was bringt der Druck ein? (30.09.2026) ─────────────────────
+  // Gedruckt (Material) gegen ausgegeben (Technik + Niederlassungen), Regeln in
+  // src/lib/druck/auswertung.ts. tage = null → seit Beginn.
+  auswertung: lesen
+    .input(z.object({ tage: z.number().int().positive().max(3650).nullable() }))
+    .query(async ({ ctx, input }) => ladeAuswertung(input.tage, standortWhere(ctx) as Prisma.ArtikelWhereInput)),
+
+  filamentPreisSetzen: pflegen
+    .input(z.object({ euroProKg: z.number().min(0).max(1000) }))
+    .mutation(async ({ ctx, input }) => {
+      await setzeFilamentPreis(input.euroProKg, kuerzelVon(ctx));
       return { ok: true };
     }),
 });

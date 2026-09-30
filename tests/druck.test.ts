@@ -21,6 +21,9 @@ import { entpackeVideoPaket, waehleBild } from "../src/lib/druck/videoSpieler";
 import { phaseVon, tempoText, wlanText, restText, fertigUm } from "../src/lib/druck/druckerPhase";
 import { plattenAusZip, waehlePlatte } from "../src/modules/druck/vorschau";
 import { herstellerVon, passtSuche, gruppiereNachHersteller } from "../src/lib/druck/vorlagenFilter";
+import {
+  anteilDruck, grammFuerDruck, grammJeStueckSchaetzung, monateZwischen, werteAus, GRAMM_JE_STUECK_ERSATZ,
+} from "../src/lib/druck/auswertung";
 
 let passed = 0;
 let failed = 0;
@@ -262,6 +265,76 @@ console.log("\n── Vorlagen-Liste: Hersteller, Suche, Gruppen ──");
   ]);
   check("Gruppen in fester Reihenfolge, Sonstige zuletzt", gruppen.map((g) => [g.hersteller, g.vorlagen.length]), [["Dell", 1], ["HP", 2], ["Sonstige", 1]]);
   check("innen nach Name", gruppen[1]!.vorlagen.map((x) => x.name), ["HP EliteBook x360 830 G6 Füße hinten", "HP ProBook x360 435 G8 Füße vorne"]);
+}
+
+console.log("\n── Auswertung: was bringt der Druck ein ──");
+{
+  check("Anteil: nur gedruckt", anteilDruck({ eingangGesamt: 100, eingangDruck: 100 }), 1);
+  check("Anteil: halb", anteilDruck({ eingangGesamt: 200, eingangDruck: 100 }), 0.5);
+  check("Anteil: nie gedruckt", anteilDruck({ eingangGesamt: 50, eingangDruck: 0 }), 0);
+  check("Anteil: kein Eingang", anteilDruck({ eingangGesamt: 0, eingangDruck: 0 }), 0);
+  check("Anteil nie über 1 (Eingang gelöscht)", anteilDruck({ eingangGesamt: 5, eingangDruck: 9 }), 1);
+
+  check("Gramm: Plattenzahl bekannt → exakt", grammFuerDruck({ grammJePlatte: 10.64, stueckProPlatte: null, platten: 2, stueck: 10 }), 21.28);
+  check("Gramm: über Stück je Platte", grammFuerDruck({ grammJePlatte: 4.84, stueckProPlatte: 5, platten: null, stueck: 10 }), 9.68);
+  check("Gramm: Datei ohne Angabe → unbekannt", grammFuerDruck({ grammJePlatte: null, stueckProPlatte: 5, platten: 1, stueck: 5 }), null);
+  check("Gramm: weder Platten noch Stück je Platte", grammFuerDruck({ grammJePlatte: 3, stueckProPlatte: null, platten: null, stueck: 5 }), null);
+
+  // Echte Vorlagen 30.09.2026: 11,49 g/5, 4,84 g/5, 4,81 g/5, 1,73 g/1; Vorlage 3 ohne Stück je Platte.
+  check("Schätzung = Ø der Vorlagen mit beiden Angaben", grammJeStueckSchaetzung([
+    { grammJePlatte: 11.49, stueckProPlatte: 5 }, { grammJePlatte: 10.64, stueckProPlatte: null },
+    { grammJePlatte: 4.84, stueckProPlatte: 5 }, { grammJePlatte: 4.81, stueckProPlatte: 5 }, { grammJePlatte: 1.73, stueckProPlatte: 1 },
+  ]), 1.49);
+  check("Schätzung ohne Vorlagen → Ersatzwert", grammJeStueckSchaetzung([]), GRAMM_JE_STUECK_ERSATZ);
+
+  check("Monate lückenlos über den Jahreswechsel", monateZwischen("2026-11", "2027-02"), ["2026-11", "2026-12", "2027-01", "2027-02"]);
+  check("Monate: ein Monat", monateZwischen("2026-09", "2026-09"), ["2026-09"]);
+
+  const w = werteAus({
+    artikel: [
+      // L13 vorne: nur gedruckt
+      { id: 1, teiltyp: "Füße vorne", preis: 4, eingangGesamt: 200, eingangDruck: 200, bestand: 150 },
+      // E14 vorne: nie gedruckt
+      { id: 2, teiltyp: "Füße vorne", preis: 4, eingangGesamt: 300, eingangDruck: 0, bestand: 80 },
+      // 850 G5 hinten: halb Spender, halb Druck; Einzelpreis schlägt Kategorie (hier 3 €)
+      { id: 3, teiltyp: "Füße hinten", preis: 3, eingangGesamt: 100, eingangDruck: 50, bestand: 20 },
+      // ohne Preis
+      { id: 4, teiltyp: "Füße hinten", preis: null, eingangGesamt: 10, eingangDruck: 10, bestand: 0 },
+    ],
+    ausgaben: [
+      { artikelId: 1, menge: 50, anNiederlassung: false, ausLager: true, monat: "2026-09" },
+      { artikelId: 2, menge: 100, anNiederlassung: false, ausLager: true, monat: "2026-08" },
+      { artikelId: 3, menge: 20, anNiederlassung: true, ausLager: true, monat: "2026-09" },
+      { artikelId: 4, menge: 10, anNiederlassung: false, ausLager: true, monat: "2026-09" },
+      // DIREKT (am Lager vorbei): zählt als ausgegeben, aber nie als gedrucktes Stück
+      { artikelId: 1, menge: 5, anNiederlassung: false, ausLager: false, monat: "2026-08" },
+    ],
+    drucke: [
+      { artikelId: 1, menge: 200, gramm: null, monat: "2026-08" },
+      { artikelId: 3, menge: 50, gramm: 60, monat: "2026-09" },
+      { artikelId: 4, menge: 10, gramm: 20, monat: "2026-09" },
+    ],
+    grammSchaetzung: 2,
+    euroProKg: 20,
+    bisMonat: "2026-10",
+  });
+  check("gedruckt: Stück", w.gedruckt.stueck, 260);
+  check("gedruckt: Gramm (200×2 geschätzt + 60 + 20)", w.gedruckt.gramm, 480);
+  check("gedruckt: Material 0,48 kg × 20 €", w.gedruckt.material, 9.6);
+  check("gedruckt: geschätzte Stück", w.gedruckt.geschaetztStueck, 200);
+  check("gedruckt: Wert (200×4 + 50×3, ohne Preis 0)", w.gedruckt.wert, 950);
+  check("ausgegeben Technik: alle Füße, auch nie gedruckte und DIREKT", w.ausgegeben.technik, { stueck: 165, wert: 620 });
+  check("ausgegeben Niederlassungen", w.ausgegeben.niederlassungen, { stueck: 20, wert: 60 });
+  check("aus dem Druck Technik: 50 L13 + 0 E14 + 10 ohne Preis", w.ausDruck.technik, { stueck: 60, wert: 200 });
+  check("aus dem Druck Niederlassungen: Hälfte von 20", w.ausDruck.niederlassungen, { stueck: 10, wert: 30 });
+  check("Ergebnis = Nutzen aus Druck − Material", w.ergebnis, 220.4);
+  check("Lager aus Druck: 150 L13 + Hälfte von 20", w.lagerAusDruck, { stueck: 160, wert: 630 });
+  check("ohne Preis gemeldet", w.ohnePreisStueck, 10);
+  check("je Teiltyp", w.teiltypen.map((z) => [z.teiltyp, z.gedruckt, z.ausgegeben, z.ausDruck]), [["Füße hinten", 60, 30, 20], ["Füße vorne", 200, 155, 50]]);
+  check("Verlauf lückenlos bis heute", w.monate.map((m) => [m.monat, m.gedruckt, m.ausgegeben, m.ausDruck]),
+    [["2026-08", 200, 105, 0], ["2026-09", 60, 80, 70], ["2026-10", 0, 0, 0]]);
+  const leer = werteAus({ artikel: [], ausgaben: [], drucke: [], grammSchaetzung: 2, euroProKg: 20, vonMonat: "2026-09", bisMonat: "2026-09" });
+  check("ohne Daten: alles 0, ein Monat", [leer.gedruckt.stueck, leer.ergebnis, leer.monate.length], [0, 0, 1]);
 }
 
 console.log("\n── Video: Bildwahl beim Abspielen ──");

@@ -1859,6 +1859,15 @@ model DruckProtokoll {
   @@index([createdAt])
 }
 
+// Einstellungen der 3D-Druck-Auswertung (30.09.2026), eine Zeile (id = 1).
+// Fehlt sie, gilt FILAMENT_EURO_KG_STANDARD aus src/lib/druck/auswertung.ts.
+model DruckEinstellung {
+  id                Int      @id @default(1)
+  filamentEuroProKg Decimal  @db.Decimal(10, 2)
+  geaendertVon      String?  @db.VarChar(50)
+  aktualisiertAm    DateTime @updatedAt
+}
+
 // Druckaufträge über den Server (Paket 3, Stufe 3): Ein Admin legt an jedem PC
 // einen Auftrag an, die Druckbrücke am Laptop beim Drucker holt ihn ab
 // (nur ausgehende Verbindung, Schlüssel in DruckerStand.schluesselHash).

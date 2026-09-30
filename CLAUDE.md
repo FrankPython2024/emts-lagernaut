@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 965) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 993) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1617,6 +1617,26 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   bei „Alle" Abschnitte untereinander (Dell, HP, Lenovo, Fujitsu, Microsoft, Sonstige), innen nach Name.
   Suche: jedes Wort muss in Name, Teiltyp oder Gerät vorkommen („830 hinten"). Bild: eigenes Foto,
   sonst die Draufsicht aus der Druckdatei (`/api/druck/vorschau/<dateiId>?ansicht=oben`), sonst 🖨️.
+- **Auswertung „Was bringt der Druck ein?"** (Reiter „📊 Auswertung" auf `/admin/druck`, Wunsch Frank
+  30.09.2026: „Wert der produzierten Füße, rein der Materialpreis, und im Gegenzug die verbrauchten Füße —
+  Technik oder andere Filiale — gegenüberstellen"). Regeln `src/lib/druck/auswertung.ts` (Test in
+  `test:druck`), Daten `src/modules/druck/auswertung.ts`, Router `druck.auswertung` / `filamentPreisSetzen`,
+  Oberfläche `components/druck/DruckAuswertung.tsx`. Zeitraum Seit Beginn / 12 Monate / 90 / 30 Tage.
+  - **Kosten** = Filament der gedruckten Stücke (EINGANG `herkunftArt = DRUCK`) × €/kg. Gramm aus der
+    Druckdatei (`slice_info`): mit Protokoll-Plattenzahl exakt, sonst über Stück je Platte. Einlagerungen
+    OHNE Vorlage (alle vor dem 30.09.2026: 799 von 823 Stück) bekommen den Ø der Vorlagen (1,49 g/Stück).
+    **Filamentpreis** in `DruckEinstellung` (**`db push`**), Startwert 20 €/kg, auf der Seite änderbar
+    (ARTIKEL_EDIT). Strom und Arbeitszeit bewusst NICHT eingerechnet (steht so auf der Seite).
+  - **Nutzen** = ausgegebene Stück × Stückpreis (`Artikel.preis`, sonst Kategoriepreis — wie „Wert
+    ausgegeben"; Füße 4 €). Ausgegeben = AUSGANG/DIREKT ohne Umlagerungen, Technik UND Niederlassungen.
+  - ⚠️ **„Aus dem 3D-Druck" ist RECHNERISCH:** Im Karton sind gedruckte, geerntete und ungekennzeichnete
+    Füße nicht unterscheidbar. Je Artikel zählt der Druck-Anteil am Eingang (über alle Zeit) auf seine
+    Ausgaben. **DIREKT bekommt keinen Anteil** — am Lager vorbei kann kein gedrucktes Lagerstück sein.
+  - „Bringt ein" = Wert der ausgegebenen gedruckten − Material der im Zeitraum gedruckten; daneben „noch
+    auf Lager aus dem Druck". Stand 30.09.2026 seit Beginn: 823 gedruckt, 24,79 € Material, 672 Füße
+    ausgegeben (2.688 €), davon rechnerisch nur **60 aus dem Druck** (242 €) → 217 €; **763 gedruckte
+    liegen noch** (≈ 3.050 €). Grund: Die meisten ausgegebenen Füße kamen aus nicht gedrucktem Bestand
+    (z. B. E14 vorne, 785 Stück Eingang ohne Kennzeichen). Kein Rechenfehler.
 
 ### Urlaubsplanung (29.09.2026)
 
