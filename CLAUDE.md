@@ -1570,6 +1570,9 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   Server-Funktionen benutzt, und dem Abspieler im Browser: 30 Bilder/s live bei untätigem Drucker.
   ⚠️ Im eingeklappten Browserfenster der Claude-App drosselt Chrome das Zeichnen — Messungen dort sind
   wertlos. **Update am Laptop wie immer:** `einrichten.cmd`, Brücke neu starten.
+  Nach Deploy am 30.09.2026 im Betrieb bestätigt (Frank: „sieht gut aus, ein paar Sekunden Verzögerung“).
+  Verzögerung setzt sich zusammen aus Paket-Takt 0,4 s + Abruf bis 0,4 s + Vorrat 0,9 s, beim Drucken
+  zusätzlich bis zu 3 s Rückstand des Druckers (`VIDEO_MAX_VERZUG_MS`) — kürzer geht nur auf Kosten von Rucklern.
 
 ### Urlaubsplanung (29.09.2026)
 
