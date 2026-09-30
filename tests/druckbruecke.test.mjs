@@ -10,7 +10,7 @@ import {
   kodiereLaenge, baueConnect, baueSubscribe, bauePublish, zerlegePakete, lesePublish,
   fuehreZusammen, fasseStatus, herkunftErlaubt, findePlatten, druckerDateiname, druckBefehl,
   leseZipEintrag, filamenteDerPlatte, spulenZuordnung,
-  H264Sammler, leseSdp, codecAusSps, digestAntwort,
+  H264Sammler, leseSdp, codecAusSps, digestAntwort, rtpZuMs, packeVideo,
 } from "../tools/druckbruecke/druckbruecke.mjs";
 import zlib from "node:zlib";
 
@@ -232,6 +232,21 @@ console.log("\n── Kamera: Bilder aus RTP-Paketen ──");
   const s5 = new H264Sammler([SPS, PPS]);
   check("RTP mit CSRC und Auffüllung", s5.rtp(rtp(klein, { ts: 7, marker: true, cc: 2, pad: 4 }))?.equals(annexB(SPS, PPS, klein)), true);
   check("kein RTP (Version ≠ 2) → null", s5.rtp(Buffer.alloc(20)), null);
+}
+
+console.log("\n── Video: Zeitstempel und Paketform ──");
+{
+  const anker = { startMs: 1_000_000, letzterRtp: null, umlaeufe: 0, erster: 0 };
+  check("erstes Bild = Ankerzeit", rtpZuMs(anker, 90_000), 1_000_000);
+  check("eine Sekunde später (90 kHz)", rtpZuMs(anker, 180_000), 1_001_000);
+  const a2 = { startMs: 0, letzterRtp: null, umlaeufe: 0, erster: 0 };
+  rtpZuMs(a2, 0xffffff00);
+  check("Überlauf des 32-Bit-Zählers läuft weiter statt zurück", Math.round(rtpZuMs(a2, 0x100) * 90), 0x200);
+  const bilder = [{ key: true, ts: 1_790_000_000_123.5, daten: Buffer.from([0, 0, 0, 1, 0x65, 7]) }, { key: false, ts: 1_790_000_000_156.8, daten: Buffer.from([0, 0, 0, 1, 0x41]) }];
+  const p = packeVideo(bilder);
+  check("Paket: Anzahl vorn", p.readUInt32BE(0), 2);
+  check("Paket: erstes Bild key/ts/Länge", [p.readUInt8(4), p.readDoubleBE(5), p.readUInt32BE(13)], [1, 1_790_000_000_123.5, 6]);
+  check("Paket: Gesamtlänge", p.length, 4 + 13 + 6 + 13 + 5);
 }
 
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);

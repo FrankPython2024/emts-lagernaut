@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { useDruckerStand } from "./useDruckbruecke";
 import { KameraBild } from "./KameraBild";
+import { KameraVideo } from "./KameraVideo";
 
 const FARBE: Record<string, string> = {
   RUNNING: "bg-[#008BD2]/15 text-[#0064d2] dark:text-[#45bdff]",
@@ -63,6 +64,16 @@ export function DruckerStatus() {
     try { window.localStorage.setItem("druck-livebild", v ? "0" : "1"); } catch { /* egal */ }
     return !v;
   });
+  // Video (Standard, Wunsch Frank 30.09.2026) oder Standbild — je Browser gemerkt.
+  // Video braucht ~200 KB/s aus dem Gast-WLAN, Standbild einen Bruchteil.
+  const [modus, setModus] = useState<"video" | "bild">("video");
+  useEffect(() => {
+    try { if (window.localStorage.getItem("druck-livebild-modus") === "bild") setModus("bild"); } catch { /* egal */ }
+  }, []);
+  const waehleModus = (m: "video" | "bild") => {
+    setModus(m);
+    try { window.localStorage.setItem("druck-livebild-modus", m); } catch { /* egal */ }
+  };
 
   const platte = api.druck.platteIstLeer.useMutation({
     onSuccess: () => { setPlatteFrage(false); show("Platte ist frei — der nächste Druck darf starten.", "success"); neu(); },
@@ -136,10 +147,22 @@ export function DruckerStatus() {
       {/* Kamera — nur wenn die Brücke da ist und mit dem Drucker spricht */}
       {s.online && s.verbindung === "verbunden" && (
         <div className="space-y-2">
-          <button type="button" className={knopfRand} onClick={schalteLivebild} aria-pressed={livebild}>
-            {livebild ? "📷 Livebild ausblenden" : "📷 Livebild anzeigen"}
-          </button>
-          {livebild && <KameraBild />}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button type="button" className={knopfRand} onClick={schalteLivebild} aria-pressed={livebild}>
+              {livebild ? "📷 Livebild ausblenden" : "📷 Livebild anzeigen"}
+            </button>
+            {livebild && (
+              <div role="group" aria-label="Art des Livebilds" className="inline-flex rounded-xl overflow-hidden border border-[#ced4da] dark:border-[#3e4042]">
+                {([["video", "Video"], ["bild", "Standbild"]] as const).map(([m, text], i) => (
+                  <button key={m} type="button" aria-pressed={modus === m} onClick={() => waehleModus(m)}
+                    className={`px-3 text-sm font-bold min-h-[44px] ${i > 0 ? "border-l border-[#ced4da] dark:border-[#3e4042]" : ""} ${modus === m ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#202F61] dark:text-[#e4e6eb]"}`}>
+                    {text}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {livebild && (modus === "video" ? <KameraVideo key="video" /> : <KameraBild key="bild" />)}
         </div>
       )}
 

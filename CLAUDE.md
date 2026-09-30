@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 905) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 932) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1516,8 +1516,7 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   Grenze: Schläft der Laptop oder ist der Deckel zu, ist die Brücke aus — die Druckerkarte zeigt dann
   „Druckbrücke aus · zuletzt …", Aufträge warten.
 - **Kamerabild, Stufe 1 „Standbild" (30.09.2026, Brücke 1.4.0):** Knopf „📷 Livebild anzeigen" auf der
-  Druckerkarte (je Browser gemerkt), ein Bild etwa alle 3–5 s. Stufe 2 (flüssiges Video, ~10 Bilder/s)
-  ist bewusst nicht gebaut.
+  Druckerkarte (je Browser gemerkt), ein Bild etwa alle 3–5 s. Stufe 2 (Video) siehe unten.
   **Am P2S gemessen:** Kamera nur als **RTSPS** (`print.ipcam.rtsp_url` = `rtsps://<ip>:322/streaming/live/1`,
   LIVE555, **Digest**-Anmeldung bblp + Zugangscode, H.264 High 1080p, `avc1.641029`, ~75 KB/s). Port 6000
   (JPEG wie P1/A1) liefert beim P2S nichts (8 Byte, dann zu). Kein Browser öffnet RTSP.
@@ -1541,6 +1540,36 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   **Update am Laptop:** `einrichten.cmd` erneut ausführen, Brücke neu starten. Fehlersuche:
   `KAMERA_DEBUG=1` zeigt die RTSP-Schritte.
   Nach Deploy + Brücken-Update am 30.09.2026 im Betrieb bestätigt (Frank: „Livebild ist da“).
+- **Kamerabild, Stufe 2 „Video" (30.09.2026, Brücke 1.5.0):** Auf der Druckerkarte beim Livebild
+  Umschalter **Video | Standbild** (Standard Video, je Browser gemerkt, `druck-livebild-modus`).
+  ⚠️ **Wie viel der Drucker liefert, hängt von seinem Zustand ab** (am selben Tag gemessen): fertig/
+  untätig ~240 KB/s, 30 Bilder/s, jede Sekunde ein Schlüsselbild (120–210 KB), läuft durch; **beim
+  Drucken nur ~20–80 KB/s** — die Bilder kommen langsamer an, als sie entstehen (Zeitlupe mit wachsendem
+  Rückstand), nach ~30 s gibt er auf; morgens im Leerlauf ebenfalls spärlich. Flüssiges Video BEIM
+  Drucken gibt der Drucker nicht her. Antwort: `VIDEO_MAX_VERZUG_MS` = 3 s — hängt das Bild mehr
+  hinterher, setzt die Brücke eine frische Sitzung an (beginnt mit dem AKTUELLEN Bild): lieber
+  ruckelig und aktuell als flüssig und veraltet. Versiegt der Strom 2,5 s, sofort neu.
+  ⚠️ **Nie eine zweite Sitzung parallel „zur Übergabe" öffnen und die alte abmelden:** Erste Fassung tat
+  das nach 25 s — die NEUE versiegte daraufhin nach ~1,5 s (6 s Loch). Der Drucker teilt die Quelle
+  zwischen Sitzungen, ein TEARDOWN stört die anderen. Mehrere Sitzungen gleichzeitig nimmt er an.
+  **Weg:** `RtspSitzung` (eine Verbindung, jedes Bild; Schnappschuss und Video bauen darauf) →
+  `VideoStrom` (Zeitstempel aus dem 90-kHz-Takt, `rtpZuMs` mit Überlauf) → alle 0,4 s ein Paket
+  (`packeVideo`: [u32 n] je Bild [u8 key][f64 ts][u32 len][Daten]) an `POST /api/druck/bruecke/video`
+  (max 4 MB). Hinkt der Upload > 1,5 MB hinterher oder geht ein Paket verloren → bis zum nächsten
+  Schlüsselbild verwerfen (Bilder ohne Vorgänger sind nicht decodierbar). Server
+  (`src/modules/druck/kameraVideo.ts`): Puffer ab dem VORLETZTEN Schlüsselbild, 12-MB-Deckel, nach 10 s
+  Pause frisch; jedes Paket legt das neueste Schlüsselbild auch als Standbild ab. `GET
+  /api/druck/kamera/video?ab=<nr>` (ARTIKEL_VIEW) = Warte-Abruf bis 2,5 s; neue Zuschauer/Lücke → ab
+  letztem Schlüsselbild. Browser: `src/lib/druck/videoSpieler.ts` (ohne React) + `KameraVideo.tsx`,
+  WebCodecs, Wiedergabe nach Zeitstempel mit 0,9 s Vorrat. ⚠️ **Vorrat wird nachgeregelt**
+  (`NACHREGELN`): Die Druckerzeit läuft minimal schneller als die PC-Uhr — ohne das schmolz der Vorrat
+  von 0,9 auf 0,2 s und es ruckte (1–11 statt 30 Bilder/s).
+  Nachfrage getrennt (`VIDEO_NACHFRAGE_MS`); Brücken-Meldung antwortet `kamera` (Brücke 1.4 versteht nur
+  das → macht dann Standbilder) UND `video`. Video hat Vorrang, beides zugleich läuft nie.
+  **Geprüft** am 30.09.2026 mit Brücke 1.5.0 gegen einen Nachbau der Endpunkte, der die echten
+  Server-Funktionen benutzt, und dem Abspieler im Browser: 30 Bilder/s live bei untätigem Drucker.
+  ⚠️ Im eingeklappten Browserfenster der Claude-App drosselt Chrome das Zeichnen — Messungen dort sind
+  wertlos. **Update am Laptop wie immer:** `einrichten.cmd`, Brücke neu starten.
 
 ### Urlaubsplanung (29.09.2026)
 
