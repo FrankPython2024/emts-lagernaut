@@ -1,5 +1,5 @@
 // Kamera-Video für die Druckerkarte. GET /api/druck/kamera/video?ab=<nr>
-// Recht ARTIKEL_VIEW. Jeder Abruf meldet „jemand schaut Video" (schaltet die
+// Recht DRUCK_STARTEN. Jeder Abruf meldet „jemand schaut Video" (schaltet die
 // Kamera an der Brücke ein). Warte-Abruf: gibt es nichts Neues, bleibt die Anfrage
 // bis zu 2,5 s offen. Antwort:
 //   200 + packeVideo(Bilder), Köpfe X-Letzte-Nr / X-Codec / X-Alter-Ms
@@ -24,8 +24,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user) return res.status(401).json({ error: "Nicht angemeldet" });
   const user = session.user as SessionUser;
   const perms = await getMeinePermissions(user.rolle, user.id);
-  if (!hasPermission(perms, "ARTIKEL_VIEW")) {
-    return res.status(403).json({ error: "Keine Berechtigung (ARTIKEL_VIEW)" });
+  // Kamera nur mit DRUCK_STARTEN (Audit 30.09.2026): Sie kann Beschäftigte aufnehmen,
+  // und jeder Abruf schaltet sie an der Brücke ein — nichts für reine Leserollen.
+  if (!hasPermission(perms, "DRUCK_STARTEN")) {
+    return res.status(403).json({ error: "Keine Berechtigung (DRUCK_STARTEN)" });
   }
 
   videoAnfordern();

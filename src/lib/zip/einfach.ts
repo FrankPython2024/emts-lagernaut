@@ -7,7 +7,14 @@ import zlib from "zlib";
 
 export type ZipEintrag = { name: string; daten: Buffer };
 
-export function leseZip(buf: Buffer): ZipEintrag[] {
+/**
+ * `nurDaten`: nur diese Einträge entpacken, die übrigen kommen mit leerem Inhalt
+ * (Name bleibt sichtbar). `maxEintrag`: größte entpackte Größe je Eintrag.
+ * ⚠️ Audit 30.09.2026: Für Vorschau und Gewicht einer Druckdatei wurde der ganze
+ * G-Code mitentpackt — eine präparierte Datei hätte den 4-GB-Server gefüllt.
+ */
+export function leseZip(buf: Buffer, opt: { nurDaten?: (name: string) => boolean; maxEintrag?: number } = {}): ZipEintrag[] {
+  const max = opt.maxEintrag ?? 64 * 1024 * 1024;
   const min = Math.max(0, buf.length - 65557);
   let eocd = -1;
   for (let i = buf.length - 22; i >= min; i--) {
@@ -25,8 +32,14 @@ export function leseZip(buf: Buffer): ZipEintrag[] {
     const lokal = buf.readUInt32LE(pos + 42);
     const name = buf.subarray(pos + 46, pos + 46 + nl).toString("utf8");
     const start = lokal + 30 + buf.readUInt16LE(lokal + 26) + buf.readUInt16LE(lokal + 28);
+    if (opt.nurDaten && !opt.nurDaten(name)) {
+      raus.push({ name, daten: Buffer.alloc(0) });
+      pos += 46 + nl + xl + cl;
+      continue;
+    }
+    if (buf.readUInt32LE(pos + 24) > max) throw new Error(`ZIP-Eintrag ${name} ist zu groß`);
     const roh = buf.subarray(start, start + groesse);
-    const daten = methode === 0 ? Buffer.from(roh) : methode === 8 ? zlib.inflateRawSync(roh) : null;
+    const daten = methode === 0 ? Buffer.from(roh) : methode === 8 ? zlib.inflateRawSync(roh, { maxOutputLength: max }) : null;
     if (!daten) throw new Error(`ZIP-Packverfahren ${methode} nicht unterstützt`);
     raus.push({ name, daten });
     pos += 46 + nl + xl + cl;

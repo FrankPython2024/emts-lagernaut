@@ -67,6 +67,10 @@ export function waehlePlatte(info: DateiInfo, nr: number | null | undefined): Pl
   return info.platten.find((p) => p.nr === nr) ?? info.platten.find((p) => p.gedruckt) ?? info.platten[0] ?? null;
 }
 
+/** Nur Bilder und slice_info entpacken — der G-Code (bis zig MB) wird nie gebraucht. */
+export const NUR_METADATEN = (name: string) => /^Metadata\/((plate|top)_\d+\.png|slice_info\.config)$/.test(name);
+const MAX_METADATEI = 8 * 1024 * 1024;
+
 const g = globalThis as unknown as { __druckVorschau?: Map<number, DateiInfo | null> };
 function ablage(): Map<number, DateiInfo | null> {
   return (g.__druckVorschau ??= new Map());
@@ -75,15 +79,21 @@ function ablage(): Map<number, DateiInfo | null> {
 /** Eckdaten einer Druckdatei (DruckvorlageDatei.id), zwischengespeichert. */
 export async function druckdateiInfo(dateiId: number): Promise<DateiInfo | null> {
   const a = ablage();
-  if (a.has(dateiId)) return a.get(dateiId)!;
+  if (a.has(dateiId)) {
+    // Zuletzt benutzt ans Ende (Verdrängung trifft den am längsten unbenutzten).
+    const v = a.get(dateiId)!;
+    a.delete(dateiId);
+    a.set(dateiId, v);
+    return v;
+  }
   const d = await prisma.druckvorlageDatei.findUnique({ where: { id: dateiId }, select: { daten: true } });
   let info: DateiInfo | null = null;
   try {
-    info = d?.daten ? plattenAusZip(leseZip(Buffer.from(d.daten))) : null;
+    info = d?.daten ? plattenAusZip(leseZip(Buffer.from(d.daten), { nurDaten: NUR_METADATEN, maxEintrag: MAX_METADATEI })) : null;
   } catch {
     info = null;                       // kaputtes ZIP → einfach ohne Vorschau
   }
-  if (a.size > 50) a.clear();
   a.set(dateiId, info);
+  while (a.size > 50) a.delete(a.keys().next().value as number);
   return info;
 }

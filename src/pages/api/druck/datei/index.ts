@@ -1,7 +1,9 @@
 // 3D-Druck — Datei zu einer Druckvorlage hochladen (Pages-API, roher Body).
 //   fetch('/api/druck/datei?vorlageId=3&name=' + encodeURIComponent(file.name),
 //         { method: 'POST', body: file })
-// Recht ARTIKEL_EDIT. Die Dateiart ergibt sich aus der Endung (dateiArt):
+// Recht ARTIKEL_EDIT; Druckdateien (.gcode.3mf) zusätzlich DRUCK_STARTEN — wer sie
+// austauscht, bestimmt, was die Maschine tut (Audit 30.09.2026). Die Dateiart ergibt
+// sich aus der Endung (dateiArt):
 // .gcode.3mf = Druckdatei, .3mf = Projekt, STEP/STL/… = Konstruktion.
 // Alles andere wird abgelehnt — hier landen keine beliebigen Dateien.
 
@@ -12,6 +14,7 @@ import { prisma } from "@/core/db/prisma";
 import { getMeinePermissions, hasPermission } from "@/modules/rollen/service";
 import type { SessionUser } from "@/core/types";
 import { DATEI_MAX_BYTES, dateiArt } from "@/lib/druck/druckliste";
+import { leseZip } from "@/lib/zip/einfach";
 
 export const config = { api: { bodyParser: false } };
 
@@ -53,6 +56,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Nur Druckdateien (.gcode.3mf), Bambu-Projekte (.3mf) oder Konstruktionen (STEP, STL …)" });
   }
 
+  if (art === "DRUCK" && !hasPermission(perms, "DRUCK_STARTEN")) {
+    return res.status(403).json({ error: "Druckdateien darf nur hochladen, wer auch drucken darf (DRUCK_STARTEN)." });
+  }
+
   const vorlage = await prisma.druckvorlage.findUnique({ where: { id: vorlageId }, select: { id: true } });
   if (!vorlage) return res.status(404).json({ error: "Vorlage nicht gefunden" });
 
@@ -61,6 +68,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(413).json({ error: `Datei ist zu groß (max. ${DATEI_MAX_BYTES / 1024 / 1024} MB)` });
   }
   if (daten.length === 0) return res.status(400).json({ error: "Datei ist leer" });
+  // Eine Druckdatei muss wirklich geslict sein — sonst bekäme sie einen „Drucken"-Knopf,
+  // den die Brücke jedes Mal ablehnt. Nur das Inhaltsverzeichnis lesen, nichts entpacken.
+  if (art === "DRUCK") {
+    let geslict = false;
+    try { geslict = leseZip(daten, { nurDaten: () => false }).some((e) => /^Metadata\/plate_\d+\.gcode$/.test(e.name)); } catch { geslict = false; }
+    if (!geslict) {
+      return res.status(400).json({ error: "Keine geslicte Druckdatei: In Bambu Studio „Platte slicen“ und dann „Exportieren → Geslicte Datei“ (.gcode.3mf)." });
+    }
+  }
 
   const d = await prisma.druckvorlageDatei.create({
     data: {

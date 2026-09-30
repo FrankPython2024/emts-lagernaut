@@ -1,13 +1,18 @@
 // ── Lagernaut-Druckbrücke (3D-Druck Paket 3: Status + Drucken) ─────────────
 //
-// Läuft auf dem PC beim Drucker (Bambu Lab P2S) und verbindet ihn mit der
-// Lagernaut-Seite, die IN DEM BROWSER DIESES PCs geöffnet ist:
+// Läuft auf dem PC beim Drucker (Bambu Lab P2S) und verbindet ihn mit Lagernaut:
 //
-//     Lagernaut im Browser ──► http://127.0.0.1:17350 (diese Brücke) ──► Drucker im LAN
+//     Lagernaut-Server ◄── meldet sich alle 5 s (nur ausgehend) ── Brücke ──► Drucker im LAN
 //
-// Die Brücke spricht NIE mit dem Lagernaut-Server und nimmt nur Anfragen vom
-// eigenen PC an (lauscht auf 127.0.0.1). Der Zugangscode des Druckers steht nur
-// in der Einstellungsdatei auf diesem PC.
+// Der Zugangscode des Druckers steht nur in der Einstellungsdatei auf diesem PC.
+// Lokal lauscht die Brücke nur auf 127.0.0.1 (/status, /roh zur Fehlersuche und
+// als Sperre gegen einen zweiten Start).
+//
+// Drucker-Zertifikat (1.6.0, Audit 30.09.2026): Der P2S zeigt auf allen Ports
+// (8883/990/322) dasselbe Zertifikat — CN = Seriennummer, Aussteller „BBL Device
+// CA N7-V2", gültig bis 2036. Die Brücke merkt sich beim ersten Kontakt seinen
+// Fingerabdruck und verweigert danach jede Verbindung mit einem anderen. Vorher
+// ging der Zugangscode an jeden, der sich im Gast-WLAN als Drucker ausgab.
 //
 // Voraussetzung am Drucker: „Nur LAN" + „Entwicklermodus" (Einstellungen → WLAN).
 // Protokoll: MQTT über TLS, Port 8883, Benutzer „bblp", Passwort = Zugangscode,
@@ -49,7 +54,7 @@ import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
-export const VERSION = "1.5.1";
+export const VERSION = "1.6.0";
 // Endcodes für laufen.cmd (Autostart mit Neustart nach Absturz): Bei diesen beiden
 // hilft ein Neustart nichts — dann NICHT im Kreis neu starten.
 export const ENDE_EINSTELLUNGEN = 2;
@@ -73,6 +78,14 @@ export const STARTBEREIT = ["IDLE", "FINISH", "FAILED"];
 export const STANDARD_PORT = 17350;
 // Für Tests über DRUCKBRUECKE_EINSTELLUNGEN auf eine andere Datei umlenkbar.
 export const EINSTELLUNGEN = process.env.DRUCKBRUECKE_EINSTELLUNGEN || path.join(os.homedir(), ".lagernaut-druckbruecke.json");
+/** Gemerkter Fingerabdruck des Drucker-Zertifikats (kein Geheimnis). Löschen = neu lernen. */
+export const ZERTIFIKAT_DATEI = EINSTELLUNGEN.replace(/\.json$/i, "") + "-zertifikat.json";
+/** Ein Druckauftrag (Anmelden + Übertragen) darf höchstens so lange dauern — Lagernaut gibt nach 5 min auf. */
+export const DRUCK_FRIST_MS = 4 * 60_000;
+/** Kommt so lange nichts vom Drucker (auch keine Ping-Antwort), gilt die Verbindung als tot. */
+export const DRUCKER_STILL_MS = 75_000;
+/** Größtes MQTT-Paket, das wir annehmen (ein Komplettbericht hat ~10 KB). */
+export const MQTT_MAX_PAKET = 1024 * 1024;
 const ERLAUBT_STANDARD = ["https://emts-lagernaut.duckdns.org", "http://localhost:3000"];
 
 // ── MQTT 3.1.1: Pakete bauen und zerlegen (reine Funktionen, getestet) ────────
@@ -139,6 +152,9 @@ export function zerlegePakete(puffer) {
       faktor *= 128;
       if ((b & 0x80) === 0) { fertig = true; i++; break; }
     }
+    // 4 Längenbytes ohne Ende oder absurde Länge = kaputter Strom → Verbindung neu.
+    if (!fertig && i - pos - 1 >= 4) return { pakete, rest: puffer.subarray(pos), kaputt: true };
+    if (fertig && laenge > MQTT_MAX_PAKET) return { pakete, rest: puffer.subarray(pos), kaputt: true };
     if (!fertig || i + laenge > puffer.length) break;
     const typ = puffer[pos] >> 4;
     const flags = puffer[pos] & 0x0f;
@@ -150,6 +166,7 @@ export function zerlegePakete(puffer) {
 
 /** PUBLISH-Rumpf → { thema, nutzlast }. */
 export function lesePublish(flags, rumpf) {
+  if (rumpf.length < 2) return { thema: "", nutzlast: "" };
   const tl = rumpf.readUInt16BE(0);
   const thema = rumpf.subarray(2, 2 + tl).toString("utf8");
   const qos = (flags >> 1) & 0x03;
@@ -173,6 +190,7 @@ export const CONNACK_TEXT = {
  */
 export function fuehreZusammen(ziel, neu) {
   for (const [k, v] of Object.entries(neu ?? {})) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
     if (v && typeof v === "object" && !Array.isArray(v) && ziel[k] && typeof ziel[k] === "object" && !Array.isArray(ziel[k])) {
       fuehreZusammen(ziel[k], v);
     } else {
@@ -282,7 +300,8 @@ export function leseZipEintrag(buf, gesucht) {
       const daten = buf.subarray(start, start + groesse);
       try {
         if (methode === 0) return Buffer.from(daten);
-        if (methode === 8) return zlib.inflateRawSync(daten);
+        // Deckel: gelesen werden nur kleine Metadaten — eine präparierte Datei darf den Speicher nicht füllen.
+        if (methode === 8) return zlib.inflateRawSync(daten, { maxOutputLength: 16 * 1024 * 1024 });
       } catch { return null; }
       return null;
     }
@@ -370,6 +389,54 @@ export function druckBefehl({ datei, platte, titel, sequenz, filamente }) {
   };
 }
 
+// ── Drucker-Zertifikat prüfen (1.6.0) ─────────────────────────────────────────
+
+/**
+ * Reine Regel: CN muss die Seriennummer sein; ist ein Fingerabdruck gemerkt, muss
+ * er stimmen. Liefert { fehler } oder { merken: fp } (erster Kontakt) oder {}.
+ */
+export function pruefeZertifikat(cert, seriennummer, gemerkt) {
+  const cn = cert?.subject?.CN;
+  const fp = cert?.fingerprint256;
+  if (!cn || !fp) return { fehler: "Drucker zeigt kein Zertifikat." };
+  if (String(cn).toUpperCase() !== String(seriennummer).toUpperCase()) {
+    return { fehler: `Gegenstelle ist nicht der Drucker ${seriennummer} (Zertifikat für „${cn}").` };
+  }
+  if (!gemerkt) return { merken: fp };
+  if (gemerkt !== fp) {
+    return { fehler: `Zertifikat des Druckers hat sich geändert — Verbindung verweigert. Wurde der Drucker getauscht oder zurückgesetzt: Datei ${ZERTIFIKAT_DATEI} löschen und die Brücke neu starten.` };
+  }
+  return {};
+}
+
+function leseGemerkt() {
+  try { return JSON.parse(fs.readFileSync(ZERTIFIKAT_DATEI, "utf8")).fingerabdruck ?? null; } catch { return null; }
+}
+
+/** Prüft die Gegenstelle einer TLS-Verbindung zum Drucker. null = in Ordnung, sonst Fehlertext. */
+export function druckerZertifikatFehler(socket, e) {
+  const erg = pruefeZertifikat(socket.getPeerCertificate(), e.seriennummer, leseGemerkt());
+  if (erg.fehler) return erg.fehler;
+  if (erg.merken) {
+    try {
+      fs.writeFileSync(ZERTIFIKAT_DATEI, JSON.stringify({ seriennummer: e.seriennummer, fingerabdruck: erg.merken, gemerktAm: new Date().toISOString() }, null, 2), "utf8");
+      console.log(new Date().toLocaleTimeString("de-DE"), `Drucker-Zertifikat gemerkt (${ZERTIFIKAT_DATEI})`);
+    } catch (err) {
+      return `Drucker-Zertifikat konnte nicht gespeichert werden: ${err.message}`;
+    }
+  }
+  return null;
+}
+
+/** Wartet auf `p`, höchstens `ms` — danach Fehler mit `text` (vorher `beiAblauf` zum Aufräumen). */
+export function mitFrist(p, ms, text, beiAblauf) {
+  let t;
+  return Promise.race([
+    p,
+    new Promise((_, fehler) => { t = setTimeout(() => { try { beiAblauf?.(); } catch { /* egal */ } fehler(new Error(text)); }, ms); }),
+  ]).finally(() => clearTimeout(t));
+}
+
 // ── FTPS (implizites TLS, Port 990) ───────────────────────────────────────────
 
 export class FtpsSitzung {
@@ -390,6 +457,8 @@ export class FtpsSitzung {
       s.on("error", (err) => { fehler(err); this.wartende.splice(0).forEach((w) => w.fehler(err)); });
       s.on("secureConnect", async () => {
         try {
+          const zfehler = druckerZertifikatFehler(s, this.e);
+          if (zfehler) { s.destroy(); throw new Error(zfehler); }
           s.setTimeout(0);
           await this.erwarte("220");
           await this.befehl("USER bblp", "331");
@@ -443,18 +512,32 @@ export class FtpsSitzung {
     const m = /(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)/.exec(pasv.text);
     if (!m) throw new Error("FTP: keine Datenverbindung angeboten");
     const port = Number(m[5]) * 256 + Number(m[6]);
-    const d = tls.connect({ host: this.e.druckerIp, port, rejectUnauthorized: false, session: this.sitzung ?? this.s.getSession() });
+    // timeout = Stille auf dem Datenkanal (Lesen UND Schreiben), nicht Gesamtdauer.
+    const d = tls.connect({ host: this.e.druckerIp, port, rejectUnauthorized: false, session: this.sitzung ?? this.s.getSession(), timeout: 30_000 });
     const teile = [];
     d.on("data", (x) => teile.push(x));
-    const verschluesselt = new Promise((ok) => d.once("secureConnect", ok));
     let datenFehler = null;
     d.on("error", (err) => { datenFehler = err; });
+    d.on("timeout", () => d.destroy(new Error("Datenkanal: Drucker antwortet nicht")));
     const zu = new Promise((ok) => d.on("close", ok));
-    const start = await this.befehl(zeile);
-    if (!/^1\d\d$/.test(start.code)) { d.destroy(); throw new Error(`FTP: ${start.text.replace(/^\d{3} /, "")}`); }
-    if (senden) {
-      await verschluesselt;
-      d.end(senden);
+    // ⚠️ 1.6.0 (Audit 30.09.2026): Vorher wartete das nur auf „secureConnect". Brach
+    // der Kanal VOR dem Handshake ab (ECONNRESET, WLAN), kam das nie — die Brücke hing
+    // für immer, und jeder spätere Auftrag wurde still verworfen.
+    const verschluesselt = new Promise((ok, fehler) => {
+      d.once("secureConnect", ok);
+      zu.then(() => fehler(datenFehler ?? new Error("Datenkanal vor dem Senden geschlossen")));
+    });
+    verschluesselt.catch(() => { /* nur relevant, wenn gesendet wird */ });
+    try {
+      const start = await this.befehl(zeile);
+      if (!/^1\d\d$/.test(start.code)) throw new Error(`FTP: ${start.text.replace(/^\d{3} /, "")}`);
+      if (senden) {
+        await verschluesselt;
+        d.end(senden);
+      }
+    } catch (err) {
+      d.destroy();
+      throw err;
     }
     await zu;
     if (datenFehler) throw new Error(`FTP-Datenkanal: ${datenFehler.message}`);
@@ -496,6 +579,11 @@ export function leseEinstellungen(datei = EINSTELLUNGEN) {
   }
   const fehlend = ["druckerIp", "seriennummer", "zugangscode"].filter((k) => !e[k] || String(e[k]).startsWith("HIER_") || String(e[k]).includes("x.x"));
   if (fehlend.length) return { fehlt: `In ${datei} fehlt noch: ${fehlend.join(", ")}` };
+  // Der Brücken-Schlüssel geht im Kopf jeder Anfrage mit — nie unverschlüsselt ins Netz.
+  const url = String(e.lagernautUrl || LAGERNAUT_STANDARD).trim();
+  if (!/^https:\/\//i.test(url) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(url)) {
+    return { fehlt: `lagernautUrl muss mit https:// beginnen (steht: ${url})` };
+  }
   return {
     druckerIp:      String(e.druckerIp).trim(),
     seriennummer:   String(e.seriennummer).trim(),
@@ -530,9 +618,20 @@ class DruckerVerbindung {
     const s = tls.connect({ host: this.e.druckerIp, port: 8883, rejectUnauthorized: false, timeout: 15000 });
     this.socket = s;
     let puffer = Buffer.alloc(0);
+    this.letzteDaten = Date.now();
 
     s.on("secureConnect", () => {
+      const zfehler = druckerZertifikatFehler(s, this.e);
+      if (zfehler) {
+        this.zustand.fehler = zfehler;
+        this.log("⚠", zfehler);
+        this.wartezeit = Math.max(this.wartezeit, 60_000);
+        s.destroy();
+        return;
+      }
       s.setTimeout(0);
+      // Antwortet der Drucker nicht auf die Anmeldung, nicht ewig auf „verbinde" stehen.
+      this.connackUhr = setTimeout(() => s.destroy(new Error("Drucker bestätigt die Anmeldung nicht")), 10_000);
       s.write(baueConnect({
         clientId: `lagernaut-${crypto.randomBytes(3).toString("hex")}`,
         benutzer: "bblp",
@@ -541,15 +640,24 @@ class DruckerVerbindung {
     });
     s.on("timeout", () => s.destroy(new Error("Drucker antwortet nicht (Zeitüberschreitung)")));
     s.on("data", (d) => {
+      this.letzteDaten = Date.now();
       puffer = Buffer.concat([puffer, d]);
-      const { pakete, rest } = zerlegePakete(puffer);
+      const { pakete, rest, kaputt } = zerlegePakete(puffer);
+      if (kaputt || rest.length > MQTT_MAX_PAKET) { s.destroy(new Error("Unlesbare Daten vom Drucker")); return; }
       puffer = Buffer.from(rest);
-      for (const p of pakete) this.verarbeite(p);
+      for (const p of pakete) {
+        // Ein kaputtes Paket darf nie die ganze Brücke beenden.
+        try { this.verarbeite(p); } catch (err) { this.log("⚠ Meldung des Druckers nicht lesbar:", err.message); }
+      }
     });
     s.on("error", (err) => { this.zustand.fehler = err.message; });
     s.on("close", () => {
       clearInterval(this.ping);
       clearInterval(this.pushall);
+      clearTimeout(this.connackUhr);
+      // Alten Stand nicht über die Trennung retten — sonst entscheidet Lagernaut
+      // nach dem Wiederverbinden über einen Zustand von vorhin.
+      this.roh = {};
       if (this.zustand.verbindung === "verbunden") this.log("Verbindung zum Drucker getrennt");
       this.zustand.verbindung = "getrennt";
       const w = this.wartezeit;
@@ -560,6 +668,7 @@ class DruckerVerbindung {
 
   verarbeite({ typ, flags, rumpf }) {
     if (typ === 2) { // CONNACK
+      clearTimeout(this.connackUhr);
       const rc = rumpf[1];
       if (rc !== 0) {
         this.zustand.fehler = CONNACK_TEXT[rc] ?? `Verbindung abgelehnt (Code ${rc})`;
@@ -573,7 +682,12 @@ class DruckerVerbindung {
       this.log("✓ Mit dem Drucker verbunden");
       this.socket.write(baueSubscribe(1, `device/${this.e.seriennummer}/report`));
       this.fordereKomplettAn();
-      this.ping = setInterval(() => this.socket?.write(PINGREQ), 30_000);
+      // Ping alle 30 s; kommt 75 s gar nichts (auch keine Ping-Antwort), ist der
+      // Drucker weg (z. B. ausgeschaltet ohne sauberes Trennen) → neu verbinden.
+      this.ping = setInterval(() => {
+        if (Date.now() - this.letzteDaten > DRUCKER_STILL_MS) { this.socket?.destroy(new Error("Drucker antwortet nicht mehr")); return; }
+        this.socket?.write(PINGREQ);
+      }, 30_000);
       // Die P-Serie schickt danach nur Änderungen — selten einen Komplettbericht holen.
       this.pushall = setInterval(() => this.fordereKomplettAn(), 10 * 60_000);
     } else if (typ === 3) { // PUBLISH
@@ -788,7 +902,12 @@ export class RtspSitzung {
       if (!this.spieltSeit) { if (jetzt - this.beginn > KAMERA_AUFBAU_MS) this.schliessen("Drucker startet die Kamera nicht"); }
       else if (jetzt - this.letzteDaten > this.stillMs) this.schliessen(null);   // Strom versiegt (Leerlauf)
     }, 500);
-    s.on("secureConnect", () => { s.setTimeout(0); sende("DESCRIBE", url, "Accept: application/sdp\r\n"); });
+    s.on("secureConnect", () => {
+      const zfehler = druckerZertifikatFehler(s, this.e);
+      if (zfehler) return this.schliessen(zfehler);
+      s.setTimeout(0);
+      sende("DESCRIBE", url, "Accept: application/sdp\r\n");
+    });
     s.on("timeout", () => this.schliessen("Drucker antwortet nicht (Port 322)"));
     s.on("error", (err) => this.schliessen(err.message));
     s.on("close", () => this.schliessen("Verbindung vom Drucker beendet"));
@@ -1048,8 +1167,13 @@ export async function druckeInhalt(inhalt, { titel, vorlageId }, e, verbindung) 
   try {
     log(`Übertrage „${datei}" (${Math.round(inhalt.length / 1024)} KB, ${platte}, Filament ${filamente ? filamente.join("+") : "? → 1"}) …`);
     ftp = new FtpsSitzung(e);
-    await ftp.oeffnen();
-    await ftp.hochladen(`/cache/${datei}`, inhalt);
+    const sitzung = ftp;
+    // Eine Frist für Anmelden + Übertragen: Hängt irgendwo etwas, wird aufgeräumt
+    // und ehrlich gemeldet, statt dass die Brücke für immer „beschäftigt" bleibt.
+    await mitFrist((async () => {
+      await sitzung.oeffnen();
+      await sitzung.hochladen(`/cache/${datei}`, inhalt);
+    })(), DRUCK_FRIST_MS, "Übertragung zum Drucker dauert zu lange — abgebrochen", () => sitzung.s?.destroy());
     ftp.schliessen();
     ftp = null;
     log("Übertragen, starte Druck …");
@@ -1148,6 +1272,23 @@ function starteLagernaut(e, verbindung) {
     }
   }, 2000);
 
+  async function meldeErgebnis(a, erg) {
+    // Ein paar Versuche, sonst räumt Lagernaut nach 5 min auf.
+    for (let i = 0; i < 5; i++) {
+      try {
+        const r = await fetch(`${e.lagernautUrl}/api/druck/bruecke/ergebnis`, {
+          method: "POST", headers: { ...kopf, "Content-Type": "application/json" },
+          body: JSON.stringify({ auftragId: a.id, ok: erg.ok, bestaetigt: erg.bestaetigt, meldung: erg.fehler ?? null, beschaeftigt: erg.beschaeftigt === true }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (r.ok) return;
+        if (r.status === 409) { log(`Hinweis: Lagernaut hatte Auftrag #${a.id} schon abgeschlossen.`); return; }
+      } catch { /* gleich nochmal */ }
+      await new Promise((ok) => setTimeout(ok, 3000));
+    }
+    log("⚠ Ergebnis konnte Lagernaut nicht gemeldet werden.");
+  }
+
   async function fuehreAus(a) {
     druckLaeuft = true;
     log(`Auftrag #${a.id} „${a.titel}" aus Lagernaut …`);
@@ -1163,19 +1304,7 @@ function starteLagernaut(e, verbindung) {
     } finally {
       druckLaeuft = false;
     }
-    // Ergebnis melden — ein paar Versuche, sonst räumt Lagernaut nach 5 min auf.
-    for (let i = 0; i < 5; i++) {
-      try {
-        const r = await fetch(`${e.lagernautUrl}/api/druck/bruecke/ergebnis`, {
-          method: "POST", headers: { ...kopf, "Content-Type": "application/json" },
-          body: JSON.stringify({ auftragId: a.id, ok: erg.ok, bestaetigt: erg.bestaetigt, meldung: erg.fehler ?? null }),
-          signal: AbortSignal.timeout(10_000),
-        });
-        if (r.ok || r.status === 409) return;
-      } catch { /* gleich nochmal */ }
-      await new Promise((ok) => setTimeout(ok, 3000));
-    }
-    log("⚠ Ergebnis konnte Lagernaut nicht gemeldet werden.");
+    await meldeErgebnis(a, erg);
   }
 
   const runde = async () => {
@@ -1190,7 +1319,12 @@ function starteLagernaut(e, verbindung) {
         melde(null);
         const j = await r.json();
         // Nicht abwarten: Während der Übertragung meldet die Brücke weiter ihren Stand.
-        if (j?.auftrag && !druckLaeuft) void fuehreAus(j.auftrag);
+        if (j?.auftrag) {
+          // Nie still verwerfen: Sonst steht der Auftrag 5 min auf „abgeholt" und
+          // scheitert dann ohne erkennbaren Grund.
+          if (druckLaeuft) void meldeErgebnis(j.auftrag, { ok: false, beschaeftigt: true, fehler: "Die Druckbrücke überträgt gerade noch einen anderen Auftrag." });
+          else void fuehreAus(j.auftrag);
+        }
         const verbunden = verbindung.status().verbindung === "verbunden";
         if (j?.video === true) {
           videoBis = Date.now() + KAMERA_NACHLAUF_MS;
@@ -1262,6 +1396,8 @@ function starteServer(e, verbindung, bereit) {
 // ── Start (nur wenn direkt aufgerufen, nicht beim Import durch die Tests) ────
 const direkt = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (direkt) {
+  // Unerwartete Fehler sichtbar machen; laufen.cmd startet nach einem Absturz neu.
+  process.on("unhandledRejection", (err) => console.error(new Date().toLocaleTimeString("de-DE"), "⚠ Unerwarteter Fehler:", err?.message ?? err));
   const e = leseEinstellungen();
   if (e.fehlt) {
     console.error(`⚠ ${e.fehlt}`);

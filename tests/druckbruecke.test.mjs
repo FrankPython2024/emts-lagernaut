@@ -11,6 +11,7 @@ import {
   fuehreZusammen, fasseStatus, herkunftErlaubt, findePlatten, druckerDateiname, druckBefehl,
   leseZipEintrag, filamenteDerPlatte, spulenZuordnung,
   H264Sammler, leseSdp, codecAusSps, digestAntwort, rtpZuMs, packeVideo,
+  pruefeZertifikat, mitFrist, MQTT_MAX_PAKET,
 } from "../tools/druckbruecke/druckbruecke.mjs";
 import zlib from "node:zlib";
 
@@ -247,6 +248,36 @@ console.log("\n── Video: Zeitstempel und Paketform ──");
   check("Paket: Anzahl vorn", p.readUInt32BE(0), 2);
   check("Paket: erstes Bild key/ts/Länge", [p.readUInt8(4), p.readDoubleBE(5), p.readUInt32BE(13)], [1, 1_790_000_000_123.5, 6]);
   check("Paket: Gesamtlänge", p.length, 4 + 13 + 6 + 13 + 5);
+}
+
+console.log("\n── Absicherung 1.6.0 (Audit 30.09.2026) ──");
+{
+  const SN = "22E8BJ610901688";
+  const echt = { subject: { CN: SN }, fingerprint256: "17:F3:AA" };
+  check("Zertifikat: erster Kontakt → merken", pruefeZertifikat(echt, SN, null), { merken: "17:F3:AA" });
+  check("Zertifikat: gemerkt und gleich → ok", pruefeZertifikat(echt, SN, "17:F3:AA"), {});
+  check("Zertifikat: Seriennummer ohne Rücksicht auf Groß/klein", pruefeZertifikat({ subject: { CN: SN.toLowerCase() }, fingerprint256: "17:F3:AA" }, SN, "17:F3:AA"), {});
+  check("Zertifikat: anderer Fingerabdruck → verweigert", !!pruefeZertifikat({ ...echt, fingerprint256: "00:11" }, SN, "17:F3:AA").fehler, true);
+  check("Zertifikat: fremde Seriennummer → verweigert, auch beim ersten Kontakt", !!pruefeZertifikat({ subject: { CN: "ANGREIFER" }, fingerprint256: "00" }, SN, null).fehler, true);
+  check("Zertifikat: keins → verweigert", !!pruefeZertifikat({}, SN, null).fehler, true);
+
+  // MQTT: 4 Längenbytes ohne Ende bzw. riesige Länge = kaputt (vorher: Stillstand, Puffer wuchs ohne Ende)
+  check("MQTT: 4 Fortsetzungsbytes → kaputt", zerlegePakete(Buffer.from([0x30, 0xff, 0xff, 0xff, 0xff, 0x01])).kaputt, true);
+  const riesig = Buffer.concat([Buffer.from([0x30]), kodiereLaenge(MQTT_MAX_PAKET + 1)]);
+  check("MQTT: Länge über dem Deckel → kaputt", zerlegePakete(riesig).kaputt, true);
+  check("MQTT: normales unvollständiges Paket → nicht kaputt", zerlegePakete(Buffer.from([0x30, 0x05, 0x00])).kaputt, undefined);
+  check("PUBLISH zu kurz → leer statt Absturz", lesePublish(0, Buffer.from([0x00])), { thema: "", nutzlast: "" });
+
+  const ziel = {};
+  fuehreZusammen(ziel, JSON.parse('{"__proto__": {"boese": 1}, "print": {"x": 1}}'));
+  check("Zusammenführen: __proto__ wird übersprungen", [({}).boese, ziel.print.x], [undefined, 1]);
+
+  // Frist: hängendes Versprechen wird abgebrochen und aufgeräumt
+  let aufgeraeumt = false;
+  const erg = await mitFrist(new Promise(() => {}), 20, "zu lange", () => { aufgeraeumt = true; }).then(() => "ok", (e) => e.message);
+  check("Frist: hängt → Fehler mit Text", erg, "zu lange");
+  check("Frist: Aufräumen wurde gerufen", aufgeraeumt, true);
+  check("Frist: schnell genug → Ergebnis", await mitFrist(Promise.resolve(7), 1000, "x"), 7);
 }
 
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);

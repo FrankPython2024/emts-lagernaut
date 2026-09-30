@@ -11,7 +11,7 @@ import { bucheLager, loescheBuchung } from "@/modules/buchungen/service";
 import { standortWhere } from "@/lib/auth/standortFilter";
 import { BuchungsTyp, type Prisma } from "@prisma/client";
 import { STAND_ID, hashSchluessel, neuerSchluessel } from "@/modules/druck/bruecke";
-import { BRUECKE_STILL_MS, darfStarten, istDerAuftrag } from "@/lib/druck/warteschlange";
+import { BRUECKE_STILL_MS, darfPlatteFreigeben, darfStarten, istDerAuftrag } from "@/lib/druck/warteschlange";
 import {
   DRUCK_TEILTYPEN_STANDARD, planeDruckliste, teiltypenAus, teiltypenText,
   type BedarfZeile, type VorlageKurz,
@@ -436,8 +436,17 @@ export const druckRouter = createTRPCRouter({
         select: { id: true, titel: true, status: true, erstelltVon: true, createdAt: true, vorlageId: true },
       }),
       prisma.druckAuftrag.findMany({
-        where: { status: { in: ["GESTARTET", "FEHLER", "ABGEBROCHEN"] }, createdAt: { gte: new Date(jetzt.getTime() - 24 * 3600_000) } },
-        orderBy: { createdAt: "desc" }, take: 5,
+        // Nach Start/Ende filtern, nicht nur nach Anlegen: Ein Freitag angelegter, Montag
+        // gestarteter Auftrag verlor sonst Vorschau und „fertig → einbuchen" (Audit 30.09.2026).
+        where: {
+          status: { in: ["GESTARTET", "FEHLER", "ABGEBROCHEN"] },
+          OR: [
+            { createdAt:   { gte: new Date(jetzt.getTime() - 24 * 3600_000) } },
+            { gestartetAm: { gte: new Date(jetzt.getTime() - 24 * 3600_000) } },
+            { beendetAm:   { gte: new Date(jetzt.getTime() - 24 * 3600_000) } },
+          ],
+        },
+        orderBy: { id: "desc" }, take: 5,
         select: { id: true, titel: true, dateiname: true, status: true, meldung: true, erstelltVon: true, createdAt: true, gestartetAm: true, vorlageId: true, erledigtAm: true, dateiId: true },
       }),
     ]);
@@ -537,8 +546,17 @@ export const druckRouter = createTRPCRouter({
   // „Platte ist leer" — nur per Knopf (Frank, 24.09.2026). Wer die gedruckten
   // Teile abnimmt, hat auch das Recht zum Einlagern.
   platteIstLeer: einbuchenRecht.mutation(async ({ ctx }) => {
-    const stand = await prisma.druckerStand.findUnique({ where: { id: STAND_ID }, select: { id: true } });
+    const stand = await prisma.druckerStand.findUnique({ where: { id: STAND_ID }, select: { id: true, drucker: true } });
     if (!stand) throw new TRPCError({ code: "BAD_REQUEST", message: "Die Druckbrücke ist noch nicht gekoppelt." });
+    const [unterwegs, gestartet] = await Promise.all([
+      prisma.druckAuftrag.count({ where: { status: "ABGEHOLT" } }),
+      prisma.druckAuftrag.findFirst({ where: { status: "GESTARTET" }, orderBy: { gestartetAm: "desc" }, select: { gestartetAm: true } }),
+    ]);
+    const frei = darfPlatteFreigeben({
+      zustand: ((stand.drucker ?? null) as { zustand?: string | null } | null)?.zustand ?? null,
+      uebertragungLaeuft: unterwegs > 0, zuletztGestartetAm: gestartet?.gestartetAm ?? null, jetzt: new Date(),
+    });
+    if (!frei.ok) throw new TRPCError({ code: "BAD_REQUEST", message: frei.grund });
     await prisma.druckerStand.update({
       where: { id: STAND_ID },
       data:  { platteFrei: true, platteFreiVon: kuerzelVon(ctx), platteFreiAm: new Date() },

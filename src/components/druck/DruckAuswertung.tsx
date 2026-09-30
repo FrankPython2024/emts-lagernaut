@@ -212,7 +212,7 @@ function Rechenweg({ d, darfPflegen }: { d: Daten; darfPflegen: boolean }) {
         </li>
         <li><strong>Wert:</strong> Stückpreis des Artikels, sonst der <Link href="/admin/preise" className="underline font-bold">Kategorie-Preis</Link> — derselbe wie in der Statistik „Wert ausgegeben“.</li>
         <li><strong>Ausgegeben:</strong> alle Füße, die an die Technik oder an eine Niederlassung gingen (ohne Umlagerungen) — auch nicht gedruckte.</li>
-        <li><strong>Aus dem 3D-Druck (rechnerisch):</strong> Im Karton sind gedruckte und andere Füße nicht zu unterscheiden. Gezählt wird je Artikel nach seinem Anteil am Eingang: Kam die Hälfte eines Artikels aus dem Drucker, zählt die Hälfte seiner Ausgaben. Direkt-Ausgaben (am Lager vorbei) zählen nicht dazu.</li>
+        <li><strong>Aus dem 3D-Druck (rechnerisch):</strong> Im Karton sind gedruckte und andere Füße nicht zu unterscheiden. Gezählt wird je Artikel, was zum Zeitpunkt der Ausgabe im Karton lag: Waren es halb gedruckte, halb andere Füße, zählt die Hälfte der Ausgabe als gedruckt. Ausgaben von vor dem ersten Druck zählen nie dazu, Direkt-Ausgaben (am Lager vorbei) auch nicht.</li>
         <li><strong>Bringt ein:</strong> Wert der ausgegebenen gedruckten Füße minus Material der im Zeitraum gedruckten. Was gedruckt im Lager liegt, bringt erst etwas, wenn es ausgegeben wird. Strom und Arbeitszeit sind nicht eingerechnet.</li>
       </ul>
       <div className="flex items-center gap-2 flex-wrap pt-1">

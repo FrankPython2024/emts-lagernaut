@@ -10,7 +10,7 @@ import {
   planeDruckliste, dateiArt, teiltypenAus, teiltypenText,
   type BedarfZeile, type VorlageKurz,
 } from "../src/lib/druck/druckliste";
-import { darfStarten, platteNachBericht, haengt, istDerAuftrag, materialPasst } from "../src/lib/druck/warteschlange";
+import { darfStarten, darfPlatteFreigeben, platteNachBericht, haengt, istDerAuftrag, materialPasst } from "../src/lib/druck/warteschlange";
 import {
   KAMERA_NACHFRAGE_MS, codecGueltig, siehtAusWieH264, kameraAnfordern, kameraGewuenscht, kameraBildSpeichern, kameraBild,
 } from "../src/modules/druck/kamera";
@@ -19,10 +19,11 @@ import {
 } from "../src/modules/druck/kameraVideo";
 import { entpackeVideoPaket, waehleBild } from "../src/lib/druck/videoSpieler";
 import { phaseVon, tempoText, wlanText, restText, fertigUm } from "../src/lib/druck/druckerPhase";
-import { plattenAusZip, waehlePlatte } from "../src/modules/druck/vorschau";
+import { plattenAusZip, waehlePlatte, NUR_METADATEN } from "../src/modules/druck/vorschau";
+import { leseZip, schreibeZip } from "../src/lib/zip/einfach";
 import { herstellerVon, passtSuche, gruppiereNachHersteller } from "../src/lib/druck/vorlagenFilter";
 import {
-  anteilDruck, grammFuerDruck, grammJeStueckSchaetzung, monateZwischen, werteAus, GRAMM_JE_STUECK_ERSATZ,
+  grammFuerDruck, grammJeStueckSchaetzung, monateZwischen, werteAus, GRAMM_JE_STUECK_ERSATZ,
 } from "../src/lib/druck/auswertung";
 
 let passed = 0;
@@ -93,7 +94,7 @@ check("größte Lücke zuerst", s.drucken.map((x) => x.key), ["c", "a"]);
 console.log("\n── Dateiarten ──");
 check(".gcode.3mf = Druckdatei", dateiArt("E14 Fuss vorne 40x.gcode.3mf"), "DRUCK");
 check(".GCODE.3MF groß geschrieben", dateiArt("X.GCODE.3MF"), "DRUCK");
-check(".gcode = Druckdatei", dateiArt("platte.gcode"), "DRUCK");
+check(".gcode allein abgelehnt (Brücke braucht .gcode.3mf)", dateiArt("platte.gcode"), null);
 check(".3mf = Projekt", dateiArt("E14 Fuss.3mf"), "PROJEKT");
 check(".step = Konstruktion", dateiArt("fuss.step"), "QUELLE");
 check(".stl = Konstruktion", dateiArt("fuss.STL"), "QUELLE");
@@ -125,6 +126,19 @@ check("Druck vom Drucker selbst gestartet → auch belegt", platteNachBericht(tr
 check("fertig → bleibt, wie es war (belegt)", platteNachBericht(false, "FINISH"), false);
 check("fertig macht NICHT frei", platteNachBericht(false, "IDLE"), false);
 check("frei bleibt frei, solange nichts druckt", platteNachBericht(true, "IDLE"), true);
+check("Druck lief, während die Brücke aus war (FINISH, andere Datei) → belegt", platteNachBericht(true, "FINISH", "Fuss A", "Fuss B"), false);
+check("FINISH mit derselben Datei (schon abgeräumt) → bleibt frei", platteNachBericht(true, "FINISH", "Fuss A", "Fuss A"), true);
+check("IDLE mit anderer Datei (Neustart) → bleibt frei", platteNachBericht(true, "IDLE", "Fuss A", "Fuss B"), true);
+check("ohne vorherige Datei nichts raten", platteNachBericht(true, "FINISH", null, "Fuss B"), true);
+{
+  const jetzt = new Date("2026-09-30T12:00:00Z");
+  const basis = { zustand: "FINISH", uebertragungLaeuft: false, zuletztGestartetAm: null, jetzt };
+  check("Platte freigeben: normal erlaubt", darfPlatteFreigeben(basis).ok, true);
+  check("Platte freigeben: nicht während einer Übertragung", darfPlatteFreigeben({ ...basis, uebertragungLaeuft: true }).ok, false);
+  check("Platte freigeben: nicht direkt nach einem Start", darfPlatteFreigeben({ ...basis, zuletztGestartetAm: new Date(jetzt.getTime() - 30_000) }).ok, false);
+  check("Platte freigeben: 3 min nach dem Start wieder", darfPlatteFreigeben({ ...basis, zuletztGestartetAm: new Date(jetzt.getTime() - 180_000) }).ok, true);
+  check("Platte freigeben: nicht während des Drucks", darfPlatteFreigeben({ ...basis, zustand: "RUNNING" }).ok, false);
+}
 
 console.log("\n── Hängende Aufträge, fertiger Druck, Material ──");
 check("abgeholt vor 6 min → hängt", haengt(new Date(JETZT.getTime() - 6 * 60_000), JETZT), true);
@@ -220,6 +234,23 @@ console.log("\n── Druckerkarte: Phase und Klartexte ──");
   check("fertig um: später", fertigUm(3 * 24 * 60, jetzt), "03.10. 10:00");
 }
 
+console.log("\n── Druckdatei: nur Metadaten entpacken (Audit 30.09.2026) ──");
+{
+  const gross = Buffer.alloc(2_000_000, 0x47); // „G-Code" — soll nie entpackt werden
+  const zip = schreibeZip([
+    { name: "Metadata/plate_1.gcode", daten: gross },
+    { name: "Metadata/plate_1.png", daten: Buffer.from("PNG") },
+    { name: "Metadata/slice_info.config", daten: Buffer.from('<plate><metadata key="index" value="1"/><metadata key="weight" value="4.8"/></plate>') },
+  ]);
+  const e = leseZip(zip, { nurDaten: NUR_METADATEN, maxEintrag: 8 * 1024 * 1024 });
+  check("G-Code bleibt ungepackt (leer), Name ist da", e.map((x) => [x.name, x.daten.length > 0]), [["Metadata/plate_1.gcode", false], ["Metadata/plate_1.png", true], ["Metadata/slice_info.config", true]]);
+  const info = plattenAusZip(e);
+  check("Platte trotzdem als gedruckt erkannt, Gewicht gelesen", [info.platten[0]!.gedruckt, info.platten[0]!.gramm], [true, 4.8]);
+  let fehler = "";
+  try { leseZip(zip, { maxEintrag: 1000 }); } catch (err) { fehler = (err as Error).message; }
+  check("Eintrag über dem Deckel → Fehler statt Speicher voll", fehler.includes("zu groß"), true);
+}
+
 console.log("\n── Druckerkarte: Vorschau aus der Druckdatei ──");
 {
   const b = (s: string) => Buffer.from(s);
@@ -269,14 +300,8 @@ console.log("\n── Vorlagen-Liste: Hersteller, Suche, Gruppen ──");
 
 console.log("\n── Auswertung: was bringt der Druck ein ──");
 {
-  check("Anteil: nur gedruckt", anteilDruck({ eingangGesamt: 100, eingangDruck: 100 }), 1);
-  check("Anteil: halb", anteilDruck({ eingangGesamt: 200, eingangDruck: 100 }), 0.5);
-  check("Anteil: nie gedruckt", anteilDruck({ eingangGesamt: 50, eingangDruck: 0 }), 0);
-  check("Anteil: kein Eingang", anteilDruck({ eingangGesamt: 0, eingangDruck: 0 }), 0);
-  check("Anteil nie über 1 (Eingang gelöscht)", anteilDruck({ eingangGesamt: 5, eingangDruck: 9 }), 1);
-
-  check("Gramm: Plattenzahl bekannt → exakt", grammFuerDruck({ grammJePlatte: 10.64, stueckProPlatte: null, platten: 2, stueck: 10 }), 21.28);
-  check("Gramm: über Stück je Platte", grammFuerDruck({ grammJePlatte: 4.84, stueckProPlatte: 5, platten: null, stueck: 10 }), 9.68);
+  check("Gramm: über Stück je Platte (verlässlicher als die Plattenzahl)", grammFuerDruck({ grammJePlatte: 4.84, stueckProPlatte: 5, platten: 1, stueck: 100 }), 96.8);
+  check("Gramm: ohne Stück je Platte über die Plattenzahl", grammFuerDruck({ grammJePlatte: 10.64, stueckProPlatte: null, platten: 2, stueck: 10 }), 21.28);
   check("Gramm: Datei ohne Angabe → unbekannt", grammFuerDruck({ grammJePlatte: null, stueckProPlatte: 5, platten: 1, stueck: 5 }), null);
   check("Gramm: weder Platten noch Stück je Platte", grammFuerDruck({ grammJePlatte: 3, stueckProPlatte: null, platten: null, stueck: 5 }), null);
 
@@ -290,33 +315,51 @@ console.log("\n── Auswertung: was bringt der Druck ein ──");
   check("Monate lückenlos über den Jahreswechsel", monateZwischen("2026-11", "2027-02"), ["2026-11", "2026-12", "2027-01", "2027-02"]);
   check("Monate: ein Monat", monateZwischen("2026-09", "2026-09"), ["2026-09"]);
 
+  let id = 0;
+  const bw = (artikelId: number, tag: number, typ: "EINGANG" | "AUSGANG" | "DIREKT", menge: number, x: Partial<{ druck: boolean; gramm: number | null; nl: boolean; imZeitraum: boolean }> = {}) => ({
+    id: ++id, artikelId, zeit: tag * 86_400_000, typ, menge, druck: x.druck ?? false, gramm: x.gramm ?? null,
+    anNiederlassung: x.nl ?? false, monat: tag < 31 ? "2026-08" : "2026-09", imZeitraum: x.imZeitraum ?? true,
+  });
+
+  // Fall aus dem Audit: E14 — 370 ohne Kennzeichen, alle ausgegeben, DANACH 280 gedruckt.
+  const e14 = werteAus({
+    artikel: [{ id: 1, teiltyp: "Füße vorne", preis: 4, bestand: 280 }],
+    bewegungen: [bw(1, 1, "EINGANG", 370), bw(1, 10, "AUSGANG", 370), bw(1, 40, "EINGANG", 280, { druck: true, gramm: 400 })],
+    grammSchaetzung: 2, euroProKg: 20, bisMonat: "2026-09",
+  });
+  check("Ausgaben VOR dem ersten Druck haben keinen Druck-Anteil", e14.ausDruck.gesamt, { stueck: 0, wert: 0 });
+  check("… und alle 280 liegen als gedruckt im Lager", e14.lagerAusDruck.stueck, 280);
+  check("… Ergebnis = nur Material", e14.ergebnis, -8);
+
+  // Gemischter Karton: 100 andere + 100 gedruckt, dann 50 raus → je 25.
+  const misch = werteAus({
+    artikel: [{ id: 2, teiltyp: "Füße hinten", preis: 4, bestand: 150 }],
+    bewegungen: [bw(2, 1, "EINGANG", 100, { druck: false }), bw(2, 2, "EINGANG", 100, { druck: true, gramm: 200 }), bw(2, 35, "AUSGANG", 50)],
+    grammSchaetzung: 2, euroProKg: 20, bisMonat: "2026-09",
+  });
+  check("gemischter Karton: halbe-halbe", misch.ausDruck.gesamt, { stueck: 25, wert: 100 });
+  check("gemischter Karton: 75 gedruckte liegen noch", misch.lagerAusDruck, { stueck: 75, wert: 300 });
+
   const w = werteAus({
     artikel: [
-      // L13 vorne: nur gedruckt
-      { id: 1, teiltyp: "Füße vorne", preis: 4, eingangGesamt: 200, eingangDruck: 200, bestand: 150 },
-      // E14 vorne: nie gedruckt
-      { id: 2, teiltyp: "Füße vorne", preis: 4, eingangGesamt: 300, eingangDruck: 0, bestand: 80 },
-      // 850 G5 hinten: halb Spender, halb Druck; Einzelpreis schlägt Kategorie (hier 3 €)
-      { id: 3, teiltyp: "Füße hinten", preis: 3, eingangGesamt: 100, eingangDruck: 50, bestand: 20 },
-      // ohne Preis
-      { id: 4, teiltyp: "Füße hinten", preis: null, eingangGesamt: 10, eingangDruck: 10, bestand: 0 },
+      { id: 1, teiltyp: "Füße vorne", preis: 4, bestand: 150 },   // nur gedruckt
+      { id: 2, teiltyp: "Füße vorne", preis: 4, bestand: 200 },   // nie gedruckt
+      { id: 3, teiltyp: "Füße hinten", preis: 3, bestand: 80 },   // Spender + Druck, Einzelpreis 3 €
+      { id: 4, teiltyp: "Füße hinten", preis: null, bestand: 0 }, // ohne Preis
     ],
-    ausgaben: [
-      { artikelId: 1, menge: 50, anNiederlassung: false, ausLager: true, monat: "2026-09" },
-      { artikelId: 2, menge: 100, anNiederlassung: false, ausLager: true, monat: "2026-08" },
-      { artikelId: 3, menge: 20, anNiederlassung: true, ausLager: true, monat: "2026-09" },
-      { artikelId: 4, menge: 10, anNiederlassung: false, ausLager: true, monat: "2026-09" },
-      // DIREKT (am Lager vorbei): zählt als ausgegeben, aber nie als gedrucktes Stück
-      { artikelId: 1, menge: 5, anNiederlassung: false, ausLager: false, monat: "2026-08" },
+    bewegungen: [
+      bw(1, 5, "EINGANG", 200, { druck: true }),              // Gramm unbekannt → geschätzt
+      bw(1, 35, "AUSGANG", 50),
+      bw(1, 36, "DIREKT", 5),                                  // am Lager vorbei
+      bw(2, 1, "EINGANG", 300),
+      bw(2, 20, "AUSGANG", 100),
+      bw(3, 2, "EINGANG", 50),
+      bw(3, 32, "EINGANG", 50, { druck: true, gramm: 60 }),
+      bw(3, 33, "AUSGANG", 20, { nl: true }),
+      bw(4, 32, "EINGANG", 10, { druck: true, gramm: 20 }),
+      bw(4, 34, "AUSGANG", 10),
     ],
-    drucke: [
-      { artikelId: 1, menge: 200, gramm: null, monat: "2026-08" },
-      { artikelId: 3, menge: 50, gramm: 60, monat: "2026-09" },
-      { artikelId: 4, menge: 10, gramm: 20, monat: "2026-09" },
-    ],
-    grammSchaetzung: 2,
-    euroProKg: 20,
-    bisMonat: "2026-10",
+    grammSchaetzung: 2, euroProKg: 20, bisMonat: "2026-10",
   });
   check("gedruckt: Stück", w.gedruckt.stueck, 260);
   check("gedruckt: Gramm (200×2 geschätzt + 60 + 20)", w.gedruckt.gramm, 480);
@@ -325,15 +368,25 @@ console.log("\n── Auswertung: was bringt der Druck ein ──");
   check("gedruckt: Wert (200×4 + 50×3, ohne Preis 0)", w.gedruckt.wert, 950);
   check("ausgegeben Technik: alle Füße, auch nie gedruckte und DIREKT", w.ausgegeben.technik, { stueck: 165, wert: 620 });
   check("ausgegeben Niederlassungen", w.ausgegeben.niederlassungen, { stueck: 20, wert: 60 });
-  check("aus dem Druck Technik: 50 L13 + 0 E14 + 10 ohne Preis", w.ausDruck.technik, { stueck: 60, wert: 200 });
+  check("aus dem Druck Technik: 50 + 10 ohne Preis, DIREKT nie", w.ausDruck.technik, { stueck: 60, wert: 200 });
   check("aus dem Druck Niederlassungen: Hälfte von 20", w.ausDruck.niederlassungen, { stueck: 10, wert: 30 });
   check("Ergebnis = Nutzen aus Druck − Material", w.ergebnis, 220.4);
-  check("Lager aus Druck: 150 L13 + Hälfte von 20", w.lagerAusDruck, { stueck: 160, wert: 630 });
+  check("Lager aus Druck: 150 + Hälfte von 80", w.lagerAusDruck, { stueck: 190, wert: 720 });
   check("ohne Preis gemeldet", w.ohnePreisStueck, 10);
   check("je Teiltyp", w.teiltypen.map((z) => [z.teiltyp, z.gedruckt, z.ausgegeben, z.ausDruck]), [["Füße hinten", 60, 30, 20], ["Füße vorne", 200, 155, 50]]);
   check("Verlauf lückenlos bis heute", w.monate.map((m) => [m.monat, m.gedruckt, m.ausgegeben, m.ausDruck]),
-    [["2026-08", 200, 105, 0], ["2026-09", 60, 80, 70], ["2026-10", 0, 0, 0]]);
-  const leer = werteAus({ artikel: [], ausgaben: [], drucke: [], grammSchaetzung: 2, euroProKg: 20, vonMonat: "2026-09", bisMonat: "2026-09" });
+    [["2026-08", 200, 100, 0], ["2026-09", 60, 85, 70], ["2026-10", 0, 0, 0]]);
+
+  // Zeitraum: Druck davor zählt nicht als Kosten, macht den Karton aber trotzdem „gedruckt".
+  const zr = werteAus({
+    artikel: [{ id: 5, teiltyp: "Füße vorne", preis: 4, bestand: 60 }],
+    bewegungen: [bw(5, 1, "EINGANG", 100, { druck: true, gramm: 100, imZeitraum: false }), bw(5, 40, "AUSGANG", 40)],
+    grammSchaetzung: 2, euroProKg: 20, vonMonat: "2026-09", bisMonat: "2026-09",
+  });
+  check("Zeitraum: Material nur für Drucke im Zeitraum", [zr.gedruckt.stueck, zr.gedruckt.material], [0, 0]);
+  check("Zeitraum: Ausgabe aus älterem Druck zählt als aus dem Druck", zr.ausDruck.gesamt, { stueck: 40, wert: 160 });
+
+  const leer = werteAus({ artikel: [], bewegungen: [], grammSchaetzung: 2, euroProKg: 20, vonMonat: "2026-09", bisMonat: "2026-09" });
   check("ohne Daten: alles 0, ein Monat", [leer.gedruckt.stueck, leer.ergebnis, leer.monate.length], [0, 0, 1]);
 }
 

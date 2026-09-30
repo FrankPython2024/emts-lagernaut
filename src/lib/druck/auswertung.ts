@@ -10,9 +10,12 @@
 // ⚠️ Nicht jeder ausgegebene Fuß ist gedruckt: Es gibt auch Füße ohne Kennzeichen
 // (785 „Füße vorne" im Eingang) und geerntete (230 „Füße hinten" aus Spendern).
 // Im Karton sind sie nicht mehr unterscheidbar. „Aus dem 3D-Druck" ist deshalb
-// RECHNERISCH: Ausgabe eines Artikels × Anteil des Drucks an seinem Eingang.
-// Das UI sagt das dazu — wer es zu „gedruckt und ausgegeben" glättet, behauptet
-// mehr, als die Buchungen hergeben.
+// RECHNERISCH — Modell „gemischter Karton": Je Artikel wird mitgeführt, wie viele
+// gedruckte und wie viele andere Stücke im Lager liegen. Eine Ausgabe nimmt aus
+// beiden im Verhältnis DIESES Augenblicks.
+// ⚠️ Audit 30.09.2026: Die erste Fassung nahm den Anteil über ALLE Zeit — auch
+// Ausgaben von vor dem ersten Druck bekamen einen Druck-Anteil.
+// DIREKT-Buchungen laufen am Lager vorbei und sind nie ein gedrucktes Lagerstück.
 //
 // Reine Logik — Test in tests/druck.test.ts.
 
@@ -22,35 +25,42 @@ export const GRAMM_JE_STUECK_ERSATZ = 2;
 export const FILAMENT_EURO_KG_STANDARD = 20;
 
 export type ArtikelInfo = {
-  id:            number;
-  teiltyp:       string;
+  id:      number;
+  teiltyp: string;
   /** Stückpreis in € (Artikel.preis, sonst Kategoriepreis), null = keiner hinterlegt. */
-  preis:         number | null;
-  /** Eingang über alle Zeit — für den Anteil des Drucks. */
-  eingangGesamt: number;
-  eingangDruck:  number;
-  bestand:       number;
+  preis:   number | null;
+  bestand: number;
 };
 
 /**
- * ausLager = AUSGANG (aus dem Bestand). DIREKT-Buchungen laufen am Lager vorbei
- * (Pass-Through) — sie zählen als ausgegeben, können aber kein gedrucktes Stück
- * aus dem Lager sein und bekommen deshalb keinen Druck-Anteil.
+ * Eine Buchung (ohne Umlagerungen), ALLE Zeit — der Zeitraum steckt in `imZeitraum`.
+ * Die Reihenfolge je Artikel ergibt `zeit` (dann `id`).
  */
-export type Ausgabe   = { artikelId: number; menge: number; anNiederlassung: boolean; ausLager: boolean; monat: string };
-/** gramm = Filament laut Druckdatei, null = unbekannt (ältere Einlagerung ohne Vorlage). */
-export type DruckPost = { artikelId: number; menge: number; gramm: number | null; monat: string };
+export type Bewegung = {
+  id:              number;
+  artikelId:       number;
+  zeit:            number;
+  typ:             "EINGANG" | "AUSGANG" | "DIREKT";
+  menge:           number;
+  /** Nur EINGANG: 3D-gedruckt (herkunftArt DRUCK). */
+  druck?:          boolean;
+  /** Nur Druck-EINGANG: Filament laut Druckdatei, null = unbekannt (geschätzt). */
+  gramm?:          number | null;
+  anNiederlassung?: boolean;
+  monat:           string;
+  imZeitraum:      boolean;
+};
 
 export type Summe = { stueck: number; wert: number };
 
 export type TeiltypZeile = {
-  teiltyp:          string;
-  gedruckt:         number;
-  material:         number;
-  ausgegeben:       number;
-  ausDruck:         number;
-  wertAusDruck:     number;
-  lagerAusDruck:    number;
+  teiltyp:       string;
+  gedruckt:      number;
+  material:      number;
+  ausgegeben:    number;
+  ausDruck:      number;
+  wertAusDruck:  number;
+  lagerAusDruck: number;
 };
 
 export type Monat = { monat: string; gedruckt: number; ausgegeben: number; ausDruck: number };
@@ -79,22 +89,18 @@ export type Auswertung = {
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
-/** Anteil des Drucks am Eingang eines Artikels, 0…1. */
-export function anteilDruck(a: Pick<ArtikelInfo, "eingangGesamt" | "eingangDruck">): number {
-  if (a.eingangGesamt <= 0 || a.eingangDruck <= 0) return 0;
-  return Math.min(1, a.eingangDruck / a.eingangGesamt);
-}
-
 /**
- * Gramm Filament für einen Druck-Eingang aus Vorlage und Protokoll.
- * Plattenzahl bekannt → exakt wie der Slicer; sonst über Stück je Platte.
+ * Gramm Filament für einen Druck-Eingang. Stück je Platte bekannt → über die
+ * eingebuchte Stückzahl (die ist verlässlich; die Plattenzahl bleibt im Dialog
+ * leicht auf 1 stehen, wenn jemand die Stückzahl von Hand ändert — Audit
+ * 30.09.2026). Sonst über die Plattenzahl.
  */
 export function grammFuerDruck(p: {
   grammJePlatte: number | null; stueckProPlatte: number | null; platten: number | null; stueck: number;
 }): number | null {
   if (p.grammJePlatte == null || p.grammJePlatte <= 0) return null;
-  if (p.platten != null && p.platten > 0) return p.platten * p.grammJePlatte;
-  if (p.stueckProPlatte != null && p.stueckProPlatte > 0) return (p.stueck / p.stueckProPlatte) * p.grammJePlatte;
+  if (p.stueckProPlatte != null && p.stueckProPlatte > 0) return r2((p.stueck / p.stueckProPlatte) * p.grammJePlatte);
+  if (p.platten != null && p.platten > 0) return r2(p.platten * p.grammJePlatte);
   return null;
 }
 
@@ -121,14 +127,13 @@ export function monateZwischen(von: string, bis: string): string[] {
 }
 
 export function werteAus(e: {
-  artikel:          ArtikelInfo[];
-  ausgaben:         Ausgabe[];
-  drucke:           DruckPost[];
-  grammSchaetzung:  number;
-  euroProKg:        number;
-  /** Erster Monat des Verlaufs (sonst ab dem ersten Datensatz). */
-  vonMonat?:        string | null;
-  bisMonat:         string;
+  artikel:         ArtikelInfo[];
+  bewegungen:      Bewegung[];
+  grammSchaetzung: number;
+  euroProKg:       number;
+  /** Erster Monat des Verlaufs (sonst ab der ersten Bewegung im Zeitraum). */
+  vonMonat?:       string | null;
+  bisMonat:        string;
 }): Auswertung {
   const art = new Map(e.artikel.map((a) => [a.id, a]));
   const leer = (): Summe => ({ stueck: 0, wert: 0 });
@@ -147,48 +152,70 @@ export function werteAus(e: {
     return x;
   };
 
-  // Kosten: gedruckte Stücke
-  let dStueck = 0, dWert = 0, dGramm = 0, geschaetzt = 0;
-  for (const d of e.drucke) {
-    const a = art.get(d.artikelId);
-    const gramm = d.gramm ?? d.menge * e.grammSchaetzung;
-    if (d.gramm == null) geschaetzt += d.menge;
-    dStueck += d.menge;
-    dGramm += gramm;
-    dWert += d.menge * (a?.preis ?? 0);
-    if (a) { const z = zeile(a.teiltyp); z.gedruckt += d.menge; z.material += (gramm / 1000) * e.euroProKg; }
-    monat(d.monat).gedruckt += d.menge;
-  }
-
-  // Nutzen: ausgegebene Stücke, davon rechnerisch aus dem Druck
+  let dStueck = 0, dWert = 0, dGramm = 0, geschaetzt = 0, ohnePreis = 0;
   const aus = { technik: leer(), niederlassungen: leer() };
   const ausD = { technik: leer(), niederlassungen: leer() };
-  let ohnePreis = 0;
-  for (const x of e.ausgaben) {
-    const a = art.get(x.artikelId);
-    if (!a) continue;
-    const preis = a.preis ?? 0;
-    if (a.preis == null) ohnePreis += x.menge;
-    const anteil = x.ausLager ? anteilDruck(a) : 0;
-    const ziel = x.anNiederlassung ? "niederlassungen" : "technik";
-    add(aus[ziel], x.menge, x.menge * preis);
-    add(ausD[ziel], x.menge * anteil, x.menge * anteil * preis);
-    const z = zeile(a.teiltyp);
-    z.ausgegeben += x.menge;
-    z.ausDruck += x.menge * anteil;
-    z.wertAusDruck += x.menge * anteil * preis;
-    const mo = monat(x.monat);
-    mo.ausgegeben += x.menge;
-    mo.ausDruck += x.menge * anteil;
+  const lager = leer();
+
+  // Je Artikel der Reihe nach: Wie viele gedruckte / andere Stücke liegen im Lager?
+  const jeArtikel = new Map<number, Bewegung[]>();
+  for (const b of e.bewegungen) {
+    if (!art.has(b.artikelId)) continue;
+    const l = jeArtikel.get(b.artikelId);
+    if (l) l.push(b); else jeArtikel.set(b.artikelId, [b]);
   }
 
-  // Heute noch auf Lager aus dem Druck
-  const lager = leer();
   for (const a of e.artikel) {
-    const anteil = anteilDruck(a);
-    if (anteil <= 0 || a.bestand <= 0) continue;
-    add(lager, a.bestand * anteil, a.bestand * anteil * (a.preis ?? 0));
-    zeile(a.teiltyp).lagerAusDruck += a.bestand * anteil;
+    const preis = a.preis ?? 0;
+    const z = zeile(a.teiltyp);
+    let druckRest = 0, andereRest = 0;
+    const liste = (jeArtikel.get(a.id) ?? []).sort((x, y) => x.zeit - y.zeit || x.id - y.id);
+    for (const b of liste) {
+      if (b.typ === "EINGANG") {
+        if (b.druck) {
+          druckRest += b.menge;
+          if (b.imZeitraum) {
+            const gramm = b.gramm ?? b.menge * e.grammSchaetzung;
+            if (b.gramm == null) geschaetzt += b.menge;
+            dStueck += b.menge;
+            dGramm += gramm;
+            dWert += b.menge * preis;
+            z.gedruckt += b.menge;
+            z.material += (gramm / 1000) * e.euroProKg;
+            monat(b.monat).gedruckt += b.menge;
+          }
+        } else {
+          andereRest += b.menge;
+        }
+        continue;
+      }
+      // Ausgabe: aus dem Lager (AUSGANG) im Verhältnis dieses Augenblicks; DIREKT nie gedruckt.
+      let ausDruck = 0;
+      if (b.typ === "AUSGANG") {
+        const gesamt = druckRest + andereRest;
+        ausDruck = gesamt > 0 ? Math.min(b.menge, b.menge * (druckRest / gesamt)) : 0;
+        druckRest = Math.max(0, druckRest - ausDruck);
+        andereRest = Math.max(0, andereRest - (b.menge - ausDruck));
+      }
+      if (!b.imZeitraum) continue;
+      if (a.preis == null) ohnePreis += b.menge;
+      const ziel = b.anNiederlassung ? "niederlassungen" : "technik";
+      add(aus[ziel], b.menge, b.menge * preis);
+      add(ausD[ziel], ausDruck, ausDruck * preis);
+      z.ausgegeben += b.menge;
+      z.ausDruck += ausDruck;
+      z.wertAusDruck += ausDruck * preis;
+      const mo = monat(b.monat);
+      mo.ausgegeben += b.menge;
+      mo.ausDruck += ausDruck;
+    }
+    // Heute auf Lager: der echte Bestand im Verhältnis des Kartons.
+    const gesamt = druckRest + andereRest;
+    if (gesamt > 0 && druckRest > 0 && a.bestand > 0) {
+      const stueck = a.bestand * (druckRest / gesamt);
+      add(lager, stueck, stueck * preis);
+      z.lagerAusDruck += stueck;
+    }
   }
 
   const material = (dGramm / 1000) * e.euroProKg;
@@ -213,6 +240,7 @@ export function werteAus(e: {
     lagerAusDruck: rundS(lager),
     ohnePreisStueck: ohnePreis,
     teiltypen: [...zeilen.values()]
+      .filter((z) => z.gedruckt || z.ausgegeben || z.lagerAusDruck)
       .sort((a, b) => a.teiltyp.localeCompare(b.teiltyp, "de"))
       .map((z) => ({ ...z, material: r2(z.material), ausDruck: Math.round(z.ausDruck), wertAusDruck: r2(z.wertAusDruck), lagerAusDruck: Math.round(z.lagerAusDruck) })),
     monate: verlauf,

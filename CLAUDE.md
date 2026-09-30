@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 993) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1021) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1630,13 +1630,65 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   - **Nutzen** = ausgegebene Stück × Stückpreis (`Artikel.preis`, sonst Kategoriepreis — wie „Wert
     ausgegeben"; Füße 4 €). Ausgegeben = AUSGANG/DIREKT ohne Umlagerungen, Technik UND Niederlassungen.
   - ⚠️ **„Aus dem 3D-Druck" ist RECHNERISCH:** Im Karton sind gedruckte, geerntete und ungekennzeichnete
-    Füße nicht unterscheidbar. Je Artikel zählt der Druck-Anteil am Eingang (über alle Zeit) auf seine
-    Ausgaben. **DIREKT bekommt keinen Anteil** — am Lager vorbei kann kein gedrucktes Lagerstück sein.
+    Füße nicht unterscheidbar. Modell „gemischter Karton": Je Artikel werden gedruckte und andere
+    Stücke im Lager der Reihe nach mitgeführt, eine Ausgabe nimmt aus beiden im Verhältnis DIESES
+    Augenblicks. ⚠️ Erste Fassung nahm den Anteil über alle Zeit — Ausgaben von VOR dem ersten Druck
+    bekamen einen Druck-Anteil (Audit 30.09.2026; an der Produktion 60 statt 58, der Fehler wächst aber
+    mit jedem Artikel, der erst später gedruckt wird). **DIREKT bekommt keinen Anteil** — am Lager
+    vorbei kann kein gedrucktes Lagerstück sein. Material: Stück ÷ Stück je Platte × Gramm; die
+    Plattenzahl nur, wenn Stück je Platte fehlt (sie bleibt im Dialog leicht auf 1 stehen).
   - „Bringt ein" = Wert der ausgegebenen gedruckten − Material der im Zeitraum gedruckten; daneben „noch
     auf Lager aus dem Druck". Stand 30.09.2026 seit Beginn: 823 gedruckt, 24,79 € Material, 672 Füße
     ausgegeben (2.688 €), davon rechnerisch nur **60 aus dem Druck** (242 €) → 217 €; **763 gedruckte
     liegen noch** (≈ 3.050 €). Grund: Die meisten ausgegebenen Füße kamen aus nicht gedrucktem Bestand
     (z. B. E14 vorne, 785 Stück Eingang ohne Kennzeichen). Kein Rechenfehler.
+
+### 3D-Druck: Audit 30.09.2026 und was daraus folgte
+
+Vier parallele Prüfungen (Sicherheit, Daten/Logik, Druckbrücke, Oberfläche/Umfang) plus
+Produktionsdaten. Ergebnis: kein kritischer Befund, Rechte sauber, Daten konsistent — aber das
+Modul ist in einer Woche auf ~5.900 Zeilen gewachsen, nur ~25 % davon Kern (Vorlagen, Druckliste,
+Einbuchen). Frank: „der Lagernaut wird zum Monster" → abarbeiten in Paketen, keine neuen Funktionen.
+
+**Paket 1 „betriebssicher" (Brücke 1.6.0):**
+- ⚠️ **FTPS-Datenkanal konnte die Brücke für immer blockieren:** `daten()` wartete nur auf
+  `secureConnect`; brach der Kanal vorher ab, kam das nie. Danach verwarf die Brücke jeden weiteren
+  Auftrag STILL (`druckLaeuft`), Lagernaut meldete nach 5 min „kein Ergebnis". Jetzt: Kanal-Timeout,
+  Abbruch bei `close`, Gesamtfrist `DRUCK_FRIST_MS` 4 min (unter `ABGEHOLT_MAX_MS`), und ein Auftrag
+  während einer laufenden Übertragung wird mit `beschaeftigt: true` abgelehnt (Platte bleibt belegt).
+- **Drucker-Zertifikat wird geprüft:** Alle drei Ports (8883/990/322) zeigen dasselbe Zertifikat,
+  CN = Seriennummer, „BBL Device CA N7-V2", gültig bis 2036 (gemessen 30.09.2026). Die Brücke merkt
+  sich den Fingerabdruck beim ersten Kontakt in `.lagernaut-druckbruecke-zertifikat.json` (kein
+  Geheimnis) und verweigert danach jeden anderen. Vorher bekam jeder, der sich im Gast-WLAN als
+  Drucker ausgab, den Zugangscode. ⚠️ **Drucker getauscht/zurückgesetzt → diese Datei löschen.**
+  Organisatorisch offen: Drucker und Laptop hängen im Gast-WLAN (Sache der AfB-IT).
+- MQTT: CONNACK-Frist 10 s, Stille-Wächter 75 s (Drucker aus ohne sauberes Trennen), alter Zustand
+  wird bei Trennung verworfen, kaputte Pakete beenden nicht mehr den Prozess, `__proto__` wird beim
+  Zusammenführen übersprungen, ZIP-Entpacken gedeckelt. `lagernautUrl` muss https sein.
+- **„Platte ist leer" gesperrt** während einer Übertragung, direkt nach einem Start (2 min) und beim
+  Drucken — Server (`darfPlatteFreigeben`) und Karte gleich. Vorher konnte der nächste Auftrag an einen
+  Drucker gehen, der selbst gerade startete.
+- **Druck an Lagernaut vorbei belegt die Platte:** meldet der Drucker (nicht IDLE) eine andere Datei als
+  zuletzt gespeichert, ist die Platte belegt (`platteNachBericht` mit Dateivergleich) — Drucke aus Bambu
+  Studio bei ausgeschalteter Brücke sah Lagernaut sonst nie.
+- **Spätes Ergebnis:** ein „gestartet" nach dem 5-min-Aufräumen (`HAENGT_MELDUNG`) wird angenommen →
+  GESTARTET, sonst fehlte „fertig → einbuchen". Ergebnisse schreiben nur mit Statusbedingung.
+- Druckerkarte filtert „zuletzt" nach Start/Ende statt nur Anlegen (Freitag angelegt, Montag gedruckt).
+- **Rechte (Entscheidung Frank):** Kamera (`/api/druck/kamera*`) nur mit **DRUCK_STARTEN** — kann
+  Beschäftigte aufnehmen (§ 87 BetrVG), vorher sah jede Leserolle zu. **Druckdateien hochladen** nur mit
+  DRUCK_STARTEN — wer sie austauscht, bestimmt, was die Maschine tut. Reines `.gcode` wird abgelehnt,
+  eine `.gcode.3mf` muss `plate_N.gcode` enthalten.
+- **Speicher:** `leseZip(buf, { nurDaten, maxEintrag })` — für Vorschau/Gewicht nur Bilder und
+  slice_info entpacken (`NUR_METADATEN`), nie den G-Code; Zwischenspeicher verdrängt den ältesten statt
+  alles zu leeren. Ein Ladefehler der Druckerkarte zeigt jetzt eine Meldung statt zu verschwinden.
+
+**Noch offen (Pakete 2–4):** Video entfernen (Standbild bleibt, ~650 Zeilen, größter Teil der
+Serverlast), Druckerkarte abspecken, `liste`/`druckliste` zusammenlegen, toter Code (lokaler
+CORS-Server der Brücke, ungenutzte FTP-Methoden, `vorlageId` am DruckenKnopf); Druckliste: Bestand
+doppelt bei Artikeln an mehreren Modellen, Pool nicht berücksichtigt, Nachfrage über `geraeteName`
+statt Roh-Bezeichnung (Detachable); Barrierefreiheit: Drucken-Knopf 2,7:1, `aria-live` auf der ganzen
+Karte (alle 3 s vorgelesen), Knöpfe 36–44 px. Kleinere: Einbuchen/Zurücknehmen nicht atomar, Gramm
+nicht im Protokoll festgehalten, fehlender Index `DruckProtokoll.buchungId`.
 
 ### Urlaubsplanung (29.09.2026)
 

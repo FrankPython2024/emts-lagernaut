@@ -10,7 +10,7 @@
 import crypto from "crypto";
 import type { NextApiRequest } from "next";
 import { prisma } from "@/core/db/prisma";
-import { darfStarten, haengt, platteNachBericht } from "@/lib/druck/warteschlange";
+import { HAENGT_MELDUNG, darfStarten, haengt, platteNachBericht } from "@/lib/druck/warteschlange";
 
 export const STAND_ID = 1;
 
@@ -56,7 +56,12 @@ export async function meldenUndAbholen(m: Meldung) {
   const verbindung = text(m.verbindung, 20);
 
   const alt = await prisma.druckerStand.findUnique({ where: { id: STAND_ID } });
-  const platteFrei = platteNachBericht(alt?.platteFrei ?? false, zustand);
+  const dateiVorher = (alt?.drucker as { datei?: unknown } | null)?.datei;
+  const platteFrei = platteNachBericht(
+    alt?.platteFrei ?? false, zustand,
+    typeof dateiVorher === "string" ? dateiVorher : null,
+    typeof drucker?.datei === "string" ? drucker.datei : null,
+  );
   await prisma.druckerStand.update({
     where: { id: STAND_ID },
     data: {
@@ -79,7 +84,7 @@ export async function meldenUndAbholen(m: Meldung) {
     if (haengt(a.abgeholtAm, jetzt)) {
       await prisma.druckAuftrag.updateMany({
         where: { id: a.id, status: "ABGEHOLT" },
-        data:  { status: "FEHLER", meldung: "Die Druckbrücke hat kein Ergebnis gemeldet — bitte am Drucker nachsehen.", beendetAm: jetzt },
+        data:  { status: "FEHLER", meldung: HAENGT_MELDUNG, beendetAm: jetzt },
       });
     }
   }
@@ -99,27 +104,44 @@ export async function meldenUndAbholen(m: Meldung) {
   return { auftrag: { id: naechster.id, titel: naechster.titel, vorlageId: naechster.vorlageId } };
 }
 
-/** Ergebnis eines abgeholten Auftrags. Bei Fehler war die Platte nie im Einsatz → wieder frei. */
-export async function ergebnisMelden(e: { auftragId: number; ok: boolean; bestaetigt?: boolean; meldung?: string | null }) {
+/**
+ * Ergebnis eines abgeholten Auftrags. Bei Fehler war die Platte nie im Einsatz → wieder frei
+ * (außer die Brücke war nur beschäftigt — dann läuft gerade ein anderer Auftrag).
+ * Geschrieben wird nur mit Statusbedingung, damit ein gleichzeitiges „hängt → FEHLER"
+ * nicht überschrieben wird.
+ */
+export async function ergebnisMelden(e: {
+  auftragId: number; ok: boolean; bestaetigt?: boolean; meldung?: string | null; beschaeftigt?: boolean;
+}) {
   const jetzt = new Date();
   const a = await prisma.druckAuftrag.findUnique({ where: { id: e.auftragId } });
-  if (!a || a.status !== "ABGEHOLT") return false;
+  if (!a) return false;
+  // Spätes „gestartet" nach dem 5-min-Aufräumen (lange Übertragung im Gast-WLAN):
+  // Der Druck läuft wirklich — sonst fehlt danach „fertig → einbuchen".
+  if (a.status === "FEHLER" && a.meldung === HAENGT_MELDUNG && e.ok) {
+    const r = await prisma.druckAuftrag.updateMany({
+      where: { id: a.id, status: "FEHLER" },
+      data:  { status: "GESTARTET", gestartetAm: jetzt, beendetAm: null, meldung: "Spät bestätigt — die Übertragung hat länger gedauert." },
+    });
+    return r.count === 1;
+  }
+  if (a.status !== "ABGEHOLT") return false;
   if (e.ok) {
-    await prisma.druckAuftrag.update({
-      where: { id: a.id },
+    const r = await prisma.druckAuftrag.updateMany({
+      where: { id: a.id, status: "ABGEHOLT" },
       data:  {
         status: "GESTARTET", gestartetAm: jetzt,
         meldung: e.bestaetigt === false ? "Gesendet — der Drucker hat den Start nicht ausdrücklich bestätigt." : null,
       },
     });
-  } else {
-    await prisma.$transaction([
-      prisma.druckAuftrag.update({
-        where: { id: a.id },
-        data:  { status: "FEHLER", beendetAm: jetzt, meldung: (e.meldung ?? "Unbekannter Fehler").slice(0, 500) },
-      }),
-      prisma.druckerStand.update({ where: { id: STAND_ID }, data: { platteFrei: true } }),
-    ]);
+    return r.count === 1;
   }
-  return true;
+  const r = await prisma.druckAuftrag.updateMany({
+    where: { id: a.id, status: "ABGEHOLT" },
+    data:  { status: "FEHLER", beendetAm: jetzt, meldung: (e.meldung ?? "Unbekannter Fehler").slice(0, 500) },
+  });
+  if (r.count === 1 && !e.beschaeftigt) {
+    await prisma.druckerStand.update({ where: { id: STAND_ID }, data: { platteFrei: true } });
+  }
+  return r.count === 1;
 }

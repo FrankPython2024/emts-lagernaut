@@ -1,5 +1,5 @@
 // Kamerabild des Druckers für die Druckerkarte. GET /api/druck/kamera?nach=<nr>
-// Recht ARTIKEL_VIEW (wie die übrige 3D-Druck-Seite).
+// Recht DRUCK_STARTEN (Audit 30.09.2026 — Kamera nicht für Leserollen).
 //
 // Jeder Abruf meldet „jemand schaut zu" — erst dadurch schaltet die Brücke die
 // Kamera ein (siehe modules/druck/kamera.ts). Antwort:
@@ -23,8 +23,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user) return res.status(401).json({ error: "Nicht angemeldet" });
   const user = session.user as SessionUser;
   const perms = await getMeinePermissions(user.rolle, user.id);
-  if (!hasPermission(perms, "ARTIKEL_VIEW")) {
-    return res.status(403).json({ error: "Keine Berechtigung (ARTIKEL_VIEW)" });
+  // Kamera nur mit DRUCK_STARTEN (Audit 30.09.2026): Sie kann Beschäftigte aufnehmen,
+  // und jeder Abruf schaltet sie an der Brücke ein — nichts für reine Leserollen.
+  if (!hasPermission(perms, "DRUCK_STARTEN")) {
+    return res.status(403).json({ error: "Keine Berechtigung (DRUCK_STARTEN)" });
   }
 
   kameraAnfordern();

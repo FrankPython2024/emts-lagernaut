@@ -53,7 +53,14 @@ function useLiveModus(): [LiveModus, (m: LiveModus) => void] {
   return [modus, waehle];
 }
 
-export function DruckerCockpit({ s }: { s: Stand }) {
+/** Nur echte Farbwerte aus dem Druckerbericht als CSS übernehmen (Audit 30.09.2026). */
+const farbeOk = (f: string | null | undefined) => (f && /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(f) ? f.slice(0, 7) : null);
+
+/**
+ * `darfKamera`: Livebild nur mit DRUCK_STARTEN (Audit 30.09.2026) — die Kamera kann
+ * Beschäftigte aufnehmen (§ 87 BetrVG), Leserollen sehen sie deshalb nicht.
+ */
+export function DruckerCockpit({ s, darfKamera }: { s: Stand; darfKamera: boolean }) {
   const d = s.drucker;
   const [live, setLive] = useLiveModus();
   // Draufsicht zuerst: Die meisten Drucke sind flache Füße — in der Plattenansicht
@@ -75,9 +82,9 @@ export function DruckerCockpit({ s }: { s: Stand }) {
   const tempo = tempoText(d.tempo);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+    <div className={`grid gap-4 ${darfKamera ? "lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]" : ""}`}>
       {/* ── Livebild ─────────────────────────────────────────────────────── */}
-      <div className="space-y-2 min-w-0">
+      {darfKamera && <div className="space-y-2 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <span className={kachelTitel}>Livebild</span>
           <div role="group" aria-label="Livebild" className="inline-flex rounded-lg overflow-hidden border border-[#ced4da] dark:border-[#3e4042]">
@@ -98,7 +105,7 @@ export function DruckerCockpit({ s }: { s: Stand }) {
               <span className="text-sm font-bold">Livebild einschalten</span>
             </button>
           )}
-      </div>
+      </div>}
 
       {/* ── Laufender Druck ──────────────────────────────────────────────── */}
       <div className="space-y-3 min-w-0">
@@ -172,7 +179,7 @@ export function DruckerCockpit({ s }: { s: Stand }) {
           {d.spule?.typ && (
             <span className="inline-flex items-center gap-1">
               Spule <b className="text-[#1a1a1a] dark:text-[#e4e6eb]">{d.spule.typ}</b>
-              {d.spule.farbe && <span className="inline-block w-3 h-3 rounded-full border border-[#ced4da]" style={{ background: d.spule.farbe }} aria-hidden />}
+              {farbeOk(d.spule.farbe) && <span className="inline-block w-3 h-3 rounded-full border border-[#ced4da]" style={{ background: farbeOk(d.spule.farbe)! }} aria-hidden />}
             </span>
           )}
           {tempo && <span>Tempo <b className="text-[#1a1a1a] dark:text-[#e4e6eb]">{tempo}</b></span>}

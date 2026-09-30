@@ -462,7 +462,7 @@ function DateienKarte({ id, titel, material, dateien, darfPflegen }: {
       {darfPflegen && (
         <label className={`${knopfBlau} cursor-pointer ${laden ? "opacity-50 pointer-events-none" : ""}`}>
           {laden ? `Lade „${laden}" hoch…` : "＋ Dateien hochladen"}
-          <input type="file" multiple className="sr-only" accept=".3mf,.gcode,.step,.stp,.stl,.obj,.f3d,.scad,.fcstd,.iges,.igs"
+          <input type="file" multiple className="sr-only" accept=".3mf,.step,.stp,.stl,.obj,.f3d,.scad,.fcstd,.iges,.igs"
             onChange={(e) => { void hochladen(e.target.files); e.target.value = ""; }} />
         </label>
       )}

@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { useDruckerStand } from "./useDruckbruecke";
 import { DruckerCockpit } from "./DruckerCockpit";
+import { darfPlatteFreigeben } from "@/lib/druck/warteschlange";
 
 const FARBE: Record<string, string> = {
   RUNNING: "bg-[#008BD2]/15 text-[#0064d2] dark:text-[#45bdff]",
@@ -41,7 +42,7 @@ export function DruckerStatus() {
   const { has } = usePermissions();
   const darfStarten = has("DRUCK_STARTEN");
   const darfPlatte = has("ARTIKEL_EINLAGERN");
-  const { data: s } = useDruckerStand({ nachfragen: true });
+  const { data: s, isError, error, refetch } = useDruckerStand({ nachfragen: true });
   const { show } = useToast();
   const utils = api.useUtils();
   const neu = () => void utils.druck.druckerStand.invalidate();
@@ -54,6 +55,15 @@ export function DruckerStatus() {
   const abbrechen = api.druck.auftragAbbrechen.useMutation({ onSuccess: neu, onError: (e) => show(e.message, "error") });
   const ausblenden = api.druck.einbuchenAusblenden.useMutation({ onSuccess: neu });
 
+  // Ein Ladefehler darf nicht aussehen wie „kein Drucker da" (Audit 30.09.2026).
+  if (!s && isError) {
+    return (
+      <div className={`${karte} text-sm text-[#c01818] dark:text-[#ff6b6b]`} role="alert">
+        ⚠ Druckerstand konnte nicht geladen werden: {error?.message}{" "}
+        <button type="button" className="underline font-bold" onClick={() => void refetch()}>Erneut versuchen</button>
+      </div>
+    );
+  }
   if (!s) return null;
 
   if (!s.gekoppelt) {
@@ -71,6 +81,15 @@ export function DruckerStatus() {
   const d = s.drucker;
   const aktiv = d?.zustand === "RUNNING" || d?.zustand === "PREPARE" || d?.zustand === "PAUSE";
   const fehler = s.zuletzt.filter((a) => a.status === "FEHLER").slice(0, 2);
+  // Dieselbe Regel wie der Server (darfPlatteFreigeben): nicht während einer
+  // Übertragung und nicht direkt nach einem Start.
+  const letzterStart = s.zuletzt.find((a) => a.status === "GESTARTET")?.gestartetAm ?? null;
+  const platteSperre = darfPlatteFreigeben({
+    zustand: d?.zustand ?? null,
+    uebertragungLaeuft: s.warteschlange.some((a) => a.status === "ABGEHOLT"),
+    zuletztGestartetAm: letzterStart ? new Date(letzterStart) : null,
+    jetzt: new Date(),
+  });
 
   return (
     <div className={`${karte} space-y-4`} aria-live="polite">
@@ -98,7 +117,7 @@ export function DruckerStatus() {
       </div>
 
       {/* Livebild + laufender Druck */}
-      {s.online && s.verbindung === "verbunden" && d && <DruckerCockpit s={s} />}
+      {s.online && s.verbindung === "verbunden" && d && <DruckerCockpit s={s} darfKamera={darfStarten} />}
 
       {/* Platte */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -107,8 +126,11 @@ export function DruckerStatus() {
         ) : (
           <span className="text-sm font-bold text-[#8A5A00] dark:text-[#f7b928]">⚠ Platte belegt</span>
         )}
-        {!s.platteFrei && darfPlatte && !aktiv && (
+        {!s.platteFrei && darfPlatte && !aktiv && platteSperre.ok && (
           <button type="button" className={knopfRand} onClick={() => setPlatteFrage(true)}>✓ Platte ist leer</button>
+        )}
+        {!s.platteFrei && darfPlatte && !aktiv && !platteSperre.ok && (
+          <span className="text-sm text-[#65676b] dark:text-[#b0b3b8]">{platteSperre.grund}</span>
         )}
       </div>
 

@@ -41,10 +41,41 @@ export function darfStarten(l: Startlage): Startentscheid {
   return { ok: true };
 }
 
-/** Nach einem Bericht: Wird gedruckt, ist die Platte belegt. Frei macht sie nur der Knopf. */
-export function platteNachBericht(platteFrei: boolean, zustand: string | null): boolean {
-  return zustand && DRUCKT.includes(zustand) ? false : platteFrei;
+/**
+ * Nach einem Bericht: Wird gedruckt, ist die Platte belegt. Frei macht sie nur der Knopf.
+ * ⚠️ Audit 30.09.2026: Lief ein Druck, während die Brücke aus war (Bambu Studio,
+ * Display), sah Lagernaut nie PREPARE/RUNNING — danach meldet der Drucker FINISH
+ * mit einer ANDEREN Datei. Auch das heißt: Da liegt etwas auf der Platte.
+ */
+export function platteNachBericht(
+  platteFrei: boolean, zustand: string | null, dateiVorher?: string | null, dateiJetzt?: string | null,
+): boolean {
+  if (zustand && DRUCKT.includes(zustand)) return false;
+  if (zustand && zustand !== "IDLE" && dateiVorher && dateiJetzt && dateiVorher !== dateiJetzt) return false;
+  return platteFrei;
 }
+
+/** So lange nach einem Start ist „Platte ist leer" gesperrt — der Drucker meldet PREPARE erst nach ein paar Sekunden. */
+export const START_SPERRE_MS = 2 * 60_000;
+
+/**
+ * Darf jemand „Platte ist leer" drücken? Nicht, solange eine Datei unterwegs ist
+ * oder ein Druck gerade beginnt — sonst geht der nächste Auftrag an einen Drucker,
+ * der selbst gerade startet (Audit 30.09.2026).
+ */
+export function darfPlatteFreigeben(l: {
+  zustand: string | null; uebertragungLaeuft: boolean; zuletztGestartetAm: Date | null; jetzt: Date;
+}): Startentscheid {
+  if (l.zustand && DRUCKT.includes(l.zustand)) return { ok: false, grund: "Der Drucker druckt gerade." };
+  if (l.uebertragungLaeuft) return { ok: false, grund: "Gerade wird eine Druckdatei zum Drucker übertragen." };
+  if (l.zuletztGestartetAm && l.jetzt.getTime() - l.zuletztGestartetAm.getTime() < START_SPERRE_MS) {
+    return { ok: false, grund: "Gerade wurde ein Druck gestartet — der Drucker bereitet ihn vor." };
+  }
+  return { ok: true };
+}
+
+/** Text, mit dem ein hängender Auftrag abgeschlossen wird — daran erkennt der Server ein spätes Ergebnis. */
+export const HAENGT_MELDUNG = "Die Druckbrücke hat kein Ergebnis gemeldet — bitte am Drucker nachsehen.";
 
 /** Hängt ein abgeholter Auftrag? (Brücke abgestürzt, Laptop zugeklappt …) */
 export function haengt(abgeholtAm: Date | null, jetzt: Date): boolean {

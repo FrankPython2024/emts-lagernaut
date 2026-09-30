@@ -107,7 +107,9 @@ export function planeDruckliste(
 }
 
 // ── Dateiarten ───────────────────────────────────────────────────────────────
-// DRUCK   = fertig geslict (.gcode.3mf / .gcode) — geht ohne Slicer an den Drucker.
+// DRUCK   = fertig geslict (.gcode.3mf) — geht ohne Slicer an den Drucker. Reines .gcode
+//           nimmt die Druckbrücke nicht (sie braucht Platte + Filamente aus der .3mf) —
+//           seit dem Audit 30.09.2026 deshalb auch beim Hochladen abgelehnt.
 // PROJEKT = Bambu-Studio-Projekt (.3mf) — belegte Platte samt Einstellungen.
 // QUELLE  = Konstruktion (STEP, STL, …) — damit sie nicht auf einem PC verloren geht.
 export type DateiArt = "DRUCK" | "PROJEKT" | "QUELLE";
@@ -116,7 +118,7 @@ const QUELL_ENDUNGEN = [".step", ".stp", ".stl", ".obj", ".f3d", ".scad", ".fcst
 
 export function dateiArt(dateiname: string): DateiArt | null {
   const n = dateiname.trim().toLowerCase();
-  if (n.endsWith(".gcode.3mf") || n.endsWith(".gcode")) return "DRUCK";
+  if (n.endsWith(".gcode.3mf")) return "DRUCK";
   if (n.endsWith(".3mf")) return "PROJEKT";
   if (QUELL_ENDUNGEN.some((e) => n.endsWith(e))) return "QUELLE";
   return null;

@@ -19,6 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ok:         b.ok === true,
     bestaetigt: typeof b.bestaetigt === "boolean" ? b.bestaetigt : undefined,
     meldung:    typeof b.meldung === "string" ? b.meldung : null,
+    beschaeftigt: b.beschaeftigt === true,
   });
   return res.status(gespeichert ? 200 : 409).json({ ok: gespeichert });
 }
