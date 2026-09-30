@@ -49,7 +49,7 @@ import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
-export const VERSION = "1.5.0";
+export const VERSION = "1.5.1";
 // Endcodes für laufen.cmd (Autostart mit Neustart nach Absturz): Bei diesen beiden
 // hilft ein Neustart nichts — dann NICHT im Kreis neu starten.
 export const ENDE_EINSTELLUNGEN = 2;
@@ -64,8 +64,8 @@ export const MAX_DRUCKDATEI = 60 * 1024 * 1024;
 export const KAMERA_NACHLAUF_MS = 20_000;
 /** Mindestabstand zwischen zwei Uploads (die Kamera liefert ohnehin nur alle ~3–4 s). */
 export const KAMERA_UPLOAD_ABSTAND_MS = 1_500;
-/** Video: so oft geht ein Paket an Lagernaut (bestimmt die Verzögerung mit). */
-export const VIDEO_TAKT_MS = 400;
+/** Video: so oft geht ein Paket an Lagernaut (bestimmt die Verzögerung mit; 1.5.1: 400 → 250 ms). */
+export const VIDEO_TAKT_MS = 250;
 /** Video: mehr Rückstand als das (≈ 7 s bei 200 KB/s) → verwerfen und springen. */
 export const VIDEO_RUECKSTAND_BYTES = 1_500_000;
 /** In diesen Zuständen darf ein neuer Druck starten. */
@@ -219,6 +219,14 @@ export function fasseStatus(p) {
     meldungen:    hms.length,
     // Externe Spule (P2S ohne AMS): print.vir_slot[0] — für den Material-Hinweis.
     spule:        spuleAus(p.vir_slot),
+    // Druckerkarte (1.5.1): Arbeitsschritt (stg_cur) und geplante Schritte (stg),
+    // Tempo-Stufe, Innenlicht, WLAN, Platte der Druckdatei. Klartext macht Lagernaut.
+    stufe:        zahl(p.stg_cur),
+    stufen:       Array.isArray(p.stg) ? p.stg.map(zahl).filter((n) => n !== null).slice(0, 40) : [],
+    tempo:        zahl(p.spd_lvl),
+    licht:        Array.isArray(p.lights_report) ? p.lights_report.some((l) => l?.node === "chamber_light" && l?.mode === "on") : null,
+    wlan:         typeof p.wifi_signal === "string" ? zahl(p.wifi_signal.replace(/dBm/i, "")) : zahl(p.wifi_signal),
+    platte:       zahl(p.plate_idx),
   };
 }
 
@@ -934,7 +942,7 @@ export const VIDEO_STILL_MS = 2_500;
  * Rückstand wächst, nach ~30 s gibt er auf). Eine neue Sitzung beginnt immer mit
  * dem AKTUELLEN Bild: lieber ruckelig und aktuell als flüssig und veraltet.
  */
-export const VIDEO_MAX_VERZUG_MS = 3_000;
+export const VIDEO_MAX_VERZUG_MS = 2_000;   // 1.5.1: 3 → 2 s (Frank: „noch ein wenig aktueller")
 
 export class VideoStrom {
   constructor(e, beiBild) {
@@ -965,11 +973,16 @@ export class VideoStrom {
     if (!this.aktiv || eintrag !== this.aktuell) return;
     if (!eintrag.anker) {
       if (!b.key) return;                                   // erst ab dem ersten Schlüsselbild
-      eintrag.anker = { startMs: Math.max(Date.now(), this.letzteTs + 1), letzterRtp: null, umlaeufe: 0, erster: 0 };
+      // Jede Sitzung setzt ihre Zeit NEU an der Wanduhr an. Erste Fassung nahm
+      // max(jetzt, letzte Zeit + 1) — weil die Druckerzeit minimal schneller läuft,
+      // schob sich der Vorsprung von Sitzung zu Sitzung weiter (gemessen: >1 s in
+      // Minuten), und die Verzugsprüfung unten wurde blind. Ein Rücksprung an der
+      // Sitzungsgrenze ist gewollt: Der Abspieler verwirft dann die alten Bilder.
+      eintrag.anker = { startMs: Date.now(), letzterRtp: null, umlaeufe: 0, erster: 0 };
       this.fehlerSerie = 0;
       if (!this.gemeldet) { this.gemeldet = true; log(`✓ Kamera läuft (Video, ${Math.round(b.daten.length / 1024)} KB je Schlüsselbild)`); }
     }
-    const ts = Math.max(rtpZuMs(eintrag.anker, b.rtpTs), this.letzteTs + 1);
+    const ts = rtpZuMs(eintrag.anker, b.rtpTs);
     this.letzteTs = ts;
     this.beiBild({ daten: b.daten, key: b.key, ts });
     // Zu weit hinter der Wirklichkeit (Drucker liefert langsamer als Echtzeit) → frisch ansetzen.

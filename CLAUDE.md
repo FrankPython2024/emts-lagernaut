@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 932) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 953) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1573,6 +1573,30 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   Nach Deploy am 30.09.2026 im Betrieb bestätigt (Frank: „sieht gut aus, ein paar Sekunden Verzögerung“).
   Verzögerung setzt sich zusammen aus Paket-Takt 0,4 s + Abruf bis 0,4 s + Vorrat 0,9 s, beim Drucken
   zusätzlich bis zu 3 s Rückstand des Druckers (`VIDEO_MAX_VERZUG_MS`) — kürzer geht nur auf Kosten von Rucklern.
+  **Brücke 1.5.1 („noch ein wenig aktueller", Frank):** Paket-Takt 250 ms, Verzug-Grenze 2 s, Vorrat 0,5 s.
+  ⚠️ **Zeitstempel je Sitzung neu an der Wanduhr ansetzen** — erste Fassung nahm max(jetzt, letzte Zeit+1);
+  weil die Druckerzeit minimal schneller läuft, wanderte der Vorsprung von Sitzung zu Sitzung (gemessen
+  > 1 s in Minuten) und die 2-s-Verzugsprüfung wurde blind. Der Rücksprung an der Sitzungsgrenze ist
+  gewollt: Der Abspieler verwirft dann die noch wartenden Bilder der alten Sitzung (`einreihen`).
+- **Druckerkarte neu („professioneller Look", Frank 30.09.2026)** — `components/druck/DruckerCockpit.tsx`:
+  links Livebild kompakt (max. 360 px, Umschalter **Aus | Video | Standbild**; aus = auf schmalen
+  Bildschirmen nur eine Leiste), rechts der Druck: **Vorschau aus der .gcode.3mf** (Draufsicht zuerst —
+  flache Füße sind in der Plattenansicht nur ein Strich; antippen wechselt), Titel, Filament-Gramm und
+  geplante Zeit, **Phase im Klartext** mit „Schritt x von y" in der Vorbereitung, großer Fortschritt mit
+  „fertig ca. HH:MM", Kacheln Schicht/Restzeit/Düse/Druckbett, darunter Spule/Tempo/Licht/WLAN.
+  Platte, Warteschlange, Fehler, Einbuchen bleiben in `DruckerStatus`.
+  **Phase:** Brücke 1.5.1 meldet `stufe` (stg_cur), `stufen` (stg), `tempo` (spd_lvl), `licht`, `wlan`,
+  `platte` (plate_idx); Klartext in `src/lib/druck/druckerPhase.ts`. Schritt-Nummern sind nicht offiziell —
+  Community-Liste (ha-bambulab); unbekannte → „Vorbereitung (Schritt N)", nie geraten. Echt am P2S
+  gesehen: geplant 29, 2, 13, 11, 4, 8, 14, 3, 54, 1, 51, drucken = 0, Leerlauf = 255.
+  **Vorschau:** `src/modules/druck/vorschau.ts` liest `Metadata/plate_N.png`, `top_N.png`,
+  `slice_info.config` (weight, prediction) — einmal je Datei, im Prozessspeicher. ⚠️ Eine exportierte
+  Datei enthält oft `plate_2.gcode` UND nur ein Bild `plate_1.png` der anderen Platte → `waehlePlatte`:
+  gemeldete Platte, sonst die mit G-Code. `GET /api/druck/vorschau/[dateiId]?platte=&ansicht=oben`
+  (ARTIKEL_VIEW). Bilder transparent in Filamentfarbe → immer auf hellem Grund (auch im Dunkelmodus).
+  `druckerStand.aktuell` ordnet den Druck über `istDerAuftrag` dem letzten GESTARTET-Auftrag (und damit
+  `dateiId`) zu; Drucke aus Bambu Studio → ohne Vorschau, Hinweis „außerhalb von Lagernaut gestartet".
+  Im Browser mit echten Druckerdaten und echter Vorschau geprüft (breit, schmal, Vorbereitung, fertig).
 
 ### Urlaubsplanung (29.09.2026)
 

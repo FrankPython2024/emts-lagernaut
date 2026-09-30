@@ -8,15 +8,14 @@
 // PC druckt, sieht die Platte nicht. Frei wird sie erst, wenn jemand am Drucker
 // es bestätigt; jeder Druck belegt sie wieder.
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { useDruckerStand } from "./useDruckbruecke";
-import { KameraBild } from "./KameraBild";
-import { KameraVideo } from "./KameraVideo";
+import { DruckerCockpit } from "./DruckerCockpit";
 
 const FARBE: Record<string, string> = {
   RUNNING: "bg-[#008BD2]/15 text-[#0064d2] dark:text-[#45bdff]",
@@ -29,13 +28,6 @@ const FARBE: Record<string, string> = {
 const karte = "bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-4";
 const knopfRand = "inline-flex items-center justify-center px-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] min-h-[44px] disabled:opacity-50";
 
-function fmtRest(min: number | null | undefined): string | null {
-  if (min == null || min <= 0) return null;
-  const h = Math.floor(min / 60);
-  return h > 0 ? `noch ${h} h ${min % 60} min` : `noch ${min} min`;
-}
-const grad = (ist: number | null | undefined, ziel: number | null | undefined) =>
-  ist == null ? "–" : `${Math.round(ist)}°${ziel ? ` / ${Math.round(ziel)}°` : ""}`;
 const uhr = (d: Date | string | null) => (d ? new Date(d).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "");
 function vorWann(d: Date | string | null): string {
   if (!d) return "noch nie";
@@ -55,26 +47,6 @@ export function DruckerStatus() {
   const neu = () => void utils.druck.druckerStand.invalidate();
   const [platteFrage, setPlatteFrage] = useState(false);
   const [koppeln, setKoppeln] = useState(false);
-  // Livebild an/aus — je Browser gemerkt. Aus = kein Abruf = Kamera an der Brücke aus.
-  const [livebild, setLivebild] = useState(false);
-  useEffect(() => {
-    try { setLivebild(window.localStorage.getItem("druck-livebild") === "1"); } catch { /* egal */ }
-  }, []);
-  const schalteLivebild = () => setLivebild((v) => {
-    try { window.localStorage.setItem("druck-livebild", v ? "0" : "1"); } catch { /* egal */ }
-    return !v;
-  });
-  // Video (Standard, Wunsch Frank 30.09.2026) oder Standbild — je Browser gemerkt.
-  // Video braucht ~200 KB/s aus dem Gast-WLAN, Standbild einen Bruchteil.
-  const [modus, setModus] = useState<"video" | "bild">("video");
-  useEffect(() => {
-    try { if (window.localStorage.getItem("druck-livebild-modus") === "bild") setModus("bild"); } catch { /* egal */ }
-  }, []);
-  const waehleModus = (m: "video" | "bild") => {
-    setModus(m);
-    try { window.localStorage.setItem("druck-livebild-modus", m); } catch { /* egal */ }
-  };
-
   const platte = api.druck.platteIstLeer.useMutation({
     onSuccess: () => { setPlatteFrage(false); show("Platte ist frei — der nächste Druck darf starten.", "success"); neu(); },
     onError: (e) => show(e.message, "error"),
@@ -98,73 +70,35 @@ export function DruckerStatus() {
 
   const d = s.drucker;
   const aktiv = d?.zustand === "RUNNING" || d?.zustand === "PREPARE" || d?.zustand === "PAUSE";
-  const rest = fmtRest(d?.restMinuten);
   const fehler = s.zuletzt.filter((a) => a.status === "FEHLER").slice(0, 2);
 
   return (
-    <div className={`${karte} space-y-3`} aria-live="polite">
-      {/* Kopf: Drucker */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-black text-[#202F61] dark:text-[#e4e6eb]">🖨️ Drucker</span>
-        {!s.online ? (
-          <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold bg-[#65676b]/15 text-[#4b4f56] dark:text-[#b0b3b8]">
-            Druckbrücke aus · zuletzt {vorWann(s.gemeldetAm)}
-          </span>
-        ) : s.verbindung !== "verbunden" ? (
-          <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold bg-[#BA7517]/15 text-[#8A5A00] dark:text-[#f7b928]">
-            Brücke ohne Verbindung zum Drucker{s.fehler ? ` — ${s.fehler}` : ""}
-          </span>
-        ) : d ? (
-          <>
+    <div className={`${karte} space-y-4`} aria-live="polite">
+      {/* Kopf: Drucker + Verbindung */}
+      <div className="flex items-center justify-between gap-2 flex-wrap border-b border-[#eef0f2] dark:border-[#3e4042] pb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-black text-lg text-[#202F61] dark:text-[#e4e6eb]">🖨️ Bambu Lab P2S</span>
+          {!s.online ? (
+            <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold bg-[#65676b]/15 text-[#4b4f56] dark:text-[#b0b3b8]">
+              Druckbrücke aus · zuletzt {vorWann(s.gemeldetAm)}
+            </span>
+          ) : s.verbindung !== "verbunden" ? (
+            <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold bg-[#BA7517]/15 text-[#8A5A00] dark:text-[#f7b928]">
+              Brücke ohne Verbindung zum Drucker{s.fehler ? ` — ${s.fehler}` : ""}
+            </span>
+          ) : d ? (
             <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold ${FARBE[d.zustand ?? ""] ?? "bg-[#65676b]/15 text-[#4b4f56] dark:text-[#b0b3b8]"}`}>{d.zustandText ?? "unbekannt"}</span>
-            {(aktiv || d.zustand === "FINISH" || d.zustand === "FAILED") && d.datei && <span className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb] truncate">{d.datei}</span>}
-            {d.fehlercode ? <span className="text-xs font-bold text-[#c01818] dark:text-[#ff6b6b]">Fehler {d.fehlercode}</span> : null}
-            {(d.meldungen ?? 0) > 0 && <span className="text-xs font-bold text-[#8A5A00] dark:text-[#f7b928]">⚠ {d.meldungen} am Drucker</span>}
-          </>
-        ) : (
-          <span className="text-sm text-[#65676b] dark:text-[#b0b3b8]">warte auf den ersten Bericht…</span>
+          ) : (
+            <span className="text-sm text-[#65676b] dark:text-[#b0b3b8]">warte auf den ersten Bericht…</span>
+          )}
+        </div>
+        {s.online && (
+          <span className="text-xs text-[#65676b] dark:text-[#b0b3b8]">Druckbrücke {s.version ?? "?"} · gemeldet {vorWann(s.gemeldetAm)}</span>
         )}
       </div>
 
-      {s.online && d && aktiv && d.fortschritt != null && (
-        <div>
-          <div className="flex justify-between text-xs font-semibold text-[#65676b] dark:text-[#b0b3b8] mb-1">
-            <span>{d.fortschritt} %{d.schicht != null && d.schichten ? ` · Schicht ${d.schicht}/${d.schichten}` : ""}</span>
-            {rest && <span>{rest}</span>}
-          </div>
-          <div className="h-2.5 rounded-full bg-[#f0f2f5] dark:bg-[#18191a] overflow-hidden" role="progressbar" aria-valuenow={d.fortschritt} aria-valuemin={0} aria-valuemax={100}>
-            <div className="h-full rounded-full bg-[#008BD2] transition-all" style={{ width: `${Math.max(0, Math.min(100, d.fortschritt))}%` }} />
-          </div>
-        </div>
-      )}
-      {s.online && d && (
-        <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-          Düse {grad(d.duese, d.dueseZiel)} · Bett {grad(d.bett, d.bettZiel)}
-          {d.spule?.typ && <> · Spule {d.spule.typ}{d.spule.farbe && <span className="inline-block w-3 h-3 rounded-full align-middle ml-1 border border-[#ced4da]" style={{ background: d.spule.farbe }} aria-hidden />}</>}
-        </div>
-      )}
-
-      {/* Kamera — nur wenn die Brücke da ist und mit dem Drucker spricht */}
-      {s.online && s.verbindung === "verbunden" && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <button type="button" className={knopfRand} onClick={schalteLivebild} aria-pressed={livebild}>
-              {livebild ? "📷 Livebild ausblenden" : "📷 Livebild anzeigen"}
-            </button>
-            {livebild && (
-              <div role="group" aria-label="Art des Livebilds" className="inline-flex rounded-xl overflow-hidden border border-[#ced4da] dark:border-[#3e4042]">
-                {([["video", "Video"], ["bild", "Standbild"]] as const).map(([m, text], i) => (
-                  <button key={m} type="button" aria-pressed={modus === m} onClick={() => waehleModus(m)}
-                    className={`px-3 text-sm font-bold min-h-[44px] ${i > 0 ? "border-l border-[#ced4da] dark:border-[#3e4042]" : ""} ${modus === m ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#202F61] dark:text-[#e4e6eb]"}`}>
-                    {text}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {livebild && (modus === "video" ? <KameraVideo key="video" /> : <KameraBild key="bild" />)}
-        </div>
-      )}
+      {/* Livebild + laufender Druck */}
+      {s.online && s.verbindung === "verbunden" && d && <DruckerCockpit s={s} />}
 
       {/* Platte */}
       <div className="flex items-center gap-2 flex-wrap">

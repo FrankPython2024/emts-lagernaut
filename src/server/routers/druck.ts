@@ -16,6 +16,7 @@ import {
   DRUCK_TEILTYPEN_STANDARD, planeDruckliste, teiltypenAus, teiltypenText,
   type BedarfZeile, type VorlageKurz,
 } from "@/lib/druck/druckliste";
+import { druckdateiInfo, waehlePlatte } from "@/modules/druck/vorschau";
 
 // ── 3D-Druck: Druckvorlagen + Druckliste (Paket 1, 24.09.2026) ───────────────
 // Lesen: ARTIKEL_VIEW. Pflegen: ARTIKEL_EDIT. Kein neues Recht, kein seed-rbac.
@@ -427,7 +428,7 @@ export const druckRouter = createTRPCRouter({
       prisma.druckAuftrag.findMany({
         where: { status: { in: ["GESTARTET", "FEHLER", "ABGEBROCHEN"] }, createdAt: { gte: new Date(jetzt.getTime() - 24 * 3600_000) } },
         orderBy: { createdAt: "desc" }, take: 5,
-        select: { id: true, titel: true, dateiname: true, status: true, meldung: true, erstelltVon: true, createdAt: true, gestartetAm: true, vorlageId: true, erledigtAm: true },
+        select: { id: true, titel: true, dateiname: true, status: true, meldung: true, erstelltVon: true, createdAt: true, gestartetAm: true, vorlageId: true, erledigtAm: true, dateiId: true },
       }),
     ]);
     const drucker = (stand?.drucker ?? null) as null | {
@@ -435,6 +436,8 @@ export const druckRouter = createTRPCRouter({
       restMinuten?: number | null; schicht?: number | null; schichten?: number | null;
       duese?: number | null; dueseZiel?: number | null; bett?: number | null; bettZiel?: number | null;
       fehlercode?: number | null; meldungen?: number; spule?: { typ: string | null; farbe: string | null } | null;
+      // ab Brücke 1.5.1 (Druckerkarte): Arbeitsschritt, geplante Schritte, Tempo, Licht, WLAN, Platte
+      stufe?: number | null; stufen?: number[]; tempo?: number | null; licht?: boolean | null; wlan?: number | null; platte?: number | null;
     };
     const online = !!stand?.gemeldetAm && jetzt.getTime() - stand.gemeldetAm.getTime() <= BRUECKE_STILL_MS;
     const start = darfStarten({
@@ -447,7 +450,27 @@ export const druckRouter = createTRPCRouter({
     const einbuchen = letzter && !letzter.erledigtAm && letzter.vorlageId && drucker?.zustand === "FINISH"
       && istDerAuftrag(letzter.titel, letzter.dateiname, drucker.datei ?? null)
       ? { auftragId: letzter.id, vorlageId: letzter.vorlageId, titel: letzter.titel } : null;
+    // Der laufende (oder gerade beendete) Druck aus Lagernaut: Vorschau und Eckdaten
+    // aus seiner Druckdatei. Drucke aus Bambu Studio haben keinen Auftrag → ohne Vorschau.
+    const imGange = ["PREPARE", "RUNNING", "PAUSE", "FINISH", "FAILED"].includes(drucker?.zustand ?? "");
+    const lauf = online && imGange
+      ? zuletzt.find((a) => a.status === "GESTARTET" && istDerAuftrag(a.titel, a.dateiname, drucker?.datei ?? null))
+      : undefined;
+    let aktuell: null | {
+      auftragId: number; vorlageId: number | null; titel: string; vorschau: string | null;
+      gramm: number | null; minutenGeplant: number | null;
+    } = null;
+    if (lauf) {
+      const info = await druckdateiInfo(lauf.dateiId);
+      const platte = info ? waehlePlatte(info, drucker?.platte ?? null) : null;
+      aktuell = {
+        auftragId: lauf.id, vorlageId: lauf.vorlageId, titel: lauf.titel,
+        vorschau: platte?.bild || platte?.oben ? `/api/druck/vorschau/${lauf.dateiId}?platte=${platte.nr}` : null,
+        gramm: platte?.gramm ?? null, minutenGeplant: platte?.minuten ?? null,
+      };
+    }
     return {
+      aktuell,
       gekoppelt:     !!stand?.schluesselHash,
       gekoppeltAm:   stand?.schluesselAm ?? null,
       online,

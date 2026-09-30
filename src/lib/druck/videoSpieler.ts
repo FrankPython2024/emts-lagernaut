@@ -11,7 +11,8 @@
 // Reine Rechenteile (entpacken, Bildwahl) sind exportiert und getestet
 // (`npm run test:druck`).
 
-export const VORLAUF_MS = 900;
+/** Vorrat (30.09.2026: 900 → 500 ms, Frank: „noch ein wenig aktueller"). Kleiner = aktueller, aber öfter Ruckler. */
+export const VORLAUF_MS = 500;
 /** Liegt das neueste Bild so weit vor der Wiedergabe, springt sie nach vorn. */
 export const SPRUNG_MS = 3000;
 /** Anteil der Vorrats-Abweichung, der je gezeichnetem Takt ausgeglichen wird. */
@@ -50,7 +51,9 @@ export function waehleBild(ts: readonly number[], soll: number): number {
 }
 
 export type SpielerLage = "start" | "laeuft" | "stockt" | "fehler" | "nichtUnterstuetzt";
-export type SpielerStand = { lage: SpielerLage; meldung?: string; bilderProSekunde?: number };
+/** verzugMs: Wanduhr − Zeitstempel des gezeigten Bildes. Nur aussagekräftig, wenn die Uhren von
+ *  Brücke-PC und Betrachter-PC übereinstimmen (Windows-Zeitsync) — daher nur zur Diagnose. */
+export type SpielerStand = { lage: SpielerLage; meldung?: string; bilderProSekunde?: number; verzugMs?: number };
 
 type Warteschlange = { ts: number; bild: VideoFrame }[];
 
@@ -68,6 +71,8 @@ export class VideoSpieler {
   private zaehlerSeit = 0;
   private abbruch: AbortController | null = null;
   private stand: SpielerStand = { lage: "start" };
+  private verzug: number | undefined;
+  private gezeigtTs: number | null = null;
 
   constructor(
     private leinwand: HTMLCanvasElement,
@@ -94,7 +99,7 @@ export class VideoSpieler {
   }
 
   private melde(s: SpielerStand): void {
-    if (s.lage === this.stand.lage && s.meldung === this.stand.meldung && s.bilderProSekunde === this.stand.bilderProSekunde) return;
+    if (s.lage === this.stand.lage && s.meldung === this.stand.meldung && s.bilderProSekunde === this.stand.bilderProSekunde && s.verzugMs === this.stand.verzugMs) return;
     this.stand = s;
     this.beiStand(s);
   }
@@ -159,6 +164,14 @@ export class VideoSpieler {
   private einreihen(bild: VideoFrame): void {
     if (this.aus) { bild.close(); return; }
     const ts = bild.timestamp / 1000;
+    // Rücksprung = neue Sitzung an der Brücke (sie setzt ihre Zeit neu an der Uhr an).
+    // Was von der alten noch wartet, ist veraltet → weg damit, neu einpendeln.
+    const zuletzt = this.schlange.length > 0 ? this.schlange[this.schlange.length - 1]!.ts : this.gezeigtTs;
+    if (zuletzt !== null && ts < zuletzt - 50) {
+      for (const e of this.schlange) e.bild.close();
+      this.schlange = [];
+      this.versatz = null;
+    }
     this.schlange.push({ ts, bild });
     this.schlange.sort((a, b) => a.ts - b.ts);
     this.letztesBildAm = performance.now();
@@ -191,6 +204,8 @@ export class VideoSpieler {
         if (cv.width !== e.bild.displayWidth) cv.width = e.bild.displayWidth;
         if (cv.height !== e.bild.displayHeight) cv.height = e.bild.displayHeight;
         cv.getContext("2d")?.drawImage(e.bild, 0, 0);
+        this.verzug = Date.now() - e.ts;
+        this.gezeigtTs = e.ts;
         this.gezeigt?.close();
         this.gezeigt = e.bild;
         this.gezeigtZaehler += 1;
@@ -204,7 +219,7 @@ export class VideoSpieler {
       if (this.stand.lage !== "nichtUnterstuetzt" && !(this.stand.lage === "fehler" && still > 3000)) {
         if (this.letztesBildAm === 0) this.melde({ lage: "start" });
         else if (still > 3000) { this.melde({ lage: "stockt" }); this.versatz = null; }
-        else this.melde({ lage: "laeuft", bilderProSekunde: fps });
+        else this.melde({ lage: "laeuft", bilderProSekunde: fps, verzugMs: this.verzug === undefined ? undefined : Math.round(this.verzug / 100) * 100 });
       }
     }
     requestAnimationFrame(this.zeichne);

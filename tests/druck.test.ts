@@ -18,6 +18,8 @@ import {
   VIDEO_VERALTET_MS, leererPuffer, packeVideo, entpackeVideo, fuegeHinzu, bilderFuer, videoAnfordern, videoGewuenscht,
 } from "../src/modules/druck/kameraVideo";
 import { entpackeVideoPaket, waehleBild } from "../src/lib/druck/videoSpieler";
+import { phaseVon, tempoText, wlanText, restText, fertigUm } from "../src/lib/druck/druckerPhase";
+import { plattenAusZip, waehlePlatte } from "../src/modules/druck/vorschau";
 
 let passed = 0;
 let failed = 0;
@@ -190,6 +192,51 @@ console.log("\n── Video: Puffer ──");
   fuegeHinzu(leer, [b(false, 1), b(false, 2)], "avc1.641029", T);
   check("ohne Schlüsselbild bekommt niemand etwas", bilderFuer(leer, 0), []);
   check("Video-Nachfrage läuft ab", (() => { videoAnfordern(T); return [videoGewuenscht(T + 1000), videoGewuenscht(T + 31_000)]; })(), [true, false]);
+}
+
+console.log("\n── Druckerkarte: Phase und Klartexte ──");
+{
+  // Echte Meldung vom P2S am 30.09.2026 (Füße-Druck)
+  const geplant = [29, 2, 13, 11, 4, 8, 14, 3, 54, 1, 51];
+  check("Bett heizt auf = Schritt 2 von 11", phaseVon("PREPARE", "bereitet vor", 2, geplant), { text: "Druckbett heizt auf", schritt: { nr: 2, von: 11 }, druckt: false, pause: false });
+  check("druckt (Schritt 0)", phaseVon("RUNNING", "druckt", 0, geplant), { text: "Druckt", schritt: null, druckt: true, pause: false });
+  check("unbekannter Schritt wird nicht geraten", phaseVon("RUNNING", "druckt", 99, [99]).text, "Vorbereitung (Schritt 99)");
+  check("Leerlauf (255) → Zustandstext", phaseVon("IDLE", "bereit", 255, []).text, "bereit");
+  check("fertig → Zustandstext", phaseVon("FINISH", "fertig", 0, geplant), { text: "fertig", schritt: null, druckt: false, pause: false });
+  check("Pause beim Drucken → Angehalten", phaseVon("PAUSE", "pausiert", 0, geplant), { text: "Angehalten", schritt: null, druckt: false, pause: true });
+  check("Filament leer ist eine Pause", phaseVon("PAUSE", "pausiert", 6, []).pause, true);
+  check("Tempo", [tempoText(1), tempoText(2), tempoText(3), tempoText(4), tempoText(7), tempoText(null)], ["Leise", "Standard", "Sport", "Turbo", null, null]);
+  check("WLAN -64 dBm = gut (gemessen)", wlanText(-64), "gut");
+  check("WLAN Stufen", [wlanText(-50), wlanText(-70), wlanText(-80), wlanText(null)], ["sehr gut", "mäßig", "schwach", null]);
+  check("Restzeit", [restText(25), restText(65), restText(120), restText(0), restText(null)], ["25 min", "1 h 05 min", "2 h 00 min", null, null]);
+  // 30.09.2026 10:00 Uhr deutsche Zeit = 08:00 UTC
+  const jetzt = new Date("2026-09-30T08:00:00Z");
+  check("fertig um: heute", fertigUm(112, jetzt), "11:52");
+  check("fertig um: morgen", fertigUm(22 * 60, jetzt), "morgen 08:00");
+  check("fertig um: später", fertigUm(3 * 24 * 60, jetzt), "03.10. 10:00");
+}
+
+console.log("\n── Druckerkarte: Vorschau aus der Druckdatei ──");
+{
+  const b = (s: string) => Buffer.from(s);
+  // Wie Vorlage 4 am 30.09.2026: Platte 2 exportiert, dazu nur das Bild von Platte 1
+  const eintraege = [
+    { name: "Metadata/plate_1.png", daten: b("P1") },
+    { name: "Metadata/top_1.png", daten: b("T1") },
+    { name: "Metadata/plate_2.png", daten: b("P2") },
+    { name: "Metadata/top_2.png", daten: b("T2") },
+    { name: "Metadata/plate_2.gcode", daten: b("G28") },
+    { name: "Metadata/slice_info.config", daten: b(`<config><plate><metadata key="index" value="2"/><metadata key="prediction" value="2100"/><metadata key="weight" value="4.84"/></plate></config>`) },
+  ];
+  const info = plattenAusZip(eintraege);
+  check("zwei Platten erkannt", info.platten.map((p) => [p.nr, p.gedruckt]), [[1, false], [2, true]]);
+  check("Eckdaten der gedruckten Platte", [info.platten[1]!.gramm, info.platten[1]!.minuten], [4.84, 35]);
+  check("Drucker meldet Platte 2 → Platte 2", waehlePlatte(info, 2)?.nr, 2);
+  check("ohne Meldung → die mit G-Code, nicht die erste", waehlePlatte(info, null)?.nr, 2);
+  check("gemeldete Platte fehlt → die mit G-Code", waehlePlatte(info, 7)?.nr, 2);
+  const ohneGewicht = plattenAusZip([{ name: "Metadata/plate_1.gcode", daten: b("x") }, { name: "Metadata/slice_info.config", daten: b(`<plate><metadata key="index" value="1"/><filament id="1" used_g="1.5"/><filament id="2" used_g="0.23"/></plate>`) }]);
+  check("ohne weight: Summe der Filamente", ohneGewicht.platten[0]!.gramm, 1.73);
+  check("leere Datei → keine Platten", plattenAusZip([]).platten, []);
 }
 
 console.log("\n── Video: Bildwahl beim Abspielen ──");
