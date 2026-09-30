@@ -1718,9 +1718,23 @@ Einbuchen). Frank: „der Lagernaut wird zum Monster" → abarbeiten in Paketen,
   nur das Protokoll abgeschlossen (vorher „schon ausgegeben"); ein zweiter Klick aus einem anderen Tab
   ist kein Fehler mehr. Einbuchen zeigt den Standort, sobald Artikel mehrerer Standorte zur Wahl stehen.
 
-**Noch offen (Paket 4 und Rest):** Barrierefreiheit: Drucken-Knopf 2,7:1, `aria-live` auf der ganzen
-Karte (alle 3 s vorgelesen), Knöpfe 36–44 px. Kleinere: Einbuchen legt Buchung und Protokoll nicht in EINER
-Transaktion an (`bucheLager` hat seine eigene) — scheitert das Protokoll, bleibt eine Buchung ohne Protokoll.
+**Paket 4 „Barrierefreiheit":**
+- Kontraste im ganzen Modul: weiße Schrift auf AfB-Grün `#04B475` (2,7:1) → `#037A4F`, auf Cyan
+  `#008BD2` (3,7:1) → `#0064d2`, auf Rot `#fa3e3e` → `#c01818`; kleiner roter/oranger Text → `#c01818` /
+  `#8A5A00` mit eigener Dunkelmodus-Farbe. ⚠️ Cyan-Flächen mit weißer Schrift gibt es auch außerhalb
+  des Moduls — dort noch nicht angefasst.
+- Alle Knöpfe/Felder im Modul mindestens 56 px (vorher 36–48).
+- `aria-live` nicht mehr auf der ganzen Druckerkarte (der Bildschirmleser las alle 3 s alles vor),
+  sondern ein unsichtbarer Satz, der sich nur bei Zustandswechseln ändert.
+- Reiter mit `tabpanel`/`aria-controls`, Namen für „✓" und „📋", Kamerabild als `role="img"`,
+  Vorlagenraster auf schmalen Bildschirmen ohne Querscrollen, „⬇ Projekt (noch nicht geslict)"
+  statt irreführend „⬇ Druckdatei", Sprung zu `#fertig` nur einmal, Nachfrage beim Verlassen mit
+  ungespeicherten Änderungen, blockiertes Etikett-Druckfenster meldet sich (`printDruckEtiketten`
+  liefert `false`).
+
+**Bewusst offen gelassen:** Einbuchen legt Buchung und Protokoll nicht in EINER Transaktion an
+(`bucheLager` hat seine eigene) — scheitert das Protokoll, bleibt eine Buchung ohne Protokoll (dann
+Material geschätzt, Zurücknehmen nur über die Buchungsseite). Pfeiltasten-Bedienung der Reiter.
 
 ### Urlaubsplanung (29.09.2026)
 

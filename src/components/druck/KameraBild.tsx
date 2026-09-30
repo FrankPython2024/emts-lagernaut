@@ -97,7 +97,7 @@ export function KameraBild() {
   return (
     <div className="space-y-1">
       <div className="relative rounded-xl overflow-hidden bg-[#18191a] aspect-video">
-        <canvas ref={leinwand} className="w-full h-full object-contain" aria-label="Kamerabild des Druckers" />
+        <canvas ref={leinwand} role="img" className="w-full h-full object-contain" aria-label="Kamerabild des Druckers" />
         {(lage === "start" || lage === "warte") && (
           <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white/80 text-center px-4">
             Kamera wird eingeschaltet … das erste Bild kommt in etwa 10 Sekunden.
@@ -105,7 +105,7 @@ export function KameraBild() {
         )}
         {lage === "fehler" && (
           <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white/90 text-center px-4">
-            Kein Bild vom Drucker. Läuft die Druckbrücke (Version 1.4 oder neuer)?
+            Kein Bild vom Drucker. Läuft die Druckbrücke am Laptop?
           </div>
         )}
       </div>

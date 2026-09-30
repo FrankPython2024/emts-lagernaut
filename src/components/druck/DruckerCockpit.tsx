@@ -83,7 +83,7 @@ export function DruckerCockpit({ s, darfKamera }: { s: Stand; darfKamera: boolea
             <span className={kachelTitel}>Livebild</span>
             {live && (
               <button type="button" onClick={() => setLive(false)}
-                className="px-3 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] min-h-[48px]">
+                className="px-3 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] min-h-[56px]">
                 Ausschalten
               </button>
             )}

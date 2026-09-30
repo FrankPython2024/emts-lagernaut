@@ -84,9 +84,10 @@ const DRUCK_SKRIPT = `<script>(function(){function p(){window.focus();window.pri
  * Etiketten drucken — `anzahl` gleiche je Eintrag (mehrere Kartons/Beutel).
  * window.open SYNCHRON vor jedem await, sonst blockt der Popup-Blocker.
  */
-export async function printDruckEtiketten(liste: DruckEtikett[], anzahl = 1): Promise<void> {
+/** false = der Browser hat das Druckfenster blockiert (die Seite zeigt dann einen Hinweis). */
+export async function printDruckEtiketten(liste: DruckEtikett[], anzahl = 1): Promise<boolean> {
   const w = window.open("", "_blank", "width=420,height=320");
-  if (!w) { console.warn("Popup blockiert — Popup-Blocker deaktivieren"); return; }
+  if (!w) return false;
   const mitQr = await Promise.all(liste.map(async (e) => ({ e, qr: await qrSvg(String(e.artikelId)) })));
   const seiten = mitQr.flatMap(({ e, qr }) => Array.from({ length: Math.max(1, Math.min(50, anzahl)) }, () => `<div class="lw">${druckEtikettHtml(e, qr)}</div>`));
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>3D-Druck Etikett</title><style>
@@ -100,4 +101,5 @@ export async function printDruckEtiketten(liste: DruckEtikett[], anzahl = 1): Pr
   w.document.open();
   w.document.write(nurAscii(html));
   w.document.close();
+  return true;
 }

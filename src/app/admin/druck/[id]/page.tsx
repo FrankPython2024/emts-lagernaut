@@ -29,8 +29,8 @@ type Modell = { key: string; anzeige: string };
 const feld = "w-full px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-[#202F61] dark:text-[#e4e6eb] text-base outline-none focus:border-[#008BD2] min-h-[56px]";
 const label = "block text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] mb-1";
 const karte = "bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-5 space-y-4";
-const knopfBlau = "inline-flex items-center justify-center gap-2 px-5 rounded-xl bg-[#008BD2] text-white text-sm font-bold hover:bg-[#0077b5] transition-colors min-h-[56px] disabled:opacity-50";
-const knopfRand = "inline-flex items-center justify-center gap-2 px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] text-sm font-bold hover:border-[#008BD2] transition-colors min-h-[48px] disabled:opacity-50";
+const knopfBlau = "inline-flex items-center justify-center gap-2 px-5 rounded-xl bg-[#0064d2] text-white text-sm font-bold hover:bg-[#00509f] transition-colors min-h-[56px] disabled:opacity-50";
+const knopfRand = "inline-flex items-center justify-center gap-2 px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] text-sm font-bold hover:border-[#008BD2] transition-colors min-h-[56px] disabled:opacity-50";
 const MATERIALIEN = ["PETG", "PLA", "TPU", "ASA", "ABS"];
 const ART_FARBE: Record<DateiArt, string> = {
   DRUCK:   "bg-[#04B475]/15 text-[#037A4F] dark:text-[#3ddc97]",
@@ -94,6 +94,13 @@ function DruckVorlageInhalt() {
   const [modelle, setModelle] = useState<Modell[]>([]);
   const [geaendert, setGeaendert] = useState(false);
   const befuellt = useRef(false);
+  // Ungespeicherte Änderungen: Browser fragt beim Verlassen nach (Audit 30.09.2026).
+  useEffect(() => {
+    if (!geaendert) return;
+    const warnen = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warnen);
+    return () => window.removeEventListener("beforeunload", warnen);
+  }, [geaendert]);
 
   // Einmal befüllen: aus der DB (bearbeiten) oder aus der Druckliste (neu).
   useEffect(() => {
@@ -174,7 +181,7 @@ function DruckVorlageInhalt() {
   return (
     <div className="space-y-5 max-w-3xl">
       <div>
-        <Link href="/admin/druck" className="text-[#65676b] hover:text-[#008BD2] text-sm">← 3D-Druck</Link>
+        <Link href="/admin/druck" className="inline-flex items-center min-h-[56px] text-[#65676b] dark:text-[#b0b3b8] hover:text-[#0064d2] text-sm">← 3D-Druck</Link>
         <h1 className="text-2xl font-black text-[#202F61] dark:text-[#e4e6eb] mt-1">
           {neu ? "Neue Druckvorlage" : details.data?.name}
         </h1>
@@ -200,7 +207,7 @@ function DruckVorlageInhalt() {
                   type="button"
                   aria-pressed={an}
                   onClick={() => aendere(setTeiltypen)(an ? teiltypen.filter((x) => x !== t) : [...teiltypen, t])}
-                  className={`px-4 rounded-xl text-sm font-bold min-h-[48px] border-2 ${an ? "border-[#008BD2] bg-[#008BD2]/10 text-[#0064d2] dark:text-[#45bdff]" : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"}`}
+                  className={`px-4 rounded-xl text-sm font-bold min-h-[56px] border-2 ${an ? "border-[#008BD2] bg-[#008BD2]/10 text-[#0064d2] dark:text-[#45bdff]" : "border-[#ced4da] dark:border-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"}`}
                 >
                   {an ? "✓ " : ""}{t}
                 </button>
@@ -208,7 +215,7 @@ function DruckVorlageInhalt() {
             })}
             {weitere.length > 0 && (
               <select
-                className="px-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-sm text-[#202F61] dark:text-[#e4e6eb] min-h-[48px]"
+                className="px-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-[#f0f2f5] dark:bg-[#18191a] text-sm text-[#202F61] dark:text-[#e4e6eb] min-h-[56px]"
                 value=""
                 onChange={(e) => { if (e.target.value) aendere(setTeiltypen)([...teiltypen, e.target.value]); }}
               >
@@ -241,7 +248,7 @@ function DruckVorlageInhalt() {
           <div className="flex flex-wrap gap-1.5 mt-2">
             {MATERIALIEN.map((m) => (
               <button key={m} type="button" onClick={() => aendere(setMaterial)(m)}
-                className="px-3 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] min-h-[36px]">
+                className="px-3 rounded-lg border border-[#ced4da] dark:border-[#3e4042] text-xs font-bold text-[#65676b] dark:text-[#b0b3b8] min-h-[56px]">
                 {m}
               </button>
             ))}
@@ -255,7 +262,7 @@ function DruckVorlageInhalt() {
           <textarea id="dv-notiz" rows={3} className={`${feld} py-3`} value={notiz} maxLength={5000} onChange={(e) => aendere(setNotiz)(e.target.value)} placeholder="Druckhinweise, Filamentfarbe, Nacharbeit …" />
         </div>
 
-        <label className="flex items-center gap-3 min-h-[48px] text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
+        <label className="flex items-center gap-3 min-h-[56px] text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
           <input type="checkbox" className="w-5 h-5" checked={aktiv} onChange={(e) => aendere(setAktiv)(e.target.checked)} />
           Aktiv (zählt in der Druckliste)
         </label>
@@ -265,7 +272,7 @@ function DruckVorlageInhalt() {
             <button type="button" className={knopfBlau} disabled={!kannSpeichern} onClick={speichereJetzt}>
               {speichern.isPending ? "Speichere…" : neu ? "Anlegen" : "Speichern"}
             </button>
-            {geaendert && !neu && <span className="text-sm font-bold text-[#BA7517]">Ungespeicherte Änderungen</span>}
+            {geaendert && !neu && <span className="text-sm font-bold text-[#8A5A00] dark:text-[#f7b928]">Ungespeicherte Änderungen</span>}
             {neu && <span className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Foto und Druckdatei danach hinzufügen.</span>}
           </div>
         )}
@@ -304,14 +311,14 @@ function ModellWahl({ modelle, onChange }: { modelle: Modell[]; onChange: (m: Mo
     <div>
       <span className={label}>Passt für diese Geräte</span>
       {modelle.length === 0 ? (
-        <p className="text-sm font-bold text-[#BA7517] mb-2">⚠ Noch kein Gerät — ohne Zuordnung taucht die Vorlage nicht in der Druckliste auf.</p>
+        <p className="text-sm font-bold text-[#8A5A00] dark:text-[#f7b928] mb-2">⚠ Noch kein Gerät — ohne Zuordnung taucht die Vorlage nicht in der Druckliste auf.</p>
       ) : (
         <div className="flex flex-wrap gap-2 mb-2">
           {modelle.map((m) => (
             <span key={m.key} className="inline-flex items-center gap-1 pl-3 rounded-xl bg-[#008BD2]/10 text-sm font-bold text-[#0064d2] dark:text-[#45bdff]">
               {m.anzeige}
               <button type="button" aria-label={`${m.anzeige} entfernen`} onClick={() => onChange(modelle.filter((x) => x.key !== m.key))}
-                className="px-3 min-h-[40px] text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e]">✕</button>
+                className="px-3 min-h-[56px] text-[#65676b] dark:text-[#b0b3b8] hover:text-[#c01818]">✕</button>
             </span>
           ))}
         </div>
@@ -326,7 +333,7 @@ function ModellWahl({ modelle, onChange }: { modelle: Modell[]; onChange: (m: Mo
               return (
                 <button key={m.key} type="button" disabled={drin}
                   onClick={() => onChange([...modelle, { key: m.key, anzeige: m.anzeige }])}
-                  className="w-full text-left px-4 min-h-[48px] flex items-center justify-between gap-2 text-sm text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] disabled:opacity-50">
+                  className="w-full text-left px-4 min-h-[56px] flex items-center justify-between gap-2 text-sm text-[#202F61] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042] disabled:opacity-50">
                   <span><strong>{m.anzeige}</strong>{m.varianten > 1 && <span className="text-[#65676b] dark:text-[#b0b3b8]"> · {m.varianten} Varianten</span>}</span>
                   <span className="font-black">{drin ? "✓" : "＋"}</span>
                 </button>
@@ -452,7 +459,7 @@ function DateienKarte({ id, titel, material, dateien, darfPflegen }: {
                 {art === "DRUCK" && <DruckenKnopf klein titel={titel} dateiId={d.id} dateiname={d.dateiname} material={material} />}
                 <a href={`/api/druck/datei/${d.id}`} className={knopfRand}>⬇ Herunterladen</a>
                 {darfPflegen && (
-                  <button type="button" className={`${knopfRand} text-[#fa3e3e]`} onClick={() => setLoeschId(d.id)} aria-label={`${d.dateiname} löschen`}>🗑</button>
+                  <button type="button" className={`${knopfRand} text-[#c01818] dark:text-[#ff6b6b]`} onClick={() => setLoeschId(d.id)} aria-label={`${d.dateiname} löschen`}>🗑</button>
                 )}
               </li>
             );
@@ -473,7 +480,7 @@ function DateienKarte({ id, titel, material, dateien, darfPflegen }: {
         <div className="flex gap-3">
           <button type="button" className={`${knopfRand} flex-1`} onClick={() => setLoeschId(null)}>Abbrechen</button>
           <button type="button" disabled={loeschen.isPending} onClick={() => loeschId && loeschen.mutate({ id: loeschId })}
-            className="flex-1 rounded-xl bg-[#fa3e3e] text-white text-sm font-bold min-h-[48px] disabled:opacity-50">Löschen</button>
+            className="flex-1 rounded-xl bg-[#c01818] text-white text-sm font-bold min-h-[56px] disabled:opacity-50">Löschen</button>
         </div>
       </Modal>
     </div>
@@ -497,7 +504,7 @@ function LoeschenKnopf({ id, name }: { id: number; name: string }) {
   return (
     <>
       <button type="button" onClick={() => setAuf(true)}
-        className="inline-flex items-center gap-2 px-4 rounded-xl border border-[#fa3e3e]/40 text-[#fa3e3e] text-sm font-bold hover:bg-[#fa3e3e]/10 min-h-[48px]">
+        className="inline-flex items-center gap-2 px-4 rounded-xl border border-[#fa3e3e]/40 text-[#c01818] dark:text-[#ff6b6b] text-sm font-bold hover:bg-[#fa3e3e]/10 min-h-[56px]">
         🗑️ Vorlage löschen
       </button>
       <Modal open={auf} onClose={() => setAuf(false)} title="Vorlage löschen?">
@@ -506,7 +513,7 @@ function LoeschenKnopf({ id, name }: { id: number; name: string }) {
         <div className="flex gap-3">
           <button type="button" className={`${knopfRand} flex-1`} onClick={() => setAuf(false)}>Abbrechen</button>
           <button type="button" disabled={loeschen.isPending} onClick={() => loeschen.mutate({ id })}
-            className="flex-1 rounded-xl bg-[#fa3e3e] text-white text-sm font-bold min-h-[48px] disabled:opacity-50">Endgültig löschen</button>
+            className="flex-1 rounded-xl bg-[#c01818] text-white text-sm font-bold min-h-[56px] disabled:opacity-50">Endgültig löschen</button>
         </div>
       </Modal>
     </>
@@ -537,9 +544,13 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
   const karteRef = useRef<HTMLDivElement>(null);
 
   // Aus der Übersicht mit #fertig hierher gesprungen → Karte zeigen, sobald sie steht.
+  // Nur EINMAL — vorher sprang die Seite nach jedem Nachladen wieder zurück.
+  const gesprungen = useRef(false);
   useEffect(() => {
+    if (gesprungen.current || !ziel.data) return;
     if (typeof window !== "undefined" && window.location.hash === "#fertig") {
       karteRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      gesprungen.current = true;
     }
   }, [ziel.data]);
 
@@ -592,7 +603,7 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
               <input inputMode="numeric" className={`${feld} w-24`} value={etikettAnzahl} onChange={(e) => setEtikettAnzahl(e.target.value)} aria-label="Anzahl Etiketten" />
             </label>
             <button type="button" className={`${knopfBlau} flex-1 min-w-[220px]`}
-              onClick={() => void printDruckEtiketten([etikett], zahlOderNull(etikettAnzahl) ?? 1)}>
+              onClick={() => void printDruckEtiketten([etikett], zahlOderNull(etikettAnzahl) ?? 1).then((ok) => { if (!ok) show("Das Druckfenster wurde blockiert — bitte Pop-ups für Lagernaut erlauben.", "error"); })}>
               🏷️ Etikett für den Karton drucken
             </button>
             <button type="button" className={knopfRand} onClick={() => setEtikett(null)}>Fertig</button>
@@ -608,7 +619,7 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
       ) : ziel.isLoading ? (
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Suche passende Artikel…</p>
       ) : ziel.isError ? (
-        <p className="text-sm text-[#fa3e3e]">Fehler: {ziel.error.message}</p>
+        <p className="text-sm text-[#c01818] dark:text-[#ff6b6b]">Fehler: {ziel.error.message}</p>
       ) : artikel.length === 0 ? (
         <div className="rounded-xl bg-[#BA7517]/10 px-4 py-3 text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
           <div className="font-bold text-[#8A5A00] dark:text-[#f7b928]">Kein passender Artikel</div>
@@ -683,7 +694,8 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
                 </div>
                 {!p.zurueckgenommenAm && (
                   <button type="button" className={knopfRand} title="Karton-Etikett (55 × 30 mm) nachdrucken"
-                    onClick={() => void printDruckEtiketten([{ artikelId: p.artikelId, artikel: p.artikel, stueck: p.stueck, lagerplatz: p.lagerplatz, von: p.gedrucktVon, datum: p.createdAt }])}>
+                    onClick={() => void printDruckEtiketten([{ artikelId: p.artikelId, artikel: p.artikel, stueck: p.stueck, lagerplatz: p.lagerplatz, von: p.gedrucktVon, datum: p.createdAt }])
+                      .then((ok) => { if (!ok) show("Das Druckfenster wurde blockiert — bitte Pop-ups für Lagernaut erlauben.", "error"); })}>
                     🏷️ Etikett
                   </button>
                 )}
@@ -704,7 +716,7 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
         <div className="flex gap-3">
           <button type="button" className={`${knopfRand} flex-1`} onClick={() => setZurueckId(null)}>Abbrechen</button>
           <button type="button" disabled={zuruecknehmen.isPending} onClick={() => zurueckId && zuruecknehmen.mutate({ protokollId: zurueckId })}
-            className="flex-1 rounded-xl bg-[#fa3e3e] text-white text-sm font-bold min-h-[48px] disabled:opacity-50">Zurücknehmen</button>
+            className="flex-1 rounded-xl bg-[#c01818] text-white text-sm font-bold min-h-[56px] disabled:opacity-50">Zurücknehmen</button>
         </div>
       </Modal>
     </div>

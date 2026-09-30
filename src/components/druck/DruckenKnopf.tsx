@@ -32,7 +32,7 @@ export function DruckenKnopf({ titel, dateiId, dateiname, material, klein }: Pro
       <button
         type="button"
         onClick={() => setAuf(true)}
-        className={`inline-flex items-center justify-center gap-2 px-4 rounded-xl bg-[#04B475] text-white text-sm font-bold hover:bg-[#039a64] transition-colors ${klein ? "min-h-[48px]" : "min-h-[56px]"}`}
+        className={`inline-flex items-center justify-center gap-2 px-4 rounded-xl bg-[#037A4F] text-white text-sm font-bold hover:bg-[#02623f] transition-colors ${klein ? "min-h-[56px]" : "min-h-[56px]"}`}
         title={`„${dateiname}“ drucken`}
       >
         🖨️ Drucken
@@ -103,7 +103,7 @@ function DruckenDialog({ titel, dateiId, dateiname, material, onClose }: Omit<Pr
             Abbrechen
           </button>
           <button type="button" onClick={() => anlegen.mutate({ dateiId })} disabled={anlegen.isPending}
-            className="flex-1 rounded-xl bg-[#04B475] text-white text-sm font-black min-h-[56px] disabled:opacity-50">
+            className="flex-1 rounded-xl bg-[#037A4F] text-white text-sm font-black min-h-[56px] disabled:opacity-50">
             {anlegen.isPending ? "Sende…" : "🖨️ Druckauftrag senden"}
           </button>
         </div>

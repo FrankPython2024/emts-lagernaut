@@ -25,8 +25,8 @@ function fmtDauer(min: number | null): string | null {
 }
 
 const karte = "bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm";
-const knopfBlau = "inline-flex items-center justify-center gap-2 px-4 rounded-xl bg-[#008BD2] text-white text-sm font-bold hover:bg-[#0077b5] transition-colors min-h-[48px]";
-const knopfRand = "inline-flex items-center justify-center gap-2 px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] text-sm font-bold hover:border-[#008BD2] transition-colors min-h-[48px]";
+const knopfBlau = "inline-flex items-center justify-center gap-2 px-4 rounded-xl bg-[#0064d2] text-white text-sm font-bold hover:bg-[#00509f] transition-colors min-h-[56px]";
+const knopfRand = "inline-flex items-center justify-center gap-2 px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] text-sm font-bold hover:border-[#008BD2] transition-colors min-h-[56px]";
 const chip = "inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold";
 
 export default function DruckPage() {
@@ -83,10 +83,12 @@ export default function DruckPage() {
           <button
             key={r}
             role="tab"
+            id={`druck-reiter-${r}`}
+            aria-controls="druck-reiter-inhalt"
             aria-selected={reiter === r}
             onClick={() => wechsle(r)}
-            className={`px-4 rounded-xl text-sm font-bold min-h-[48px] transition-colors ${reiter === r
-              ? "bg-[#202F61] text-white dark:bg-[#008BD2]"
+            className={`px-4 rounded-xl text-sm font-bold min-h-[56px] transition-colors ${reiter === r
+              ? "bg-[#202F61] text-white dark:bg-[#0064d2]"
               : "bg-white dark:bg-[#242526] border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb]"}`}
           >
             {text}
@@ -94,13 +96,14 @@ export default function DruckPage() {
         ))}
       </div>
 
+      <div role="tabpanel" id="druck-reiter-inhalt" aria-labelledby={`druck-reiter-${reiter}`}>
       {reiter === "auswertung" ? (
         <DruckAuswertung darfPflegen={darfPflegen} />
       ) : reiter === "liste" ? (
         liste.isLoading ? (
           <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Rechne Nachfrage…</p>
         ) : liste.isError ? (
-          <p className="text-sm text-[#fa3e3e]">Fehler: {liste.error.message} <button className="underline" onClick={() => void liste.refetch()}>Erneut versuchen</button></p>
+          <p className="text-sm text-[#c01818] dark:text-[#ff6b6b]">Fehler: {liste.error.message} <button className="underline" onClick={() => void liste.refetch()}>Erneut versuchen</button></p>
         ) : liste.data && (
           <div className="space-y-6">
             <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
@@ -123,6 +126,7 @@ export default function DruckPage() {
                 <div className="space-y-2">
                   {liste.data.drucken.map((z) => {
                     const d = druckDatei.get(z.vorlageId) ?? projektDatei.get(z.vorlageId);
+                    const nurProjekt = !druckDatei.get(z.vorlageId);
                     return (
                       <div key={`${z.key}-${z.teiltyp}`} className={`${karte} p-4 flex items-center gap-4 flex-wrap`}>
                         <div className="min-w-0 flex-1">
@@ -136,12 +140,12 @@ export default function DruckPage() {
                           </Link>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-black text-[#BA7517]">{z.fehlt} Stück</div>
+                          <div className="text-2xl font-black text-[#8A5A00] dark:text-[#f7b928]">{z.fehlt} Stück</div>
                           {z.platten != null && <div className="text-xs font-bold text-[#65676b] dark:text-[#b0b3b8]">≈ {z.platten} {z.platten === 1 ? "Platte" : "Platten"}</div>}
                         </div>
                         <div className="flex gap-2 flex-wrap">
                           {d ? (
-                            <a href={`/api/druck/datei/${d.id}`} className={knopfBlau} title={d.dateiname}>⬇ Druckdatei</a>
+                            <a href={`/api/druck/datei/${d.id}`} className={knopfBlau} title={d.dateiname}>{nurProjekt ? "⬇ Projekt (noch nicht geslict)" : "⬇ Druckdatei"}</a>
                           ) : (
                             <Link href={`/admin/druck/${z.vorlageId}`} className={knopfRand}>Datei fehlt</Link>
                           )}
@@ -174,13 +178,13 @@ export default function DruckPage() {
                         <div className="font-bold text-[#202F61] dark:text-[#e4e6eb]">{z.name} · {z.teiltyp}</div>
                         <div className="text-sm text-[#65676b] dark:text-[#b0b3b8]">
                           {z.anfragen} Anfragen · {z.stueck} Stück in 90 Tagen
-                          {z.offenStueck > 0 && <> · <strong className="text-[#BA7517]">{z.offenStueck} offen</strong></>}
+                          {z.offenStueck > 0 && <> · <strong className="text-[#8A5A00] dark:text-[#f7b928]">{z.offenStueck} offen</strong></>}
                           {z.bestand > 0 && <> · Bestand {z.bestand}</>}
                         </div>
                       </div>
                       <div className="text-right min-w-[110px]">
                         {z.fehlt > 0 ? (
-                          <div className="text-lg font-black text-[#BA7517]">{z.fehlt} fehlen</div>
+                          <div className="text-lg font-black text-[#8A5A00] dark:text-[#f7b928]">{z.fehlt} fehlen</div>
                         ) : (
                           <div className="text-sm font-bold text-[#037A4F] dark:text-[#3ddc97]">
                             ✓ Bestand reicht{z.reichweiteTage != null && z.reichweiteTage < 3650 ? ` ~${z.reichweiteTage} T.` : ""}
@@ -205,7 +209,7 @@ export default function DruckPage() {
       ) : vorlagen.isLoading ? (
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Lade Vorlagen…</p>
       ) : vorlagen.isError ? (
-        <p className="text-sm text-[#fa3e3e]">Fehler: {vorlagen.error.message}</p>
+        <p className="text-sm text-[#c01818] dark:text-[#ff6b6b]">Fehler: {vorlagen.error.message}</p>
       ) : (vorlagen.data ?? []).length === 0 ? (
         <div className="text-center py-10 text-sm text-[#65676b] dark:text-[#b0b3b8] border border-dashed border-[#ced4da] dark:border-[#3e4042] rounded-2xl">
           Noch keine Vorlagen. {darfPflegen && <Link href="/admin/druck/neu" className="font-bold text-[#008BD2]">Erste anlegen</Link>}
@@ -219,7 +223,7 @@ export default function DruckPage() {
               onChange={(e) => setSuche(e.target.value)}
               aria-label="Vorlagen durchsuchen"
               placeholder="Suchen: Gerät, Name, Teiltyp – z. B. „830 hinten“"
-              className="flex-1 min-w-[240px] px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] text-base outline-none focus:border-[#008BD2] min-h-[48px]"
+              className="flex-1 min-w-[240px] px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] text-base outline-none focus:border-[#008BD2] min-h-[56px]"
             />
             <div role="group" aria-label="Hersteller" className="flex flex-wrap gap-2">
               {[{ hersteller: "Alle", anzahl: (vorlagen.data ?? []).length }, ...alleGruppen.map((g) => ({ hersteller: g.hersteller, anzahl: g.vorlagen.length }))].map((h) => (
@@ -228,8 +232,8 @@ export default function DruckPage() {
                   type="button"
                   aria-pressed={hersteller === h.hersteller}
                   onClick={() => setHersteller(h.hersteller)}
-                  className={`px-4 rounded-xl text-sm font-bold min-h-[48px] border transition-colors ${hersteller === h.hersteller
-                    ? "bg-[#202F61] text-white border-[#202F61] dark:bg-[#008BD2] dark:border-[#008BD2]"
+                  className={`px-4 rounded-xl text-sm font-bold min-h-[56px] border transition-colors ${hersteller === h.hersteller
+                    ? "bg-[#202F61] text-white border-[#202F61] dark:bg-[#0064d2] dark:border-[#0064d2]"
                     : "bg-white dark:bg-[#242526] border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] hover:border-[#008BD2]"}`}
                 >
                   {h.hersteller} <span className="opacity-70">({h.anzahl})</span>
@@ -248,7 +252,7 @@ export default function DruckPage() {
               <h2 className="text-sm font-black uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">
                 {g.hersteller} <span className="text-[#008BD2] dark:text-[#45bdff]">({g.vorlagen.length})</span>
               </h2>
-        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))" }}>
           {g.vorlagen.map((v) => {
             const d = druckDatei.get(v.id);
             const p = projektDatei.get(v.id);
@@ -267,12 +271,12 @@ export default function DruckPage() {
                       {v.teiltypen.map((t) => <span key={t} className={`${chip} bg-[#008BD2]/10 text-[#0064d2] dark:text-[#45bdff]`}>{t}</span>)}
                     </div>
                     <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-                      {v.modelle.length === 0 ? <span className="text-[#BA7517] font-bold">⚠ noch kein Gerät zugeordnet</span>
+                      {v.modelle.length === 0 ? <span className="text-[#8A5A00] dark:text-[#f7b928] font-bold">⚠ noch kein Gerät zugeordnet</span>
                         : <>{v.modelle.slice(0, 3).map((m) => m.anzeige).join(", ")}{v.modelle.length > 3 && ` +${v.modelle.length - 3}`}</>}
                     </div>
                     {details && <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">{details}</div>}
                     <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-                      Bestand <strong>{v.bestand}</strong> · {v.stueck90} Stück in 90 Tagen{v.offenStueck > 0 && <> · <strong className="text-[#BA7517]">{v.offenStueck} offen</strong></>}
+                      Bestand <strong>{v.bestand}</strong> · {v.stueck90} Stück in 90 Tagen{v.offenStueck > 0 && <> · <strong className="text-[#8A5A00] dark:text-[#f7b928]">{v.offenStueck} offen</strong></>}
                     </div>
                     {v.letzterDruck && (
                       <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
@@ -289,8 +293,8 @@ export default function DruckPage() {
                 <div className="px-4 pb-4 mt-auto flex gap-2">
                   {d ? <a href={`/api/druck/datei/${d.id}`} className={`${knopfBlau} flex-1`} title={d.dateiname}>⬇ Druckdatei</a>
                     : p ? <a href={`/api/druck/datei/${p.id}`} className={`${knopfRand} flex-1`} title={p.dateiname}>⬇ Projekt</a>
-                    : <span className="flex-1 text-xs text-[#BA7517] font-bold self-center">⚠ keine Druckdatei</span>}
-                  {darfEinbuchen && <Link href={`/admin/druck/${v.id}#fertig`} className={knopfRand} title="Druck fertig — einbuchen">✓</Link>}
+                    : <span className="flex-1 text-xs text-[#8A5A00] dark:text-[#f7b928] font-bold self-center">⚠ keine Druckdatei</span>}
+                  {darfEinbuchen && <Link href={`/admin/druck/${v.id}#fertig`} className={knopfRand} title="Druck fertig — einbuchen" aria-label={`${v.name}: Druck fertig — einbuchen`}>✓</Link>}
                   <Link href={`/admin/druck/${v.id}`} className={knopfRand}>{darfPflegen ? "Bearbeiten" : "Details"}</Link>
                 </div>
               </div>
@@ -301,6 +305,7 @@ export default function DruckPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

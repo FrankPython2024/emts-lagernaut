@@ -27,7 +27,7 @@ const FARBE: Record<string, string> = {
   FAILED:  "bg-[#fa3e3e]/15 text-[#c01818] dark:text-[#ff6b6b]",
 };
 const karte = "bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm p-4";
-const knopfRand = "inline-flex items-center justify-center px-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] min-h-[44px] disabled:opacity-50";
+const knopfRand = "inline-flex items-center justify-center px-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] min-h-[56px] disabled:opacity-50";
 
 const uhr = (d: Date | string | null) => (d ? new Date(d).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "");
 function vorWann(d: Date | string | null): string {
@@ -92,7 +92,13 @@ export function DruckerStatus() {
   });
 
   return (
-    <div className={`${karte} space-y-4`} aria-live="polite">
+    <div className={`${karte} space-y-4`}>
+      {/* Nur Zustandswechsel ansagen — vorher lag aria-live auf der ganzen Karte, und
+          der Bildschirmleser las bei jedem Nachladen (alle 3 s) alles neu vor. */}
+      <p className="sr-only" aria-live="polite">
+        {!s.online ? "Druckbrücke aus" : s.verbindung !== "verbunden" ? "Keine Verbindung zum Drucker" : `Drucker ${d?.zustandText ?? ""}`}
+        {s.platteFrei ? ", Platte frei" : ", Platte belegt"}
+      </p>
       {/* Kopf: Drucker + Verbindung */}
       <div className="flex items-center justify-between gap-2 flex-wrap border-b border-[#eef0f2] dark:border-[#3e4042] pb-3">
         <div className="flex items-center gap-2 flex-wrap">
@@ -163,18 +169,18 @@ export function DruckerStatus() {
       {s.einbuchen && (
         <div className="flex items-center gap-2 flex-wrap rounded-xl bg-[#04B475]/10 px-3 py-2">
           <span className="text-sm font-bold text-[#037A4F] dark:text-[#3ddc97] flex-1 min-w-[180px]">✓ „{s.einbuchen.titel}“ ist fertig gedruckt.</span>
-          <Link href={`/admin/druck/${s.einbuchen.vorlageId}#fertig`} className="inline-flex items-center px-4 rounded-xl bg-[#037A4F] text-white text-sm font-bold min-h-[48px]">
+          <Link href={`/admin/druck/${s.einbuchen.vorlageId}#fertig`} className="inline-flex items-center px-4 rounded-xl bg-[#037A4F] text-white text-sm font-bold min-h-[56px]">
             Jetzt einbuchen
           </Link>
           <button type="button" onClick={() => s.einbuchen && ausblenden.mutate({ auftragId: s.einbuchen.auftragId })}
-            className="px-3 rounded-xl text-sm font-semibold text-[#65676b] dark:text-[#b0b3b8] min-h-[48px]">Ausblenden</button>
+            className="px-3 rounded-xl text-sm font-semibold text-[#65676b] dark:text-[#b0b3b8] min-h-[56px]">Ausblenden</button>
         </div>
       )}
 
       {darfStarten && (
         <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
           {/* Version und „gemeldet vor" stehen schon oben rechts im Kopf. */}
-          <button type="button" className="underline" onClick={() => setKoppeln(true)}>Schlüssel neu erzeugen</button>
+          <button type="button" className={knopfRand} onClick={() => setKoppeln(true)}>🔑 Schlüssel neu erzeugen</button>
         </div>
       )}
 
@@ -211,7 +217,7 @@ function KoppelnDialog({ onClose }: { onClose: () => void }) {
           <div className="flex gap-3">
             <button type="button" className={`${knopfRand} flex-1 min-h-[56px]`} onClick={onClose}>Abbrechen</button>
             <button type="button" disabled={koppeln.isPending} onClick={() => koppeln.mutate()}
-              className="flex-1 rounded-xl bg-[#008BD2] text-white text-sm font-black min-h-[56px] disabled:opacity-50">🔑 Schlüssel erzeugen</button>
+              className="flex-1 rounded-xl bg-[#0064d2] text-white text-sm font-black min-h-[56px] disabled:opacity-50">🔑 Schlüssel erzeugen</button>
           </div>
         </div>
       ) : (
@@ -219,7 +225,7 @@ function KoppelnDialog({ onClose }: { onClose: () => void }) {
           <p className="font-bold">Schlüssel — wird nur jetzt angezeigt:</p>
           <div className="flex gap-2 items-center">
             <code className="flex-1 break-all rounded-xl bg-[#f0f2f5] dark:bg-[#18191a] px-3 py-3 font-mono text-base select-all">{schluessel}</code>
-            <button type="button" className={knopfRand} onClick={() => { void navigator.clipboard?.writeText(schluessel); show("Kopiert", "success"); }}>📋</button>
+            <button type="button" className={knopfRand} aria-label="Schlüssel kopieren" onClick={() => { void navigator.clipboard?.writeText(schluessel); show("Kopiert", "success"); }}>📋</button>
           </div>
           <ol className="list-decimal pl-5 space-y-1">
             <li>Am Laptop beim Drucker die Datei <code>.lagernaut-druckbruecke.json</code> im Benutzerordner öffnen.</li>

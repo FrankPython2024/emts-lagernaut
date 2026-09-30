@@ -21,7 +21,7 @@ const ZEIT_KEY = "druck-auswertung-tage";
 
 const karte = "bg-white dark:bg-[#242526] rounded-2xl border border-[#ced4da] dark:border-[#3e4042] shadow-sm";
 const leise = "text-[#65676b] dark:text-[#b0b3b8]";
-const knopfRand = "inline-flex items-center justify-center gap-2 px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] text-sm font-bold hover:border-[#008BD2] transition-colors min-h-[48px]";
+const knopfRand = "inline-flex items-center justify-center gap-2 px-4 rounded-xl border border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] text-sm font-bold hover:border-[#008BD2] transition-colors min-h-[56px]";
 
 const euro = (x: number, stellen = 2) => x.toLocaleString("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: stellen, maximumFractionDigits: stellen });
 const euroRund = (x: number) => euro(x, Math.abs(x) >= 100 ? 0 : 2);
@@ -56,8 +56,8 @@ export function DruckAuswertung({ darfPflegen }: { darfPflegen: boolean }) {
             type="button"
             aria-pressed={tage === z.tage}
             onClick={() => waehle(z.tage)}
-            className={`px-4 rounded-xl text-sm font-bold min-h-[48px] border transition-colors ${tage === z.tage
-              ? "bg-[#202F61] text-white border-[#202F61] dark:bg-[#008BD2] dark:border-[#008BD2]"
+            className={`px-4 rounded-xl text-sm font-bold min-h-[56px] border transition-colors ${tage === z.tage
+              ? "bg-[#202F61] text-white border-[#202F61] dark:bg-[#0064d2] dark:border-[#0064d2]"
               : "bg-white dark:bg-[#242526] border-[#ced4da] dark:border-[#3e4042] text-[#202F61] dark:text-[#e4e6eb] hover:border-[#008BD2]"}`}
           >
             {z.text}
@@ -223,7 +223,7 @@ function Rechenweg({ d, darfPflegen }: { d: Daten; darfPflegen: boolean }) {
           value={preis}
           disabled={!darfPflegen || speichern.isPending}
           onChange={(e) => { setPreis(e.target.value); setGeaendert(true); }}
-          className="w-24 px-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#18191a] text-right min-h-[48px] disabled:opacity-70"
+          className="w-24 px-3 rounded-xl border border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#18191a] text-right min-h-[56px] disabled:opacity-70"
         />
         <span>€ je kg</span>
         {darfPflegen && geaendert && (
