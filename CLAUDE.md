@@ -1864,6 +1864,7 @@ E14 Gen 4 Füße vorne 51 von 66, X1 Yoga Gen 6 Akku 23 von 38, 5520 D Cover/Tas
   zeichnet die Kacheln erst, wenn BEIDE Abfragen da sind — sonst sprängen sie unter dem Finger weg.
   Scheitert die Zählung, bleibt die gewohnte Reihenfolge. ⚠️ **Nur im Techniker-Portal** — Einlager-
   Assistent und LogID-Lookup nutzen `getByGeraetMitStandard` unverändert in fester Reihenfolge.
+  Nach Deploy am 30.09.2026 im Betrieb bestätigt (Frank: beim 7490 steht der Akku ganz oben).
 
 ### Notizbuch (Sep 2026)
 
