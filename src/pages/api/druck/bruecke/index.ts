@@ -1,10 +1,12 @@
 // Druckbrücke meldet sich (alle 5 s) und holt dabei höchstens einen Auftrag ab.
 // POST /api/druck/bruecke  — Authorization: Bearer <Brücken-Schlüssel>
 // Body: Status der Brücke (verbindung, fehler, drucker, version).
-// Antwort: { auftrag: { id, titel, vorlageId } | null }
+// Antwort: { auftrag: { id, titel, vorlageId } | null, kamera: boolean }
+// kamera = jemand schaut aufs Kamerabild → die Brücke soll Bilder schicken.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { brueckeAngemeldet, meldenUndAbholen } from "@/modules/druck/bruecke";
+import { kameraGewuenscht } from "@/modules/druck/kamera";
 
 export const config = { api: { bodyParser: { sizeLimit: "256kb" } } };
 
@@ -17,5 +19,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
   const antwort = await meldenUndAbholen(body);
   res.setHeader("Cache-Control", "no-store");
-  return res.status(200).json(antwort);
+  return res.status(200).json({ ...antwort, kamera: kameraGewuenscht() });
 }

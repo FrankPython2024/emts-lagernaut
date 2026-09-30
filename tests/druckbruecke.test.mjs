@@ -10,6 +10,7 @@ import {
   kodiereLaenge, baueConnect, baueSubscribe, bauePublish, zerlegePakete, lesePublish,
   fuehreZusammen, fasseStatus, herkunftErlaubt, findePlatten, druckerDateiname, druckBefehl,
   leseZipEintrag, filamenteDerPlatte, spulenZuordnung,
+  H264Sammler, leseSdp, codecAusSps, digestAntwort,
 } from "../tools/druckbruecke/druckbruecke.mjs";
 import zlib from "node:zlib";
 
@@ -163,6 +164,75 @@ check("fehlender Eintrag → null", leseZipEintrag(z, "gibt/es/nicht"), null);
 check("Platte 1 → Filament 1", filamenteDerPlatte(z, 1), [1]);
 check("Platte 2 → Filamente 2 und 4, sortiert", filamenteDerPlatte(z, 2), [2, 4]);
 check("ohne slice_info → null", filamenteDerPlatte(echtesZip([["Metadata/plate_1.gcode", "G28"]]), 1), null);
+
+console.log("\n── Kamera: SDP, Codec, Anmeldung ──");
+{
+  // Echte SDP des P2S vom 30.09.2026 (gekürzt)
+  const sdp = "v=0\r\na=control:*\r\nm=video 0 RTP/AVP 96\r\na=rtpmap:96 H264/90000\r\n" +
+    "a=fmtp:96 packetization-mode=1;profile-level-id=641029;sprop-parameter-sets=Z2QQKawbGqB4AiflhAAAAwAEAAADAPI8IBCo,aO48sA==\r\na=control:track1\r\n";
+  const x = leseSdp(sdp);
+  check("Spur-Adresse aus dem Video-Teil, nicht das „*“ davor", x.control, "track1");
+  check("SPS und PPS aus sprop", x.sprop.map((b) => b[0] & 0x1f), [7, 8]);
+  check("Codec aus der SPS", codecAusSps(x.sprop[0]), "avc1.641029");
+  check("zu kurze SPS → null", codecAusSps(Buffer.from([0x67])), null);
+  check("ohne sprop → leer", leseSdp("m=video 0 RTP/AVP 96\r\na=control:track1").sprop, []);
+  const d = { benutzer: "bblp", passwort: "12345678", realm: "LIVE555 Streaming Media", nonce: "abc", methode: "DESCRIBE", uri: "rtsps://1.2.3.4:322/streaming/live/1" };
+  check("Digest ist 32 Hex-Zeichen", /^[0-9a-f]{32}$/.test(digestAntwort(d)), true);
+  check("Digest hängt an der Methode", digestAntwort(d) !== digestAntwort({ ...d, methode: "SETUP" }), true);
+}
+
+console.log("\n── Kamera: Bilder aus RTP-Paketen ──");
+{
+  const SPS = Buffer.from("Z2QQKawbGqB4AiflhAAAAwAEAAADAPI8IBCo", "base64");
+  const PPS = Buffer.from("aO48sA==", "base64");
+  let seq = 0;
+  const rtp = (nutz, { ts, marker = false, cc = 0, pad = 0 } = {}) => {
+    const kopf = Buffer.alloc(12 + cc * 4);
+    kopf[0] = 0x80 | (pad ? 0x20 : 0) | cc; kopf[1] = (marker ? 0x80 : 0) | 96;
+    kopf.writeUInt16BE(seq++ & 0xffff, 2); kopf.writeUInt32BE(ts, 4);
+    const auff = pad ? Buffer.concat([Buffer.alloc(pad - 1), Buffer.from([pad])]) : Buffer.alloc(0);
+    return Buffer.concat([kopf, nutz, auff]);
+  };
+  const idr = Buffer.concat([Buffer.from([0x65]), Buffer.alloc(3000, 0xab)]);
+  const fuA = (nal, stueck) => {
+    const out = []; const rumpf = nal.subarray(1);
+    for (let i = 0; i < rumpf.length; i += stueck) {
+      const start = i === 0, ende = i + stueck >= rumpf.length;
+      out.push(Buffer.concat([Buffer.from([(nal[0] & 0xe0) | 28, (start ? 0x80 : 0) | (ende ? 0x40 : 0) | (nal[0] & 0x1f)]), rumpf.subarray(i, i + stueck)]));
+    }
+    return out;
+  };
+  const annexB = (...nals) => Buffer.concat(nals.flatMap((n) => [Buffer.from([0, 0, 0, 1]), n]));
+
+  const s1 = new H264Sammler([SPS, PPS]);
+  const teile = fuA(idr, 1000);
+  const erg = teile.map((t, i) => s1.rtp(rtp(t, { ts: 9000, marker: i === teile.length - 1 })));
+  check("Zwischenpakete liefern nichts", erg.slice(0, -1).every((x) => x === null), true);
+  check("IDR aus FU-A → Schlüsselbild mit SPS/PPS davor", erg.at(-1)?.equals(annexB(SPS, PPS, idr)), true);
+
+  const pRahmen = Buffer.concat([Buffer.from([0x41]), Buffer.alloc(500, 1)]);
+  check("P-Bild (kein Schlüsselbild) → null", s1.rtp(rtp(pRahmen, { ts: 12000, marker: true })), null);
+
+  // STAP-A mit SPS+PPS, danach IDR als Einzelpaket; SPS/PPS erst im Strom
+  const s2 = new H264Sammler();
+  const stap = Buffer.concat([Buffer.from([24]), Buffer.from([0, SPS.length]), SPS, Buffer.from([0, PPS.length]), PPS]);
+  check("STAP-A allein ist kein Bild", s2.rtp(rtp(stap, { ts: 100 })), null);
+  const klein = Buffer.from([0x65, 1, 2, 3]);
+  check("SPS/PPS aus STAP-A + IDR einzeln", s2.rtp(rtp(klein, { ts: 100, marker: true }))?.equals(annexB(SPS, PPS, klein)), true);
+
+  const s3 = new H264Sammler();
+  check("ohne SPS/PPS kein Bild (nicht decodierbar)", s3.rtp(rtp(klein, { ts: 5, marker: true })), null);
+
+  // Neues Bild beginnt, ohne dass das alte fertig wurde → Reste nie mischen
+  const s4 = new H264Sammler([SPS, PPS]);
+  s4.rtp(rtp(fuA(idr, 1000)[0], { ts: 1 }));
+  check("abgebrochenes Bild wird verworfen", s4.rtp(rtp(klein, { ts: 2, marker: true }))?.equals(annexB(SPS, PPS, klein)), true);
+
+  // CSRC-Liste und Auffüllbytes im RTP-Kopf
+  const s5 = new H264Sammler([SPS, PPS]);
+  check("RTP mit CSRC und Auffüllung", s5.rtp(rtp(klein, { ts: 7, marker: true, cc: 2, pad: 4 }))?.equals(annexB(SPS, PPS, klein)), true);
+  check("kein RTP (Version ≠ 2) → null", s5.rtp(Buffer.alloc(20)), null);
+}
 
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);
 process.exit(failed === 0 ? 0 : 1);

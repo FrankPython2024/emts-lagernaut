@@ -11,6 +11,9 @@ import {
   type BedarfZeile, type VorlageKurz,
 } from "../src/lib/druck/druckliste";
 import { darfStarten, platteNachBericht, haengt, istDerAuftrag, materialPasst } from "../src/lib/druck/warteschlange";
+import {
+  KAMERA_NACHFRAGE_MS, codecGueltig, siehtAusWieH264, kameraAnfordern, kameraGewuenscht, kameraBildSpeichern, kameraBild,
+} from "../src/modules/druck/kamera";
 
 let passed = 0;
 let failed = 0;
@@ -122,6 +125,27 @@ check("anderer Druck (aus Bambu Studio)", istDerAuftrag("Dell Latitude 7310", "a
 check("PETG vs. PLA → passt nicht", materialPasst("PETG", "PLA"), false);
 check("„TPU schwarz“ vs. TPU → passt", materialPasst("TPU schwarz", "TPU"), true);
 check("Vorlage ohne Material → keine Aussage", materialPasst("", "PLA"), null);
+
+// ── Kamerabild (Ablage auf dem Server) ─────────────────────────────────────
+console.log("\n── Kamera: Nachfrage und letztes Bild ──");
+{
+  const T = 1_000_000_000_000;
+  check("ohne Abruf schaut niemand zu", kameraGewuenscht(T), false);
+  kameraAnfordern(T);
+  check("nach einem Abruf: Brücke soll liefern", kameraGewuenscht(T + 1000), true);
+  check("kurz vor Ablauf noch gewünscht", kameraGewuenscht(T + KAMERA_NACHFRAGE_MS - 1), true);
+  check("nach Ablauf nicht mehr (Kamera geht aus)", kameraGewuenscht(T + KAMERA_NACHFRAGE_MS), false);
+  const b = Buffer.from([0, 0, 0, 1, 0x67, 1, 2, 3, 4]);
+  const n1 = kameraBildSpeichern(b, "avc1.641029", T);
+  const n2 = kameraBildSpeichern(b, "avc1.641029", T + 2000);
+  check("jedes Bild bekommt eine neue Nummer", n2, n1 + 1);
+  check("gespeichert ist nur das letzte", [kameraBild()?.nr, kameraBild()?.am], [n2, T + 2000]);
+  check("Codec-Kennung wie aus der SPS", codecGueltig("avc1.641029"), true);
+  check("Codec-Kennung: Unsinn abgelehnt", [codecGueltig("vp09.00"), codecGueltig("avc1.64"), codecGueltig(undefined)], [false, false, false]);
+  check("H.264 mit 4-Byte-Startcode", siehtAusWieH264(b), true);
+  check("H.264 mit 3-Byte-Startcode", siehtAusWieH264(Buffer.from([0, 0, 1, 0x67, 1, 2, 3, 4, 5])), true);
+  check("JPEG ist kein H.264", siehtAusWieH264(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0])), false);
+}
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);

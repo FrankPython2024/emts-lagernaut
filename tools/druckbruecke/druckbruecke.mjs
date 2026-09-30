@@ -34,6 +34,9 @@
 // wie die Anmeldung (sonst ECONNRESET) — und die Verschlüsselung des
 // Datenkanals beginnt erst NACH dem Befehl (LIST/STOR), nicht vorher.
 //
+// Kamera (1.4.0): Standbild etwa alle 4–5 s an Lagernaut, nur solange dort
+// jemand zuschaut — siehe „Kamera" unten.
+//
 // Starten:  node druckbruecke.mjs      (oder „Druckbruecke starten.cmd")
 // Test:     npm run test:bruecke       (Paket-Kodierung + Statusauswertung)
 
@@ -46,7 +49,7 @@ import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
-export const VERSION = "1.3.1";
+export const VERSION = "1.4.0";
 // Endcodes für laufen.cmd (Autostart mit Neustart nach Absturz): Bei diesen beiden
 // hilft ein Neustart nichts — dann NICHT im Kreis neu starten.
 export const ENDE_EINSTELLUNGEN = 2;
@@ -57,6 +60,10 @@ export const LAGERNAUT_STANDARD = "https://emts-lagernaut.duckdns.org";
 export const MELDE_TAKT_MS = 5000;
 /** Größte Druckdatei, die die Brücke annimmt. */
 export const MAX_DRUCKDATEI = 60 * 1024 * 1024;
+/** So lange läuft die Kamera nach der letzten Nachfrage aus Lagernaut weiter. */
+export const KAMERA_NACHLAUF_MS = 20_000;
+/** Mindestabstand zwischen zwei Uploads (die Kamera liefert ohnehin nur alle ~3–4 s). */
+export const KAMERA_UPLOAD_ABSTAND_MS = 1_500;
 /** In diesen Zuständen darf ein neuer Druck starten. */
 export const STARTBEREIT = ["IDLE", "FINISH", "FAILED"];
 export const STANDARD_PORT = 17350;
@@ -617,6 +624,244 @@ class DruckerVerbindung {
   }
 }
 
+// ── Kamera: Standbild aus dem Videostrom (Stufe 1, 30.09.2026) ─────────────────
+//
+// Der P2S sendet sein Kamerabild als H.264 über RTSPS (Port 322, 1080p, ~10
+// Bilder/s, ~75 KB/s, Anmeldung per Digest mit bblp + Zugangscode). Port 6000
+// (JPEG-Einzelbilder wie bei P1/A1) liefert beim P2S NICHTS — gemessen am
+// 30.09.2026: 8 Byte Antwort, dann zu. Ein Browser kann RTSP nicht öffnen.
+//
+// Deshalb holt die Brücke Schnappschüsse: je Bild eine kurze Sitzung, nur das erste
+// VOLLSTÄNDIGE Bild (Schlüsselbild, ~50–100 KB) — siehe KameraStrom. Lagernaut
+// bekommt es roh, Chrome setzt es dort mit WebCodecs zusammen. Kein ffmpeg, keine
+// Pakete. Die Kamera läuft NUR, solange Lagernaut meldet, dass jemand zuschaut
+// (Gast-WLAN schonen; gemessen ~16 KB/s, ein Bild etwa alle 4–5 s).
+
+const START_CODE = Buffer.from([0, 0, 0, 1]);
+const md5 = (x) => crypto.createHash("md5").update(x).digest("hex");
+
+/** Digest-Anmeldung (RFC 2617 ohne qop — so verlangt es LIVE555 im Drucker). */
+export function digestAntwort({ benutzer, passwort, realm, nonce, methode, uri }) {
+  return md5(`${md5(`${benutzer}:${realm}:${passwort}`)}:${nonce}:${md5(`${methode}:${uri}`)}`);
+}
+
+/** Aus der SDP: mitgelieferte SPS/PPS und die Spur-Adresse des Videos. */
+export function leseSdp(text) {
+  const video = text.slice(Math.max(0, text.search(/^m=video/m)));
+  const sprop = /sprop-parameter-sets=([^;\s]+)/.exec(video)?.[1] ?? "";
+  return {
+    sprop:   sprop.split(",").filter(Boolean).map((b) => Buffer.from(b, "base64")),
+    control: /^a=control:(\S+)/m.exec(video)?.[1] ?? null,
+  };
+}
+
+/** „avc1.641029" aus der SPS (Profil, Einschränkungen, Stufe) — für den Decoder im Browser. */
+export function codecAusSps(sps) {
+  if (!sps || sps.length < 4) return null;
+  return "avc1." + [sps[1], sps[2], sps[3]].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Setzt RTP-Pakete (H.264, RFC 6184: einzeln, STAP-A, FU-A) zu Bildern zusammen
+ * und gibt NUR Schlüsselbilder heraus — als Annex-B mit SPS/PPS davor, damit
+ * jedes Bild für sich decodierbar ist.
+ */
+export class H264Sammler {
+  constructor(sprop = []) {
+    this.sps = null; this.pps = null;
+    for (const n of sprop) this.merke(n);
+    this.au = []; this.ts = null; this.fu = null;
+  }
+  merke(n) {
+    const t = n[0] & 0x1f;
+    if (t === 7) this.sps = Buffer.from(n);
+    if (t === 8) this.pps = Buffer.from(n);
+  }
+  nal(n) { if (n.length) { this.merke(n); this.au.push(Buffer.from(n)); } }
+  /** Ein RTP-Paket. Liefert ein Schlüsselbild (Annex-B) oder null. */
+  rtp(p) {
+    if (p.length < 13 || (p[0] >> 6) !== 2) return null;
+    let o = 12 + (p[0] & 0x0f) * 4;
+    if (p[0] & 0x10) { if (p.length < o + 4) return null; o += 4 + p.readUInt16BE(o + 2) * 4; }
+    let ende = p.length;
+    if (p[0] & 0x20) ende -= p[ende - 1];
+    if (o >= ende) return null;
+    const ts = p.readUInt32BE(4);
+    // Neues Bild ohne Ende-Markierung des alten → Reste verwerfen, nie mischen.
+    if (this.ts !== null && ts !== this.ts) { this.au = []; this.fu = null; }
+    this.ts = ts;
+    const n = p.subarray(o, ende);
+    const typ = n[0] & 0x1f;
+    if (typ >= 1 && typ <= 23) this.nal(n);
+    else if (typ === 24) {
+      for (let i = 1; i + 2 <= n.length;) { const l = n.readUInt16BE(i); i += 2; this.nal(n.subarray(i, i + l)); i += l; }
+    } else if (typ === 28 && n.length > 2) {
+      const fu = n[1];
+      if (fu & 0x80) this.fu = [Buffer.from([(n[0] & 0xe0) | (fu & 0x1f)]), Buffer.from(n.subarray(2))];
+      else if (this.fu) this.fu.push(Buffer.from(n.subarray(2)));
+      if ((fu & 0x40) && this.fu) { this.nal(Buffer.concat(this.fu)); this.fu = null; }
+    }
+    if (!(p[1] & 0x80)) return null;
+    const au = this.au; this.au = []; this.ts = null; this.fu = null;
+    if (!au.some((x) => (x[0] & 0x1f) === 5) || !this.sps || !this.pps) return null;
+    const teile = [this.sps, this.pps, ...au.filter((x) => ![7, 8, 9].includes(x[0] & 0x1f))];
+    return Buffer.concat(teile.flatMap((x) => [START_CODE, x]));
+  }
+}
+
+/**
+ * Schnappschüsse vom Drucker; ruft beiBild(annexB, codec) je Bild.
+ *
+ * Je Bild EINE kurze RTSPS-Sitzung: anmelden, erstes Schlüsselbild nehmen,
+ * abmelden, nach KAMERA_BILD_ABSTAND_MS das nächste. Warum nicht einfach den
+ * Strom laufen lassen — gemessen am P2S am 30.09.2026:
+ *  - Er stellt den Strom nach ~30 s von selbst ein (viermal 28–32 s); die
+ *    Verbindung bleibt offen, es kommt nur nichts mehr. GET_PARAMETER beantwortet
+ *    er, es ändert nichts; selbst gebaute RTCP-Empfangsberichte ließen ihn schon
+ *    nach 14 s abbrechen.
+ *  - Wie oft im laufenden Strom ein vollständiges Bild kommt, schwankt von ~1 s
+ *    bis ~15 s (1 bzw. 42 Bilder in vergleichbaren Läufen).
+ *  - Verlässlich ist nur: JEDE neue Sitzung beginnt nach ~1–2 s mit einem
+ *    vollständigen Bild. Und die Zwischenbilder, die wir ohnehin wegwerfen,
+ *    müssen so gar nicht erst durchs WLAN.
+ * Kommt in einer Sitzung KAMERA_SITZUNG_MS lang kein Bild, wird still neu
+ * angesetzt; nur echte Fehler kosten KAMERA_FEHLER_PAUSE_MS.
+ */
+export const KAMERA_BILD_ABSTAND_MS = 1_500;
+export const KAMERA_SITZUNG_MS = 8_000;
+const KAMERA_FEHLER_PAUSE_MS = 15_000;
+const KAMERA_AUFBAU_MS = 15_000;
+const KAMERA_LEERE_SITZUNGEN = 3;
+
+export class KameraStrom {
+  constructor(e, beiBild) {
+    this.e = e; this.beiBild = beiBild;
+    this.aktiv = false; this.socket = null; this.neuVersuch = null;
+    this.gemeldet = false; this.leer = 0;
+  }
+  get laeuft() { return this.aktiv; }
+  starten() {
+    if (this.aktiv) return;
+    this.aktiv = true;
+    this.verbinde();
+  }
+  stoppen() {
+    this.aktiv = false;
+    this.gemeldet = false; this.leer = 0;
+    clearTimeout(this.neuVersuch); this.neuVersuch = null;
+    const s = this.socket;
+    this.socket = null;
+    if (s) { try { s.end(); } catch { /* egal */ } setTimeout(() => s.destroy(), 1000); }
+  }
+  /** Nächste Sitzung: sofort (Erneuerung) oder nach einer Pause (Fehler). */
+  weiter(pauseMs) {
+    clearTimeout(this.neuVersuch);
+    if (!this.aktiv) return;
+    this.neuVersuch = setTimeout(() => { this.neuVersuch = null; if (this.aktiv) this.verbinde(); }, pauseMs);
+  }
+  verbinde() {
+    if (!this.aktiv || this.socket) return;
+    const url = `rtsps://${this.e.druckerIp}:322/streaming/live/1`;
+    let realm = null, nonce = null, session = null, cseq = 1, stufe = "frage", basis = url + "/", spur = null, sammler = null;
+    let puffer = Buffer.alloc(0), ende = false;
+    const beginn = Date.now();
+    let spieltSeit = 0;
+    const s = tls.connect({ host: this.e.druckerIp, port: 322, rejectUnauthorized: false, timeout: 15000 });
+    this.socket = s;
+    const sende = (methode, uri, extra = "") => {
+      const auth = realm
+        ? `Authorization: Digest username="bblp", realm="${realm}", nonce="${nonce}", uri="${uri}", response="${digestAntwort({ benutzer: "bblp", passwort: this.e.zugangscode, realm, nonce, methode, uri })}"\r\n`
+        : "";
+      s.write(`${methode} ${uri} RTSP/1.0\r\nCSeq: ${cseq++}\r\nUser-Agent: Lagernaut-Druckbruecke/${VERSION}\r\n${auth}${session ? `Session: ${session}\r\n` : ""}${extra}\r\n`);
+    };
+    // Sitzung beenden; `pause` = Wartezeit bis zur nächsten (0 = Erneuerung).
+    const beende = (pause, grund) => {
+      if (ende) return;
+      ende = true;
+      clearInterval(uhr);
+      if (grund) log(`⚠ Kamera: ${grund}`);
+      if (session && !s.destroyed) { try { sende("TEARDOWN", url); } catch { /* egal */ } }
+      if (this.socket === s) this.socket = null;
+      setTimeout(() => s.destroy(), 300);
+      this.weiter(pause);
+    };
+    const uhr = setInterval(() => {
+      const jetzt = Date.now();
+      if (!spieltSeit) {
+        if (jetzt - beginn > KAMERA_AUFBAU_MS) beende(KAMERA_FEHLER_PAUSE_MS, "Drucker startet die Kamera nicht");
+      } else if (jetzt - spieltSeit > KAMERA_SITZUNG_MS) {
+        // Kein Bild in dieser Sitzung: still neu ansetzen, nach mehreren leeren Sitzungen melden.
+        this.leer += 1;
+        if (this.leer >= KAMERA_LEERE_SITZUNGEN) { this.leer = 0; beende(KAMERA_FEHLER_PAUSE_MS, "der Drucker schickt kein Bild"); }
+        else beende(0, null);
+      }
+    }, 500);
+    s.on("secureConnect", () => { s.setTimeout(0); sende("DESCRIBE", url, "Accept: application/sdp\r\n"); });
+    s.on("timeout", () => beende(KAMERA_FEHLER_PAUSE_MS, "Drucker antwortet nicht (Port 322)"));
+    s.on("error", (err) => beende(KAMERA_FEHLER_PAUSE_MS, err.message));
+    s.on("close", () => beende(KAMERA_FEHLER_PAUSE_MS, null));
+    s.on("data", (d) => {
+      // Nach stoppen() können noch Pakete der alten Sitzung ankommen — verwerfen.
+      if (ende || !this.aktiv || this.socket !== s) return;
+      puffer = puffer.length ? Buffer.concat([puffer, d]) : d;
+      while (puffer.length && !ende) {
+        if (puffer[0] === 0x24) {                 // „$" = eingebettetes RTP-Paket
+          if (puffer.length < 4) return;
+          const n = puffer.readUInt16BE(2);
+          if (puffer.length < 4 + n) return;
+          const kanal = puffer[1], paket = puffer.subarray(4, 4 + n);
+          puffer = puffer.subarray(4 + n);
+          if (kanal !== 0 || !sammler) continue;
+          const bild = sammler.rtp(paket);
+          if (bild) {
+            this.leer = 0;
+            if (!this.gemeldet) { this.gemeldet = true; log(`✓ Kamera läuft (${Math.round(bild.length / 1024)} KB je Bild)`); }
+            this.beiBild(bild, codecAusSps(sammler.sps) ?? "avc1.640029");
+            beende(KAMERA_BILD_ABSTAND_MS, null);   // Schnappschuss genommen → abmelden
+            return;
+          }
+          continue;
+        }
+        const kopfEnde = puffer.indexOf("\r\n\r\n");
+        if (kopfEnde < 0) { if (puffer.length > 65536) beende(KAMERA_FEHLER_PAUSE_MS, "unlesbare Antwort"); return; }
+        const kopf = puffer.subarray(0, kopfEnde).toString("latin1");
+        const laenge = Number(/Content-Length:\s*(\d+)/i.exec(kopf)?.[1] ?? 0);
+        if (puffer.length < kopfEnde + 4 + laenge) return;
+        const rumpf = puffer.subarray(kopfEnde + 4, kopfEnde + 4 + laenge).toString("latin1");
+        puffer = puffer.subarray(kopfEnde + 4 + laenge);
+        const code = Number(/^RTSP\/1\.0 (\d+)/.exec(kopf)?.[1] ?? 0);
+        if (process.env.KAMERA_DEBUG) log("Kamera", stufe, kopf.split("\r\n")[0]);
+        if (code === 401) {
+          if (realm) return beende(KAMERA_FEHLER_PAUSE_MS, "Zugangscode abgelehnt");
+          realm = /realm="([^"]+)"/.exec(kopf)?.[1] ?? null;
+          nonce = /nonce="([^"]+)"/.exec(kopf)?.[1] ?? null;
+          if (!realm || !nonce) return beende(KAMERA_FEHLER_PAUSE_MS, "keine Anmeldedaten vom Drucker");
+          sende("DESCRIBE", url, "Accept: application/sdp\r\n");
+          continue;
+        }
+        if (code !== 200) return beende(KAMERA_FEHLER_PAUSE_MS, `Drucker antwortet ${code || "unverständlich"} (${stufe})`);
+        if (stufe === "frage") {
+          const sdp = leseSdp(rumpf);
+          sammler = new H264Sammler(sdp.sprop);
+          basis = /Content-Base:\s*(\S+)/i.exec(kopf)?.[1] ?? basis;
+          spur = !sdp.control || sdp.control === "*" ? url
+            : /^rtsps?:\/\//.test(sdp.control) ? sdp.control
+            : basis.replace(/\/?$/, "/") + sdp.control;
+          stufe = "einrichten";
+          sende("SETUP", spur, "Transport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n");
+        } else if (stufe === "einrichten") {
+          session = /Session:\s*([^;\r\n]+)/i.exec(kopf)?.[1]?.trim() ?? null;
+          stufe = "spielen";
+          sende("PLAY", url, "Range: npt=0.000-\r\n");
+        } else if (stufe === "spielen") {
+          stufe = "laeuft";
+          spieltSeit = Date.now();
+        }
+      }
+    });
+  }
+}
+
 // ── Kleiner Webserver nur für diesen PC ───────────────────────────────────────
 
 /** Darf diese Seite die Brücke fragen? Nur eingetragene Lagernaut-Adressen. */
@@ -680,6 +925,28 @@ function starteLagernaut(e, verbindung) {
     letzte = fehler;
   };
 
+  // Kamera: nur solange Lagernaut „jemand schaut zu" meldet. Ein Bild auf einmal —
+  // ist das vorige noch unterwegs, fällt das neue weg.
+  let kameraBis = 0;
+  let hochladen = false;
+  let letzterUpload = 0;
+  const kamera = new KameraStrom(e, (bild, codec) => {
+    if (hochladen || Date.now() - letzterUpload < KAMERA_UPLOAD_ABSTAND_MS) return;
+    hochladen = true;
+    letzterUpload = Date.now();
+    fetch(`${e.lagernautUrl}/api/druck/bruecke/bild`, {
+      method: "POST",
+      headers: { ...kopf, "Content-Type": "application/octet-stream", "X-Codec": codec },
+      body: bild, signal: AbortSignal.timeout(15_000),
+    })
+      .then(async (r) => { if (r.ok && (await r.json())?.weiter === false) kameraBis = 0; })
+      .catch(() => { /* nächstes Bild */ })
+      .finally(() => { hochladen = false; });
+  });
+  setInterval(() => {
+    if (kamera.laeuft && Date.now() > kameraBis) { kamera.stoppen(); log("Kamera aus (niemand schaut zu)"); }
+  }, 5000);
+
   async function fuehreAus(a) {
     druckLaeuft = true;
     log(`Auftrag #${a.id} „${a.titel}" aus Lagernaut …`);
@@ -723,6 +990,10 @@ function starteLagernaut(e, verbindung) {
         const j = await r.json();
         // Nicht abwarten: Während der Übertragung meldet die Brücke weiter ihren Stand.
         if (j?.auftrag && !druckLaeuft) void fuehreAus(j.auftrag);
+        if (j?.kamera === true) {
+          kameraBis = Date.now() + KAMERA_NACHLAUF_MS;
+          if (!kamera.laeuft && verbindung.status().verbindung === "verbunden") kamera.starten();
+        }
       }
     } catch (err) {
       melde(`⚠ Lagernaut nicht erreichbar: ${err.message}`);

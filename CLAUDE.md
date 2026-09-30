@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 863) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 890) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1496,6 +1496,31 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   Einstellungen fehlen, harter Absturz → 10 s → wieder da) am 24.09. am Laptop nachgeprüft.
   Grenze: Schläft der Laptop oder ist der Deckel zu, ist die Brücke aus — die Druckerkarte zeigt dann
   „Druckbrücke aus · zuletzt …", Aufträge warten.
+- **Kamerabild, Stufe 1 „Standbild" (30.09.2026, Brücke 1.4.0):** Knopf „📷 Livebild anzeigen" auf der
+  Druckerkarte (je Browser gemerkt), ein Bild etwa alle 3–5 s. Stufe 2 (flüssiges Video, ~10 Bilder/s)
+  ist bewusst nicht gebaut.
+  **Am P2S gemessen:** Kamera nur als **RTSPS** (`print.ipcam.rtsp_url` = `rtsps://<ip>:322/streaming/live/1`,
+  LIVE555, **Digest**-Anmeldung bblp + Zugangscode, H.264 High 1080p, `avc1.641029`, ~75 KB/s). Port 6000
+  (JPEG wie P1/A1) liefert beim P2S nichts (8 Byte, dann zu). Kein Browser öffnet RTSP.
+  ⚠️ **Der Drucker stellt den Strom nach ~30 s von selbst ein** (viermal 28–32 s; Verbindung bleibt
+  offen, es kommt nur nichts). GET_PARAMETER beantwortet er, hilft nicht; selbst gebaute RTCP-
+  Empfangsberichte ließen ihn nach 14 s abbrechen. ⚠️ **Schlüsselbilder kommen im laufenden Strom
+  unregelmäßig** (mal jede Sekunde, mal 15 s nicht). Verlässlich ist nur: **jede neue Sitzung beginnt
+  nach ~1–3 s mit einem vollständigen Bild.** Deshalb **Schnappschüsse** (`KameraStrom`): je Bild eine
+  kurze Sitzung, erstes Schlüsselbild nehmen, abmelden, 1,5 s Pause. Gemessen 13 Bilder in 34 s,
+  ~16–25 KB/s. Leere Sitzung (8 s kein Bild) → still neu; drei leere oder echter Fehler → 15 s Pause.
+  **Weg:** Brücke (`H264Sammler`: RTP → FU-A/STAP-A → Annex-B mit SPS/PPS davor) → `POST
+  /api/druck/bruecke/bild` (Bearer, `X-Codec`, max 1 MB) → Server hält NUR das letzte Bild im
+  Prozessspeicher (`src/modules/druck/kamera.ts`, globalThis, kein Redis, keine Aufzeichnung) →
+  `GET /api/druck/kamera?nach=<nr>` (ARTIKEL_VIEW; 204 wenn nichts Neues; Alter rechnet der Server) →
+  `KameraBild.tsx` decodiert mit **WebCodecs** (`VideoDecoder`, Chrome/Edge; sonst Hinweis) auf eine
+  Leinwand. Im Browser geprüft: 1920×1080 aus einem echten Schlüsselbild.
+  ⚠️ **Kamera läuft nur, solange jemand zuschaut:** jeder Abruf setzt die Nachfrage für 30 s
+  (`KAMERA_NACHFRAGE_MS`), die Brücke erfährt es als `kamera: true` in der Antwort auf ihre Meldung
+  und hört 20 s nach der letzten Nachfrage auf (bzw. sofort, wenn der Upload `weiter: false` liefert).
+  Tab im Hintergrund = kein Abruf. Kein neues Recht, keine Schemaänderung.
+  **Update am Laptop:** `einrichten.cmd` erneut ausführen, Brücke neu starten. Fehlersuche:
+  `KAMERA_DEBUG=1` zeigt die RTSP-Schritte.
 
 ### Urlaubsplanung (29.09.2026)
 

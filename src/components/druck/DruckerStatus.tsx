@@ -8,13 +8,14 @@
 // PC druckt, sieht die Platte nicht. Frei wird sie erst, wenn jemand am Drucker
 // es bestätigt; jeder Druck belegt sie wieder.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { useDruckerStand } from "./useDruckbruecke";
+import { KameraBild } from "./KameraBild";
 
 const FARBE: Record<string, string> = {
   RUNNING: "bg-[#008BD2]/15 text-[#0064d2] dark:text-[#45bdff]",
@@ -53,6 +54,15 @@ export function DruckerStatus() {
   const neu = () => void utils.druck.druckerStand.invalidate();
   const [platteFrage, setPlatteFrage] = useState(false);
   const [koppeln, setKoppeln] = useState(false);
+  // Livebild an/aus — je Browser gemerkt. Aus = kein Abruf = Kamera an der Brücke aus.
+  const [livebild, setLivebild] = useState(false);
+  useEffect(() => {
+    try { setLivebild(window.localStorage.getItem("druck-livebild") === "1"); } catch { /* egal */ }
+  }, []);
+  const schalteLivebild = () => setLivebild((v) => {
+    try { window.localStorage.setItem("druck-livebild", v ? "0" : "1"); } catch { /* egal */ }
+    return !v;
+  });
 
   const platte = api.druck.platteIstLeer.useMutation({
     onSuccess: () => { setPlatteFrage(false); show("Platte ist frei — der nächste Druck darf starten.", "success"); neu(); },
@@ -120,6 +130,16 @@ export function DruckerStatus() {
         <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
           Düse {grad(d.duese, d.dueseZiel)} · Bett {grad(d.bett, d.bettZiel)}
           {d.spule?.typ && <> · Spule {d.spule.typ}{d.spule.farbe && <span className="inline-block w-3 h-3 rounded-full align-middle ml-1 border border-[#ced4da]" style={{ background: d.spule.farbe }} aria-hidden />}</>}
+        </div>
+      )}
+
+      {/* Kamera — nur wenn die Brücke da ist und mit dem Drucker spricht */}
+      {s.online && s.verbindung === "verbunden" && (
+        <div className="space-y-2">
+          <button type="button" className={knopfRand} onClick={schalteLivebild} aria-pressed={livebild}>
+            {livebild ? "📷 Livebild ausblenden" : "📷 Livebild anzeigen"}
+          </button>
+          {livebild && <KameraBild />}
         </div>
       )}
 
