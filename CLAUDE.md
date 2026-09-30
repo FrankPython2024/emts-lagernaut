@@ -1597,6 +1597,15 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   `druckerStand.aktuell` ordnet den Druck über `istDerAuftrag` dem letzten GESTARTET-Auftrag (und damit
   `dateiId`) zu; Drucke aus Bambu Studio → ohne Vorschau, Hinweis „außerhalb von Lagernaut gestartet".
   Im Browser mit echten Druckerdaten und echter Vorschau geprüft (breit, schmal, Vorbereitung, fertig).
+- **Karton-Etikett für gedruckte Teile** (Wunsch Frank 30.09.2026: „quasi ein Einlagerbeleg, damit wir am
+  Karton kennzeichnen können, was es ist"): `src/lib/print/druckEtikett.ts`, 55 × 30 mm Thermodrucker,
+  Regeln wie das Auslager-Etikett (nur Schwarz, fett, ≥ 6,5 pt, Nicht-ASCII als Entities). Inhalt:
+  „3D-DRUCK" umrandet + Datum, Artikelbezeichnung (lange Namen ab 39 Zeichen 7 pt/3 Zeilen statt
+  abgeschnitten — im Browser gemessen), groß die Stückzahl, Lagerplatz · Kürzel, QR = Artikel-Id wie auf
+  dem Artikel-Label. Nach „Druck fertig → einbuchen" erscheint ein grüner Kasten „🏷️ Etikett für den
+  Karton drucken" mit Anzahl (mehrere Kartons/Beutel) — ⚠️ nicht automatisch: `window.open` muss im
+  Klick passieren (Popup-Blocker). Nachdruck je Eintrag im Druckprotokoll („🏷️ Etikett").
+  `druck.einbuchen` liefert dafür `etikett`, `druck.details.protokoll` den Lagerplatz mit.
 
 ### Urlaubsplanung (29.09.2026)
 

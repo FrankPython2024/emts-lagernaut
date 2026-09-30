@@ -228,16 +228,17 @@ export const druckRouter = createTRPCRouter({
       const protokoll = await prisma.druckProtokoll.findMany({
         where: { vorlageId: v.id }, orderBy: { createdAt: "desc" }, take: 30,
       });
-      const artikelNamen = new Map((await prisma.artikel.findMany({
-        where: { id: { in: [...new Set(protokoll.map((p) => p.artikelId))] } }, select: { id: true, bezeichnung: true },
-      })).map((a) => [a.id, a.bezeichnung]));
+      const artikelDaten = new Map((await prisma.artikel.findMany({
+        where: { id: { in: [...new Set(protokoll.map((p) => p.artikelId))] } }, select: { id: true, bezeichnung: true, lagerplatz: true },
+      })).map((a) => [a.id, a]));
       const grenze = Date.now() - ZURUECK_STUNDEN * 3600_000;
       return {
         ...v,
         teiltypen: teiltypenAus(v.teiltypen),
         protokoll: protokoll.map((p) => ({
           ...p,
-          artikel: artikelNamen.get(p.artikelId) ?? `Artikel #${p.artikelId} (gelöscht)`,
+          artikel: artikelDaten.get(p.artikelId)?.bezeichnung ?? `Artikel #${p.artikelId} (gelöscht)`,
+          lagerplatz: artikelDaten.get(p.artikelId)?.lagerplatz ?? null,
           zuruecknehmbar: !p.zurueckgenommenAm && p.buchungId != null && p.createdAt.getTime() > grenze,
         })),
       };
@@ -374,7 +375,7 @@ export const druckRouter = createTRPCRouter({
         herkunftLogId: null,
         herkunftArt:   "DRUCK",
       });
-      await prisma.druckProtokoll.create({
+      const eintrag = await prisma.druckProtokoll.create({
         data: {
           vorlageId: vorlage.id, vorlageName: vorlage.name, artikelId: ziel.id, teiltyp: ziel.teiltyp,
           platten: input.platten, stueck: input.stueck, buchungId: buchung.id, gedrucktVon: kuerzel,
@@ -385,7 +386,15 @@ export const druckRouter = createTRPCRouter({
         where: { vorlageId: vorlage.id, status: "GESTARTET", erledigtAm: null },
         data:  { erledigtAm: new Date() },
       });
-      return { artikel: ziel.bezeichnung, stueck: input.stueck, neuerBestand: ziel.bestand + input.stueck };
+      // Für das Karton-Etikett (src/lib/print/druckEtikett.ts) gleich mitliefern.
+      const platz = await prisma.artikel.findUnique({ where: { id: ziel.id }, select: { lagerplatz: true } });
+      return {
+        artikel: ziel.bezeichnung, stueck: input.stueck, neuerBestand: ziel.bestand + input.stueck,
+        etikett: {
+          artikelId: ziel.id, artikel: ziel.bezeichnung, stueck: input.stueck, lagerplatz: platz?.lagerplatz ?? null,
+          von: kuerzel, datum: eintrag.createdAt,
+        },
+      };
     }),
 
   // Tippfehler korrigieren: Buchung löschen, Bestand neu rechnen. Nur kurz nach

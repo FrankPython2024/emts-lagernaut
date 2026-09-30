@@ -22,6 +22,7 @@ import { Modal } from "@/components/ui/Modal";
 import { DATEI_ART_TEXT, DATEI_MAX_BYTES, dateiArt, type DateiArt } from "@/lib/druck/druckliste";
 import { DruckenKnopf } from "@/components/druck/DruckenKnopf";
 import { DruckerStatus } from "@/components/druck/DruckerStatus";
+import { printDruckEtiketten, type DruckEtikett } from "@/lib/print/druckEtikett";
 
 type Modell = { key: string; anzeige: string };
 
@@ -513,7 +514,7 @@ function LoeschenKnopf({ id, name }: { id: number; name: string }) {
 }
 
 type ProtokollEintrag = {
-  id: number; artikel: string; teiltyp: string; platten: number | null; stueck: number;
+  id: number; artikelId: number; artikel: string; lagerplatz: string | null; teiltyp: string; platten: number | null; stueck: number;
   gedrucktVon: string; createdAt: Date | string; zurueckgenommenAm: Date | string | null;
   zurueckgenommenVon: string | null; zuruecknehmbar: boolean;
 };
@@ -530,6 +531,9 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
   const [platten, setPlatten] = useState("1");
   const [stueckEigen, setStueckEigen] = useState<string | null>(null);
   const [zurueckId, setZurueckId] = useState<number | null>(null);
+  // Karton-Etikett nach dem Einbuchen (Wunsch Frank 30.09.2026) — bleibt stehen, bis man weitermacht.
+  const [etikett, setEtikett] = useState<DruckEtikett | null>(null);
+  const [etikettAnzahl, setEtikettAnzahl] = useState("1");
   const karteRef = useRef<HTMLDivElement>(null);
 
   // Aus der Übersicht mit #fertig hierher gesprungen → Karte zeigen, sobald sie steht.
@@ -555,6 +559,8 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
   const einbuchen = api.druck.einbuchen.useMutation({
     onSuccess: (r) => {
       show(`✅ ${r.stueck} Stück auf „${r.artikel}" eingebucht — Bestand jetzt ${r.neuerBestand}`, "success");
+      setEtikett(r.etikett);
+      setEtikettAnzahl("1");
       setPlatten("1");
       setStueckEigen(null);
       fertig();
@@ -569,6 +575,31 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
   return (
     <div ref={karteRef} id="fertig" className={karte}>
       <h2 className="font-black text-[#202F61] dark:text-[#e4e6eb]">✓ Druck fertig — einbuchen</h2>
+
+      {/* Gerade eingebucht → Etikett für den Karton. Drucken muss im Klick passieren
+          (Popup-Blocker), deshalb nicht automatisch nach dem Einbuchen. */}
+      {etikett && (
+        <div className="rounded-xl border-2 border-[#04B475] bg-[#04B475]/10 p-4 space-y-3">
+          <div className="text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+            <strong className="text-[#037A4F] dark:text-[#3ddc97]">✓ {etikett.stueck} Stück eingebucht</strong> auf „{etikett.artikel}“
+            {etikett.lagerplatz ? <> · Lagerplatz <strong>{etikett.lagerplatz}</strong></> : null}
+          </div>
+          <div className="flex items-end gap-3 flex-wrap">
+            <label className="block">
+              <span className={label}>Etiketten</span>
+              <input inputMode="numeric" className={`${feld} w-24`} value={etikettAnzahl} onChange={(e) => setEtikettAnzahl(e.target.value)} aria-label="Anzahl Etiketten" />
+            </label>
+            <button type="button" className={`${knopfBlau} flex-1 min-w-[220px]`}
+              onClick={() => void printDruckEtiketten([etikett], zahlOderNull(etikettAnzahl) ?? 1)}>
+              🏷️ Etikett für den Karton drucken
+            </button>
+            <button type="button" className={knopfRand} onClick={() => setEtikett(null)}>Fertig</button>
+          </div>
+          <p className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
+            55 × 30 mm für den Thermodrucker · Mehr als ein Etikett, wenn die Teile auf mehrere Kartons oder Beutel verteilt sind.
+          </p>
+        </div>
+      )}
 
       {!darfEinbuchen ? (
         <p className="text-sm text-[#65676b] dark:text-[#b0b3b8]">Einbuchen braucht das Recht zum Einlagern.</p>
@@ -648,6 +679,12 @@ function DruckFertigKarte({ id, stueckProPlatte, protokoll, darfEinbuchen }: {
                     {p.zurueckgenommenAm && <> · zurückgenommen {fmtDatum(p.zurueckgenommenAm)} · {p.zurueckgenommenVon}</>}
                   </div>
                 </div>
+                {!p.zurueckgenommenAm && (
+                  <button type="button" className={knopfRand} title="Karton-Etikett (55 × 30 mm) nachdrucken"
+                    onClick={() => void printDruckEtiketten([{ artikelId: p.artikelId, artikel: p.artikel, stueck: p.stueck, lagerplatz: p.lagerplatz, von: p.gedrucktVon, datum: p.createdAt }])}>
+                    🏷️ Etikett
+                  </button>
+                )}
                 {darfEinbuchen && p.zuruecknehmbar && (
                   <button type="button" className={knopfRand} onClick={() => setZurueckId(p.id)}>↩ Zurücknehmen</button>
                 )}
