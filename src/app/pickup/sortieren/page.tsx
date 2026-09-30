@@ -6,6 +6,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/routers";
 import { api } from "@/trpc/react";
 import { GRUPPEN_KURZNAME, type GruppenSchluessel } from "@/lib/pickup/technikGruppen";
+import { stellplatzBedeutung } from "@/lib/lager/stellplaetze";
 import { playScanErfolg, playNegativeSound, playNochmal } from "@/lib/pickup/scanSound";
 
 // ── Sortierhilfe am Zebra ─────────────────────────────────────────────────────
@@ -242,7 +243,7 @@ function Ergebnis({ e }: { e: Eintrag }) {
       {i.geraet && <div className="text-sm mt-1 opacity-90 line-clamp-2">{i.geraet}</div>}
       {(i.stellplatz || i.colli) && (
         <div className="text-xs mt-1 opacity-90">
-          laut Lagerfuchs: {[i.stellplatz, i.colli ? `Colli ${i.colli}` : null].filter(Boolean).join(" · ")}
+          laut Lagerfuchs: {[i.stellplatz, stellplatzBedeutung(i.stellplatz)?.kurz, i.colli ? `Colli ${i.colli}` : null].filter(Boolean).join(" · ")}
         </div>
       )}
       {i.ausgeschieden && <div className="text-sm font-black mt-1">⚠ Im letzten Lagerfuchs nicht mehr enthalten</div>}

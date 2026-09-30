@@ -11,7 +11,8 @@
  * Reine Logik, kein Netz, keine Datenbank.
  */
 
-import { besterOrt, gleicherOrt, ortText, istAussenbereich } from "../src/lib/teilespender/ort";
+import { besterOrt, gleicherOrt, ortText } from "../src/lib/teilespender/ort";
+import { stellplatzBedeutung, normStellplatz, BESONDERE_STELLPLAETZE } from "../src/lib/lager/stellplaetze";
 
 let passed = 0;
 let failed = 0;
@@ -109,14 +110,22 @@ check("nur Karton", ortText({ stellplatz: null, colli: "3.186.244" }), "Colli 3.
 check("nichts", ortText({ stellplatz: null, colli: null }), "—");
 check("leere Zeichenkette zählt als nichts", ortText({ stellplatz: "  ", colli: "" }), "—");
 
-// ── Außenbereich EMTS (ETL-0-9-0) ──────────────────────────────────────────
-console.log("\n── Außenbereich ──");
-check("Export-Schreibweise", istAussenbereich("ETL-0-9-0"), true);
-check("mit Lagernummer wie in ReForm", istAussenbereich("120-ETL-0-9-0"), true);
-check("klein und mit Leerzeichen", istAussenbereich("  etl-0-9-0 "), true);
-check("Nachbarfach ist drinnen", istAussenbereich("ETL-0-9-1"), false);
-check("anderes Regal ist drinnen", istAussenbereich("ETL-10-9-0"), false);
-check("kein Stellplatz → nicht außen", [istAussenbereich(null), istAussenbereich("")], [false, false]);
+// ── Besondere Stellplätze laut Aushang (src/lib/lager/stellplaetze.ts) ─────
+console.log("\n── Besondere Stellplätze ──");
+const ausserhalb = (s: string | null) => stellplatzBedeutung(s)?.ausserhalb === true;
+check("außerhalb EMTS: Export-Schreibweise", ausserhalb("ETL-0-9-0"), true);
+check("außerhalb EMTS: mit Lagernummer wie in ReForm", ausserhalb("120-ETL-0-9-0"), true);
+check("außerhalb EMTS: klein und mit Leerzeichen", ausserhalb("  etl-0-9-0 "), true);
+check("Nachbarfach ist kein Sonderplatz", stellplatzBedeutung("ETL-0-9-1"), null);
+check("anderes Regal ist kein Sonderplatz", stellplatzBedeutung("ETL-10-9-0"), null);
+check("kein Stellplatz → nichts", [stellplatzBedeutung(null), stellplatzBedeutung("")], [null, null]);
+check("Abholwagen / QS", stellplatzBedeutung("120-ETL-0-4-0")?.text, "EMTS-Abholwagen, Unterlagenschrank (Schrank 8) und QS Colli");
+check("Broker mit Lagernummer 123", stellplatzBedeutung("123-Broker")?.kurz, "Broker fertig");
+check("Recycler ohne Lagernummer (wie im Lagerfuchs)", stellplatzBedeutung("Recycler")?.kurz, "Recycler fertig");
+check("nur ETL-0-9-0 liegt außerhalb", BESONDERE_STELLPLAETZE.filter((b) => b.ausserhalb).map((b) => b.code), ["ETL-0-9-0"]);
+check("ETL-0-0-0 bewusst ohne Bedeutung (nicht auf dem Aushang)", stellplatzBedeutung("ETL-0-0-0"), null);
+check("normaler Regalplatz bleibt normal", stellplatzBedeutung("HL-07-32-01"), null);
+check("normStellplatz wirft nur die Lagernummer weg", [normStellplatz("120-ETL-0-4-0"), normStellplatz("HL-07-32-01")], ["ETL-0-4-0", "HL-07-32-01"]);
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────
 console.log(`\n${failed === 0 ? "✅" : "❌"}  ${passed} bestanden, ${failed} fehlgeschlagen\n`);

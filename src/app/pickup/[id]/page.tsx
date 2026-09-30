@@ -12,6 +12,7 @@ import { GeraetDetail, type PickupPos } from "../GeraetDetail";
 import { nurZiffern } from "@/lib/format/ziffern";
 import { playScanSound, playComplete, playColliKomplett, playNegativeSound, playNochmal, playWagenTreffer, playWagenLeer, type ScanResult } from "@/lib/pickup/scanSound";
 import { ordneWeg, planeRunden, naechsterHalt, richtungVon } from "@/lib/pickup/route";
+import { StellplatzSchild } from "@/components/lager/StellplatzSchild";
 import {
   werteScanAus, fehlerArt, wartezeitMs, ladeWarteschlange, speichereWarteschlange,
   mitLokalenFunden, type OffenerScan,
@@ -1602,6 +1603,8 @@ function NaechsterHaltKarte({
         )}
       </div>
       <div className="font-mono font-black text-3xl leading-tight text-[#202F61] dark:text-[#e4e6eb] break-all">📍 {ort}</div>
+      {/* Was ist das für ein Platz? (Aushang, src/lib/lager/stellplaetze.ts) */}
+      <StellplatzSchild stellplatz={halt} className="!text-base" />
       <div className="text-lg font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
         {istColli
           ? `${offene.length} ${offene.length === 1 ? "Colli" : "Collis"} hier holen`

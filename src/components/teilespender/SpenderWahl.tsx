@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { api } from "@/trpc/react";
 import { normalizeLogId, formatLogId } from "@/lib/pickup/logId";
-import { AussenbereichKurz } from "@/components/teilespender/Aussenbereich";
+import { StellplatzKurz } from "@/components/lager/StellplatzSchild";
 
 // ── „Aus welchem Gerät kam das Teil?" ────────────────────────────────────────
 //
@@ -114,7 +114,7 @@ export function SpenderWahl({ teile, wahl, onChange, aktiv = true }: Props) {
                     <span className="ml-1.5 font-sans font-normal opacity-70">
                       {v.stellplatz ?? "—"}
                     </span>
-                    <AussenbereichKurz stellplatz={v.stellplatz} />
+                    <StellplatzKurz stellplatz={v.stellplatz} />
                   </button>
                 );
               })}

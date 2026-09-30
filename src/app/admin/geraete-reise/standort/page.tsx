@@ -10,6 +10,7 @@ import { GeraeteReiseTabs } from "../_tabs";
 import { useGeraetModal } from "../_geraetModal";
 import { useColliModal } from "../_colliModal";
 import { formatEuro } from "../_format";
+import { stellplatzBedeutung } from "@/lib/lager/stellplaetze";
 
 // Geräte-Reise — Stellplatz Analyse: intelligentes Freitextfeld (versteht auch
 // „Lagernummer-Stellplatz"), Bereich-Chips, Stellplatz-Warenkorb (Mehrfach-
@@ -34,20 +35,24 @@ const cardCls = "bg-white dark:bg-[#242526] rounded-xl border border-[#ced4da] d
 // Antippbarer Chip (Bereich / Stellplatz). Status nie nur über Farbe: aktiv
 // zeigt zusätzlich ein ✓ + Klartext.
 function Chip({
-  label, anzahl, aktiv, onClick, farbe,
-}: { label: string; anzahl: number; aktiv: boolean; onClick: () => void; farbe: string }) {
+  label, anzahl, aktiv, onClick, farbe, hinweis,
+}: { label: string; anzahl: number; aktiv: boolean; onClick: () => void; farbe: string; hinweis?: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={aktiv}
+      title={hinweis}
       className="inline-flex items-center gap-2 px-4 rounded-xl border-2 font-bold text-base min-h-[56px] transition-colors"
       style={aktiv
         ? { background: farbe, borderColor: farbe, color: "white" }
         : { borderColor: "#ced4da", color: "inherit" }}
     >
       <span aria-hidden>{aktiv ? "✓" : "📦"}</span>
-      <span className="truncate max-w-[180px]">{label}</span>
+      <span className="flex flex-col items-start leading-tight min-w-0">
+        <span className="truncate max-w-[180px]">{label}</span>
+        {hinweis && <span className="truncate max-w-[180px] text-[11px] font-semibold opacity-80">{hinweis}</span>}
+      </span>
       <span
         className="text-sm font-black px-2 py-0.5 rounded-full"
         style={aktiv ? { background: "rgba(255,255,255,0.25)" } : { background: "rgba(0,0,0,0.06)" }}
@@ -311,6 +316,7 @@ export default function StellplatzAnalysePage() {
                 <Chip
                   key={s.stellplatz}
                   label={s.stellplatz}
+                  hinweis={stellplatzBedeutung(s.stellplatz)?.text}
                   anzahl={s.anzahl}
                   aktiv={korb.includes(s.stellplatz)}
                   farbe={GRUEN}
@@ -387,7 +393,12 @@ export default function StellplatzAnalysePage() {
                     <td className="px-4 py-3 text-[#1a1a1a] dark:text-[#e4e6eb]">
                       <span className="block truncate max-w-[280px]">{[g.hersteller, g.bezeichnung].filter(Boolean).join(" ") || "—"}</span>
                     </td>
-                    <td className="px-4 py-3 text-[#65676b] dark:text-[#b0b3b8]">{g.stellplatz || "—"}</td>
+                    <td className="px-4 py-3 text-[#65676b] dark:text-[#b0b3b8]">
+                      {g.stellplatz || "—"}
+                      {stellplatzBedeutung(g.stellplatz) && (
+                        <span className="block text-[11px] font-semibold">{stellplatzBedeutung(g.stellplatz)!.kurz}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       {g.colli ? (
                         <button
