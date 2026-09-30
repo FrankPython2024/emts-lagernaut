@@ -609,6 +609,21 @@ model TechnikerSession {
   online   Boolean  @default(false)
 }
 
+// Besondere Stellplätze mit Bedeutung (Aushang „für Gitterboxen: 120-ETL-0-1-0" …),
+// gepflegt unter /admin/stellplaetze (30.09.2026). `code` normalisiert OHNE
+// Lagernummer („ETL-0-4-0", „BROKER") — siehe normStellplatz in src/lib/lager/stellplaetze.ts.
+// Leere Tabelle → wird beim ersten Lesen mit dem Aushang befüllt.
+model StellplatzBedeutung {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique @db.VarChar(64)
+  kurz         String   @db.VarChar(40)
+  text         String   @db.VarChar(300)
+  ausserhalb   Boolean  @default(false)
+  geaendertVon String?  @db.VarChar(50)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 model LagerplatzConfig {
   id           Int      @id @default(autoincrement())
   code         String   @unique

@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 903) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 905) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1126,7 +1126,14 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   Aushang und hat deshalb bewusst KEINE Bedeutung, bis geklärt ist, was er ist.
   Angezeigt über `components/lager/StellplatzSchild.tsx` (ohne Emoji, Zebra-tauglich): Teilespender
   (`SpenderPanel`, `/admin/teilespender`, Kurzform in der Spenderauswahl), Pickup „Nächster Halt",
-  Sortierhilfe, Lagerfuchs-Reiter „Standort" (Kacheln + Tabelle). Neue Plätze NUR in der Liste eintragen.
+  Sortierhilfe, Lagerfuchs-Reiter „Standort" (Kacheln + Tabelle).
+  **Pflege über das Menü „📍 Stellplätze"** (`/admin/stellplaetze`, Stammdaten; Wunsch Frank 30.09.2026):
+  Tabelle `StellplatzBedeutung` (**`db push`**), Router `stellplatzInfo` — `liste` für die Schilder
+  (jeder Angemeldete, auch der Picker), `uebersicht` mit Gerätezahl laut Lagerfuchs + Vorschlägen für
+  ETL-0-…-Plätze ohne Eintrag (LAGERPLATZ_VIEW), `speichern`/`loeschen` (LAGERPLATZ_EDIT; kein seed-rbac).
+  ⚠️ `STANDARD_STELLPLAETZE` ist nur die Erstbefüllung: Eine LEERE Tabelle wird beim ersten Lesen mit dem
+  Aushang befüllt (auch wenn jemand alle Einträge löscht — die Seite warnt beim letzten). Schilder lesen
+  über `useStellplatzBedeutung()` (5 min zwischengespeichert), nie über die feste Liste.
 - **Suchfeld in beiden Geräte-Listen** (Panel und `/admin/teilespender`, letztere ab 6 Treffern):
   filtert LogID, Stellplatz, Colli und Bezeichnung; bei getippten LogIDs zählen **nur die Ziffern**
   („508795" findet „212.508.795").
@@ -1135,7 +1142,7 @@ Teilequelle, aber ihr Inhalt wurde von Hand gesucht.
   beim Weitertippen still aus dem Auftrag. Ebenso zählt die Kopfzeile die Gesamtzahl: Ein aktiver
   Filter darf nicht wie „Kein Spendergerät gefunden" aussehen.
 - **Tests:** `test:defekte` (52), `test:teilespender` (42), `test:auswahl` (15), `test:frische` (19),
-  `test:ort` (38), `test:bedarf` (29).
+  `test:ort` (40), `test:bedarf` (29).
 
 ### Statistik — Prüfung und Umbau (Sep 2026)
 

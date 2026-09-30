@@ -10,7 +10,7 @@ import { GeraeteReiseTabs } from "../_tabs";
 import { useGeraetModal } from "../_geraetModal";
 import { useColliModal } from "../_colliModal";
 import { formatEuro } from "../_format";
-import { stellplatzBedeutung } from "@/lib/lager/stellplaetze";
+import { useStellplatzBedeutung } from "@/components/lager/StellplatzSchild";
 
 // Geräte-Reise — Stellplatz Analyse: intelligentes Freitextfeld (versteht auch
 // „Lagernummer-Stellplatz"), Bereich-Chips, Stellplatz-Warenkorb (Mehrfach-
@@ -64,6 +64,8 @@ function Chip({
 }
 
 export default function StellplatzAnalysePage() {
+  // Bedeutung besonderer Plätze (gepflegt unter /admin/stellplaetze)
+  const stellplatzBedeutung = useStellplatzBedeutung();
   const { oeffneGeraet } = useGeraetModal();
   const { oeffneColli } = useColliModal();
   const inputRef = useRef<HTMLInputElement>(null);

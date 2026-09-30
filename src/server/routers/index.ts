@@ -8,6 +8,7 @@ import { warenkorbRouter }       from "./warenkorb";
 import { benutzerRouter }        from "./benutzer";
 import { statistikRouter }       from "./statistik";
 import { lagerplaetzeRouter }    from "./lagerplaetze";
+import { stellplatzInfoRouter }  from "./stellplatzInfo";
 import { geraeteLookupRouter }   from "./geraeteLookup";
 import { systemRouter }          from "./system";
 import { nachrichtenRouter }     from "./nachrichten";
@@ -62,6 +63,7 @@ export const appRouter = createTRPCRouter({
   benutzer:        benutzerRouter,
   statistik:       statistikRouter,
   lagerplaetze:    lagerplaetzeRouter,
+  stellplatzInfo:  stellplatzInfoRouter,
   geraeteLookup:   geraeteLookupRouter,
   system:          systemRouter,
   nachrichten:     nachrichtenRouter,

@@ -12,7 +12,8 @@
  */
 
 import { besterOrt, gleicherOrt, ortText } from "../src/lib/teilespender/ort";
-import { stellplatzBedeutung, normStellplatz, BESONDERE_STELLPLAETZE } from "../src/lib/lager/stellplaetze";
+import { findeBedeutung, normStellplatz, STANDARD_STELLPLAETZE } from "../src/lib/lager/stellplaetze";
+const stellplatzBedeutung = (s: string | null) => findeBedeutung(STANDARD_STELLPLAETZE, s);
 
 let passed = 0;
 let failed = 0;
@@ -122,9 +123,11 @@ check("kein Stellplatz → nichts", [stellplatzBedeutung(null), stellplatzBedeut
 check("Abholwagen / QS", stellplatzBedeutung("120-ETL-0-4-0")?.text, "EMTS-Abholwagen, Unterlagenschrank (Schrank 8) und QS Colli");
 check("Broker mit Lagernummer 123", stellplatzBedeutung("123-Broker")?.kurz, "Broker fertig");
 check("Recycler ohne Lagernummer (wie im Lagerfuchs)", stellplatzBedeutung("Recycler")?.kurz, "Recycler fertig");
-check("nur ETL-0-9-0 liegt außerhalb", BESONDERE_STELLPLAETZE.filter((b) => b.ausserhalb).map((b) => b.code), ["ETL-0-9-0"]);
+check("nur ETL-0-9-0 liegt außerhalb", STANDARD_STELLPLAETZE.filter((b) => b.ausserhalb).map((b) => b.code), ["ETL-0-9-0"]);
 check("ETL-0-0-0 bewusst ohne Bedeutung (nicht auf dem Aushang)", stellplatzBedeutung("ETL-0-0-0"), null);
 check("normaler Regalplatz bleibt normal", stellplatzBedeutung("HL-07-32-01"), null);
+check("leere oder fehlende Liste → nichts (vor dem ersten Laden)", [findeBedeutung(undefined, "ETL-0-9-0"), findeBedeutung([], "ETL-0-9-0")], [null, null]);
+check("jeder Standard-Code ist schon normalisiert", STANDARD_STELLPLAETZE.every((b) => normStellplatz(b.code) === b.code), true);
 check("normStellplatz wirft nur die Lagernummer weg", [normStellplatz("120-ETL-0-4-0"), normStellplatz("HL-07-32-01")], ["ETL-0-4-0", "HL-07-32-01"]);
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────

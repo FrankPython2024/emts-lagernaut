@@ -6,7 +6,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/routers";
 import { api } from "@/trpc/react";
 import { GRUPPEN_KURZNAME, type GruppenSchluessel } from "@/lib/pickup/technikGruppen";
-import { stellplatzBedeutung } from "@/lib/lager/stellplaetze";
+import { useStellplatzBedeutung } from "@/components/lager/StellplatzSchild";
 import { playScanErfolg, playNegativeSound, playNochmal } from "@/lib/pickup/scanSound";
 
 // ── Sortierhilfe am Zebra ─────────────────────────────────────────────────────
@@ -216,6 +216,7 @@ function GruppenChip({ e }: { e: Eintrag }) {
 }
 
 function Ergebnis({ e }: { e: Eintrag }) {
+  const stellplatzBedeutung = useStellplatzBedeutung();
   const gross = "rounded-2xl p-5 text-center shadow-sm";
   if (e.fehler) {
     return (
