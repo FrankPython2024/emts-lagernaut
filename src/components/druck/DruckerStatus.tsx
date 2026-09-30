@@ -151,7 +151,7 @@ export function DruckerStatus() {
 
       {darfStarten && (
         <div className="text-xs text-[#65676b] dark:text-[#b0b3b8]">
-          Druckbrücke {s.version ?? "?"} · gemeldet {vorWann(s.gemeldetAm)} ·{" "}
+          {/* Version und „gemeldet vor" stehen schon oben rechts im Kopf. */}
           <button type="button" className="underline" onClick={() => setKoppeln(true)}>Schlüssel neu erzeugen</button>
         </div>
       )}

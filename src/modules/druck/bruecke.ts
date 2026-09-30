@@ -36,6 +36,7 @@ export async function brueckeAngemeldet(req: NextApiRequest): Promise<boolean> {
 
 type Meldung = {
   version?: unknown;
+  bruecke?: unknown;
   verbindung?: unknown;
   fehler?: unknown;
   drucker?: unknown;
@@ -60,7 +61,9 @@ export async function meldenUndAbholen(m: Meldung) {
     where: { id: STAND_ID },
     data: {
       gemeldetAm: jetzt,
-      version:    text(m.version, 20),
+      // Die Brücke schickt ihre Version als bruecke.version (status() der Brücke) —
+      // bis 30.09.2026 las der Server nur m.version, die Karte zeigte deshalb „Druckbrücke ?".
+      version:    text(m.version ?? (m.bruecke && typeof m.bruecke === "object" ? (m.bruecke as { version?: unknown }).version : null), 20),
       verbindung,
       fehler:     text(m.fehler, 500),
       drucker:    drucker ? (drucker as object) : undefined,

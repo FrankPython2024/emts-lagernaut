@@ -1597,6 +1597,9 @@ Drucker ist ein **Bambu Lab P2S**, die Füße sind selbst konstruiert.
   `druckerStand.aktuell` ordnet den Druck über `istDerAuftrag` dem letzten GESTARTET-Auftrag (und damit
   `dateiId`) zu; Drucke aus Bambu Studio → ohne Vorschau, Hinweis „außerhalb von Lagernaut gestartet".
   Im Browser mit echten Druckerdaten und echter Vorschau geprüft (breit, schmal, Vorbereitung, fertig).
+  Nach Deploy am 30.09.2026 im Betrieb bestätigt (Frank: „sieht gut aus“; live „Filament wird gewechselt ·
+  Schritt 5 von 11“, Video 29 Bilder/s). ⚠️ Die Brücke meldet ihre Version als `bruecke.version` — der Server
+  las bis dahin nur `version`, die Karte zeigte „Druckbrücke ?“ (in `meldenUndAbholen` behoben).
 - **Karton-Etikett für gedruckte Teile** (Wunsch Frank 30.09.2026: „quasi ein Einlagerbeleg, damit wir am
   Karton kennzeichnen können, was es ist"): `src/lib/print/druckEtikett.ts`, 55 × 30 mm Thermodrucker,
   Regeln wie das Auslager-Etikett (nur Schwarz, fett, ≥ 6,5 pt, Nicht-ASCII als Entities). Inhalt:
