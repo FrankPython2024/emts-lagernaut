@@ -1883,6 +1883,7 @@ der LogID und `bereitsOffen` (offene Teile dieser Gruppe):
 - Offene Teile tragen auf der Kachel **„läuft schon"** — nur ein Hinweis, nicht gesperrt (ein zweites
   Stück kann gewollt sein). Vergleich über `teilNorm`.
 - Die neue Anfrage hängt über die LogID an derselben Gruppe in der Liste. Kein Schema, kein neues Recht.
+- Nach Deploy am 01.10.2026 im Betrieb bestätigt (Frank: „sieht gut aus, funktioniert“).
 
 ### Notizbuch (Sep 2026)
 
