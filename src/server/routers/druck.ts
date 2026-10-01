@@ -10,6 +10,7 @@ import { standortWhere } from "@/lib/auth/standortFilter";
 import { BuchungsTyp, Prisma } from "@prisma/client";
 import { STAND_ID, hashSchluessel, neuerSchluessel } from "@/modules/druck/bruecke";
 import { BRUECKE_STILL_MS, darfPlatteFreigeben, darfStarten, istDerAuftrag } from "@/lib/druck/warteschlange";
+import { autoStartGrund } from "@/lib/druck/autoDruck";
 import {
   DRUCK_TEILTYPEN_STANDARD, planeDruckliste, teiltypenAus, teiltypenText,
   type VorlageKurz,
@@ -367,7 +368,10 @@ export const druckRouter = createTRPCRouter({
       prisma.druckerStand.findUnique({ where: { id: STAND_ID } }),
       prisma.druckAuftrag.findMany({
         where: { status: { in: ["WARTET", "ABGEHOLT"] } }, orderBy: { createdAt: "asc" },
-        select: { id: true, titel: true, status: true, erstelltVon: true, createdAt: true, vorlageId: true },
+        select: {
+          id: true, titel: true, status: true, erstelltVon: true, createdAt: true, vorlageId: true,
+          automatisch: true, anfrageId: true, vorlage: { select: { material: true } },
+        },
       }),
       prisma.druckAuftrag.findMany({
         // Nach Start/Ende filtern, nicht nur nach Anlegen: Ein Freitag angelegter, Montag
@@ -435,7 +439,13 @@ export const druckRouter = createTRPCRouter({
       platteFreiAm:  stand?.platteFreiAm ?? null,
       startbereit:   start.ok,
       wartegrund:    start.ok ? null : start.grund,
-      warteschlange,
+      warteschlange: warteschlange.map(({ vorlage, ...w }) => ({
+        ...w,
+        // Warum ein automatischer Auftrag gerade nicht startet (Zeitfenster, Spule).
+        autoGrund: w.automatisch && w.status === "WARTET"
+          ? autoStartGrund({ jetzt, vorlageMaterial: vorlage?.material, spule: drucker?.spule?.typ ?? null })
+          : null,
+      })),
       zuletzt:       zuletzt.map((a) => ({
         id: a.id, titel: a.titel, status: a.status, meldung: a.meldung, erstelltVon: a.erstelltVon,
         createdAt: a.createdAt, gestartetAm: a.gestartetAm, vorlageId: a.vorlageId,

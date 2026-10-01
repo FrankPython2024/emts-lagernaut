@@ -18,6 +18,7 @@ import { phaseVon, restText, fertigUm } from "../src/lib/druck/druckerPhase";
 import { plattenAusZip, waehlePlatte, NUR_METADATEN } from "../src/modules/druck/vorschau";
 import { leseZip, schreibeZip } from "../src/lib/zip/einfach";
 import { herstellerVon, passtSuche, gruppiereNachHersteller } from "../src/lib/druck/vorlagenFilter";
+import { autoStartGrund, brauchtNeuenAuftrag } from "../src/lib/druck/autoDruck";
 import {
   grammFuerDruck, grammJeStueckSchaetzung, monateZwischen, werteAus, GRAMM_JE_STUECK_ERSATZ,
 } from "../src/lib/druck/auswertung";
@@ -130,6 +131,34 @@ console.log("\n── Bestand verteilen: geteilte Artikel und Pool (Audit 30.09.
   check("zwei Kompatibilitäten desselben Artikels am selben Modell: einmal", doppelt.jeZeile.get("x"), 7);
   const partnerFehlt = verteileBestand([{ zeile: "x", artikelId: 7 }], new Map([art(7, 4, 99)]), () => 1);
   check("Pool-Partner nicht geladen (anderer Standort) → nur eigener Bestand", partnerFehlt.jeZeile.get("x"), 4);
+}
+
+console.log("\n── Halbautomatischer Druck (01.10.2026) ──");
+{
+  // Deutsche Zeit: Oktober = Sommerzeit (UTC+2), Dezember = Winterzeit (UTC+1).
+  const um = (iso: string) => new Date(iso);
+  const pla = { vorlageMaterial: "PLA", spule: "PLA" };
+  check("Do 01.10. 10:00 → darf", autoStartGrund({ jetzt: um("2026-10-01T08:00:00Z"), ...pla }), null);
+  check("Do 01.10. 05:59 → zu früh", autoStartGrund({ jetzt: um("2026-10-01T03:59:00Z"), ...pla })?.includes("Mo–Fr 6–16"), true);
+  check("Do 01.10. 06:00 → darf", autoStartGrund({ jetzt: um("2026-10-01T04:00:00Z"), ...pla }), null);
+  check("Do 01.10. 15:59 → darf", autoStartGrund({ jetzt: um("2026-10-01T13:59:00Z"), ...pla }), null);
+  check("Do 01.10. 16:00 → zu spät", autoStartGrund({ jetzt: um("2026-10-01T14:00:00Z"), ...pla }) !== null, true);
+  check("Sa 03.10. (Tag der Einheit + Samstag) → nein", autoStartGrund({ jetzt: um("2026-10-03T08:00:00Z"), ...pla }) !== null, true);
+  check("Fr 25.12. Feiertag → nein, mit Namen", autoStartGrund({ jetzt: um("2026-12-25T09:00:00Z"), ...pla })?.includes("Weihnacht"), true);
+  check("Do 24.12. betriebsfrei → nein", autoStartGrund({ jetzt: um("2026-12-24T09:00:00Z"), ...pla })?.includes("betriebsfrei"), true);
+  check("Winterzeit: Mo 07.12. 06:30 deutsche Zeit → darf", autoStartGrund({ jetzt: um("2026-12-07T05:30:00Z"), ...pla }), null);
+  check("Spule PETG, Vorlage PLA → wartet mit Hinweis", autoStartGrund({ jetzt: um("2026-10-01T08:00:00Z"), vorlageMaterial: "PLA", spule: "PETG" }), "Spule passt nicht: PLA nötig, eingelegt ist PETG");
+  check("Spule unbekannt → kein Grund zu warten", autoStartGrund({ jetzt: um("2026-10-01T08:00:00Z"), vorlageMaterial: "PLA", spule: null }), null);
+  check("Vorlage ohne Material → egal welche Spule", autoStartGrund({ jetzt: um("2026-10-01T08:00:00Z"), vorlageMaterial: null, spule: "PETG" }), null);
+
+  const jetzt = um("2026-10-01T08:00:00Z");
+  const vor = (h: number) => new Date(jetzt.getTime() - h * 3600_000);
+  check("nichts offen → neuer Auftrag", brauchtNeuenAuftrag([], jetzt), true);
+  check("einer wartet schon → kein zweiter", brauchtNeuenAuftrag([{ status: "WARTET", erledigtAm: null, gestartetAm: null }], jetzt), false);
+  check("einer wird übertragen → kein zweiter", brauchtNeuenAuftrag([{ status: "ABGEHOLT", erledigtAm: null, gestartetAm: null }], jetzt), false);
+  check("Druck läuft/fertig, noch nicht eingebucht → deckt mit ab", brauchtNeuenAuftrag([{ status: "GESTARTET", erledigtAm: null, gestartetAm: vor(2) }], jetzt), false);
+  check("schon eingebucht → neuer Auftrag", brauchtNeuenAuftrag([{ status: "GESTARTET", erledigtAm: vor(1), gestartetAm: vor(3) }], jetzt), true);
+  check("alter, nie eingebuchter Druck (> 24 h) blockiert nicht ewig", brauchtNeuenAuftrag([{ status: "GESTARTET", erledigtAm: null, gestartetAm: vor(30) }], jetzt), true);
 }
 
 console.log("\n── Dateiarten ──");

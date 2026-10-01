@@ -147,8 +147,11 @@ export function DruckerStatus() {
             <li key={a.id} className="flex items-center gap-2 flex-wrap text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
               <span className="flex-1 min-w-[200px]">
                 {a.status === "ABGEHOLT" ? "📤" : "⏳"} <strong>{a.titel}</strong>
-                <span className="text-[#65676b] dark:text-[#b0b3b8]"> · {a.erstelltVon} {uhr(a.createdAt)} · </span>
+                <span className="text-[#65676b] dark:text-[#b0b3b8]">
+                  {" · "}{a.automatisch ? `automatisch${a.anfrageId ? ` für Anfrage #${a.anfrageId}` : ""}` : a.erstelltVon} {uhr(a.createdAt)} ·{" "}
+                </span>
                 {a.status === "ABGEHOLT" ? "wird an den Drucker übertragen…"
+                  : a.autoGrund ? <span className="text-[#8A5A00] dark:text-[#f7b928]">wartet: {a.autoGrund}</span>
                   : i > 0 ? "wartet auf den vorherigen Auftrag"
                   : s.startbereit ? "startet gleich" : <span className="text-[#8A5A00] dark:text-[#f7b928]">wartet: {s.wartegrund}</span>}
               </span>

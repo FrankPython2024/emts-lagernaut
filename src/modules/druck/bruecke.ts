@@ -11,6 +11,7 @@ import crypto from "crypto";
 import type { NextApiRequest } from "next";
 import { prisma } from "@/core/db/prisma";
 import { HAENGT_MELDUNG, darfStarten, haengt, platteNachBericht } from "@/lib/druck/warteschlange";
+import { autoStartGrund } from "@/lib/druck/autoDruck";
 
 export const STAND_ID = 1;
 
@@ -93,7 +94,15 @@ export async function meldenUndAbholen(m: Meldung) {
   const ok = darfStarten({ gemeldetAm: jetzt, verbindung, zustand, platteFrei, jetzt });
   if (!ok.ok) return { auftrag: null };
 
-  const naechster = await prisma.druckAuftrag.findFirst({ where: { status: "WARTET" }, orderBy: { createdAt: "asc" } });
+  // Ältester zuerst. Ein automatischer Auftrag außerhalb Mo–Fr 6–16 Uhr oder mit
+  // unpassender Spule wartet — ein Auftrag von Hand dahinter darf trotzdem.
+  const spule = drucker?.spule && typeof drucker.spule === "object" ? (drucker.spule as { typ?: unknown }).typ : null;
+  const wartend = await prisma.druckAuftrag.findMany({
+    where: { status: "WARTET" }, orderBy: { createdAt: "asc" },
+    select: { id: true, titel: true, vorlageId: true, automatisch: true, vorlage: { select: { material: true } } },
+  });
+  const naechster = wartend.find((w) => !w.automatisch
+    || !autoStartGrund({ jetzt, vorlageMaterial: w.vorlage?.material, spule: typeof spule === "string" ? spule : null }));
   if (!naechster) return { auftrag: null };
   const genommen = await prisma.druckAuftrag.updateMany({
     where: { id: naechster.id, status: "WARTET" },

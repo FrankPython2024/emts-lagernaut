@@ -10,6 +10,7 @@ import { emitToAdmins, emitToUser, emitToBackoffice } from "@/modules/realtime/s
 import { EVENTS } from "@/modules/realtime/events";
 import { invalidateTechnikerCache } from "@/modules/statistik/service";
 import { meilisearchSync } from "@/core/infra/meilisearchSync";
+import { autoDruckFuerAnfrage } from "@/modules/druck/autoDruck";
 
 export type GruppenAnfrage = {
   gruppenNr:    string | null;
@@ -99,6 +100,12 @@ export async function erstelleAnfrage(data: ErstelleAnfrageData): Promise<Anfrag
     geraeteName: anfrage.geraeteName, teil: anfrage.teil, status: anfrage.status,
     gruppenNr: anfrage.gruppenNr, testModus: anfrage.testModus,
   });
+
+  // Halbautomatischer 3D-Druck (01.10.2026): Kein Bestand → gibt es eine Vorlage mit
+  // Druckdatei? Dann Auftrag anlegen. Läuft danach und darf die Anfrage nie aufhalten.
+  if (status === AnfrageStatus.BEDARF && !anfrage.testModus && !anfrage.istSonderAnfrage) {
+    void autoDruckFuerAnfrage(anfrage.id);
+  }
 
   return anfrage;
 }

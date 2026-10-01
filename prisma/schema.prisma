@@ -1892,6 +1892,10 @@ model DruckAuftrag {
   beendetAm      DateTime?
   // „Fertig → einbuchen?" ist erledigt (eingebucht oder ausgeblendet).
   erledigtAm     DateTime?
+  // Halbautomatisch (01.10.2026): von einer Anfrage ohne Bestand angelegt —
+  // startet nur Mo–Fr 6–16 Uhr und mit passender Spule (src/lib/druck/autoDruck.ts).
+  automatisch    Boolean       @default(false)
+  anfrageId      Int?
   createdAt      DateTime      @default(now())
 
   @@index([status])
