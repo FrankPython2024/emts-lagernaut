@@ -1763,6 +1763,7 @@ Start nur **Mo–Fr 6–16 Uhr**, bei falscher Spule **warten mit Hinweis**. **`
 - **Probelauf an der Produktion** (01.10.2026, ohne Anlegen): von 23 Füße-Anfragen „nicht verfügbar" in
   90 Tagen hätten 12 einen Auftrag ausgelöst (ProBook x360 435 G8 vorne/hinten, Latitude 7410 vorne);
   bei den übrigen fehlt eine Vorlage. Im echten Betrieb weniger Drucke, weil die Doppel-Sperre greift.
+- Nach Deploy am 01.10.2026 im Betrieb bestätigt (Frank: „funktioniert!“).
 
 ### Urlaubsplanung (29.09.2026)
 
