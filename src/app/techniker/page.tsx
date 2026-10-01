@@ -14,7 +14,7 @@ import { getLucideIcon } from "@/lib/icons/getLucideIcon";
 import { useTestModus, darfTestModus } from "@/lib/testModus/testModus";
 import { usePermissions } from "@/hooks/usePermissions";
 import MobilAnfrageBereich from "./MobilAnfrageBereich";
-import { sortiereNachHaeufigkeit } from "@/lib/anfragen/haeufigkeit";
+import { sortiereNachHaeufigkeit, teilNorm } from "@/lib/anfragen/haeufigkeit";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -118,6 +118,9 @@ export default function TechnikerPage() {
 
   const [showFlow,         setShowFlow]         = useState(false);
   const [flowInitialLogId, setFlowInitialLogId] = useState<string | null>(null);
+  // Nachbestellen aus dem Detail-Fenster (Wunsch Frank 01.10.2026): direkt zu den
+  // Teilen, ohne den Hinweis „für diese LogID läuft schon etwas" — das weiß man ja.
+  const [flowNachbestellen, setFlowNachbestellen] = useState<string[] | null>(null);
   const [cardLogId,        setCardLogId]        = useState("");
   const [detailGruppe,     setDetailGruppe]     = useState<GruppeData | null>(null);
   const [suchTerm,         setSuchTerm]         = useState("");
@@ -350,8 +353,9 @@ export default function TechnikerPage() {
           kuerzel={kuerzel}
           testModus={testModusAktiv}
           initialLogId={flowInitialLogId}
-          onClose={() => { setShowFlow(false); setFlowInitialLogId(null); }}
-          onSuccess={() => { setShowFlow(false); setFlowInitialLogId(null); anfragenQuery.refetch(); }}
+          bereitsOffen={flowNachbestellen}
+          onClose={() => { setShowFlow(false); setFlowInitialLogId(null); setFlowNachbestellen(null); }}
+          onSuccess={() => { setShowFlow(false); setFlowInitialLogId(null); setFlowNachbestellen(null); anfragenQuery.refetch(); }}
           onOpenGruppe={(g) => {
             setShowFlow(false);
             setFlowInitialLogId(null);
@@ -367,6 +371,11 @@ export default function TechnikerPage() {
           gruppe={detailGruppe}
           kuerzel={kuerzel}
           onClose={() => { setDetailGruppe(null); anfragenQuery.refetch(); }}
+          onNachbestellen={darfLaptop ? (logId, offen) => {
+            setDetailGruppe(null);
+            setFlowNachbestellen(offen);
+            startFlow(logId);
+          } : undefined}
         />
       )}
       </>
@@ -485,6 +494,7 @@ function AnfrageFlow({
   kuerzel,
   testModus,
   initialLogId,
+  bereitsOffen = null,
   onClose,
   onSuccess,
   onOpenGruppe,
@@ -492,6 +502,13 @@ function AnfrageFlow({
   kuerzel:      string;
   testModus:    boolean;
   initialLogId: string | null;
+  /**
+   * Nachbestellen aus einer laufenden Anfrage: noch offene Teile dieser LogID.
+   * Gesetzt → nach dem Geräte-Lookup sofort zu den Teilen (kein Offene-Hinweis),
+   * und die offenen Teile tragen „läuft schon" (nur Hinweis, nicht gesperrt —
+   * ein zweites Stück kann gewollt sein).
+   */
+  bereitsOffen?: string[] | null;
   onClose:      () => void;
   onSuccess:    () => void;
   onOpenGruppe: (g: GruppeData) => void;
@@ -560,7 +577,8 @@ function AnfrageFlow({
     if (logIdLookup.isSuccess && logIdLookup.data) {
       if (logIdLookup.data.gefunden) {
         setSelectedGeraet({ logId: logIdLookup.data.logId, bereinigt: logIdLookup.data.bereinigt });
-        setPruefeOffene(true);
+        if (bereitsOffen) setStep("teile");
+        else setPruefeOffene(true);
       } else {
         show(`LogID „${logIdQuery}" nicht gefunden. Bitte erneut versuchen.`, "error");
         setStep("logid");
@@ -713,6 +731,7 @@ function AnfrageFlow({
     }
   }
 
+  const laeuftSchon = useMemo(() => new Set((bereitsOffen ?? []).map(teilNorm)), [bereitsOffen]);
   const teile    = useMemo(
     () => sortiereNachHaeufigkeit(teileQuery.data?.teile ?? [], haeufigkeitQuery.data),
     [teileQuery.data, haeufigkeitQuery.data],
@@ -869,6 +888,11 @@ function AnfrageFlow({
                         style={{ color: sel ? "var(--auswahl-fg)" : "var(--text-dim)", flexShrink: 0 }}
                       />
                       <span>{t.teiltyp}</span>
+                      {laeuftSchon.has(teilNorm(t.teiltyp)) && (
+                        <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--text-dim)", lineHeight: 1.2 }}>
+                          läuft schon
+                        </span>
+                      )}
                       {t.oft && (
                         <span
                           aria-label={`oft angefragt: ${t.anfragen}-mal für dieses Gerät`}
@@ -1528,10 +1552,13 @@ function AnfrageDetailModal({
   gruppe,
   kuerzel,
   onClose,
+  onNachbestellen,
 }: {
   gruppe:  GruppeData;
   kuerzel: string;
   onClose: () => void;
+  /** Weiteres Teil für dieselbe LogID anfragen (fehlt ohne Recht ANFRAGE_CREATE). */
+  onNachbestellen?: (logId: string, offeneTeile: string[]) => void;
 }) {
   const { show }             = useToast();
   const [confirmStorno, setConfirmStorno] = useState(false);
@@ -1720,6 +1747,24 @@ function AnfrageDetailModal({
               </p>
             )}
           </div>
+
+          {/* Schnell nachbestellen (Wunsch Frank 01.10.2026): weiteres Teil für dieses
+              Gerät, ohne die LogID neu zu scannen. Nur mit echter LogID. */}
+          {hasLogId && onNachbestellen && (
+            <div style={{ marginBottom: "1.5rem" }}>
+              <button
+                onClick={() => onNachbestellen(
+                  gruppe.logId!,
+                  gruppe.anfragen
+                    .filter(a => !storniert.has(a.id) && (a.status === "NEU" || a.status === "BEDARF" || a.status === "IN_BEARBEITUNG"))
+                    .map(a => a.teil),
+                )}
+                style={primaryBtn(true, "#037A4F")}
+              >
+                ＋ Weiteres Teil für dieses Gerät anfragen
+              </button>
+            </div>
+          )}
 
           {/* Nachrichten */}
           <div style={{ marginBottom: kannStornieren ? "1.5rem" : 0 }}>

@@ -1872,6 +1872,18 @@ E14 Gen 4 Füße vorne 51 von 66, X1 Yoga Gen 6 Akku 23 von 38, 5520 D Cover/Tas
   Kachel (Teiltyp bewusst deaktiviert). Nebenbei: Schrift auf ausgewählten Flächen stand fest auf
   `#005fa3` und war im Dunkelmodus kaum lesbar (1,9:1) → `--auswahl-fg` (hell #005fa3, dunkel #45bdff).
 
+### Techniker-Portal: Nachbestellen aus der laufenden Anfrage (01.10.2026)
+
+Wunsch Frank: in der Anfragen-Liste der Techniker, im Detail einer Anfrage, ein Schnellknopf, um für
+dieselbe LogID noch ein Ersatzteil anzufragen. `AnfrageDetailModal` hat jetzt **„＋ Weiteres Teil für
+dieses Gerät anfragen"** (nur mit echter LogID und Recht ANFRAGE_CREATE). Er öffnet `AnfrageFlow` mit
+der LogID und `bereitsOffen` (offene Teile dieser Gruppe):
+- Nach dem Geräte-Lookup geht es **direkt zu den Teilen** — der Hinweis „für diese LogID läuft schon
+  etwas" (`OffeneAnfragenHinweisModal`) wird übersprungen, man kommt ja gerade von dort.
+- Offene Teile tragen auf der Kachel **„läuft schon"** — nur ein Hinweis, nicht gesperrt (ein zweites
+  Stück kann gewollt sein). Vergleich über `teilNorm`.
+- Die neue Anfrage hängt über die LogID an derselben Gruppe in der Liste. Kein Schema, kein neues Recht.
+
 ### Notizbuch (Sep 2026)
 
 Sammellisten für alles, was sonst auf einem Zettel landet: mehrere LogIDs hintereinander
