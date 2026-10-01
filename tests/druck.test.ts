@@ -18,7 +18,7 @@ import { phaseVon, restText, fertigUm } from "../src/lib/druck/druckerPhase";
 import { plattenAusZip, waehlePlatte, NUR_METADATEN } from "../src/modules/druck/vorschau";
 import { leseZip, schreibeZip } from "../src/lib/zip/einfach";
 import { herstellerVon, passtSuche, gruppiereNachHersteller } from "../src/lib/druck/vorlagenFilter";
-import { autoStartGrund, brauchtNeuenAuftrag } from "../src/lib/druck/autoDruck";
+import { autoStartGrund, brauchtNeuenAuftrag, nachdruckFehlt } from "../src/lib/druck/autoDruck";
 import { druckHinweis } from "../src/lib/druck/anfrageDruck";
 import {
   grammFuerDruck, grammJeStueckSchaetzung, monateZwischen, werteAus, GRAMM_JE_STUECK_ERSATZ,
@@ -175,6 +175,14 @@ console.log("\n── „Im 3D-Druck“ an der Anfrage (01.10.2026) ──");
   check("fertig → einbuchen, eigene Farbe", [fertig.text, fertig.fertig], ["fertig gedruckt — noch einbuchen", true]);
   check("Drucker druckt schon etwas anderes → dieser ist fertig", druckHinweis({ ...basis, status: "GESTARTET", istAktuell: false, zustand: "RUNNING" }).fertig, true);
   check("abgebrochen", druckHinweis({ ...basis, status: "GESTARTET", istAktuell: true, zustand: "FAILED" }).text, "Druck abgebrochen — bitte am Drucker nachsehen");
+}
+
+console.log("\n── Nachdruck nach dem Einbuchen (01.10.2026) ──");
+{
+  check("6 offen, 5 eingebucht → hinten fehlt noch", nachdruckFehlt([{ teiltyp: "Füße hinten", offenStueck: 6, bestand: 5 }]), ["Füße hinten"]);
+  check("Bestand reicht → nichts", nachdruckFehlt([{ teiltyp: "Füße hinten", offenStueck: 5, bestand: 5 }]), []);
+  check("vorne reicht, hinten nicht", nachdruckFehlt([{ teiltyp: "Füße vorne", offenStueck: 2, bestand: 9 }, { teiltyp: "Füße hinten", offenStueck: 4, bestand: 1 }]), ["Füße hinten"]);
+  check("keine offenen Anfragen → nichts", nachdruckFehlt([{ teiltyp: "Füße vorne", offenStueck: 0, bestand: 0 }]), []);
 }
 
 console.log("\n── Dateiarten ──");

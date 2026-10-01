@@ -39,6 +39,17 @@ export function autoStartGrund(l: {
 }
 
 /**
+ * Nachdruck nach dem Einbuchen (Frank, 01.10.2026): Reicht der Bestand jetzt für
+ * alle offenen Anfragen dieser Vorlage? Liefert die Teiltypen, bei denen noch etwas
+ * fehlt (offene Stück > Bestand). Leer = nichts nachzudrucken.
+ * Anlass: Mehr Anfragen als eine Platte Füße bringt (6 Anfragen, 5 je Platte) —
+ * die übrigen Anfragen lösten keinen zweiten Druck mehr aus.
+ */
+export function nachdruckFehlt(je: readonly { teiltyp: string; offenStueck: number; bestand: number }[]): string[] {
+  return je.filter((z) => z.offenStueck > z.bestand).map((z) => z.teiltyp);
+}
+
+/**
  * Braucht es für diese Vorlage einen neuen automatischen Auftrag? Nein, wenn schon
  * einer wartet oder unterwegs ist, oder ein Druck läuft/fertig ist und noch nicht
  * eingebucht wurde — eine Platte bringt mehrere Stück, zwei Anfragen = ein Druck.

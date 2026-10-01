@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1030) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1034) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1773,6 +1773,18 @@ Start nur **Mo–Fr 6–16 Uhr**, bei falscher Spule **warten mit Hinweis**. **`
   `src/modules/druck/anfrageDruck.ts`), alle 15 s; ohne laufende Aufträge sofort leer (~20 ms gemessen).
   ⚠️ **Nur im Admin — die Techniker sehen davon nichts** (Entscheidung Frank: „der Techniker braucht
   überhaupt nichts dazu wissen").
+- **Nachdruck nach dem Einbuchen** (Frank, gleicher Tag): Vorher löste nur die Anfrage selbst einen Druck
+  aus — kamen mehr Anfragen, als eine Platte Füße bringt (6 Anfragen, 5 je Platte), druckte niemand nach.
+  Jetzt ruft `druck.einbuchen` nach dem Abhaken des Auftrags (`erledigtAm`, sonst hielte er die Sperre)
+  `nachdruckFuerVorlage` auf: offene Anfragen (NEU/BEDARF/IN_BEARBEITUNG, Modell über die Roh-Bezeichnung)
+  je Teiltyp gegen den Bestand der Artikel dieser Modelle samt Pool-Partner (`nachdruckFehlt`). Fehlt noch
+  etwas, mindestens eine davon ist BEDARF und kein Auftrag offen → nächster automatischer Auftrag (Auslöser
+  = älteste BEDARF-Anfrage). Startet wie jeder automatische erst nach „Platte ist leer", Mo–Fr 6–16 Uhr.
+  Gilt auch für Drucke, die von Hand gestartet wurden.
+- **Drucker beschäftigt, wenn die Anfrage kommt:** Der Auftrag wird sofort angelegt und wartet („Druck wartet —
+  Drucker druckt gerade", danach „… Platte noch belegt"); er startet nach Einbuchen + „Platte ist leer".
+  Druckt der Drucker gerade dieselbe Vorlage, entsteht kein zweiter Auftrag. Ein Druck direkt aus Bambu
+  Studio ist kein Auftrag und deckt deshalb nichts ab.
 
 ### Urlaubsplanung (29.09.2026)
 

@@ -19,6 +19,7 @@ import { druckdateiInfo, waehlePlatte } from "@/modules/druck/vorschau";
 import { grammFuerEinbuchen, ladeAuswertung, setzeFilamentPreis } from "@/modules/druck/auswertung";
 import { ladeBedarf, sauberName } from "@/modules/druck/bedarf";
 import { druckFuerAnfragen } from "@/modules/druck/anfrageDruck";
+import { nachdruckFuerVorlage } from "@/modules/druck/autoDruck";
 
 // ── 3D-Druck: Druckvorlagen + Druckliste (Paket 1, 24.09.2026) ───────────────
 // Lesen: ARTIKEL_VIEW. Pflegen: ARTIKEL_EDIT. Kein neues Recht, kein seed-rbac.
@@ -311,6 +312,10 @@ export const druckRouter = createTRPCRouter({
         where: { vorlageId: vorlage.id, status: "GESTARTET", erledigtAm: null },
         data:  { erledigtAm: new Date() },
       });
+      // Reicht der neue Bestand für alle offenen Anfragen dieser Vorlage? Sonst gleich
+      // den nächsten automatischen Druck anlegen (Frank, 01.10.2026). ERST nach dem
+      // erledigtAm oben — sonst hielte der eben eingebuchte Druck die Sperre.
+      void nachdruckFuerVorlage(vorlage.id);
       // Für das Karton-Etikett (src/lib/print/druckEtikett.ts) gleich mitliefern.
       const platz = await prisma.artikel.findUnique({ where: { id: ziel.id }, select: { lagerplatz: true } });
       return {
