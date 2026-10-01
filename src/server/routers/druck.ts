@@ -18,6 +18,7 @@ import {
 import { druckdateiInfo, waehlePlatte } from "@/modules/druck/vorschau";
 import { grammFuerEinbuchen, ladeAuswertung, setzeFilamentPreis } from "@/modules/druck/auswertung";
 import { ladeBedarf, sauberName } from "@/modules/druck/bedarf";
+import { druckFuerAnfragen } from "@/modules/druck/anfrageDruck";
 
 // ── 3D-Druck: Druckvorlagen + Druckliste (Paket 1, 24.09.2026) ───────────────
 // Lesen: ARTIKEL_VIEW. Pflegen: ARTIKEL_EDIT. Kein neues Recht, kein seed-rbac.
@@ -536,6 +537,11 @@ export const druckRouter = createTRPCRouter({
   auswertung: lesen
     .input(z.object({ tage: z.number().int().positive().max(3650).nullable() }))
     .query(async ({ ctx, input }) => ladeAuswertung(input.tage, standortWhere(ctx) as Prisma.ArtikelWhereInput)),
+
+  // „Im 3D-Druck" an offenen Anfragen (Admin-Anfragenliste, 01.10.2026) — Sammelabfrage.
+  druckFuerAnfragen: lesen
+    .input(z.object({ anfrageIds: z.array(z.number().int().positive()).max(200) }))
+    .query(({ input }) => druckFuerAnfragen(input.anfrageIds)),
 
   filamentPreisSetzen: pflegen
     .input(z.object({ euroProKg: z.number().min(0).max(1000) }))

@@ -13,6 +13,7 @@ import { UeberfaelligBadge } from "@/components/anfragen/UeberfaelligBadge";
 import { useNow } from "@/hooks/useNow";
 import { istUeberfaellig, verstricheneZeit } from "@/lib/anfragen/ueberfaellig";
 import { usePermissions } from "@/hooks/usePermissions";
+import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { BelegModal, MehrBelegModal } from "@/components/ui/BelegModal";
@@ -365,6 +366,8 @@ function AnfragenPageInner() {
   // Ohne dieses Recht bleibt der Teilespender komplett aus — sonst liefe alle
   // 30 Sekunden eine Abfrage in einen 403.
   const canSpender = has("TEILESPENDER_VIEW");
+  // Druckstand lesen = Leserecht der 3D-Druck-Seite.
+  const canDruck = has("ARTIKEL_VIEW");
   const { activeStandortId } = useStandortFilter();
   const { on, off } = useSocket();
   const { data: session } = useSession();
@@ -491,6 +494,15 @@ function AnfragenPageInner() {
     { enabled: canSpender && bedarfIds.length > 0, staleTime: 30_000, retry: false },
   );
   const teilespenderHinweise = teilespenderQ.data ?? {};
+
+  // ── Im 3D-Druck (01.10.2026) ────────────────────────────────────────────────
+  // Läuft für Modell + Teil dieser Anfrage gerade ein Druck (auch der automatische)?
+  // Nur hier im Admin — die Techniker sollen davon nichts sehen (Frank).
+  const druckQ = api.druck.druckFuerAnfragen.useQuery(
+    { anfrageIds: bedarfIds },
+    { enabled: canDruck && bedarfIds.length > 0, staleTime: 10_000, refetchInterval: 15_000, retry: false },
+  );
+  const druckHinweise = druckQ.data ?? {};
 
   // Welche Gruppe hat gerade das Spender-Panel offen?
   // `weitere` = übrige Zielgeräte, wenn ein Bündel gleicher Teile sucht.
@@ -1172,6 +1184,11 @@ function AnfragenPageInner() {
                         {/* Kein loses Teil im Regal, aber ein Spendergerät hat es
                             noch drin. Nur hier im Admin — der Techniker soll das
                             nicht als Verfügbarkeit lesen. */}
+                        {druckHinweise[a.id] && (
+                          <Link href="/admin/druck" className={`block text-xs mt-0.5 font-bold hover:underline ${druckHinweise[a.id]!.fertig ? "text-[#037A4F] dark:text-[#3ddc97]" : "text-[#0064d2] dark:text-[#45bdff]"}`}>
+                            🖨️ Im 3D-Druck: {druckHinweise[a.id]!.text}
+                          </Link>
+                        )}
                         {spenderHinweise[a.id] && (
                           <div className="text-xs text-[#8A5A00] dark:text-[#f7b928] mt-0.5 font-semibold">
                             🖥️ {spenderHinweise[a.id]!.length} Spendergerät

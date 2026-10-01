@@ -19,6 +19,7 @@ import { plattenAusZip, waehlePlatte, NUR_METADATEN } from "../src/modules/druck
 import { leseZip, schreibeZip } from "../src/lib/zip/einfach";
 import { herstellerVon, passtSuche, gruppiereNachHersteller } from "../src/lib/druck/vorlagenFilter";
 import { autoStartGrund, brauchtNeuenAuftrag } from "../src/lib/druck/autoDruck";
+import { druckHinweis } from "../src/lib/druck/anfrageDruck";
 import {
   grammFuerDruck, grammJeStueckSchaetzung, monateZwischen, werteAus, GRAMM_JE_STUECK_ERSATZ,
 } from "../src/lib/druck/auswertung";
@@ -159,6 +160,21 @@ console.log("\n── Halbautomatischer Druck (01.10.2026) ──");
   check("Druck läuft/fertig, noch nicht eingebucht → deckt mit ab", brauchtNeuenAuftrag([{ status: "GESTARTET", erledigtAm: null, gestartetAm: vor(2) }], jetzt), false);
   check("schon eingebucht → neuer Auftrag", brauchtNeuenAuftrag([{ status: "GESTARTET", erledigtAm: vor(1), gestartetAm: vor(3) }], jetzt), true);
   check("alter, nie eingebuchter Druck (> 24 h) blockiert nicht ewig", brauchtNeuenAuftrag([{ status: "GESTARTET", erledigtAm: null, gestartetAm: vor(30) }], jetzt), true);
+}
+
+console.log("\n── „Im 3D-Druck“ an der Anfrage (01.10.2026) ──");
+{
+  const jetzt = new Date("2026-10-01T08:00:00Z"); // 10:00 deutsche Zeit
+  const basis = { auftragId: 7, istAktuell: false, zustand: null, fortschritt: null, restMinuten: null, wartegrund: null, jetzt };
+  check("wartet, startet gleich", druckHinweis({ ...basis, status: "WARTET" }).text, "Druck startet gleich");
+  check("wartet mit Grund", druckHinweis({ ...basis, status: "WARTET", wartegrund: "Platte noch belegt" }).text, "Druck wartet — Platte noch belegt");
+  check("wird übertragen", druckHinweis({ ...basis, status: "ABGEHOLT" }).text, "wird an den Drucker übertragen");
+  check("druckt mit Fortschritt und Ende", druckHinweis({ ...basis, status: "GESTARTET", istAktuell: true, zustand: "RUNNING", fortschritt: 47, restMinuten: 18 }).text, "wird gedruckt · 47 % · fertig ca. 10:18");
+  check("Vorbereitung zählt als druckt", druckHinweis({ ...basis, status: "GESTARTET", istAktuell: true, zustand: "PREPARE", fortschritt: 0, restMinuten: 35 }).text.startsWith("wird gedruckt"), true);
+  const fertig = druckHinweis({ ...basis, status: "GESTARTET", istAktuell: true, zustand: "FINISH", fortschritt: 100 });
+  check("fertig → einbuchen, eigene Farbe", [fertig.text, fertig.fertig], ["fertig gedruckt — noch einbuchen", true]);
+  check("Drucker druckt schon etwas anderes → dieser ist fertig", druckHinweis({ ...basis, status: "GESTARTET", istAktuell: false, zustand: "RUNNING" }).fertig, true);
+  check("abgebrochen", druckHinweis({ ...basis, status: "GESTARTET", istAktuell: true, zustand: "FAILED" }).text, "Druck abgebrochen — bitte am Drucker nachsehen");
 }
 
 console.log("\n── Dateiarten ──");

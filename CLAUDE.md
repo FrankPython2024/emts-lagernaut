@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1022) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1030) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1764,6 +1764,15 @@ Start nur **Mo–Fr 6–16 Uhr**, bei falscher Spule **warten mit Hinweis**. **`
   90 Tagen hätten 12 einen Auftrag ausgelöst (ProBook x360 435 G8 vorne/hinten, Latitude 7410 vorne);
   bei den übrigen fehlt eine Vorlage. Im echten Betrieb weniger Drucke, weil die Doppel-Sperre greift.
 - Nach Deploy am 01.10.2026 im Betrieb bestätigt (Frank: „funktioniert!“).
+- **„🖨️ Im 3D-Druck" in der Admin-Anfragenliste** (Wunsch Frank, gleicher Tag): an jeder BEDARF-Anfrage,
+  für deren Modell + Teiltyp ein Druckauftrag wartet, übertragen wird, druckt oder gedruckt und noch nicht
+  eingebucht ist — auch wenn eine ANDERE Anfrage ihn ausgelöst hat (zwei Anfragen = ein Druck). Texte in
+  leichter Sprache aus `druckHinweis()` (`src/lib/druck/anfrageDruck.ts`): „Druck startet gleich" /
+  „Druck wartet — <Grund>" / „wird übertragen" / „wird gedruckt · 47 % · fertig ca. 13:59" / „fertig
+  gedruckt — noch einbuchen" (grün). Sammelabfrage `druck.druckFuerAnfragen` (ARTIKEL_VIEW,
+  `src/modules/druck/anfrageDruck.ts`), alle 15 s; ohne laufende Aufträge sofort leer (~20 ms gemessen).
+  ⚠️ **Nur im Admin — die Techniker sehen davon nichts** (Entscheidung Frank: „der Techniker braucht
+  überhaupt nichts dazu wissen").
 
 ### Urlaubsplanung (29.09.2026)
 
