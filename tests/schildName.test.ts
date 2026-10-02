@@ -181,10 +181,10 @@ check("Bögen: 15 ab Feld 1", boegenFuer(15), 2);
 check("Bögen: 1 ab Feld 14", boegenFuer(1, 14), 1);
 check("Bögen: 2 ab Feld 14", boegenFuer(2, 14), 2);
 check("Bögen: 0", boegenFuer(0), 0);
-check("Feld 1 oben links", feldLage(0), { bogen: 0, spalte: 0, reihe: 0, linksMm: 5, obenMm: 15.5 });
-check("Feld 2 oben rechts", feldLage(1), { bogen: 0, spalte: 1, reihe: 0, linksMm: 105, obenMm: 15.5 });
-check("Feld 14 unten rechts endet bei 281,5 mm", feldLage(13).obenMm + 38, 281.5);
-check("Feld 15 = zweiter Bogen oben links", feldLage(14), { bogen: 1, spalte: 0, reihe: 0, linksMm: 5, obenMm: 15.5 });
+check("Feld 1 oben links", feldLage(0), { bogen: 0, spalte: 0, reihe: 0, linksMm: 5, obenMm: 9 });
+check("Feld 2 oben rechts", feldLage(1), { bogen: 0, spalte: 1, reihe: 0, linksMm: 105, obenMm: 9 });
+check("Feld 14 unten rechts endet bei 275 mm", feldLage(13).obenMm + 38, 275);
+check("Feld 15 = zweiter Bogen oben links", feldLage(14), { bogen: 1, spalte: 0, reihe: 0, linksMm: 5, obenMm: 9 });
 check("Schrift: kurz groß, lang klein", [codeSchriftPt("A1"), codeSchriftPt("HL-07-01"), codeSchriftPt("ETL-10-4-3"), codeSchriftPt("X".repeat(40))], [36, 32.5, 26, 9]);
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────

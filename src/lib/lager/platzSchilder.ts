@@ -5,14 +5,16 @@
 // Liste eingeben. Der QR-Code enthält GENAU den eingegebenen Platznamen.
 //
 // ET300 laut Orgatex: DIN A4, Karton 160 g, mikroperforiert, 14 Einsteckschilder
-// je 38 × 100 mm → 2 Spalten × 7 Reihen (200 × 266 mm), mittig auf dem Bogen:
-// links/rechts je 5 mm, oben/unten je 15,5 mm. Ob der Drucker genau trifft, zeigt
-// ein Probedruck auf Normalpapier; der Versatz ist einstellbar.
+// je 38 × 100 mm → 2 Spalten × 7 Reihen (200 × 266 mm), links/rechts je 5 mm.
+// ⚠️ Oben 9 mm, NICHT mittig: Zuerst aus den Maßen abgeleitet (15,5 mm oben/unten),
+// beim ersten Probedruck passte es erst mit −6,5 mm (Frank, 02.10.2026) — für eine
+// Druckerabweichung zu viel, also liegt das Raster auf dem Bogen höher. Feinjustierung
+// je PC bleibt für die Eigenheiten einzelner Drucker.
 //
 // Reine Logik — Test: `npm run test:schild`.
 
 export const ET300 = {
-  spalten: 2, reihen: 7, breiteMm: 100, hoeheMm: 38, randLinksMm: 5, randObenMm: 15.5,
+  spalten: 2, reihen: 7, breiteMm: 100, hoeheMm: 38, randLinksMm: 5, randObenMm: 9,
 } as const;
 export const ET300_JE_BOGEN = ET300.spalten * ET300.reihen;
 

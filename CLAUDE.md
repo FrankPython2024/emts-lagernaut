@@ -1987,9 +1987,11 @@ Bezug zu den ETL-Fächern (`lagerplatz`) oder `LagerplatzConfig`. **QR-Code = ge
   vorhandene Plätze bleiben, nur eine neue Beschreibung wird übernommen; alle eingegebenen sind danach
   zum Drucken ausgewählt.
 - **Druck** (`src/lib/print/et300.ts`): ET300 laut Orgatex = A4, 14 Schilder je 38 × 100 mm →
-  2 × 7, Rand links 5 mm, oben 15,5 mm. ⚠️ **Raster aus den Orgatex-Maßen abgeleitet, nicht von einer
-  Vorlage abgemessen** — deshalb Knopf „Probeblatt auf Normalpapier" (gestrichelte Rahmen) und
-  Feinjustierung in mm (je PC in `localStorage["platz-schilder-druck"]`). Startfeld 1–14 für
+  2 × 7, Rand links 5 mm, **oben 9 mm**. ⚠️ Erst mittig angenommen (oben 15,5 mm), beim ersten
+  Probedruck passte es mit −6,5 mm (Frank, 02.10.2026) — zu viel für eine Druckerabweichung, also
+  liegt das Raster auf dem Bogen höher; fest übernommen. Knopf „Probeblatt auf Normalpapier"
+  (gestrichelte Rahmen) und Feinjustierung in mm für einzelne Drucker bleiben (je PC in
+  `localStorage["platz-schilder-druck-v2"]` — neuer Schlüssel, damit der alte Ausgleich nicht doppelt wirkt). Startfeld 1–14 für
   angebrochene Bögen. Im Druckdialog **100 % / Ränder keine**. Schriftgröße aus der Länge
   (`codeSchriftPt`, bis 36 pt, eine Zeile bei 57 mm Textbreite), alles Schwarz.
 

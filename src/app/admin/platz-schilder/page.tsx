@@ -20,7 +20,8 @@ const knopf = "inline-flex items-center justify-center gap-2 px-4 rounded-xl tex
 const blau = `${knopf} bg-[#0064d2] text-white`;
 const grau = `${knopf} border-2 border-[#ced4da] dark:border-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] bg-white dark:bg-[#18191a]`;
 const leise = "text-[#65676b] dark:text-[#b0b3b8]";
-const EINSTELLUNG = "platz-schilder-druck";
+// v2: Seit dem Raster mit 9 mm oben (02.10.2026) wäre der alte Ausgleich von −6,5 mm doppelt.
+const EINSTELLUNG = "platz-schilder-druck-v2";
 
 type Druck = { versatzX: number; versatzY: number };
 
