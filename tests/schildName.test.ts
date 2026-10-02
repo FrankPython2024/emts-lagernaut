@@ -11,6 +11,7 @@
  */
 
 import { zerlegeGeraetename, istMaschinennummer, schildSchluessel } from "../src/lib/geraete/schildName";
+import { lesePlatzListe, klappeBereichAuf, boegenFuer, feldLage, codeSchriftPt, ET300_JE_BOGEN } from "../src/lib/lager/platzSchilder";
 
 let passed = 0;
 let failed = 0;
@@ -153,6 +154,38 @@ check(
   schildSchluessel(zerlegeGeraetename("- ThinkPad T14s Gen 3 21BSS49A00", "Lenovo")),
   schildSchluessel(zerlegeGeraetename("ThinkPad T14s Gen 3 21BSS49A00", "Lenovo")),
 );
+
+// ── Platz-Schilder ORGATEX ET300 (02.10.2026) ──────────────────────────────
+console.log("\n── Platz-Schilder ET300 ──");
+check("14 je Bogen", ET300_JE_BOGEN, 14);
+check("Bereich mit Nullen", klappeBereichAuf("HL-07-01", "HL-07-03"), ["HL-07-01", "HL-07-02", "HL-07-03"]);
+check("Bereich ohne Nullen", klappeBereichAuf("R8", "R11"), ["R8", "R9", "R10", "R11"]);
+check("Bereich über Zehner mit Nullen", klappeBereichAuf("A-08", "A-10"), ["A-08", "A-09", "A-10"]);
+check("Bereich: anderer Anfang", klappeBereichAuf("HL-06-01", "HL-07-03"), null);
+check("Bereich: rückwärts", klappeBereichAuf("A5", "A1"), null);
+check("Bereich: zu groß", klappeBereichAuf("A1", "A9999"), null);
+check("Bereich: ohne Zahl", klappeBereichAuf("A", "B"), null);
+{
+  const r = lesePlatzListe("ETL-1-1-1\n\n  ETL-1-1-2 ; Lenovo T14\nETL-1-1-1\nhl-07-01 bis hl-07-02\tHP Fach\r\nX bis Y");
+  check("Liste: Plätze", r.plaetze.map((p) => p.code), ["ETL-1-1-1", "ETL-1-1-2", "hl-07-01", "hl-07-02"]);
+  check("Liste: Beschreibung nach ;", r.plaetze[1]!.beschreibung, "Lenovo T14");
+  check("Liste: Beschreibung nach Tab gilt für den ganzen Bereich", [r.plaetze[2]!.beschreibung, r.plaetze[3]!.beschreibung], ["HP Fach", "HP Fach"]);
+  check("Liste: ohne Beschreibung null", r.plaetze[0]!.beschreibung, null);
+  check("Liste: kaputter Bereich wird gemeldet", r.fehler.length, 1);
+}
+check("Liste: doppelt egal ob groß/klein", lesePlatzListe("ab-1\nAB-1").plaetze.length, 1);
+check("Liste: Leerzeichen zusammengezogen", lesePlatzListe("  Regal   3  ").plaetze[0]!.code, "Regal 3");
+check("Liste: zu lang gemeldet", lesePlatzListe("X".repeat(61)).fehler.length, 1);
+check("Bögen: 14 ab Feld 1", boegenFuer(14), 1);
+check("Bögen: 15 ab Feld 1", boegenFuer(15), 2);
+check("Bögen: 1 ab Feld 14", boegenFuer(1, 14), 1);
+check("Bögen: 2 ab Feld 14", boegenFuer(2, 14), 2);
+check("Bögen: 0", boegenFuer(0), 0);
+check("Feld 1 oben links", feldLage(0), { bogen: 0, spalte: 0, reihe: 0, linksMm: 5, obenMm: 15.5 });
+check("Feld 2 oben rechts", feldLage(1), { bogen: 0, spalte: 1, reihe: 0, linksMm: 105, obenMm: 15.5 });
+check("Feld 14 unten rechts endet bei 281,5 mm", feldLage(13).obenMm + 38, 281.5);
+check("Feld 15 = zweiter Bogen oben links", feldLage(14), { bogen: 1, spalte: 0, reihe: 0, linksMm: 5, obenMm: 15.5 });
+check("Schrift: kurz groß, lang klein", [codeSchriftPt("A1"), codeSchriftPt("HL-07-01"), codeSchriftPt("ETL-10-4-3"), codeSchriftPt("X".repeat(40))], [36, 32.5, 26, 9]);
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────
 console.log("\n══════════════════════════════════════════");

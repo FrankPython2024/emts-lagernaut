@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1039) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1065) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1973,6 +1973,25 @@ Detail `/admin/notizbuch/[id]`. Entscheidungen von Frank am 16.09.2026: **für a
   „2,12E+08", danach nicht mehr scanbar.
 - Einträge einzeln per `create` statt `createMany` (Ids für die Markierung), Transaktion mit
   30 s Zeitlimit — 500 Inserts sprengen Prismas Standard von 5 s auf dem 4-GB-Server.
+
+### Platz-Schilder für ORGATEX ET300 (02.10.2026)
+
+Seite `/admin/platz-schilder` (Nav „🏷️ Platz-Schilder (ET300)", Stammdaten). Wunsch Frank: Plätze
+**selbst als Liste eingeben**, je Platz ein Einsteckschild mit QR-Code. **Eigene Liste** — bewusst ohne
+Bezug zu den ETL-Fächern (`lagerplatz`) oder `LagerplatzConfig`. **QR-Code = genau der eingegebene Name.**
+- **Schema:** `PlatzSchild` (code @unique VarChar(64), beschreibung?, gedrucktAm?, erstelltVon) —
+  **`db push`**, kein seed (LAGERPLATZ_VIEW ansehen/drucken, LAGERPLATZ_EDIT ändern). Router `platzSchilder`.
+- **Eingabe** (`src/lib/lager/platzSchilder.ts`, Test in `test:schild`): ein Platz je Zeile,
+  Beschreibung nach `;` oder Tab (Excel), Bereiche „HL-07-01 bis HL-07-30" (gleicher Anfang, Zahl am Ende,
+  führende Nullen bleiben, max 500). Doppelte fallen weg (MySQL vergleicht ohne Groß/Klein). Schon
+  vorhandene Plätze bleiben, nur eine neue Beschreibung wird übernommen; alle eingegebenen sind danach
+  zum Drucken ausgewählt.
+- **Druck** (`src/lib/print/et300.ts`): ET300 laut Orgatex = A4, 14 Schilder je 38 × 100 mm →
+  2 × 7, Rand links 5 mm, oben 15,5 mm. ⚠️ **Raster aus den Orgatex-Maßen abgeleitet, nicht von einer
+  Vorlage abgemessen** — deshalb Knopf „Probeblatt auf Normalpapier" (gestrichelte Rahmen) und
+  Feinjustierung in mm (je PC in `localStorage["platz-schilder-druck"]`). Startfeld 1–14 für
+  angebrochene Bögen. Im Druckdialog **100 % / Ränder keine**. Schriftgröße aus der Länge
+  (`codeSchriftPt`, bis 36 pt, eine Zeile bei 57 mm Textbreite), alles Schwarz.
 
 ### Weitere Module (live)
 - Admin-Portal (Artikel, Buchungen, Anfragen mit Lock-System, Modelle/Kompatibilität, Benutzer,

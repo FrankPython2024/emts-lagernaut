@@ -624,6 +624,18 @@ model StellplatzBedeutung {
   updatedAt    DateTime @updatedAt
 }
 
+/// Platz-Schilder für ORGATEX ET300 (02.10.2026) — frei eingegebene Plätze, QR = code.
+/// Eigene Liste, bewusst ohne Bezug zu Lagerplatz/LagerplatzConfig.
+model PlatzSchild {
+  id           Int       @id @default(autoincrement())
+  code         String    @unique @db.VarChar(64)
+  beschreibung String?   @db.VarChar(64)
+  gedrucktAm   DateTime?
+  erstelltVon  String?   @db.VarChar(50)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
 model LagerplatzConfig {
   id           Int      @id @default(autoincrement())
   code         String   @unique

@@ -62,6 +62,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/admin/teilenummern", label: "Teilenummern", icon: "🔢", permission: "ARTIKEL_VIEW" },
       { href: "/admin/lagerplaetze", label: "Lagerplätze",  icon: "🗄️", permission: "LAGERPLATZ_VIEW" },
       { href: "/admin/stellplaetze", label: "Stellplätze",  icon: "📍", permission: "LAGERPLATZ_VIEW" },
+      { href: "/admin/platz-schilder", label: "Platz-Schilder (ET300)", icon: "🏷️", permission: "LAGERPLATZ_VIEW" },
       { href: "/admin/abgaben",      label: "Abgaben an Niederlassungen", icon: "🚚", permission: "ARTIKEL_VIEW" },
       { href: "/admin/bestellanfragen", label: "Bestellanfragen", icon: "🛒", permission: "BESTELLANFRAGE_VIEW" },
       { href: "/admin/verbrauchsmaterial", label: "Verbrauchsmaterial", icon: "📦", permission: "MATERIAL_VIEW" },
