@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1034) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1039) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -677,6 +677,13 @@ Richtig: über den Gerätenamen (`bezeichnung` minus Teiltyp, `startsWith`).
 (Füße vorne/hinten), max 2, serverseitig geprüft. Verfügbarkeit prüft jetzt `bestand >= menge`
 (bei menge=1 identisch zur alten Regel). Sichtbar im Techniker-Portal („2×") und im Admin
 (gelbes „2× Stück" — sonst packt die Ausgabe stillschweigend eines).
+⚠️ **Angezeigt wird „Fuß vorne" / „Fuß hinten", gespeichert bleibt „Füße vorne" / „Füße hinten"**
+(Frank, 02.10.2026): „Füße vorne" klang nach einem Set — wer es einmal anfragte, erwartete beide.
+`teilAnzeige(teil, menge?)` in `src/lib/constants/teiltypen.ts`: Kachel „Fuß vorne", mit Stückzahl
+„1 Fuß vorne" / „2 Füße vorne". Mengen-Knöpfe „1 Stück" / „2 Stück (Paar)". Gilt im Techniker-Portal
+(Kachel, ausgewähltes Teil, Detail-Liste) und in der Admin-Anfragenliste (bei 2 Stück gelb).
+**Den DB-Namen nicht umbenennen:** Er ist Schlüssel für Artikel-Kategorie (~2.600 Artikel), alle
+Anfragen, Kompatibilität, Kategoriepreis, Druckvorlagen, automatischen Druck und Statistik (19 Dateien).
 
 **Abgaben an Niederlassungen — `Niederlassung` + `Buchung.niederlassungId` + `Artikel.preis`.**
 Festplatten/RAM sind normale `Artikel` **je Variante** („SSD 512 GB M.2 NVMe", Kategorie

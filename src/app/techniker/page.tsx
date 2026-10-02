@@ -8,7 +8,7 @@ import { useSocket }      from "@/hooks/useSocket";
 import { EVENTS }         from "@/modules/realtime/events";
 import GruppenNachrichten from "./components/GruppenNachrichten";
 import { type AnfrageRow, type GruppeData } from "./components/constants";
-import { maxMengeFuer } from "@/lib/constants/teiltypen";
+import { maxMengeFuer, teilAnzeige } from "@/lib/constants/teiltypen";
 import { Loader2, MessageCircle } from "lucide-react";
 import { getLucideIcon } from "@/lib/icons/getLucideIcon";
 import { useTestModus, darfTestModus } from "@/lib/testModus/testModus";
@@ -887,7 +887,7 @@ function AnfrageFlow({
                         size={28}
                         style={{ color: sel ? "var(--auswahl-fg)" : "var(--text-dim)", flexShrink: 0 }}
                       />
-                      <span>{t.teiltyp}</span>
+                      <span>{teilAnzeige(t.teiltyp)}</span>
                       {laeuftSchon.has(teilNorm(t.teiltyp)) && (
                         <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--text-dim)", lineHeight: 1.2 }}>
                           läuft schon
@@ -967,7 +967,7 @@ function AnfrageFlow({
                           flexWrap:      "wrap",
                           color:         "var(--text)",
                         }}>
-                          <span>{teiltyp}</span>
+                          <span>{teilAnzeige(teiltyp, maxMengeFuer(teiltyp) > 1 ? (mengen[teiltyp] ?? 1) : null)}</span>
                           {info?.bezeichnung && (
                             <span style={{ fontWeight: 500, fontSize: "0.78rem", color: "var(--text-dim)" }}>
                               ({info.bezeichnung})
@@ -997,20 +997,17 @@ function AnfrageFlow({
                                     onClick={() => setMengen(m => ({ ...m, [teiltyp]: n }))}
                                     aria-pressed={aktiv}
                                     style={{
-                                      minWidth: 64, minHeight: 56, borderRadius: 12, cursor: "pointer",
-                                      fontSize: "1.15rem", fontWeight: 800,
+                                      minWidth: 96, minHeight: 56, padding: "0 0.9rem", borderRadius: 12, cursor: "pointer",
+                                      fontSize: "1.05rem", fontWeight: 800,
                                       border: aktiv ? "2px solid var(--afb-navy, #202F61)" : "1.5px solid var(--border)",
                                       background: aktiv ? "rgba(32,47,97,0.08)" : "var(--card-bg, #fff)",
                                       color: "var(--text)",
                                     }}
                                   >
-                                    {n}
+                                    {n === 2 ? "2 Stück (Paar)" : `${n} Stück`}
                                   </button>
                                 );
                               })}
-                              <span style={{ alignSelf: "center", fontSize: "0.82rem", color: "var(--text-dim)" }}>
-                                Stück
-                              </span>
                             </div>
                           </div>
                         )}
@@ -1687,11 +1684,11 @@ function AnfrageDetailModal({
                 return (
                   <li key={a.id} style={{ fontSize: "1rem", opacity: wegStorniert ? 0.55 : 1 }}>
                     <span style={{ textDecoration: wegStorniert ? "line-through" : "none" }}>
-                      {a.teil}
+                      {/* Füße immer mit Stückzahl („1 Fuß vorne", „2 Füße vorne") —
+                          sonst liest man „Füße" als Paar. */}
+                      {teilAnzeige(a.teil, maxMengeFuer(a.teil) > 1 ? (a.menge ?? 1) : null)}
                     </span>
-                    {/* Stückzahl nur zeigen, wenn mehr als eins angefragt wurde —
-                        sonst stünde bei jedem Teil ein überflüssiges „1×". */}
-                    {(a.menge ?? 1) > 1 && (
+                    {maxMengeFuer(a.teil) <= 1 && (a.menge ?? 1) > 1 && (
                       <strong style={{ marginLeft: 6, fontWeight: 800 }}>{a.menge}×</strong>
                     )}
                     {" "}
@@ -1709,7 +1706,7 @@ function AnfrageDetailModal({
                     {einzelStorno && istStornierbar(a) && !fragt && (
                       <button
                         onClick={() => setFrageTeil(a.id)}
-                        aria-label={`${a.teil} stornieren`}
+                        aria-label={`${teilAnzeige(a.teil)} stornieren`}
                         style={teilStornoBtn}
                       >
                         ✕ Stornieren
@@ -1721,7 +1718,7 @@ function AnfrageDetailModal({
                           Nur dieses Teil?
                         </span>
                         <button
-                          onClick={() => handleTeilStorno(a.id, a.teil)}
+                          onClick={() => handleTeilStorno(a.id, teilAnzeige(a.teil))}
                           disabled={teilLaeuft === a.id}
                           style={{ ...teilStornoBtn, background: "#ef4444", color: "white", borderColor: "#ef4444", opacity: teilLaeuft === a.id ? 0.6 : 1 }}
                         >

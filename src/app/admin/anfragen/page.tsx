@@ -13,6 +13,7 @@ import { UeberfaelligBadge } from "@/components/anfragen/UeberfaelligBadge";
 import { useNow } from "@/hooks/useNow";
 import { istUeberfaellig, verstricheneZeit } from "@/lib/anfragen/ueberfaellig";
 import { usePermissions } from "@/hooks/usePermissions";
+import { maxMengeFuer, teilAnzeige } from "@/lib/constants/teiltypen";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
@@ -1158,13 +1159,22 @@ function AnfragenPageInner() {
                             )}
                           </div>
                         )}
-                        <span className="font-semibold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
-                          {a.beschreibung ?? a.teil}
-                        </span>
-                        {/* Stückzahl deutlich hervorheben — wer packt, muss sofort
-                            sehen, dass 2 Stück gebraucht werden (nur bei den Füßen
-                            möglich). Ohne das würde stillschweigend 1 ausgegeben. */}
-                        {(a.menge ?? 1) > 1 && (
+                        {/* Füße mit Stückzahl im Namen („1 Fuß vorne", „2 Füße vorne") — gleiche
+                            Sprache wie im Techniker-Portal (Frank, 02.10.2026). Bei 2 Stück
+                            gelb hervorgehoben: Wer packt, muss es sofort sehen. */}
+                        {!a.beschreibung && maxMengeFuer(a.teil) > 1 ? (
+                          <span className={`font-semibold text-sm ${(a.menge ?? 1) > 1
+                            ? "font-black px-2 py-0.5 rounded bg-[#f7b928]/15 text-[#8A5A00] dark:text-[#f7b928] border border-[#f7b928]/40"
+                            : "text-[#1a1a1a] dark:text-[#e4e6eb]"}`}>
+                            {teilAnzeige(a.teil, a.menge ?? 1)}
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
+                            {a.beschreibung ?? a.teil}
+                          </span>
+                        )}
+                        {/* Stückzahl bei anderen Teilen (kommt praktisch nicht vor). */}
+                        {(a.beschreibung || maxMengeFuer(a.teil) <= 1) && (a.menge ?? 1) > 1 && (
                           <span className="ml-1.5 text-xs font-black px-2 py-0.5 rounded bg-[#f7b928]/15 text-[#a67908] dark:text-[#f7b928] border border-[#f7b928]/40">
                             {a.menge}× Stück
                           </span>

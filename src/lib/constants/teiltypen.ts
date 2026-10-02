@@ -61,6 +61,28 @@ export function maxMengeFuer(teiltyp: string): number {
   return TEILTYPEN_MIT_MENGE.includes(teiltyp) ? MAX_MENGE_PRO_TEILTYP : 1;
 }
 
+// ── Anzeige der Füße (Frank, 02.10.2026) ──────────────────────────────────────
+// „Füße vorne" klang nach einem Set (beide vorderen Füße) — wer es einmal anfragte,
+// erwartete zwei. In der DATENBANK bleibt der Name (Artikel-Kategorie, Anfragen,
+// Kompatibilität, Kategoriepreis, Druckvorlagen, Statistik hängen daran);
+// umbenannt wird nur, was Menschen lesen: „Fuß vorne", mit Stückzahl „1 Fuß vorne" /
+// „2 Füße vorne".
+const ANZEIGE: Readonly<Record<string, { eins: string; mehr: string }>> = {
+  "Füße vorne":  { eins: "Fuß vorne",  mehr: "Füße vorne" },
+  "Füße hinten": { eins: "Fuß hinten", mehr: "Füße hinten" },
+};
+
+/**
+ * Wie ein Teiltyp angezeigt wird. Ohne `menge` der Name auf der Kachel („Fuß vorne"),
+ * mit `menge` samt Stückzahl („1 Fuß vorne", „2 Füße vorne"; andere Teile „2× Akku").
+ */
+export function teilAnzeige(teil: string, menge?: number | null): string {
+  const a = ANZEIGE[teil];
+  if (menge == null) return a ? a.eins : teil;
+  if (a) return `${menge} ${menge === 1 ? a.eins : a.mehr}`;
+  return menge > 1 ? `${menge}× ${teil}` : teil;
+}
+
 export const VERSCHIEDENES_TEILTYP = "Verschiedenes";
 
 /** Eindeutiger Kompatibilitaet-/Bezeichnungs-Suffix-Teiltyp pro Freitext-Variante. */

@@ -11,6 +11,7 @@
 
 import { buendele, sichtbareBuendel, teilSchluessel, type BuendelAnfrage } from "../src/lib/anfragen/gleicheTeile";
 import { sortiereNachHaeufigkeit, teilNorm } from "../src/lib/anfragen/haeufigkeit";
+import { teilAnzeige } from "../src/lib/constants/teiltypen";
 
 let passed = 0;
 let failed = 0;
@@ -163,6 +164,15 @@ console.log("\n── Techniker-Portal: häufigste Teile zuerst (30.09.2026) ─
   check("höchstens 3 markiert", viele.filter((t) => t.oft).map((t) => t.teiltyp), ["D-Cover", "Tastatur", "Displaymodul"]);
   check("Teilnamen vergleichbar", [teilNorm("D-Cover"), teilNorm(" d  cover "), teilNorm("Füße_vorne")], ["d cover", "d cover", "füße vorne"]);
   check("zusätzliche Felder bleiben erhalten", sortiereNachHaeufigkeit([{ teiltyp: "Akku", bestand: 4 }], [{ teil: "Akku", anzahl: 5 }])[0], { teiltyp: "Akku", bestand: 4, anfragen: 5, oft: true });
+}
+
+console.log("\n── Füße: Anzeige statt Set-Missverständnis (02.10.2026) ──");
+{
+  check("Kachel: Fuß vorne", teilAnzeige("Füße vorne"), "Fuß vorne");
+  check("Kachel: Fuß hinten", teilAnzeige("Füße hinten"), "Fuß hinten");
+  check("1 Stück", teilAnzeige("Füße vorne", 1), "1 Fuß vorne");
+  check("2 Stück", teilAnzeige("Füße hinten", 2), "2 Füße hinten");
+  check("andere Teile unverändert", [teilAnzeige("Akku"), teilAnzeige("Akku", 1), teilAnzeige("Akku", 2)], ["Akku", "Akku", "2× Akku"]);
 }
 
 console.log(`\n${passed} bestanden, ${failed} fehlgeschlagen\n`);
