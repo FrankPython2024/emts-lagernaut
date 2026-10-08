@@ -86,3 +86,38 @@ export function ladungsEinheiten(bereich: BereichInfo, anzahl: number): number {
  * Tabelle, weil beide auf die Papiere gehören.
  */
 export const UN_NUMMERN = ["3090", "3480"] as const;
+
+/** Abfalllager zur Auswahl (Frank, 08.10.2026). Gespeichert wird der Text. */
+export const ABFALLLAGER = [
+  "Wareneingangslager",
+  "Lager für nicht gefährlichen Artikel",
+  "Lager für gefährlichen Artikel",
+  "Produktlager",
+  "Schredderlager",
+] as const;
+
+/**
+ * Versandarten mit dem Leergewicht des Behälters (Frank, 08.10.2026).
+ * Gespeichert wird nur der Name („GIBO"), wie bisher.
+ *
+ * ⚠️ Das Leergewicht hängt am BEHÄLTER, nicht am Abfall — deshalb schlägt es
+ * das Leergewicht der Abfallart. Das der Abfallart bleibt Rückfall für
+ * Versandarten ohne Angabe (z. B. alte, frei getippte Werte).
+ */
+export const VERSANDARTEN: readonly { name: string; taraKg: number }[] = [
+  { name: "GIBO",        taraKg: 85 },
+  { name: "Europalette", taraKg: 25 },
+];
+
+/** Leergewicht für die Netto-Rechnung: Versandart vor Abfallart, sonst keins. */
+export function taraFuer(versandart: string, artTaraKg: number | null | undefined): number | null {
+  const v = VERSANDARTEN.find((x) => x.name === versandart);
+  return v ? v.taraKg : (artTaraKg ?? null);
+}
+
+/** Netto-Vorschlag aus dem Brutto; null = nichts vorschlagen (Feld bleibt, wie es ist). */
+export function nettoVorschlag(brutto: string, tara: number | null): string | null {
+  const b = Number(brutto);
+  if (!brutto.trim() || !Number.isFinite(b) || b <= 0 || tara == null) return null;
+  return String(Math.max(0, b - tara));
+}

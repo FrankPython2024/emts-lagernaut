@@ -5,7 +5,9 @@ import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
-import { ladungsEinheiten, UN_NUMMERN, type BereichInfo } from "@/lib/entsorgung/bereiche";
+import {
+  ladungsEinheiten, UN_NUMMERN, ABFALLLAGER, VERSANDARTEN, taraFuer, nettoVorschlag, type BereichInfo,
+} from "@/lib/entsorgung/bereiche";
 
 // ── Entsorgung: ein Auftrag ──────────────────────────────────────────────────
 //
@@ -89,28 +91,35 @@ export function EntsorgungAuftragSeite({ bereich, auftragId }: { bereich: Bereic
     onError: (e) => show(e.message, "error"),
   });
 
-  // Brutto eingeben, Netto rechnet sich über das Leergewicht der Abfallart.
-  // Ist keins hinterlegt, bleibt das Feld leer — lieber selbst eintippen als
-  // eine erfundene Zahl vorgesetzt bekommen.
+  // Brutto eingeben, Netto rechnet sich über das Leergewicht des Behälters
+  // (Versandart, sonst Abfallart). Ist keins bekannt, bleibt das Feld, wie es
+  // ist — lieber selbst eintippen als eine erfundene Zahl vorgesetzt bekommen.
+  const tara = taraFuer(versandart, gewaehlteArt?.taraKg);
   function bruttoGeaendert(wert: string) {
     setBrutto(wert);
-    const b = Number(wert);
-    const tara = gewaehlteArt?.taraKg;
-    if (Number.isFinite(b) && b > 0 && tara != null) setNetto(String(Math.max(0, b - tara)));
+    const n = nettoVorschlag(wert, taraFuer(versandart, gewaehlteArt?.taraKg));
+    if (n != null) setNetto(n);
+  }
+  function versandartGeaendert(wert: string) {
+    setVersandart(wert);
+    const n = nettoVorschlag(brutto, taraFuer(wert, gewaehlteArt?.taraKg));
+    if (n != null) setNetto(n);
   }
 
   // ── Zeile bearbeiten ────────────────────────────────────────────────────
   // Gleiche Regel wie oben: Ändert sich das Brutto, rechnet das Netto über das
   // Leergewicht der gewählten Art mit — ohne Leergewicht bleibt es, wie es ist.
   const entwurfArt = entwurf ? arten.data?.find((a) => a.id === entwurf.abfallartId) ?? null : null;
-  function entwurfBrutto(wert: string) {
+  const entwurfTara = entwurf ? taraFuer(entwurf.versandart, entwurfArt?.taraKg) : null;
+  // Netto nur neu rechnen, wenn sich Brutto, Versandart oder Abfallart ändert —
+  // sonst überschriebe schon eine korrigierte Nummer ein von Hand gesetztes Netto.
+  function entwurfAendern(neu: Partial<Entwurf>) {
     if (!entwurf) return;
-    const b = Number(wert);
-    const tara = entwurfArt?.taraKg;
-    setEntwurf({
-      ...entwurf, brutto: wert,
-      ...(Number.isFinite(b) && b > 0 && tara != null ? { netto: String(Math.max(0, b - tara)) } : {}),
-    });
+    const e = { ...entwurf, ...neu };
+    if (!("brutto" in neu || "versandart" in neu || "abfallartId" in neu)) { setEntwurf(e); return; }
+    const art = arten.data?.find((a) => a.id === e.abfallartId);
+    const n = nettoVorschlag(e.brutto, taraFuer(e.versandart, art?.taraKg));
+    setEntwurf(n != null ? { ...e, netto: n } : e);
   }
   const entwurfOk = !!entwurf && /\d/.test(entwurf.nummer) && entwurf.abfalllager.trim() !== ""
     && Number(entwurf.brutto) > 0 && entwurf.netto.trim() !== "" && Number(entwurf.netto) >= 0
@@ -119,6 +128,11 @@ export function EntsorgungAuftragSeite({ bereich, auftragId }: { bereich: Bereic
   // Die Art der Zeile kann inzwischen deaktiviert sein — sie muss trotzdem
   // in der Auswahl stehen, sonst sähe es aus, als wäre keine gewählt.
   const entwurfArtFehlt = !!entwurf && !(arten.data ?? []).some((a) => a.id === entwurf.abfallartId);
+  // Ältere Zeilen können Werte haben, die nicht in der Liste stehen (früher
+  // frei getippt, z. B. ein Schlüssel im Feld Abfalllager). Sie bleiben wählbar,
+  // damit Öffnen und Speichern nichts still verändert.
+  const lagerFremd     = !!entwurf && !(ABFALLLAGER as readonly string[]).includes(entwurf.abfalllager);
+  const versandFremd   = !!entwurf && !VERSANDARTEN.some((v) => v.name === entwurf.versandart);
 
   // ── Sortierung und Farbgruppen ──────────────────────────────────────────
   // Nach Abfallschlüssel, darin nach Abfallart, darin nach Erfassungsreihen-
@@ -256,7 +270,9 @@ ${daten.map((r) => `<tr>${r.map((c, i) => `<td style="${td}${zahlSpalten.include
             </div>
             <div>
               <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">Abfalllager</label>
-              <input value={abfalllager} onChange={(e) => setAbfalllager(e.target.value)} className={eingabe} />
+              <select value={abfalllager} onChange={(e) => setAbfalllager(e.target.value)} className={eingabe}>
+                {ABFALLLAGER.map((l) => <option key={l} value={l}>{l}</option>)}
+              </select>
             </div>
             <div className="min-w-[240px]">
               <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">Abfallart</label>
@@ -286,15 +302,17 @@ ${daten.map((r) => `<tr>${r.map((c, i) => `<td style="${td}${zahlSpalten.include
             <div>
               <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">
                 Netto (kg)
-                {gewaehlteArt?.taraKg != null && (
-                  <span className="ml-1 font-normal text-xs text-[#65676b] dark:text-[#b0b3b8]">(Tara {gewaehlteArt.taraKg})</span>
+                {tara != null && (
+                  <span className="ml-1 font-normal text-xs text-[#65676b] dark:text-[#b0b3b8]">(Tara {tara})</span>
                 )}
               </label>
               <input inputMode="numeric" value={netto} onChange={(e) => setNetto(e.target.value)} className={`${eingabe} tabular-nums`} />
             </div>
             <div>
               <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] mb-1">Versandart</label>
-              <input value={versandart} onChange={(e) => setVersandart(e.target.value)} className={eingabe} />
+              <select value={versandart} onChange={(e) => versandartGeaendert(e.target.value)} className={eingabe}>
+                {VERSANDARTEN.map((v) => <option key={v.name} value={v.name}>{v.name} ({v.taraKg} kg)</option>)}
+              </select>
             </div>
           </div>
 
@@ -499,17 +517,20 @@ ${daten.map((r) => `<tr>${r.map((c, i) => `<td style="${td}${zahlSpalten.include
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
                 {bereich.einheit}-Nummer
-                <input value={entwurf.nummer} onChange={(e) => setEntwurf({ ...entwurf, nummer: e.target.value })}
+                <input value={entwurf.nummer} onChange={(e) => entwurfAendern({ nummer: e.target.value })}
                   className={`${eingabe} font-mono mt-1`} />
               </label>
               <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
                 Abfalllager
-                <input value={entwurf.abfalllager} onChange={(e) => setEntwurf({ ...entwurf, abfalllager: e.target.value })}
-                  className={`${eingabe} mt-1`} />
+                <select value={entwurf.abfalllager} onChange={(e) => entwurfAendern({ abfalllager: e.target.value })}
+                  className={`${eingabe} mt-1`}>
+                  {lagerFremd && <option value={entwurf.abfalllager}>{entwurf.abfalllager} (bisheriger Wert)</option>}
+                  {ABFALLLAGER.map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
               </label>
               <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] sm:col-span-2">
                 Abfallart
-                <select value={entwurf.abfallartId} onChange={(e) => setEntwurf({ ...entwurf, abfallartId: Number(e.target.value) })}
+                <select value={entwurf.abfallartId} onChange={(e) => entwurfAendern({ abfallartId: Number(e.target.value) })}
                   className={`${eingabe} mt-1`}>
                   {entwurfArtFehlt && (
                     <option value={entwurf.abfallartId}>{entwurf.kurzform} — {entwurf.schluessel} (nicht mehr aktiv)</option>
@@ -522,7 +543,7 @@ ${daten.map((r) => `<tr>${r.map((c, i) => `<td style="${td}${zahlSpalten.include
               {bereich.mitUnNummer && (
                 <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] sm:col-span-2">
                   UN-Nummer
-                  <select value={entwurf.unNummer} onChange={(e) => setEntwurf({ ...entwurf, unNummer: e.target.value })}
+                  <select value={entwurf.unNummer} onChange={(e) => entwurfAendern({ unNummer: e.target.value })}
                     className={`${eingabe} mt-1`}>
                     <option value="3090">UN 3090 — Lithium-Metall</option>
                     <option value="3480">UN 3480 — Lithium-Ionen</option>
@@ -531,21 +552,24 @@ ${daten.map((r) => `<tr>${r.map((c, i) => `<td style="${td}${zahlSpalten.include
               )}
               <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
                 Brutto (kg)
-                <input inputMode="numeric" value={entwurf.brutto} onChange={(e) => entwurfBrutto(e.target.value)}
+                <input inputMode="numeric" value={entwurf.brutto} onChange={(e) => entwurfAendern({ brutto: e.target.value })}
                   className={`${eingabe} tabular-nums mt-1`} />
               </label>
               <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
                 Netto (kg)
-                {entwurfArt?.taraKg != null && (
-                  <span className="ml-1 font-normal text-xs text-[#65676b] dark:text-[#b0b3b8]">(Tara {entwurfArt.taraKg})</span>
+                {entwurfTara != null && (
+                  <span className="ml-1 font-normal text-xs text-[#65676b] dark:text-[#b0b3b8]">(Tara {entwurfTara})</span>
                 )}
                 <input inputMode="numeric" value={entwurf.netto} onChange={(e) => setEntwurf({ ...entwurf, netto: e.target.value })}
                   className={`${eingabe} tabular-nums mt-1`} />
               </label>
               <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] sm:col-span-2">
                 Versandart
-                <input value={entwurf.versandart} onChange={(e) => setEntwurf({ ...entwurf, versandart: e.target.value })}
-                  className={`${eingabe} mt-1`} />
+                <select value={entwurf.versandart} onChange={(e) => entwurfAendern({ versandart: e.target.value })}
+                  className={`${eingabe} mt-1`}>
+                  {versandFremd && <option value={entwurf.versandart}>{entwurf.versandart} (bisheriger Wert)</option>}
+                  {VERSANDARTEN.map((v) => <option key={v.name} value={v.name}>{v.name} ({v.taraKg} kg)</option>)}
+                </select>
               </label>
             </div>
             {!entwurfOk && (
