@@ -4,6 +4,7 @@ import Link from "next/link";
 import { api } from "@/trpc/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/components/ui/Toast";
+import { Modal } from "@/components/ui/Modal";
 import { ladungsEinheiten, UN_NUMMERN, type BereichInfo } from "@/lib/entsorgung/bereiche";
 
 // ── Entsorgung: ein Auftrag ──────────────────────────────────────────────────
@@ -24,6 +25,13 @@ const GRUPPENFARBEN = ["#008BD2", "#04B475", "#f7b928", "#7F77DD", "#D85A30", "#
 
 const kg = (n: number) => n.toLocaleString("de-DE");
 
+/** Eine Zeile im Bearbeiten-Fenster — alles als Text, wie in der Eingabemaske. */
+type Entwurf = {
+  id: number; nummer: string; abfalllager: string; abfallartId: number;
+  kurzform: string; schluessel: string;
+  brutto: string; netto: string; versandart: string; unNummer: string;
+};
+
 export function EntsorgungAuftragSeite({ bereich, auftragId }: { bereich: BereichInfo; auftragId: number }) {
   const { has } = usePermissions();
   const darfBearbeiten = has("ENTSORGUNG_MANAGE");
@@ -43,6 +51,8 @@ export function EntsorgungAuftragSeite({ bereich, auftragId }: { bereich: Bereic
   const [unNummer, setUnNummer]       = useState<string>(UN_NUMMERN[0]);
   const nummerRef = useRef<HTMLInputElement>(null);
 
+  const [entwurf, setEntwurf] = useState<Entwurf | null>(null);
+
   const [artOffen, setArtOffen] = useState(false);
   const [neueArt, setNeueArt]   = useState({ bezeichnung: "", kurzform: "", schluessel: "", taraKg: "" });
 
@@ -53,6 +63,14 @@ export function EntsorgungAuftragSeite({ bereich, auftragId }: { bereich: Bereic
       void auftrag.refetch();
       setNummer(""); setBrutto(""); setNetto("");
       nummerRef.current?.focus();
+    },
+    onError: (e) => show(e.message, "error"),
+  });
+  const aendern = api.entsorgung.positionAktualisieren.useMutation({
+    onSuccess: () => {
+      void auftrag.refetch();
+      setEntwurf(null);
+      show("Gespeichert", "success");
     },
     onError: (e) => show(e.message, "error"),
   });
@@ -80,6 +98,27 @@ export function EntsorgungAuftragSeite({ bereich, auftragId }: { bereich: Bereic
     const tara = gewaehlteArt?.taraKg;
     if (Number.isFinite(b) && b > 0 && tara != null) setNetto(String(Math.max(0, b - tara)));
   }
+
+  // ── Zeile bearbeiten ────────────────────────────────────────────────────
+  // Gleiche Regel wie oben: Ändert sich das Brutto, rechnet das Netto über das
+  // Leergewicht der gewählten Art mit — ohne Leergewicht bleibt es, wie es ist.
+  const entwurfArt = entwurf ? arten.data?.find((a) => a.id === entwurf.abfallartId) ?? null : null;
+  function entwurfBrutto(wert: string) {
+    if (!entwurf) return;
+    const b = Number(wert);
+    const tara = entwurfArt?.taraKg;
+    setEntwurf({
+      ...entwurf, brutto: wert,
+      ...(Number.isFinite(b) && b > 0 && tara != null ? { netto: String(Math.max(0, b - tara)) } : {}),
+    });
+  }
+  const entwurfOk = !!entwurf && /\d/.test(entwurf.nummer) && entwurf.abfalllager.trim() !== ""
+    && Number(entwurf.brutto) > 0 && entwurf.netto.trim() !== "" && Number(entwurf.netto) >= 0
+    && Number.isInteger(Number(entwurf.brutto)) && Number.isInteger(Number(entwurf.netto))
+    && entwurf.versandart.trim() !== "";
+  // Die Art der Zeile kann inzwischen deaktiviert sein — sie muss trotzdem
+  // in der Auswahl stehen, sonst sähe es aus, als wäre keine gewählt.
+  const entwurfArtFehlt = !!entwurf && !(arten.data ?? []).some((a) => a.id === entwurf.abfallartId);
 
   // ── Sortierung und Farbgruppen ──────────────────────────────────────────
   // Nach Abfallschlüssel, darin nach Abfallart, darin nach Erfassungsreihen-
@@ -413,9 +452,21 @@ ${daten.map((r) => `<tr>${r.map((c, i) => `<td style="${td}${zahlSpalten.include
                     <td className="py-2 px-3 text-[#1a1a1a] dark:text-[#e4e6eb]">{z.kurzform}</td>
                     <td className="py-2 px-3 text-[#65676b] dark:text-[#b0b3b8]">{z.versandart}</td>
                     {darfBearbeiten && (
-                      <td className="py-2 px-3 text-right">
+                      <td className="py-2 px-3 text-right whitespace-nowrap">
+                        <button
+                          onClick={() => setEntwurf({
+                            id: z.id, nummer: z.nummer, abfalllager: z.abfalllager, abfallartId: z.abfallartId,
+                            kurzform: z.kurzform, schluessel: z.schluessel,
+                            brutto: String(z.bruttoKg), netto: String(z.nettoKg),
+                            versandart: z.versandart, unNummer: z.unNummer ?? UN_NUMMERN[0],
+                          })}
+                          aria-label={`${bereich.einheit} ${z.nummer} bearbeiten`}
+                          className="text-xs font-bold text-[#0064d2] dark:text-[#45bdff] px-2 py-1">
+                          bearbeiten
+                        </button>
                         <button
                           onClick={() => { if (window.confirm(`${bereich.einheit} ${z.nummer} entfernen?`)) loeschen.mutate({ id: z.id }); }}
+                          aria-label={`${bereich.einheit} ${z.nummer} entfernen`}
                           className="text-xs font-bold text-[#c62828] dark:text-[#ff8a80] px-2 py-1">
                           entfernen
                         </button>
@@ -428,6 +479,93 @@ ${daten.map((r) => `<tr>${r.map((c, i) => `<td style="${td}${zahlSpalten.include
           </table>
         </div>
       )}
+
+      <Modal open={!!entwurf} onClose={() => setEntwurf(null)} title={`${bereich.einheit} bearbeiten`}>
+        {entwurf && (
+          <form className="space-y-3" onSubmit={(e) => {
+            e.preventDefault();
+            if (!entwurfOk) return;
+            aendern.mutate({
+              id: entwurf.id,
+              nummer: entwurf.nummer,
+              abfalllager: entwurf.abfalllager.trim(),
+              abfallartId: entwurf.abfallartId,
+              bruttoKg: Number(entwurf.brutto),
+              nettoKg: Number(entwurf.netto),
+              versandart: entwurf.versandart.trim(),
+              ...(bereich.mitUnNummer ? { unNummer: entwurf.unNummer } : {}),
+            });
+          }}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                {bereich.einheit}-Nummer
+                <input value={entwurf.nummer} onChange={(e) => setEntwurf({ ...entwurf, nummer: e.target.value })}
+                  className={`${eingabe} font-mono mt-1`} />
+              </label>
+              <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                Abfalllager
+                <input value={entwurf.abfalllager} onChange={(e) => setEntwurf({ ...entwurf, abfalllager: e.target.value })}
+                  className={`${eingabe} mt-1`} />
+              </label>
+              <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] sm:col-span-2">
+                Abfallart
+                <select value={entwurf.abfallartId} onChange={(e) => setEntwurf({ ...entwurf, abfallartId: Number(e.target.value) })}
+                  className={`${eingabe} mt-1`}>
+                  {entwurfArtFehlt && (
+                    <option value={entwurf.abfallartId}>{entwurf.kurzform} — {entwurf.schluessel} (nicht mehr aktiv)</option>
+                  )}
+                  {(arten.data ?? []).map((a) => (
+                    <option key={a.id} value={a.id}>{a.bezeichnung} — {a.schluessel}</option>
+                  ))}
+                </select>
+              </label>
+              {bereich.mitUnNummer && (
+                <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] sm:col-span-2">
+                  UN-Nummer
+                  <select value={entwurf.unNummer} onChange={(e) => setEntwurf({ ...entwurf, unNummer: e.target.value })}
+                    className={`${eingabe} mt-1`}>
+                    <option value="3090">UN 3090 — Lithium-Metall</option>
+                    <option value="3480">UN 3480 — Lithium-Ionen</option>
+                  </select>
+                </label>
+              )}
+              <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                Brutto (kg)
+                <input inputMode="numeric" value={entwurf.brutto} onChange={(e) => entwurfBrutto(e.target.value)}
+                  className={`${eingabe} tabular-nums mt-1`} />
+              </label>
+              <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb]">
+                Netto (kg)
+                {entwurfArt?.taraKg != null && (
+                  <span className="ml-1 font-normal text-xs text-[#65676b] dark:text-[#b0b3b8]">(Tara {entwurfArt.taraKg})</span>
+                )}
+                <input inputMode="numeric" value={entwurf.netto} onChange={(e) => setEntwurf({ ...entwurf, netto: e.target.value })}
+                  className={`${eingabe} tabular-nums mt-1`} />
+              </label>
+              <label className="block text-sm font-bold text-[#1a1a1a] dark:text-[#e4e6eb] sm:col-span-2">
+                Versandart
+                <input value={entwurf.versandart} onChange={(e) => setEntwurf({ ...entwurf, versandart: e.target.value })}
+                  className={`${eingabe} mt-1`} />
+              </label>
+            </div>
+            {!entwurfOk && (
+              <p className="text-sm font-semibold text-[#8A5A00] dark:text-[#f7b928]">
+                Bitte Nummer, Abfalllager, Versandart und ganze Kilo bei Brutto und Netto eintragen.
+              </p>
+            )}
+            <div className="flex justify-end gap-2 flex-wrap">
+              <button type="button" onClick={() => setEntwurf(null)}
+                className="px-5 py-3 rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] font-bold text-sm min-h-[56px]">
+                Abbrechen
+              </button>
+              <button type="submit" disabled={!entwurfOk || aendern.isPending}
+                className="px-5 py-3 rounded-xl bg-[#0064d2] text-white font-bold text-sm min-h-[56px] disabled:opacity-50">
+                {aendern.isPending ? "…" : "Speichern"}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       {/* Summen je Schlüsselnummer — so wird der Abfall auch gemeldet. */}
       {proSchluessel.length > 1 && (

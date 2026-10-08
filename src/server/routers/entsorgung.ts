@@ -218,18 +218,31 @@ export const entsorgungRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { id, abfallartId, nummer, ...rest } = input;
 
+      const alt = await ctx.prisma.entsorgungPosition.findUnique({ where: { id }, select: { abfallartId: true } });
+      if (!alt) throw new Error("Diese Zeile gibt es nicht mehr.");
+
       // Wird die Abfallart gewechselt, ziehen Schlüssel und Kurzform mit —
       // sonst stünde in der Zeile eine Art und daneben der alte Schlüssel.
+      // ⚠️ NUR bei echtem Wechsel: Bleibt die Art gleich, behält die Zeile ihren
+      // kopierten Schlüssel. Sonst holte schon eine Gewichtskorrektur geänderte
+      // Stammdaten in einen verschickten Auftrag.
       let ausArt = {};
-      if (abfallartId) {
+      if (abfallartId && abfallartId !== alt.abfallartId) {
         const art = await ctx.prisma.entsorgungAbfallart.findUnique({ where: { id: abfallartId } });
         if (!art) throw new Error("Abfallart nicht gefunden.");
         ausArt = { abfallartId: art.id, schluessel: art.schluessel, kurzform: art.kurzform };
       }
 
+      let neueNummer = {};
+      if (nummer !== undefined) {
+        const n = nummerNormal(nummer);
+        if (!n) throw new Error("Die Nummer enthält keine Ziffern.");
+        neueNummer = { nummer: n };
+      }
+
       return ctx.prisma.entsorgungPosition.update({
         where: { id },
-        data:  { ...rest, ...ausArt, ...(nummer ? { nummer: nummerNormal(nummer) } : {}) },
+        data:  { ...rest, ...ausArt, ...neueNummer },
       });
     }),
 
