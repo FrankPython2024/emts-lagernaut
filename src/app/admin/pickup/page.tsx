@@ -118,6 +118,7 @@ export default function PickupListePage() {
   // Live-Fortschritt (Socket): Liste invalidieren → Karten + offen↔archiv ohne Reload.
   const utils = api.useUtils();
   const [schliesse, setSchliesse] = useState<Set<number>>(new Set());
+  const [archivOffen, setArchivOffen] = useState(false);
   const abschliessen = api.pickup.abschliessen.useMutation();
   async function schliesseAb(ids: number[]) {
     setSchliesse((alt) => new Set([...alt, ...ids]));
@@ -226,15 +227,31 @@ export default function PickupListePage() {
             )}
           </section>
 
-          {/* Nachweis-Archiv */}
+          {/* Nachweis-Archiv — standardmäßig zugeklappt (Frank, 08.10.2026):
+              141 erledigte Karten drückten die Arbeit des Tages aus dem Blick.
+              Bewusst nicht gemerkt: Bei jedem Besuch wieder zu. */}
           {abgeschlossene.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-black uppercase tracking-wider text-[#65676b] dark:text-[#b0b3b8]">
-                Abgeschlossen: Nachweis-Archiv <span className="text-[#037A4F]">({abgeschlossene.length})</span>
+                <button
+                  type="button"
+                  onClick={() => setArchivOffen((v) => !v)}
+                  aria-expanded={archivOffen}
+                  aria-controls="pickup-archiv"
+                  className="inline-flex items-center gap-2 min-h-[56px] px-4 -mx-4 rounded-xl uppercase tracking-wider font-black hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  <span aria-hidden className="inline-block w-4">{archivOffen ? "▾" : "▸"}</span>
+                  Abgeschlossen: Nachweis-Archiv <span className="text-[#037A4F] dark:text-[#3ddc97]">({abgeschlossene.length})</span>
+                  <span className="normal-case tracking-normal font-bold text-[#0064d2] dark:text-[#45bdff]">
+                    {archivOffen ? "ausblenden" : "anzeigen"}
+                  </span>
+                </button>
               </h2>
-              <div className={gridCls} style={gridStyle}>
-                {abgeschlossene.map((a) => <AuftragKarte key={a.id} a={a} />)}
-              </div>
+              {archivOffen && (
+                <div id="pickup-archiv" className={gridCls} style={gridStyle}>
+                  {abgeschlossene.map((a) => <AuftragKarte key={a.id} a={a} />)}
+                </div>
+              )}
             </section>
           )}
 
