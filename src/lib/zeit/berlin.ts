@@ -42,6 +42,12 @@ export function berlinStunde(d: Date): number {
   return teile(d).stunde;
 }
 
+/** Minute des Tages in deutscher Zeit, 0–1439 (16:30 → 990). */
+export function berlinMinuteDesTages(d: Date): number {
+  const t = teile(d);
+  return t.stunde * 60 + t.minute;
+}
+
 /** Wochentag in deutscher Zeit, 0 = Sonntag … 6 = Samstag (wie `getDay`). */
 export function berlinWochentag(d: Date): number {
   const [j, m, t] = berlinTag(d).split("-").map(Number) as [number, number, number];

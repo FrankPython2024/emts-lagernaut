@@ -140,10 +140,15 @@ console.log("\n── Halbautomatischer Druck (01.10.2026) ──");
   const um = (iso: string) => new Date(iso);
   const pla = { vorlageMaterial: "PLA", spule: "PLA" };
   check("Do 01.10. 10:00 → darf", autoStartGrund({ jetzt: um("2026-10-01T08:00:00Z"), ...pla }), null);
-  check("Do 01.10. 05:59 → zu früh", autoStartGrund({ jetzt: um("2026-10-01T03:59:00Z"), ...pla })?.includes("Mo–Fr 6–16"), true);
+  check("Do 01.10. 05:59 → zu früh", autoStartGrund({ jetzt: um("2026-10-01T03:59:00Z"), ...pla })?.includes("Mo–Fr 6:00–16:30"), true);
   check("Do 01.10. 06:00 → darf", autoStartGrund({ jetzt: um("2026-10-01T04:00:00Z"), ...pla }), null);
   check("Do 01.10. 15:59 → darf", autoStartGrund({ jetzt: um("2026-10-01T13:59:00Z"), ...pla }), null);
-  check("Do 01.10. 16:00 → zu spät", autoStartGrund({ jetzt: um("2026-10-01T14:00:00Z"), ...pla }) !== null, true);
+  // Bis 16:30 verlängert (09.10.2026): 16:00 und 16:29 dürfen, 16:30 nicht mehr.
+  check("Do 01.10. 16:00 → darf", autoStartGrund({ jetzt: um("2026-10-01T14:00:00Z"), ...pla }), null);
+  check("Do 01.10. 16:29 → darf", autoStartGrund({ jetzt: um("2026-10-01T14:29:00Z"), ...pla }), null);
+  check("Do 01.10. 16:30 → zu spät", autoStartGrund({ jetzt: um("2026-10-01T14:30:00Z"), ...pla }) !== null, true);
+  check("Winterzeit: Mo 07.12. 16:29 → darf, 16:30 nicht",
+    [autoStartGrund({ jetzt: um("2026-12-07T15:29:00Z"), ...pla }), autoStartGrund({ jetzt: um("2026-12-07T15:30:00Z"), ...pla }) !== null], [null, true]);
   check("Sa 03.10. (Tag der Einheit + Samstag) → nein", autoStartGrund({ jetzt: um("2026-10-03T08:00:00Z"), ...pla }) !== null, true);
   check("Fr 25.12. Feiertag → nein, mit Namen", autoStartGrund({ jetzt: um("2026-12-25T09:00:00Z"), ...pla })?.includes("Weihnacht"), true);
   check("Do 24.12. betriebsfrei → nein", autoStartGrund({ jetzt: um("2026-12-24T09:00:00Z"), ...pla })?.includes("betriebsfrei"), true);

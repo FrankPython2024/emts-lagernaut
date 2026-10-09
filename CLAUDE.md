@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1087) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1090) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1751,7 +1751,7 @@ Material geschätzt, Zurücknehmen nur über die Buchungsseite). Pfeiltasten-Bed
 
 Wunsch Frank: „Anfrage für Fuß XXX → Bestand prüfen → wenn nicht: Platte leer und Datei vorhanden →
 Druck automatisch starten." **Entscheidungen Frank:** ganz automatisch (kein Bestätigungs-Tipp),
-Start nur **Mo–Fr 6–16 Uhr**, bei falscher Spule **warten mit Hinweis**. **`db push`**
+Start nur **Mo–Fr 6:00–16:30 Uhr** (bis 09.10.2026: 6–16 Uhr), bei falscher Spule **warten mit Hinweis**. **`db push`**
 (`DruckAuftrag.automatisch`, `DruckAuftrag.anfrageId`), kein neues Recht.
 - **Auslöser:** `erstelleAnfrage` (src/modules/anfragen/service.ts) ruft nach dem Anlegen einer
   BEDARF-Anfrage (ohne Test-Modus, keine Sonderanfrage) `autoDruckFuerAnfrage` auf — läuft danach und
@@ -1763,11 +1763,11 @@ Start nur **Mo–Fr 6–16 Uhr**, bei falscher Spule **warten mit Hinweis**. **`
   mehrere Stück, zwei Anfragen = ein Druck → `DruckAuftrag` WARTET, `erstelltVon "AUTO"`.
 - **Start** über die normale Warteschlange (`meldenUndAbholen`): Brücke an, Drucker bereit, **Platte per
   Knopf frei** (die menschliche Sicherung — ohne sie startet nichts), dazu für automatische Aufträge
-  `autoStartGrund()` in `src/lib/druck/autoDruck.ts`: Mo–Fr 6:00–15:59 deutsche Zeit, nicht an Feiertagen
+  `autoStartGrund()` in `src/lib/druck/autoDruck.ts`: Mo–Fr 6:00–16:29 deutsche Zeit (bis 09.10.2026: bis 15:59), nicht an Feiertagen
   Thüringen / 24.12. / 31.12. (`feiertag()` aus der Urlaubsplanung), und `materialPasst` ≠ false. Ein
   wartender automatischer Auftrag blockiert keinen Auftrag von Hand dahinter.
 - **Anzeige:** Druckerkarte „⏳ … · automatisch für Anfrage #N · wartet: automatischer Druck nur Mo–Fr
-  6–16 Uhr" bzw. „Spule passt nicht: PLA nötig, eingelegt ist PETG".
+  6:00–16:30 Uhr" bzw. „Spule passt nicht: PLA nötig, eingelegt ist PETG".
 - **Danach** wie immer: „fertig → einbuchen" + Karton-Etikett. Das Einbuchen (EINGANG) schickt den
   Technikern mit BEDARF-Anfrage auf diesen Artikel schon heute „🎉 Teil wieder verfügbar" (bucheLager).
   ⚠️ Das trifft nur Anfragen mit DERSELBEN `artikelId` wie der Zielartikel beim Einbuchen.
@@ -1790,7 +1790,7 @@ Start nur **Mo–Fr 6–16 Uhr**, bei falscher Spule **warten mit Hinweis**. **`
   `nachdruckFuerVorlage` auf: offene Anfragen (NEU/BEDARF/IN_BEARBEITUNG, Modell über die Roh-Bezeichnung)
   je Teiltyp gegen den Bestand der Artikel dieser Modelle samt Pool-Partner (`nachdruckFehlt`). Fehlt noch
   etwas, mindestens eine davon ist BEDARF und kein Auftrag offen → nächster automatischer Auftrag (Auslöser
-  = älteste BEDARF-Anfrage). Startet wie jeder automatische erst nach „Platte ist leer", Mo–Fr 6–16 Uhr.
+  = älteste BEDARF-Anfrage). Startet wie jeder automatische erst nach „Platte ist leer", Mo–Fr 6:00–16:30 Uhr.
   Gilt auch für Drucke, die von Hand gestartet wurden.
 - **Minütliche Prüfung** (Frank, 09.10.2026): `starteRegelmaessigePruefung()` in `src/modules/druck/autoDruck.ts`,
   gestartet in `src/server.ts` (läuft in Produktion, `CMD tsx src/server.ts`). Jede Minute: alle aktiven Vorlagen
@@ -1798,7 +1798,7 @@ Start nur **Mo–Fr 6–16 Uhr**, bei falscher Spule **warten mit Hinweis**. **`
   Bestandskorrektur auf 0 stand eine Füße-Anfrage als „Neu" da — weder „neue Bedarf-Anfrage" noch „Einbuchen"
   schaute wieder hin, kein Druck. ⚠️ Die Nachdruck-Regel verlangte dazu mindestens eine BEDARF-Anfrage — das
   ist entfernt: maßgeblich ist nur offene Stück > Bestand. Erst eine Zählabfrage (offen = 0 → fertig), Läufe
-  stapeln sich nicht, Fehler beenden den Takt nie. Gedruckt wird weiter nur nach „Platte ist leer", Mo–Fr 6–16 Uhr.
+  stapeln sich nicht, Fehler beenden den Takt nie. Gedruckt wird weiter nur nach „Platte ist leer", Mo–Fr 6:00–16:30 Uhr.
   `pruefeAlleVorlagen(true)` = Trockenlauf (meldet nur). Vor Inbetriebnahme gegen die Produktion: genau 1 Auftrag
   (7400 Füße vorne, 2 offen / Bestand 0) — der gemeldete Fall.
 - **Drucker beschäftigt, wenn die Anfrage kommt:** Der Auftrag wird sofort angelegt und wartet („Druck wartet —
