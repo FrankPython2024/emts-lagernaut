@@ -13,6 +13,7 @@ import { buendele, sichtbareBuendel, teilSchluessel, type BuendelAnfrage } from 
 import { sortiereNachHaeufigkeit, teilNorm } from "../src/lib/anfragen/haeufigkeit";
 import { teilAnzeige } from "../src/lib/constants/teiltypen";
 import { istUeberfaellig } from "../src/lib/anfragen/ueberfaellig";
+import { teilKategorie, gruppeHatKategorie } from "../src/lib/anfragen/kategorie";
 
 let passed = 0;
 let failed = 0;
@@ -185,6 +186,22 @@ console.log("\n── Überfällig: Füße ausgenommen (09.10.2026) ──");
   check("Fuß hinten in Bearbeitung → nicht überfällig", istUeberfaellig("IN_BEARBEITUNG", vor, jetzt, "Füße hinten"), false);
   check("Akku nach 30 min → noch nicht", istUeberfaellig("NEU", vor, new Date("2026-10-09T05:30:00Z").getTime(), "Akku"), false);
   check("erledigt → nie", istUeberfaellig("ABGESCHLOSSEN", vor, jetzt, "Akku"), false);
+}
+
+console.log("\n── Unterteilung Akku / Gehäuseteile / Füße (09.10.2026) ──");
+{
+  const k = (t: string) => teilKategorie(t);
+  check("Teiltypen", ["Akku", "Füße vorne", "Füße hinten", "D Cover", "B Cover", "C Cover", "Tastatur", "Displaymodul", "BIOS Batterie"].map(k),
+    ["AKKU", "FUESSE", "FUESSE", "GEHAEUSE", "GEHAEUSE", "GEHAEUSE", "WEITERE", "WEITERE", "WEITERE"]);
+  check("Sonder: Gehäuse-Freitexte",
+    ["B-Cover Single CAM", "Blende SimSchacht", "schanierabdeckung", "lcd-bezel", "Service door", "SIM Tray", "SD Dummy", "Display Rahmen", "d cover netzwerk klappe"].map(k),
+    Array(9).fill("GEHAEUSE"));
+  check("Sonder: Bios-/CMOS-Batterie ist kein Akku", ["Bios Batterie", "Bios Bat.", "CMOS Batt", "Bios-Batterie"].map(k), Array(4).fill("WEITERE"));
+  check("Sonder: Füße gehen vor", ["Fuß vorn oder c Cover", "bitte 32 Füße von der serie"].map(k), ["FUESSE", "FUESSE"]);
+  check("Sonder: Rest", ["SSD 256", "Trackpoint", "Kamera", "lüfter", "Schrauben vorn"].map(k), Array(5).fill("WEITERE"));
+  check("Beschreibung zählt mit", teilKategorie("Verschiedenes", "Akku Dell 7490"), "AKKU");
+  const gruppe = [{ teil: "Akku" }, { teil: "Füße vorne" }];
+  check("Gruppe mit Akku + Füßen unter beiden Reitern", [gruppeHatKategorie(gruppe, "AKKU"), gruppeHatKategorie(gruppe, "FUESSE"), gruppeHatKategorie(gruppe, "GEHAEUSE")], [true, true, false]);
 }
 
 console.log(`\n${passed} bestanden, ${failed} fehlgeschlagen\n`);

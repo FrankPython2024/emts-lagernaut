@@ -12,6 +12,7 @@ const ADMIN_QUICK_REPLIES = [
   "Bitte Gerät bereitstellen",
   "Rückfrage zum Gerät",
   "Teil liegt zur Abholung bereit",
+  "Ersatzteile werden bestellt, bitte gesondert zur Abholung bereitlegen",
   "Bitte melden",
 ];
 

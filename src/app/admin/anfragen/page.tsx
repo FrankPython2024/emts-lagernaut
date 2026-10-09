@@ -12,6 +12,7 @@ import { ChatModal } from "@/components/ui/ChatModal";
 import { UeberfaelligBadge } from "@/components/anfragen/UeberfaelligBadge";
 import { useNow } from "@/hooks/useNow";
 import { istUeberfaellig, verstricheneZeit } from "@/lib/anfragen/ueberfaellig";
+import { TEIL_KATEGORIEN, gruppeHatKategorie, type TeilKategorie } from "@/lib/anfragen/kategorie";
 import { usePermissions } from "@/hooks/usePermissions";
 import { maxMengeFuer, teilAnzeige } from "@/lib/constants/teiltypen";
 import Link from "next/link";
@@ -385,6 +386,8 @@ function AnfragenPageInner() {
   const [techFilter,   setTechFilter]   = useState("");
   const [meinFilter,   setMeinFilter]   = useState(false);
   const [ohneTest,     setOhneTest]     = useState(false); // Test-Anfragen ausblenden
+  // Unterteilung nach Teil-Art (09.10.2026) — "" = alle. Filtert ganze LogID-Gruppen.
+  const [kategorie,    setKategorie]    = useState<TeilKategorie | "">("");
   const [tagesModal,   setTagesModal]   = useState(false);
   // IDs, die der Techniker in DIESER Session selbst storniert hat (Live-Event).
   // Sessionweit gemerkt, damit die Position auch nach einem Listen-Refetch als
@@ -460,12 +463,26 @@ function AnfragenPageInner() {
   });
 
   // "Meine" Quick-Filter — client-seitig
-  const data = useMemo(() => {
+  const vorKategorie = useMemo(() => {
     if (!meinFilter || !rawData) return rawData;
     return rawData.filter((g) =>
       g.anfragen.some((a) => (a as Anfrage & { bearbeitetVon?: string | null }).bearbeitetVon?.toUpperCase() === ersteller.toUpperCase()),
     );
   }, [rawData, meinFilter, ersteller]);
+
+  // Akku · Gehäuseteile · Füße · Weitere — die Gruppe bleibt ganz (src/lib/anfragen/kategorie.ts).
+  type MitBeschreibung = { teil: string; beschreibung?: string | null };
+  const kategorieAnzahl = useMemo(() => {
+    const m = new Map<TeilKategorie, number>();
+    for (const k of TEIL_KATEGORIEN) {
+      m.set(k.key, (vorKategorie ?? []).filter((g) => gruppeHatKategorie(g.anfragen as MitBeschreibung[], k.key)).length);
+    }
+    return m;
+  }, [vorKategorie]);
+  const data = useMemo(() => {
+    if (!kategorie || !vorKategorie) return vorKategorie;
+    return vorKategorie.filter((g) => gruppeHatKategorie(g.anfragen as MitBeschreibung[], kategorie));
+  }, [vorKategorie, kategorie]);
 
   // ── Spendergeräte-Hinweis ─────────────────────────────────────────────────
   // Für Anfragen ohne loses Teil: Steckt es noch in einem eingelagerten Gerät?
@@ -758,6 +775,30 @@ function AnfragenPageInner() {
         <MobilAnfragenListe />
       ) : (
       <>
+      {/* Unterteilung nach Teil-Art — Zahl = Geräte (LogID-Gruppen) mit mindestens einem solchen Teil */}
+      <div role="group" aria-label="Nach Teil-Art unterteilen" className="flex flex-wrap gap-2">
+        {([{ key: "" as const, label: "Alle" }, ...TEIL_KATEGORIEN]).map((k) => {
+          const aktiv = kategorie === k.key;
+          const anzahl = k.key === "" ? (vorKategorie?.length ?? 0) : (kategorieAnzahl.get(k.key) ?? 0);
+          return (
+            <button
+              key={k.key || "alle"}
+              type="button"
+              aria-pressed={aktiv}
+              onClick={() => setKategorie(k.key)}
+              className={`inline-flex items-center gap-2 px-4 min-h-[56px] rounded-xl text-sm font-bold border-2 transition-colors ${aktiv
+                ? "bg-[#0064d2] border-[#0064d2] text-white"
+                : "bg-white dark:bg-[#242526] border-[#ced4da] dark:border-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] hover:border-[#0064d2]"}`}
+            >
+              {k.label}
+              <span className={`px-2 py-0.5 rounded-full text-xs tabular-nums ${aktiv ? "bg-white/20" : "bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"}`}>
+                {anzahl}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Filter */}
       <div className="flex gap-3 flex-wrap items-center">
         {/* A/B-Umschalter: Liste | Board */}
@@ -837,8 +878,8 @@ function AnfragenPageInner() {
         >
           🧪 Test-Anfragen {ohneTest ? "ausgeblendet" : "einblenden"}
         </button>
-        {(statusFilter || techFilter || meinFilter || ohneTest) && (
-          <button onClick={() => { setStatusFilter(""); setTechFilter(""); setMeinFilter(false); setOhneTest(false); }}
+        {(statusFilter || techFilter || meinFilter || ohneTest || kategorie) && (
+          <button onClick={() => { setStatusFilter(""); setTechFilter(""); setMeinFilter(false); setOhneTest(false); setKategorie(""); }}
             className="text-xs text-[#65676b] dark:text-[#b0b3b8] hover:text-[#fa3e3e] px-2 py-1">
             ✕ Filter zurücksetzen
           </button>

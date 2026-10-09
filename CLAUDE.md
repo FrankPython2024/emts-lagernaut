@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1070) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1077) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1904,6 +1904,20 @@ cyan umrandet); „🔍 Spender suchen" je Bündel. Der Kasten lässt sich einkl
   haben dafür `weitereZielLogIds` — sonst schlüge sich ein Gerät auf der Werkbank für die anderen
   fünf Anfragen als Spender vor.
 - Keine Schemaänderung, kein neues Recht (ANFRAGE_VIEW_ALL).
+
+### Anfragen: Unterteilung Akku / Gehäuseteile / Füße + Chat-Baustein (09.10.2026)
+
+Wunsch Frank: „Ersatzteil-Anfragen unterteilen nach Akku, Gehäuseteilen, Füßen — aber immer in Betracht
+auf die LogID." In `/admin/anfragen` (Notebook) oben Knöpfe **Alle · 🔋 Akku · 🧱 Gehäuseteile · 🦶 Füße ·
+🔧 Weitere**, je mit der Zahl der Gruppen. Regel `src/lib/anfragen/kategorie.ts` (Test in `test:gleicheteile`).
+- ⚠️ **Die LogID-Gruppe bleibt GANZ:** gefiltert werden Gruppen, nicht Zeilen. Ein Gerät mit Akku + Füßen
+  steht unter beiden Reitern mit ALLEN Teilen — sonst zerfielen Gruppen-Aktionen (Übernehmen, Auslagern,
+  Etikett). Liste und Board nutzen dieselbe gefilterte Menge.
+- Sonderanfragen tragen Freitext → Wortmuster (cover/blende/abdeckung/rahmen/bezel/door/scharnier/SIM-Tray/
+  Dummy …), an den Anfragen der letzten 90 Tage geprüft. Reihenfolge: Füße vor Akku vor Gehäuse;
+  **BIOS-/CMOS-Batterie ist kein Akku**. Rein clientseitig, keine Schemaänderung.
+- Chat-Schnellantwort (Admin, `ChatModal.tsx`): **„Ersatzteile werden bestellt, bitte gesondert zur
+  Abholung bereitlegen"**.
 
 ### Techniker-Portal: häufigste Teile zuerst (30.09.2026)
 
