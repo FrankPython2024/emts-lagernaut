@@ -467,6 +467,13 @@ function AnfragenPageInner() {
     staleTime: 20_000, refetchOnWindowFocus: false,
   });
 
+  // Lagerstand je Anfrage (inkl. Pool-Partner) — für das neue Design (09.10.2026).
+  const aufLagerJeAnfrage = useMemo(() => {
+    const m = new Map<number, boolean>();
+    for (const g of (auslagerData ?? [])) for (const t of g.teile) if (!t.istSonderanfrage) m.set(t.teilId, t.verfuegbar);
+    return m;
+  }, [auslagerData]);
+
   const auslagerMap = useMemo(() => {
     const m = new Map<string, { anzahlVerfuegbar: number; anzahlTotal: number }>();
     for (const g of (auslagerData ?? [])) m.set(g.gruppenKey, { anzahlVerfuegbar: g.anzahlVerfuegbar, anzahlTotal: g.anzahlTotal });
@@ -804,6 +811,8 @@ function AnfragenPageInner() {
         <MobilAnfragenListe />
       ) : (
       <>
+      {/* Bisherige Leiste für Liste und Board — unverändert (Frank, 09.10.2026). */}
+      {ansicht !== "karten" && (<>
       {/* Umschalter offen / abgeschlossen — pro Benutzer gespeichert */}
       <div role="group" aria-label="Offene oder abgeschlossene Anfragen" className="flex rounded-xl overflow-hidden border-2 border-[#ced4da] dark:border-[#3e4042] w-fit">
         {([["offen", "🟢 Offen"], ["abgeschlossen", "✅ Abgeschlossen"]] as const).map(([wert, label], i) => (
@@ -868,10 +877,10 @@ function AnfragenPageInner() {
           </button>
           <button
             type="button"
-            aria-pressed={ansicht === "karten"}
+            aria-pressed={false}
             onClick={() => wechsleAnsicht("karten")}
             title="Neues Design zum Vergleichen"
-            className={`px-4 text-xs font-bold border-l border-[#ced4da] dark:border-[#3e4042] transition-colors min-h-[56px] ${ansicht === "karten" ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
+            className={`px-4 text-xs font-bold border-l border-[#ced4da] dark:border-[#3e4042] transition-colors min-h-[56px] ${"bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
           >
             ✦ Neues Design
           </button>
@@ -942,6 +951,104 @@ function AnfragenPageInner() {
         )}
         <span className="py-2 text-sm text-[#65676b] dark:text-[#b0b3b8]">{data?.length ?? 0} Gruppen</span>
       </div>
+      </>)}
+
+      {/* ── Kompakte Filter NUR im neuen Design (09.10.2026) ──────────────────
+          Liste und Board behalten ihre Leiste oben unverändert (Wunsch Frank).
+          Reihe 1 „was": Offen/Abgeschlossen + Teil-Arten. Reihe 2 „wie": Ansicht,
+          Meine, Techniker, seltene Filter im Aufklapp-Menü. Gewählte Filter sind
+          Navy — Blau bleibt im neuen Design dem nächsten Arbeitsschritt vorbehalten. */}
+      {ansicht === "karten" && (
+        <div className="space-y-2.5">
+          <div role="group" aria-label="Was zeigen" className="flex flex-wrap gap-2 items-center">
+            <div role="group" aria-label="Offene oder abgeschlossene Anfragen" className="flex rounded-xl overflow-hidden border-2 border-[#ced4da] dark:border-[#3e4042]">
+              {([["offen", "Offen"], ["abgeschlossen", "Abgeschlossen"]] as const).map(([wert, label], i) => (
+                <button key={wert} type="button" aria-pressed={statusAnsicht === wert} onClick={() => wechsleStatusAnsicht(wert)}
+                  className={`px-5 min-h-[52px] text-sm font-bold transition-colors ${i > 0 ? "border-l-2 border-[#ced4da] dark:border-[#3e4042]" : ""} ${statusAnsicht === wert
+                    ? "bg-[#202F61] text-white"
+                    : "bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="w-px self-stretch bg-[#ced4da] dark:bg-[#3e4042] mx-1" aria-hidden />
+            {([{ key: "" as const, label: "Alle" }, ...TEIL_KATEGORIEN.filter((k) => (kategorieAnzahl.get(k.key) ?? 0) > 0 || kategorie === k.key)]).map((k) => {
+              const aktiv = kategorie === k.key;
+              const anzahl = k.key === "" ? offeneGruppen : (kategorieAnzahl.get(k.key) ?? 0);
+              return (
+                <button key={k.key || "alle"} type="button" aria-pressed={aktiv} onClick={() => setKategorie(k.key)}
+                  className={`inline-flex items-center gap-2 px-4 min-h-[52px] rounded-xl text-sm font-bold border-2 transition-colors ${aktiv
+                    ? "bg-[#202F61] border-[#202F61] text-white"
+                    : "bg-white dark:bg-[#242526] border-[#ced4da] dark:border-[#3e4042] text-[#1a1a1a] dark:text-[#e4e6eb] hover:border-[#202F61]"}`}>
+                  {/* Nur das Wort — die Emojis vorne sehen je Gerät anders aus. */}
+                  {k.label.replace(/^\S+\s/, "")}
+                  <span className={`px-2 py-0.5 rounded-full text-xs tabular-nums ${aktiv ? "bg-white/20" : "bg-[#f0f2f5] dark:bg-[#3e4042] text-[#65676b] dark:text-[#b0b3b8]"}`}>{anzahl}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div role="group" aria-label="Wie zeigen" className="flex flex-wrap gap-2 items-center">
+            <div role="group" aria-label="Ansicht" className="flex rounded-xl overflow-hidden border-2 border-[#ced4da] dark:border-[#3e4042]">
+              {([["liste", "Liste"], ["board", "Board"], ["karten", "Neues Design"]] as const).map(([wert, label], i) => (
+                <button key={wert} type="button" aria-pressed={ansicht === wert} onClick={() => wechsleAnsicht(wert)}
+                  className={`px-4 min-h-[48px] text-sm font-bold transition-colors ${i > 0 ? "border-l-2 border-[#ced4da] dark:border-[#3e4042]" : ""} ${ansicht === wert
+                    ? "bg-[#202F61] text-white"
+                    : "bg-white dark:bg-[#242526] text-[#5f6368] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div role="group" aria-label="Wessen Anfragen" className="flex rounded-xl overflow-hidden border-2 border-[#ced4da] dark:border-[#3e4042]">
+              {([[false, "Alle"], [true, "Meine"]] as const).map(([wert, label], i) => (
+                <button key={label} type="button" aria-pressed={meinFilter === wert} onClick={() => setMeinFilter(wert)}
+                  className={`px-4 min-h-[48px] text-sm font-bold transition-colors ${i > 0 ? "border-l-2 border-[#ced4da] dark:border-[#3e4042]" : ""} ${meinFilter === wert
+                    ? "bg-[#202F61] text-white"
+                    : "bg-white dark:bg-[#242526] text-[#5f6368] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <input placeholder="Techniker, z. B. HG" aria-label="Techniker filtern" value={techFilter}
+              onChange={(e) => setTechFilter(e.target.value.toUpperCase())}
+              className="px-4 min-h-[48px] rounded-xl border-2 border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] outline-none focus:border-[#202F61] text-sm w-48" />
+            <details className="relative">
+              <summary className="list-none cursor-pointer inline-flex items-center px-4 min-h-[48px] rounded-xl text-sm font-bold text-[#0064d2] dark:text-[#45bdff] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]">
+                Weitere Filter{(statusFilter || ohneTest) ? " (aktiv)" : ""}
+              </summary>
+              <div className="absolute left-0 top-[52px] z-20 w-72 rounded-xl border border-[#d9dde3] dark:border-[#3e4042] bg-white dark:bg-[#242526] shadow-[0_8px_24px_rgba(32,47,97,0.18)] p-3 space-y-3">
+                <label className="block text-sm font-bold text-[#202F61] dark:text-[#e4e6eb]">
+                  Status genauer
+                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as AnfrageStatus | "")}
+                    className="mt-1 w-full px-3 min-h-[48px] rounded-lg border-2 border-[#ced4da] dark:border-[#3e4042] bg-white dark:bg-[#18191a] text-[#1a1a1a] dark:text-[#e4e6eb] text-sm">
+                    <option value="">Alle</option>
+                    <option value={AnfrageStatus.NEU}>Neu</option>
+                    <option value={AnfrageStatus.BEDARF}>Zu erledigen</option>
+                    <option value={AnfrageStatus.IN_BEARBEITUNG}>In Arbeit</option>
+                    <option value={AnfrageStatus.ABGESCHLOSSEN}>Erledigt</option>
+                    <option value={AnfrageStatus.NICHT_VERFUEGBAR}>Kein Teil</option>
+                    <option value={AnfrageStatus.STORNIERT}>Storniert</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-3 min-h-[44px] text-sm font-bold text-[#202F61] dark:text-[#e4e6eb] cursor-pointer">
+                  <input type="checkbox" checked={ohneTest} onChange={(e) => setOhneTest(e.target.checked)} className="w-5 h-5" />
+                  Test-Anfragen ausblenden
+                </label>
+              </div>
+            </details>
+            {(statusFilter || techFilter || meinFilter || ohneTest || kategorie) && (
+              <button type="button" onClick={() => { setStatusFilter(""); setTechFilter(""); setMeinFilter(false); setOhneTest(false); setKategorie(""); }}
+                className="px-3 min-h-[48px] rounded-xl text-sm font-bold text-[#5f6368] dark:text-[#b0b3b8] hover:text-[#c01818]">
+                Filter zurücksetzen
+              </button>
+            )}
+            <span className="ml-auto text-sm text-[#5f6368] dark:text-[#b0b3b8]">
+              {data?.length ?? 0} {data?.length === 1 ? "Gerät" : "Geräte"}{statusAnsicht === "offen" ? " · älteste zuerst" : " · neueste zuerst"}
+            </span>
+          </div>
+        </div>
+      )}
+
 
       {/* Board (B) — opt-in über Umschalter, nutzt dieselben Daten + Handler wie die Liste */}
       {ansicht === "board" && (
@@ -1017,6 +1124,9 @@ function AnfragenPageInner() {
           teilespenderHinweise={teilespenderHinweise}
           spenderHinweise={spenderHinweise}
           technikerStorniert={technikerStorniert}
+          teilAufLager={(id) => aufLagerJeAnfrage.get(id)}
+          aeltesteZuerst={statusAnsicht === "offen"}
+          onSammelAuslagern={(tech, ids) => setAuslagerModal({ anfrageIds: ids, gruppenLabel: `Füße für ${tech}` })}
           chatUngelesen={(g) => {
             const firstId = g.anfragen[0]?.id;
             return firstId ? ((ungelesenData ?? []).find((x) => x.anfrageId === firstId)?.count ?? 0) : 0;

@@ -44,6 +44,12 @@ export type AnfragenKartenProps = {
   teilespenderHinweise: TeilespenderHinweise;
   spenderHinweise:      SpenderHinweise;
   technikerStorniert:   ReadonlySet<number>;
+  /** Liegt das Teil dieser Anfrage im Regal (inkl. Pool-Partner)? undefined = unbekannt. */
+  teilAufLager:   (anfrageId: number) => boolean | undefined;
+  /** FIFO (Frank, 09.10.2026): offene Arbeit älteste zuerst; das Archiv neueste zuerst. */
+  aeltesteZuerst: boolean;
+  /** Füße eines Technikers gesammelt auslagern (Frank, 09.10.2026). */
+  onSammelAuslagern: (techniker: string, anfrageIds: number[]) => void;
   chatUngelesen:  (g: KartenGruppe) => number;
   // Gruppe
   onUebernehmen:   (g: KartenGruppe) => void;
@@ -62,6 +68,15 @@ export type AnfragenKartenProps = {
   onTeilReprint:         (a: KartenAnfrage) => void;
   onTeilZuruecksetzen:   (id: number) => void;
 };
+
+/**
+ * Sortierzeit einer Gruppe: die ÄLTESTE noch offene Anfrage — sie wartet am
+ * längsten. Ohne offene Teile (Archiv) die Gruppenzeit.
+ */
+function wartetSeit(g: KartenGruppe): number {
+  const offen = g.anfragen.filter((a) => istOffen(a.status)).map((a) => new Date(a.createdAt).getTime());
+  return offen.length ? Math.min(...offen) : new Date(g.datum).getTime();
+}
 
 export function gruppenSchluessel(g: KartenGruppe): string {
   return g.gruppenNr ?? `${g.techniker}__${g.logId}`;
@@ -285,6 +300,13 @@ function Karte(p: AnfragenKartenProps & { g: KartenGruppe; geschwister: KartenGr
                 )}
                 {a.grading && <span className="ml-2 text-sm font-bold text-[#5f6368] dark:text-[#b0b3b8]">Grading {a.grading} erwünscht</span>}
                 {a.istSonderAnfrage && <span className="ml-2 text-sm font-bold text-[#8A5A00] dark:text-[#f7b928]">Sonderanfrage</span>}
+                {/* Lagerstand je Teil (09.10.2026) — vorher nur „1 von 2 auf Lager" im Kopf,
+                    ohne zu sagen, welches. Nur bei offenen Teilen mit Artikel. */}
+                {istOffen(a.status) && !a.istSonderAnfrage && p.teilAufLager(a.id) !== undefined && (
+                  p.teilAufLager(a.id)
+                    ? <span className="ml-2 text-sm font-bold text-[#037A4F] dark:text-[#3ddc97]">auf Lager</span>
+                    : <span className="ml-2 text-sm text-[#5f6368] dark:text-[#b0b3b8]">nicht auf Lager</span>
+                )}
               </div>
               {a.status === AnfrageStatus.ABGESCHLOSSEN ? (
                 <span className="text-sm font-bold text-[#037A4F] dark:text-[#3ddc97]">✓ Erledigt</span>
@@ -363,10 +385,33 @@ function Karte(p: AnfragenKartenProps & { g: KartenGruppe; geschwister: KartenGr
   );
 }
 
-export function AnfragenKarten(p: AnfragenKartenProps) {
+export function AnfragenKarten(roh: AnfragenKartenProps) {
+  // First in, first out: stabil sortiert (bei gleicher Zeit nach Gruppenschlüssel),
+  // damit beim Nachladen alle 5 s nichts springt.
+  const gruppen = [...roh.gruppen].sort((x, y) =>
+    (roh.aeltesteZuerst ? wartetSeit(x) - wartetSeit(y) : wartetSeit(y) - wartetSeit(x))
+    || gruppenSchluessel(x).localeCompare(gruppenSchluessel(y)));
+  const p = { ...roh, gruppen };
   if (p.gruppen.length === 0) {
     return <p className="text-center py-16 text-[#5f6368] dark:text-[#b0b3b8]">Keine Anfragen in dieser Auswahl.</p>;
   }
+  // ── Füße je Techniker gesammelt (Frank, 09.10.2026) ──
+  // Nur Füße, nur offene, nur was im Regal liegt und nicht gerade jemand ANDERES
+  // bearbeitet; ab zwei Anfragen desselben Technikers. Ausgegeben wird trotzdem
+  // je Anfrage einzeln (eigene Buchung, eigenes Etikett) — nur in einem Gang.
+  const jeTechniker = new Map<string, { id: number; logId: string; name: string }[]>();
+  for (const g of p.gruppen) {
+    for (const a of g.anfragen as KartenAnfrage[]) {
+      if (!istOffen(a.status) || a.istSonderAnfrage || !ohneSpenderSuche(a.teil, a.beschreibung)) continue;
+      if (a.bearbeitetVon && a.bearbeitetVon.toUpperCase() !== p.ersteller.toUpperCase()) continue;
+      if (p.teilAufLager(a.id) !== true) continue;
+      const liste = jeTechniker.get(g.techniker) ?? [];
+      liste.push({ id: a.id, logId: g.logId, name: teilAnzeige(a.teil, a.menge ?? 1) });
+      jeTechniker.set(g.techniker, liste);
+    }
+  }
+  const sammel = [...jeTechniker.entries()].filter(([, l]) => l.length >= 2).sort((x, y) => y[1].length - x[1].length);
+
   const jeLogId = new Map<string, KartenGruppe[]>();
   for (const g of p.gruppen) {
     if (!g.logId || g.logId === "unbekannt") continue;
@@ -374,12 +419,34 @@ export function AnfragenKarten(p: AnfragenKartenProps) {
     jeLogId.set(k, [...(jeLogId.get(k) ?? []), g]);
   }
   return (
+    <div className="space-y-3.5">
+    {p.canEdit && sammel.length > 0 && (
+      <section aria-label="Füße gesammelt ausgeben" className="rounded-2xl border-2 border-[#037A4F]/40 bg-white dark:bg-[#242526] divide-y divide-[#d9dde3] dark:divide-[#3e4042]">
+        {sammel.map(([tech, liste]) => (
+          <div key={tech} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
+            <div className="min-w-0 flex-1">
+              <div className="font-bold text-[17px] text-[#202F61] dark:text-[#e4e6eb]">
+                {tech} · {liste.length} Füße auf Lager für {new Set(liste.map((x) => x.logId)).size} {new Set(liste.map((x) => x.logId)).size === 1 ? "Gerät" : "Geräte"}
+              </div>
+              <div className="text-sm text-[#5f6368] dark:text-[#b0b3b8]">
+                {liste.map((x) => `${x.logId} (${x.name})`).join(", ")}
+              </div>
+            </div>
+            <button type="button" onClick={() => p.onSammelAuslagern(tech, liste.map((x) => x.id))} disabled={p.isBusy}
+              className={knopfHaupt}>
+              Alle {liste.length} auslagern
+            </button>
+          </div>
+        ))}
+      </section>
+    )}
     <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 620px), 1fr))" }}>
       {p.gruppen.map((g) => {
         const k = g.logId ? g.logId.replace(/\D/g, "") : "";
         const geschwister = (k && jeLogId.get(k)?.filter((x) => x !== g)) || [];
         return <Karte key={gruppenSchluessel(g)} {...p} g={g} geschwister={geschwister} />;
       })}
+    </div>
     </div>
   );
 }

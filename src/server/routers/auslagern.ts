@@ -195,6 +195,8 @@ export const auslagernRouter = createTRPCRouter({
               grading:         null,
               status:          a.status as string,
               istSonderanfrage: true,
+              logId:           a.logId,
+              geraeteName:     a.geraeteName ?? null,
             };
           }
           if (!a.artikel) return null;
@@ -218,6 +220,9 @@ export const auslagernRouter = createTRPCRouter({
             grading:        extractGrading(letzteBuchung?.notiz),
             status:         a.status as string,
             istSonderanfrage: false,
+            // Für Sammelausgaben über mehrere Geräte (Füße je Techniker, 09.10.2026).
+            logId:          a.logId,
+            geraeteName:    a.geraeteName ?? null,
           };
         })
       );

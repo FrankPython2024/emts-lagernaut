@@ -23,6 +23,8 @@ type Teil = {
   grading:        string | null;
   status:         string;
   istSonderanfrage?: boolean;
+  logId?:         string;
+  geraeteName?:   string | null;
 };
 
 export type AuslagerResult = {
@@ -177,6 +179,8 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
   });
 
   const teile         = (query.data ?? []) as Teil[];
+  // Sammelausgabe über mehrere Geräte: je Zeile sagen, für welches Gerät.
+  const mehrereGeraete = new Set(teile.map((t) => t.logId ?? "")).size > 1;
   const selectedTeile = teile.filter((t) => ausgewaehlt.has(t.teilId));
   const anzahl        = selectedTeile.length;
 
@@ -345,6 +349,11 @@ export function AuslagerModal({ anfrageIds, gruppenLabel, onClose, onSuccess }: 
                           <span className="font-bold text-sm text-[#1a1a1a] dark:text-[#e4e6eb]">
                             {isSonder ? `🎁 ${t.artikelName}` : t.teiltyp}
                           </span>
+                          {mehrereGeraete && t.logId && (
+                            <span className="text-xs font-bold font-mono text-[#202F61] dark:text-[#e4e6eb]">
+                              {t.logId}{t.geraeteName ? <span className="font-sans font-normal text-[#65676b] dark:text-[#b0b3b8]"> · {t.geraeteName}</span> : null}
+                            </span>
+                          )}
                           {!isDirekt && t.grading && (
                             <span className="text-[11px] font-black px-1.5 py-0.5 rounded text-white" style={{ background: gradingColor(t.grading) }}>
                               {t.grading}

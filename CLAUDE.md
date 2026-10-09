@@ -1941,6 +1941,24 @@ An allen Teilnamen der letzten 90 Tage aus der Produktion geprüft (09.10.2026).
   dieselbe LogID in mehreren Gruppen steht (getrennt abgeschickt — Gruppen bleiben getrennt, nur verlinkt);
   „(Ort unsicher)" in Worten statt ⚠; „Gleiche Teile" zeigt „Fuß vorne" statt „Füße vorne" (`teilAnzeige`,
   auch in der alten Liste).
+  **Zweite Runde (09.10.2026, Entscheidungen Frank: zwei Personen bearbeiten die Liste → „Übernehmen" bleibt
+  Hauptknopf; Anfragen werden einzeln abgearbeitet; Füße desselben Technikers mit Bestand dürfen gebündelt
+  werden; älteste zuerst; NUR im neuen Design, Liste und Board unangetastet):**
+  - **Füße je Techniker gesammelt** — Leiste über den Karten ab 2 Füße-Anfragen eines Technikers, die im Regal
+    liegen und nicht von jemand anderem bearbeitet werden: „HG · 3 Füße auf Lager für 3 Geräte · Alle 3
+    auslagern". Öffnet das normale `AuslagerModal` mit allen Ids — jede Anfrage bekommt weiter ihre EIGENE
+    Buchung und ihr eigenes Etikett. ⚠️ Lagerstand wird je Anfrage geprüft, nicht summiert: Reicht der Bestand
+    nicht für alle, lehnt `auslagern.teile` in der Transaktion ab (bedingtes Dekrement) — dann einzeln abwählen.
+  - `auslagern.gruppeDetails` liefert je Teil zusätzlich `logId`/`geraeteName`; das Auslager-Fenster zeigt
+    die LogID je Zeile NUR, wenn mehrere Geräte drin sind (aus Liste/Board nie → dort unverändert).
+  - **Lagerstand je Teil-Zeile** („auf Lager" / „nicht auf Lager") aus `auslagern.listAnfragen` (`verfuegbar`,
+    inkl. Pool-Partner) — vorher nur „1 von 2 auf Lager" im Kopf, ohne zu sagen, welches.
+  - **FIFO:** offen → Gruppen nach der ÄLTESTEN offenen Anfrage, älteste zuerst (zeilenweise lesen);
+    abgeschlossen → neueste zuerst. Stabil sortiert, damit beim Nachladen nichts springt.
+  - **Kompakte Filter nur im neuen Design:** Reihe „was" (Offen/Abgeschlossen + Teil-Arten ohne Emoji),
+    Reihe „wie" (Ansicht, Alle/Meine, Techniker, „Weitere Filter" mit Status in Klartext und
+    „Test-Anfragen ausblenden"), „N Geräte · älteste zuerst". Gewählte Filter Navy — Blau nur für Handeln.
+    Die alte Leiste ist dort ausgeblendet, für Liste/Board unverändert.
 - **Umschalter „Offen | Abgeschlossen"** über den Knöpfen, **dauerhaft pro Benutzer** (Frank: nicht je
   Browser) → neue Spalte `User.einstellungen Json?` (**`db push`**), Router `userPreferences.getEinstellungen`
   / `setEinstellung` mit **fester Schlüssel-Liste** (`anfragenStatus: offen|abgeschlossen`), keine freie
