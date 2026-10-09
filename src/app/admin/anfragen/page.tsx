@@ -388,6 +388,22 @@ function AnfragenPageInner() {
   const [ohneTest,     setOhneTest]     = useState(false); // Test-Anfragen ausblenden
   // Unterteilung nach Teil-Art (09.10.2026) — "" = alle. Filtert ganze LogID-Gruppen.
   const [kategorie,    setKategorie]    = useState<TeilKategorie | "">("");
+  // Umschalter offen / abgeschlossen (09.10.2026) — dauerhaft PRO BENUTZER in der DB
+  // (userPreferences), nicht im Browser: gilt auch am anderen PC. Standard: offen.
+  const einstellungenQ = api.userPreferences.getEinstellungen.useQuery(undefined, { staleTime: Infinity });
+  const einstellungSetzen = api.userPreferences.setEinstellung.useMutation();
+  const [statusAnsicht, setStatusAnsicht] = useState<"offen" | "abgeschlossen">("offen");
+  const statusAnsichtGeladen = useRef(false);
+  useEffect(() => {
+    if (statusAnsichtGeladen.current || !einstellungenQ.data) return;
+    statusAnsichtGeladen.current = true;
+    if (einstellungenQ.data.anfragenStatus) setStatusAnsicht(einstellungenQ.data.anfragenStatus);
+  }, [einstellungenQ.data]);
+  function wechsleStatusAnsicht(neu: "offen" | "abgeschlossen") {
+    statusAnsichtGeladen.current = true;   // späteres Nachladen überschreibt die Wahl nicht
+    setStatusAnsicht(neu);
+    einstellungSetzen.mutate({ schluessel: "anfragenStatus", wert: neu });
+  }
   const [tagesModal,   setTagesModal]   = useState(false);
   // IDs, die der Techniker in DIESER Session selbst storniert hat (Live-Event).
   // Sessionweit gemerkt, damit die Position auch nach einem Listen-Refetch als
@@ -462,27 +478,34 @@ function AnfragenPageInner() {
     standortId: activeStandortId,
   });
 
+  // Offen = mindestens ein Teil NEU/BEDARF/IN_BEARBEITUNG; abgeschlossen = nichts mehr offen.
+  // Ganze Gruppen — eine LogID mit einem offenen Teil gehört zu „offen".
+  const nachStatus = useMemo(() => {
+    if (!rawData) return rawData;
+    return rawData.filter((g) => g.anfragen.some((a) => istOffen(a.status)) === (statusAnsicht === "offen"));
+  }, [rawData, statusAnsicht]);
+
   // "Meine" Quick-Filter — client-seitig
   const vorKategorie = useMemo(() => {
-    if (!meinFilter || !rawData) return rawData;
-    return rawData.filter((g) =>
+    if (!meinFilter || !nachStatus) return nachStatus;
+    return nachStatus.filter((g) =>
       g.anfragen.some((a) => (a as Anfrage & { bearbeitetVon?: string | null }).bearbeitetVon?.toUpperCase() === ersteller.toUpperCase()),
     );
-  }, [rawData, meinFilter, ersteller]);
+  }, [nachStatus, meinFilter, ersteller]);
 
   // Akku · Gehäuseteile · Füße · Weitere — die Gruppe bleibt ganz (src/lib/anfragen/kategorie.ts).
   type MitBeschreibung = { teil: string; beschreibung?: string | null };
-  // Zähler = nur OFFENE Arbeit (Frank, 09.10.2026): Geräte mit mindestens einem Teil
-  // dieser Art in NEU, BEDARF oder IN_BEARBEITUNG. Erledigte/stornierte zählen nicht —
-  // sonst stand bei „Alle" 1978, obwohl nur eine Handvoll wirklich offen war.
+  // Zähler folgen dem Umschalter (Frank, 09.10.2026). Bei „offen" zählen nur Teile in
+  // NEU, BEDARF, IN_BEARBEITUNG — sonst stand bei „Alle" 1978, obwohl nur eine Handvoll
+  // wirklich offen war. Bei „abgeschlossen" zählen alle Teile der erledigten Gruppen.
   const { kategorieAnzahl, offeneGruppen } = useMemo(() => {
-    const offen = (vorKategorie ?? [])
-      .map((g) => g.anfragen.filter((a) => istOffen(a.status)) as MitBeschreibung[])
+    const gruppen = (vorKategorie ?? [])
+      .map((g) => (statusAnsicht === "offen" ? g.anfragen.filter((a) => istOffen(a.status)) : g.anfragen) as MitBeschreibung[])
       .filter((teile) => teile.length > 0);
     const m = new Map<TeilKategorie, number>();
-    for (const k of TEIL_KATEGORIEN) m.set(k.key, offen.filter((teile) => gruppeHatKategorie(teile, k.key)).length);
-    return { kategorieAnzahl: m, offeneGruppen: offen.length };
-  }, [vorKategorie]);
+    for (const k of TEIL_KATEGORIEN) m.set(k.key, gruppen.filter((teile) => gruppeHatKategorie(teile, k.key)).length);
+    return { kategorieAnzahl: m, offeneGruppen: gruppen.length };
+  }, [vorKategorie, statusAnsicht]);
   const data = useMemo(() => {
     if (!kategorie || !vorKategorie) return vorKategorie;
     return vorKategorie.filter((g) => gruppeHatKategorie(g.anfragen as MitBeschreibung[], kategorie));
@@ -779,7 +802,24 @@ function AnfragenPageInner() {
         <MobilAnfragenListe />
       ) : (
       <>
-      {/* Unterteilung nach Teil-Art — Zahl = Geräte (LogID-Gruppen) mit mindestens einem OFFENEN solchen Teil.
+      {/* Umschalter offen / abgeschlossen — pro Benutzer gespeichert */}
+      <div role="group" aria-label="Offene oder abgeschlossene Anfragen" className="flex rounded-xl overflow-hidden border-2 border-[#ced4da] dark:border-[#3e4042] w-fit">
+        {([["offen", "🟢 Offen"], ["abgeschlossen", "✅ Abgeschlossen"]] as const).map(([wert, label], i) => (
+          <button
+            key={wert}
+            type="button"
+            aria-pressed={statusAnsicht === wert}
+            onClick={() => wechsleStatusAnsicht(wert)}
+            className={`px-5 min-h-[56px] text-sm font-bold transition-colors ${i > 0 ? "border-l-2 border-[#ced4da] dark:border-[#3e4042]" : ""} ${statusAnsicht === wert
+              ? "bg-[#202F61] text-white"
+              : "bg-white dark:bg-[#242526] text-[#1a1a1a] dark:text-[#e4e6eb] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Unterteilung nach Teil-Art — Zahl = Geräte (LogID-Gruppen) dieser Art in der gewählten Ansicht.
           Nur Arten mit Treffern (sonst zwölf Knöpfe, meist mit 0) — die gewählte bleibt immer sichtbar. */}
       <div role="group" aria-label="Nach Teil-Art unterteilen" className="flex flex-wrap gap-2">
         {([{ key: "" as const, label: "Alle" }, ...TEIL_KATEGORIEN.filter((k) => (kategorieAnzahl.get(k.key) ?? 0) > 0 || kategorie === k.key)]).map((k) => {

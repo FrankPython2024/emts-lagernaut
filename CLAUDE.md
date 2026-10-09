@@ -1922,6 +1922,12 @@ An allen Teilnamen der letzten 90 Tage aus der Produktion geprüft (09.10.2026).
   vor Tastatur/Boards („TP Tasten Board"). Rein clientseitig, keine Schemaänderung.
 - Chat-Schnellantwort (Admin, `ChatModal.tsx`): **„Ersatzteile werden bestellt, bitte gesondert zur
   Abholung bereitlegen"**.
+- **Umschalter „Offen | Abgeschlossen"** über den Knöpfen, **dauerhaft pro Benutzer** (Frank: nicht je
+  Browser) → neue Spalte `User.einstellungen Json?` (**`db push`**), Router `userPreferences.getEinstellungen`
+  / `setEinstellung` mit **fester Schlüssel-Liste** (`anfragenStatus: offen|abgeschlossen`), keine freie
+  Ablage. Offen = Gruppe mit mindestens einem Teil NEU/BEDARF/IN_BEARBEITUNG, abgeschlossen = nichts mehr
+  offen (ganze Gruppen). Standard „offen". Die Teil-Art-Zähler folgen dem Umschalter. Ein späteres
+  Nachladen der Einstellung überschreibt eine schon getroffene Wahl nicht (Formular-Falle 1).
 
 ### Techniker-Portal: häufigste Teile zuerst (30.09.2026)
 

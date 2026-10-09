@@ -19,6 +19,9 @@ model User {
   lastLogin           DateTime?
   // Dashboard-Konfiguration pro User: { layouts, visibility } | null = Default
   dashboardConfig     Json?
+  // Kleine Ansichts-Einstellungen pro User (09.10.2026), z. B. { anfragenStatus: "offen" }.
+  // Nur über userPreferences.setEinstellung mit fester Schlüssel-Liste beschreibbar.
+  einstellungen       Json?
   standortId          Int?
   standort            Standort?            @relation(fields: [standortId], references: [id])
   // Wildcard: true = Zugriff auf alle Standorte (gesetzt für ADMIN-User per Migration).
