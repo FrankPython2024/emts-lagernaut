@@ -1792,6 +1792,15 @@ Start nur **Mo–Fr 6–16 Uhr**, bei falscher Spule **warten mit Hinweis**. **`
   etwas, mindestens eine davon ist BEDARF und kein Auftrag offen → nächster automatischer Auftrag (Auslöser
   = älteste BEDARF-Anfrage). Startet wie jeder automatische erst nach „Platte ist leer", Mo–Fr 6–16 Uhr.
   Gilt auch für Drucke, die von Hand gestartet wurden.
+- **Minütliche Prüfung** (Frank, 09.10.2026): `starteRegelmaessigePruefung()` in `src/modules/druck/autoDruck.ts`,
+  gestartet in `src/server.ts` (läuft in Produktion, `CMD tsx src/server.ts`). Jede Minute: alle aktiven Vorlagen
+  mit Druckdatei → `nachdruckFuerVorlage` (offene Stück gegen Bestand samt Pool-Partner). Anlass: Nach einer
+  Bestandskorrektur auf 0 stand eine Füße-Anfrage als „Neu" da — weder „neue Bedarf-Anfrage" noch „Einbuchen"
+  schaute wieder hin, kein Druck. ⚠️ Die Nachdruck-Regel verlangte dazu mindestens eine BEDARF-Anfrage — das
+  ist entfernt: maßgeblich ist nur offene Stück > Bestand. Erst eine Zählabfrage (offen = 0 → fertig), Läufe
+  stapeln sich nicht, Fehler beenden den Takt nie. Gedruckt wird weiter nur nach „Platte ist leer", Mo–Fr 6–16 Uhr.
+  `pruefeAlleVorlagen(true)` = Trockenlauf (meldet nur). Vor Inbetriebnahme gegen die Produktion: genau 1 Auftrag
+  (7400 Füße vorne, 2 offen / Bestand 0) — der gemeldete Fall.
 - **Drucker beschäftigt, wenn die Anfrage kommt:** Der Auftrag wird sofort angelegt und wartet („Druck wartet —
   Drucker druckt gerade", danach „… Platte noch belegt"); er startet nach Einbuchen + „Platte ist leer".
   Druckt der Drucker gerade dieselbe Vorlage, entsteht kein zweiter Auftrag. Ein Druck direkt aus Bambu

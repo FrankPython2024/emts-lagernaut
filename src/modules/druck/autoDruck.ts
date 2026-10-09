@@ -7,6 +7,12 @@
 // Auftrag für diese Vorlage offen → DruckAuftrag WARTET, `automatisch`.
 // Ob und wann er startet, entscheidet die Warteschlange (src/modules/druck/bruecke.ts):
 // Platte per Knopf frei, Drucker bereit, Mo–Fr 6–16 Uhr, Spule passt.
+//
+// Dritter Auslöser (09.10.2026): MINÜTLICHE Prüfung aller Vorlagen
+// (`starteRegelmaessigePruefung`, gestartet in src/server.ts). Anlass: Nach einer
+// Bestandskorrektur auf 0 stand eine Füße-Anfrage als „Neu" da (beim Anlegen war
+// laut System Bestand da) — keiner der beiden Auslöser (neue Bedarf-Anfrage,
+// Einbuchen) schaute je wieder hin, es wurde nichts gedruckt.
 
 import { prisma } from "@/core/db/prisma";
 import { anfrageSchluesselFuer, modellSchluessel } from "@/modules/teilespender/service";
@@ -31,8 +37,51 @@ export function autoDruckFuerAnfrage(anfrageId: number): Promise<number | null> 
  * Anfragen dieser Vorlage? Wenn nicht (und kein Auftrag offen) → nächster
  * automatischer Auftrag. Startet wie immer erst nach „Platte ist leer".
  */
-export function nachdruckFuerVorlage(vorlageId: number): Promise<number | null> {
-  const lauf = kette.then(() => pruefeNachdruck(vorlageId)).catch((err) => {
+// ── Minütliche Prüfung (09.10.2026) ──────────────────────────────────────────
+const PRUEF_INTERVALL_MS = 60_000;
+const g = globalThis as unknown as { __autoDruckTakt?: ReturnType<typeof setInterval> };
+
+/** Alle aktiven Vorlagen mit Druckdatei durchgehen; Ids neu angelegter Aufträge. */
+export async function pruefeAlleVorlagen(trocken = false): Promise<number[]> {
+  const vorlagen = await prisma.druckvorlage.findMany({
+    where:  { aktiv: true, dateien: { some: { art: "DRUCK" } }, modelle: { some: {} } },
+    select: { id: true, teiltypen: true },
+  });
+  if (vorlagen.length === 0) return [];
+  // Schnell raus, wenn für keinen dieser Teiltypen etwas offen ist (der Normalfall
+  // zwischen den Anfragen) — dann kostet der Takt eine einzige Abfrage.
+  const teiltypen = [...new Set(vorlagen.flatMap((v) => teiltypenAus(v.teiltypen)))];
+  const offen = await prisma.anfrage.count({
+    where: { teil: { in: teiltypen }, testModus: false, istSonderAnfrage: false, status: { in: ["NEU", "BEDARF", "IN_BEARBEITUNG"] } },
+  });
+  if (offen === 0) return [];
+  const neu: number[] = [];
+  for (const v of vorlagen) {
+    const id = await nachdruckFuerVorlage(v.id, trocken);
+    if (id != null) neu.push(id);
+  }
+  return neu;
+}
+
+/** Startet den Minutentakt einmal je Prozess (src/server.ts). Fehler beenden ihn nie. */
+export function starteRegelmaessigePruefung(): void {
+  if (g.__autoDruckTakt) return;
+  let laeuft = false;
+  const lauf = async () => {
+    if (laeuft) return;               // ein langsamer Lauf darf sich nicht stapeln
+    laeuft = true;
+    try { await pruefeAlleVorlagen(); }
+    catch (err) { console.error("[autoDruck] Minutenprüfung:", (err as Error).message); }
+    finally { laeuft = false; }
+  };
+  g.__autoDruckTakt = setInterval(() => { void lauf(); }, PRUEF_INTERVALL_MS);
+  setTimeout(() => { void lauf(); }, 20_000);   // erster Lauf kurz nach dem Start
+  console.log("> Druck-Prüfung: offene Anfragen gegen Bestand, jede Minute");
+}
+
+/** `trocken`: nur melden, was angelegt würde (Ergebnis 0), nichts schreiben. */
+export function nachdruckFuerVorlage(vorlageId: number, trocken = false): Promise<number | null> {
+  const lauf = kette.then(() => pruefeNachdruck(vorlageId, trocken)).catch((err) => {
     console.error("[autoDruck] Nachdruck Vorlage", vorlageId, (err as Error).message);
     return null;
   });
@@ -40,7 +89,7 @@ export function nachdruckFuerVorlage(vorlageId: number): Promise<number | null> 
   return lauf;
 }
 
-async function pruefeNachdruck(vorlageId: number): Promise<number | null> {
+async function pruefeNachdruck(vorlageId: number, trocken = false): Promise<number | null> {
   const v = await prisma.druckvorlage.findUnique({
     where:  { id: vorlageId },
     select: {
@@ -60,7 +109,10 @@ async function pruefeNachdruck(vorlageId: number): Promise<number | null> {
   });
   const schluessel = await anfrageSchluesselFuer(kandidaten);
   const offen = kandidaten.filter((a) => keys.has(schluessel.get(a.id) ?? ""));
-  if (!offen.some((a) => a.status === "BEDARF")) return null;
+  // ⚠️ Früher nur, wenn mindestens eine Anfrage BEDARF war. Eine „Neu"-Anfrage kann
+  // aber ohne Teil dastehen — Bestand wurde nach dem Anlegen korrigiert (09.10.2026).
+  // Maßgeblich ist allein: offene Stück > Bestand (unten, `nachdruckFehlt`).
+  if (offen.length === 0) return null;
 
   // Bestand: Artikel dieser Modelle + Teiltypen samt Pool-Partner, jeder einmal.
   const kompat = await prisma.kompatibilitaet.findMany({
@@ -103,7 +155,12 @@ async function pruefeNachdruck(vorlageId: number): Promise<number | null> {
   });
   if (!brauchtNeuenAuftrag(auftraege, new Date())) return null;
 
-  const ausloeser = offen.find((a) => a.status === "BEDARF" && fehlt.includes(a.teil)) ?? offen[0]!;
+  const ausloeser = offen.find((a) => a.status === "BEDARF" && fehlt.includes(a.teil))
+    ?? offen.find((a) => fehlt.includes(a.teil)) ?? offen[0]!;
+  if (trocken) {
+    console.log(`[autoDruck] TROCKEN „${v.name}": ${je.map((z) => `${z.teiltyp} offen ${z.offenStueck}/Bestand ${z.bestand}`).join(", ")} → würde Auftrag anlegen (Auslöser #${ausloeser.id})`);
+    return 0;
+  }
   const datei = v.dateien[0]!;
   const auftrag = await prisma.druckAuftrag.create({
     data: {

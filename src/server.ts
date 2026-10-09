@@ -13,6 +13,7 @@ import { createServer } from "http";
 import { parse } from "url";
 import next from "next";
 import { startWorkers } from "./modules/jobs/worker";
+import { starteRegelmaessigePruefung } from "./modules/druck/autoDruck";
 
 const dev  = process.env.NODE_ENV !== "production";
 const port = parseInt(process.env.PORT ?? "3000", 10);
@@ -29,6 +30,9 @@ app.prepare().then(() => {
 
   // BullMQ Worker starten
   startWorkers();
+
+  // Minütlich: offene Anfragen mit Druckvorlage gegen den Bestand (09.10.2026)
+  starteRegelmaessigePruefung();
 
   httpServer.listen(port, host, () => {
     console.log(`> Next.js läuft auf http://${host}:${port}`);
