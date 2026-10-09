@@ -1910,7 +1910,7 @@ cyan umrandet); „🔍 Spender suchen" je Bündel. Der Kasten lässt sich einkl
 Wunsch Frank: „Ersatzteil-Anfragen unterteilen nach Akku, Gehäuseteilen, Füßen — aber immer in Betracht
 auf die LogID", am selben Tag erweitert auf **alle** Arten. In `/admin/anfragen` (Notebook) oben Knöpfe
 **Alle · Akku · Display · Tastatur · Touchpad · Gehäuseteile · Füße · Boards & Anschlüsse · Kühlung ·
-Lautsprecher · Speicher · Kamera · Weitere**, je mit der Zahl der Gruppen — **nur Arten mit Treffern**
+Lautsprecher · Speicher · Kamera · Weitere**, je mit der Zahl der Gruppen mit OFFENEN Teilen dieser Art (NEU/BEDARF/IN_BEARBEITUNG; die Liste selbst filtert weiter alle) — **nur Arten mit offenen Treffern**
 (die gewählte bleibt sichtbar). Regel `src/lib/anfragen/kategorie.ts` (Test in `test:gleicheteile`).
 An allen Teilnamen der letzten 90 Tage aus der Produktion geprüft (09.10.2026).
 - ⚠️ **Die LogID-Gruppe bleibt GANZ:** gefiltert werden Gruppen, nicht Zeilen. Ein Gerät mit Akku + Füßen

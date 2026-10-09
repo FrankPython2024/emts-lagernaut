@@ -11,7 +11,7 @@ import { EVENTS }    from "@/modules/realtime/events";
 import { ChatModal } from "@/components/ui/ChatModal";
 import { UeberfaelligBadge } from "@/components/anfragen/UeberfaelligBadge";
 import { useNow } from "@/hooks/useNow";
-import { istUeberfaellig, verstricheneZeit } from "@/lib/anfragen/ueberfaellig";
+import { istOffen, istUeberfaellig, verstricheneZeit } from "@/lib/anfragen/ueberfaellig";
 import { TEIL_KATEGORIEN, gruppeHatKategorie, type TeilKategorie } from "@/lib/anfragen/kategorie";
 import { usePermissions } from "@/hooks/usePermissions";
 import { maxMengeFuer, teilAnzeige } from "@/lib/constants/teiltypen";
@@ -472,12 +472,16 @@ function AnfragenPageInner() {
 
   // Akku · Gehäuseteile · Füße · Weitere — die Gruppe bleibt ganz (src/lib/anfragen/kategorie.ts).
   type MitBeschreibung = { teil: string; beschreibung?: string | null };
-  const kategorieAnzahl = useMemo(() => {
+  // Zähler = nur OFFENE Arbeit (Frank, 09.10.2026): Geräte mit mindestens einem Teil
+  // dieser Art in NEU, BEDARF oder IN_BEARBEITUNG. Erledigte/stornierte zählen nicht —
+  // sonst stand bei „Alle" 1978, obwohl nur eine Handvoll wirklich offen war.
+  const { kategorieAnzahl, offeneGruppen } = useMemo(() => {
+    const offen = (vorKategorie ?? [])
+      .map((g) => g.anfragen.filter((a) => istOffen(a.status)) as MitBeschreibung[])
+      .filter((teile) => teile.length > 0);
     const m = new Map<TeilKategorie, number>();
-    for (const k of TEIL_KATEGORIEN) {
-      m.set(k.key, (vorKategorie ?? []).filter((g) => gruppeHatKategorie(g.anfragen as MitBeschreibung[], k.key)).length);
-    }
-    return m;
+    for (const k of TEIL_KATEGORIEN) m.set(k.key, offen.filter((teile) => gruppeHatKategorie(teile, k.key)).length);
+    return { kategorieAnzahl: m, offeneGruppen: offen.length };
   }, [vorKategorie]);
   const data = useMemo(() => {
     if (!kategorie || !vorKategorie) return vorKategorie;
@@ -775,12 +779,12 @@ function AnfragenPageInner() {
         <MobilAnfragenListe />
       ) : (
       <>
-      {/* Unterteilung nach Teil-Art — Zahl = Geräte (LogID-Gruppen) mit mindestens einem solchen Teil.
+      {/* Unterteilung nach Teil-Art — Zahl = Geräte (LogID-Gruppen) mit mindestens einem OFFENEN solchen Teil.
           Nur Arten mit Treffern (sonst zwölf Knöpfe, meist mit 0) — die gewählte bleibt immer sichtbar. */}
       <div role="group" aria-label="Nach Teil-Art unterteilen" className="flex flex-wrap gap-2">
         {([{ key: "" as const, label: "Alle" }, ...TEIL_KATEGORIEN.filter((k) => (kategorieAnzahl.get(k.key) ?? 0) > 0 || kategorie === k.key)]).map((k) => {
           const aktiv = kategorie === k.key;
-          const anzahl = k.key === "" ? (vorKategorie?.length ?? 0) : (kategorieAnzahl.get(k.key) ?? 0);
+          const anzahl = k.key === "" ? offeneGruppen : (kategorieAnzahl.get(k.key) ?? 0);
           return (
             <button
               key={k.key || "alle"}
