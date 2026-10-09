@@ -6,7 +6,7 @@
 // → aktive Vorlage mit diesem Modell + Teiltyp und einer Druckdatei → noch kein
 // Auftrag für diese Vorlage offen → DruckAuftrag WARTET, `automatisch`.
 // Ob und wann er startet, entscheidet die Warteschlange (src/modules/druck/bruecke.ts):
-// Platte per Knopf frei, Drucker bereit, Mo–Fr 6–16 Uhr, Spule passt.
+// Platte per Knopf frei, Drucker bereit, Spule passt (keine Zeitsperre mehr, 09.10.2026).
 
 import { prisma } from "@/core/db/prisma";
 import { anfrageSchluesselFuer, modellSchluessel } from "@/modules/teilespender/service";

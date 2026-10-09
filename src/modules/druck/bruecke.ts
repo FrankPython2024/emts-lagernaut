@@ -94,7 +94,7 @@ export async function meldenUndAbholen(m: Meldung) {
   const ok = darfStarten({ gemeldetAm: jetzt, verbindung, zustand, platteFrei, jetzt });
   if (!ok.ok) return { auftrag: null };
 
-  // Ältester zuerst. Ein automatischer Auftrag außerhalb Mo–Fr 6–16 Uhr oder mit
+  // Ältester zuerst. Ein automatischer Auftrag mit
   // unpassender Spule wartet — ein Auftrag von Hand dahinter darf trotzdem.
   const spule = drucker?.spule && typeof drucker.spule === "object" ? (drucker.spule as { typ?: unknown }).typ : null;
   const wartend = await prisma.druckAuftrag.findMany({

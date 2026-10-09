@@ -139,15 +139,14 @@ console.log("\n── Halbautomatischer Druck (01.10.2026) ──");
   // Deutsche Zeit: Oktober = Sommerzeit (UTC+2), Dezember = Winterzeit (UTC+1).
   const um = (iso: string) => new Date(iso);
   const pla = { vorlageMaterial: "PLA", spule: "PLA" };
+  // Zeitsperre aufgehoben (09.10.2026): früher gesperrte Zeitpunkte dürfen jetzt.
   check("Do 01.10. 10:00 → darf", autoStartGrund({ jetzt: um("2026-10-01T08:00:00Z"), ...pla }), null);
-  check("Do 01.10. 05:59 → zu früh", autoStartGrund({ jetzt: um("2026-10-01T03:59:00Z"), ...pla })?.includes("Mo–Fr 6–16"), true);
-  check("Do 01.10. 06:00 → darf", autoStartGrund({ jetzt: um("2026-10-01T04:00:00Z"), ...pla }), null);
-  check("Do 01.10. 15:59 → darf", autoStartGrund({ jetzt: um("2026-10-01T13:59:00Z"), ...pla }), null);
-  check("Do 01.10. 16:00 → zu spät", autoStartGrund({ jetzt: um("2026-10-01T14:00:00Z"), ...pla }) !== null, true);
-  check("Sa 03.10. (Tag der Einheit + Samstag) → nein", autoStartGrund({ jetzt: um("2026-10-03T08:00:00Z"), ...pla }) !== null, true);
-  check("Fr 25.12. Feiertag → nein, mit Namen", autoStartGrund({ jetzt: um("2026-12-25T09:00:00Z"), ...pla })?.includes("Weihnacht"), true);
-  check("Do 24.12. betriebsfrei → nein", autoStartGrund({ jetzt: um("2026-12-24T09:00:00Z"), ...pla })?.includes("betriebsfrei"), true);
-  check("Winterzeit: Mo 07.12. 06:30 deutsche Zeit → darf", autoStartGrund({ jetzt: um("2026-12-07T05:30:00Z"), ...pla }), null);
+  check("Do 01.10. 05:59 → darf (keine Zeitsperre mehr)", autoStartGrund({ jetzt: um("2026-10-01T03:59:00Z"), ...pla }), null);
+  check("Do 01.10. 16:00 → darf (keine Zeitsperre mehr)", autoStartGrund({ jetzt: um("2026-10-01T14:00:00Z"), ...pla }), null);
+  check("Do 01.10. 23:30 → darf", autoStartGrund({ jetzt: um("2026-10-01T21:30:00Z"), ...pla }), null);
+  check("Sa 03.10. → darf", autoStartGrund({ jetzt: um("2026-10-03T08:00:00Z"), ...pla }), null);
+  check("Fr 25.12. Feiertag → darf", autoStartGrund({ jetzt: um("2026-12-25T09:00:00Z"), ...pla }), null);
+  check("Do 24.12. betriebsfrei → darf", autoStartGrund({ jetzt: um("2026-12-24T09:00:00Z"), ...pla }), null);
   check("Spule PETG, Vorlage PLA → wartet mit Hinweis", autoStartGrund({ jetzt: um("2026-10-01T08:00:00Z"), vorlageMaterial: "PLA", spule: "PETG" }), "Spule passt nicht: PLA nötig, eingelegt ist PETG");
   check("Spule unbekannt → kein Grund zu warten", autoStartGrund({ jetzt: um("2026-10-01T08:00:00Z"), vorlageMaterial: "PLA", spule: null }), null);
   check("Vorlage ohne Material → egal welche Spule", autoStartGrund({ jetzt: um("2026-10-01T08:00:00Z"), vorlageMaterial: null, spule: "PETG" }), null);
