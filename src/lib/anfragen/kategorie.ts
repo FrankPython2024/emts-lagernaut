@@ -1,45 +1,74 @@
 // ── Anfragen nach Teil-Art unterteilen (Frank, 09.10.2026) ────────────────────
 //
-// Akku · Gehäuseteile · Füße · Weitere — für eine bessere Übersicht in der
-// Admin-Anfragenliste. Die LogID-Gruppe bleibt dabei immer GANZ: Ein Gerät, das
-// Akku und Füße braucht, steht unter beiden Reitern mit allen seinen Teilen, damit
-// es für Ausgabe und Etikett zusammenbleibt (Wunsch „immer in Betracht auf die LogID").
+// Erst Akku · Gehäuseteile · Füße, am selben Tag erweitert auf ALLE Arten
+// („Display, Tastaturen usw."). Die LogID-Gruppe bleibt dabei immer GANZ: Ein
+// Gerät, das Akku und Füße braucht, steht unter beiden Knöpfen mit allen seinen
+// Teilen, damit es für Ausgabe und Etikett zusammenbleibt (Wunsch „immer in
+// Betracht auf die LogID").
 //
 // Sonderanfragen tragen Freitext („B-Cover Single CAM", „Blende SimSchacht") —
-// deshalb Wortmuster statt fester Liste. Gemessen an den Anfragen der letzten
-// 90 Tagen (09.10.2026). Reihenfolge ist Absicht: „Fuß vorn oder c Cover" sind
-// Füße, „Bios Batterie" ist kein Akku.
+// deshalb Wortmuster statt fester Liste. Geprüft an allen Anfragen der letzten
+// 90 Tage (09.10.2026).
+//
+// ⚠️ Die REIHENFOLGE der Prüfung ist Teil der Regel:
+//   • Füße zuerst: „Fuß vorn oder c Cover" sind Füße.
+//   • Stift vor Display: „displaystift" ist ein Stift, kein Display.
+//   • Gehäuse vor Display und Kamera: „LCD Rahmen Dual Cam", „lcd-bezel",
+//     „Displayscharnierabdeckung" sind Gehäuseteile.
+//   • BIOS-/CMOS-Batterie ist kein Akku.
+//   • Touchpad vor Tastatur und Boards: „Touchpad Tastenboard", „TP Tasten Board".
 //
 // Reine Logik — Test: `npm run test:gleicheteile`.
 
-export type TeilKategorie = "AKKU" | "GEHAEUSE" | "FUESSE" | "WEITERE";
+export type TeilKategorie =
+  | "AKKU" | "DISPLAY" | "TASTATUR" | "TOUCHPAD" | "GEHAEUSE" | "FUESSE"
+  | "BOARDS" | "KUEHLUNG" | "LAUTSPRECHER" | "SPEICHER" | "KAMERA" | "WEITERE";
 
+/** Anzeige-Reihenfolge der Knöpfe. */
 export const TEIL_KATEGORIEN: readonly { key: TeilKategorie; label: string }[] = [
-  { key: "AKKU",     label: "🔋 Akku" },
-  { key: "GEHAEUSE", label: "🧱 Gehäuseteile" },
-  { key: "FUESSE",   label: "🦶 Füße" },
-  { key: "WEITERE",  label: "🔧 Weitere" },
+  { key: "AKKU",         label: "🔋 Akku" },
+  { key: "DISPLAY",      label: "🖥️ Display" },
+  { key: "TASTATUR",     label: "⌨️ Tastatur" },
+  { key: "TOUCHPAD",     label: "🖱️ Touchpad" },
+  { key: "GEHAEUSE",     label: "🧱 Gehäuseteile" },
+  { key: "FUESSE",       label: "🦶 Füße" },
+  { key: "BOARDS",       label: "🔌 Boards & Anschlüsse" },
+  { key: "KUEHLUNG",     label: "🌀 Kühlung" },
+  { key: "LAUTSPRECHER", label: "🔊 Lautsprecher" },
+  { key: "SPEICHER",     label: "💾 Speicher" },
+  { key: "KAMERA",       label: "📷 Kamera" },
+  { key: "WEITERE",      label: "🔧 Weitere" },
 ];
 
-const FUESSE   = /\bf(ü|ue|u)(ß|ss)(e)?\b|\bfuß|\bfüße|standfu/;
-const BIOS     = /bios|cmos/;
-const AKKU     = /akku|batterie|\bbatt\b|\bbattery\b/;
-const GEHAEUSE = new RegExp([
-  "\\b[abcd][ -]?cover\\b", "gehäuse", "gehaeuse", "blende", "abdeckung", "rahmen", "bezel",
-  "door", "scharnier", "schanier", "sim[- ]?tray", "simtray", "sim[- ]?dummy", "sd[- ]?dummy",
-  "sim[- ]?blende", "klappe", "deckel",
-].join("|"));
+const re = (teile: string[]) => new RegExp(teile.join("|"));
+
+/** Geprüft wird von oben nach unten, der erste Treffer gewinnt (siehe Kopf). */
+const REGELN: readonly [TeilKategorie, RegExp][] = [
+  ["FUESSE",       re(["\\bf(ü|ue|u)(ß|ss)e?\\b", "\\bfuß", "\\bfüße", "standfu"])],
+  ["WEITERE",      re(["stift", "bios", "cmos"])],
+  ["GEHAEUSE",     re([
+    "\\b[abcd][ -]?cover\\b", "gehäuse", "gehaeuse", "blende", "abdeckung", "rahmen", "bezel",
+    "door", "scharnier", "schanier", "sim[- ]*tray", "sim[- ]*dummy", "sd[- ]*dummy", "klappe", "deckel",
+  ])],
+  ["AKKU",         re(["akku", "batterie", "\\bbatt\\b", "battery"])],
+  ["DISPLAY",      re(["display", "\\blcd\\b", "panel", "digitizer", "bildschirm"])],
+  ["TOUCHPAD",     re(["touchpad", "trackpad", "track ?point", "\\btp\\b"])],
+  ["TASTATUR",     re(["tastatur", "keyboard"])],
+  ["KUEHLUNG",     re(["lüfter", "luefter", "\\bfan\\b", "thermal", "heatpipe", "heatsink", "kühl"])],
+  ["LAUTSPRECHER", re(["lautsprecher", "speaker"])],
+  ["SPEICHER",     re(["\\bssd\\b", "ssd", "nvme", "datenträger", "festplatte", "\\bhdd\\b", "\\bram\\b", "\\d+ ?gb"])],
+  ["KAMERA",       re(["kamera", "webcam", "\\bcam\\b"])],
+  ["BOARDS",       re(["board", "dc ?in", "power ?button", "wlan", "umts", "\\blan\\b", "\\busb\\b", "anschlu", "karte"])],
+];
 
 /** Zu welcher Art gehört ein angefragtes Teil? `teil` ist der Teiltyp bzw. bei Sonderanfragen der Freitext. */
 export function teilKategorie(teil: string | null | undefined, beschreibung?: string | null): TeilKategorie {
   const t = `${teil ?? ""} ${beschreibung ?? ""}`.toLowerCase();
-  if (FUESSE.test(t)) return "FUESSE";
-  if (AKKU.test(t) && !BIOS.test(t)) return "AKKU";
-  if (GEHAEUSE.test(t)) return "GEHAEUSE";
+  for (const [k, muster] of REGELN) if (muster.test(t)) return k;
   return "WEITERE";
 }
 
-/** Gehört eine LogID-Gruppe unter diesen Reiter? Ja, sobald EIN Teil passt. */
+/** Gehört eine LogID-Gruppe unter diesen Knopf? Ja, sobald EIN Teil passt. */
 export function gruppeHatKategorie(
   anfragen: readonly { teil: string; beschreibung?: string | null }[],
   k: TeilKategorie,

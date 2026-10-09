@@ -188,20 +188,34 @@ console.log("\n── Überfällig: Füße ausgenommen (09.10.2026) ──");
   check("erledigt → nie", istUeberfaellig("ABGESCHLOSSEN", vor, jetzt, "Akku"), false);
 }
 
-console.log("\n── Unterteilung Akku / Gehäuseteile / Füße (09.10.2026) ──");
+console.log("\n── Unterteilung nach Teil-Art (09.10.2026) ──");
 {
   const k = (t: string) => teilKategorie(t);
-  check("Teiltypen", ["Akku", "Füße vorne", "Füße hinten", "D Cover", "B Cover", "C Cover", "Tastatur", "Displaymodul", "BIOS Batterie"].map(k),
-    ["AKKU", "FUESSE", "FUESSE", "GEHAEUSE", "GEHAEUSE", "GEHAEUSE", "WEITERE", "WEITERE", "WEITERE"]);
+  check("Standard-Teiltypen",
+    ["Akku", "Display", "Displaymodul", "Tastatur", "Touchpad", "Touchpad Buttons", "Füße vorne", "Füße hinten",
+     "B Cover", "C Cover", "D Cover", "Mainboard", "USB Board", "LAN Board", "WLAN Karte", "UMTS Karte", "DC IN",
+     "Power Button", "CPU Lüfter", "Thermalmodul", "Lautsprecher", "BIOS Batterie", "Eingabestift", "Verschiedenes"].map(k),
+    ["AKKU", "DISPLAY", "DISPLAY", "TASTATUR", "TOUCHPAD", "TOUCHPAD", "FUESSE", "FUESSE",
+     "GEHAEUSE", "GEHAEUSE", "GEHAEUSE", "BOARDS", "BOARDS", "BOARDS", "BOARDS", "BOARDS", "BOARDS",
+     "BOARDS", "KUEHLUNG", "KUEHLUNG", "LAUTSPRECHER", "WEITERE", "WEITERE", "WEITERE"]);
   check("Sonder: Gehäuse-Freitexte",
-    ["B-Cover Single CAM", "Blende SimSchacht", "schanierabdeckung", "lcd-bezel", "Service door", "SIM Tray", "SD Dummy", "Display Rahmen", "d cover netzwerk klappe"].map(k),
-    Array(9).fill("GEHAEUSE"));
+    ["B-Cover Single CAM", "Blende SimSchacht", "schanierabdeckung", "lcd-bezel", "Service door", "SIM Tray", "SD Dummy",
+     "Display Rahmen", "LCD Rahmen Dual Cam", "Gummi an der Displayscharnierabdeckung", "d cover netzwerk klappe", "SIM- Tray", "SimTray"].map(k),
+    Array(13).fill("GEHAEUSE"));
   check("Sonder: Bios-/CMOS-Batterie ist kein Akku", ["Bios Batterie", "Bios Bat.", "CMOS Batt", "Bios-Batterie"].map(k), Array(4).fill("WEITERE"));
   check("Sonder: Füße gehen vor", ["Fuß vorn oder c Cover", "bitte 32 Füße von der serie"].map(k), ["FUESSE", "FUESSE"]);
-  check("Sonder: Rest", ["SSD 256", "Trackpoint", "Kamera", "lüfter", "Schrauben vorn"].map(k), Array(5).fill("WEITERE"));
+  check("Sonder: Stift ist kein Display", ["displaystift", "Ladeanschluß Stift+ Stift"].map(k), ["WEITERE", "WEITERE"]);
+  check("Sonder: Touchpad vor Tastatur/Board", ["Trackpoint", "Track Point", "Touchpad  Tastenboard", "bitte das TP Tasten Board", "trackpoint rot"].map(k), Array(5).fill("TOUCHPAD"));
+  check("Sonder: Speicher", ["SSD 256", "ssd-adapter", "Datenträger 256 GB", "Shield NVME", "9x SSD 250GB*"].map(k), Array(5).fill("SPEICHER"));
+  check("Sonder: Kühlung", ["lüfter", "Heatpipe mit Lüfter", "Thermal Modul", "Heatsink und lüfter"].map(k), Array(4).fill("KUEHLUNG"));
+  check("Sonder: Kamera", ["Kamera", "webcam", "Hintere Webcam", "Kamera Rear", "Detachable ,Rear Cam", "WebCam Glas"].map(k), Array(6).fill("KAMERA"));
+  check("Sonder: Lautsprecher", ["speaker", "1x Gumiipuffer lautsprecher"].map(k), ["LAUTSPRECHER", "LAUTSPRECHER"]);
+  check("Sonder: Boards", ["Led Board und Kabel", "USB Subboard re"].map(k), ["BOARDS", "BOARDS"]);
+  check("Sonder: Display", ["Displaykabel"].map(k), ["DISPLAY"]);
+  check("Sonder: Rest", ["Schrauben vorn", "einen kompletten schraubensatz, 8-schrauben"].map(k), ["WEITERE", "WEITERE"]);
   check("Beschreibung zählt mit", teilKategorie("Verschiedenes", "Akku Dell 7490"), "AKKU");
   const gruppe = [{ teil: "Akku" }, { teil: "Füße vorne" }];
-  check("Gruppe mit Akku + Füßen unter beiden Reitern", [gruppeHatKategorie(gruppe, "AKKU"), gruppeHatKategorie(gruppe, "FUESSE"), gruppeHatKategorie(gruppe, "GEHAEUSE")], [true, true, false]);
+  check("Gruppe mit Akku + Füßen unter beiden Knöpfen", [gruppeHatKategorie(gruppe, "AKKU"), gruppeHatKategorie(gruppe, "FUESSE"), gruppeHatKategorie(gruppe, "GEHAEUSE")], [true, true, false]);
 }
 
 console.log(`\n${passed} bestanden, ${failed} fehlgeschlagen\n`);

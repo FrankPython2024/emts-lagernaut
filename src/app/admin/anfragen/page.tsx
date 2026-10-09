@@ -775,9 +775,10 @@ function AnfragenPageInner() {
         <MobilAnfragenListe />
       ) : (
       <>
-      {/* Unterteilung nach Teil-Art — Zahl = Geräte (LogID-Gruppen) mit mindestens einem solchen Teil */}
+      {/* Unterteilung nach Teil-Art — Zahl = Geräte (LogID-Gruppen) mit mindestens einem solchen Teil.
+          Nur Arten mit Treffern (sonst zwölf Knöpfe, meist mit 0) — die gewählte bleibt immer sichtbar. */}
       <div role="group" aria-label="Nach Teil-Art unterteilen" className="flex flex-wrap gap-2">
-        {([{ key: "" as const, label: "Alle" }, ...TEIL_KATEGORIEN]).map((k) => {
+        {([{ key: "" as const, label: "Alle" }, ...TEIL_KATEGORIEN.filter((k) => (kategorieAnzahl.get(k.key) ?? 0) > 0 || kategorie === k.key)]).map((k) => {
           const aktiv = kategorie === k.key;
           const anzahl = k.key === "" ? (vorKategorie?.length ?? 0) : (kategorieAnzahl.get(k.key) ?? 0);
           return (
