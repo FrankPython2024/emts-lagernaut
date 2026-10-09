@@ -12,7 +12,7 @@ import { ChatModal } from "@/components/ui/ChatModal";
 import { UeberfaelligBadge } from "@/components/anfragen/UeberfaelligBadge";
 import { useNow } from "@/hooks/useNow";
 import { istOffen, istUeberfaellig, verstricheneZeit } from "@/lib/anfragen/ueberfaellig";
-import { TEIL_KATEGORIEN, gruppeHatKategorie, type TeilKategorie } from "@/lib/anfragen/kategorie";
+import { TEIL_KATEGORIEN, gruppeHatKategorie, ohneSpenderSuche, type TeilKategorie } from "@/lib/anfragen/kategorie";
 import { usePermissions } from "@/hooks/usePermissions";
 import { maxMengeFuer, teilAnzeige } from "@/lib/constants/teiltypen";
 import Link from "next/link";
@@ -21,6 +21,7 @@ import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { BelegModal, MehrBelegModal } from "@/components/ui/BelegModal";
 import { AuslagerModal } from "@/components/auslagern/AuslagerModal";
 import { AnfragenBoard } from "@/components/anfragen/AnfragenBoard";
+import { AnfragenKarten } from "@/components/anfragen/AnfragenKarten";
 import { GleicheTeile, type BuendelZeile } from "@/components/anfragen/GleicheTeile";
 import { sichtbareBuendel } from "@/lib/anfragen/gleicheTeile";
 import { useStandortFilter } from "@/lib/standort/standortContext";
@@ -411,12 +412,13 @@ function AnfragenPageInner() {
   const [technikerStorniert, setTechnikerStorniert] = useState<Set<number>>(() => new Set());
 
   // A/B-Ansicht: "liste" (Default) | "board". Auswahl in localStorage merken.
-  const [ansicht, setAnsicht] = useState<"liste" | "board">("liste");
+  // Dritte Ansicht „karten" = neues Design (09.10.2026), zum Vergleich umschaltbar.
+  const [ansicht, setAnsicht] = useState<"liste" | "board" | "karten">("liste");
   useEffect(() => {
     const gespeichert = window.localStorage.getItem("anfragen-ansicht");
-    if (gespeichert === "board" || gespeichert === "liste") setAnsicht(gespeichert);
+    if (gespeichert === "board" || gespeichert === "liste" || gespeichert === "karten") setAnsicht(gespeichert);
   }, []);
-  function wechsleAnsicht(neu: "liste" | "board") {
+  function wechsleAnsicht(neu: "liste" | "board" | "karten") {
     setAnsicht(neu);
     window.localStorage.setItem("anfragen-ansicht", neu);
   }
@@ -864,6 +866,15 @@ function AnfragenPageInner() {
           >
             ▦ Board
           </button>
+          <button
+            type="button"
+            aria-pressed={ansicht === "karten"}
+            onClick={() => wechsleAnsicht("karten")}
+            title="Neues Design zum Vergleichen"
+            className={`px-4 text-xs font-bold border-l border-[#ced4da] dark:border-[#3e4042] transition-colors min-h-[56px] ${ansicht === "karten" ? "bg-[#0064d2] text-white" : "bg-white dark:bg-[#242526] text-[#65676b] dark:text-[#b0b3b8] hover:bg-[#f0f2f5] dark:hover:bg-[#3e4042]"}`}
+          >
+            ✦ Neues Design
+          </button>
         </div>
 
         {/* Darstellungs-Umschalter (nur Liste): Streifen · Vollfläche · Hybrid.
@@ -977,8 +988,9 @@ function AnfragenPageInner() {
       )}
 
       {/* Gleiche Teile, mehrfach angefragt — gebündelt über der Liste */}
-      {ansicht === "liste" && (
+      {(ansicht === "liste" || ansicht === "karten") && (
         <GleicheTeile
+          kompakt={ansicht === "karten"}
           buendel={buendelSichtbar}
           zeilen={buendelZeilen}
           onSpender={canSpender ? (b) => setSpenderPanel({
@@ -987,6 +999,67 @@ function AnfragenPageInner() {
             logId:       b.logIds[0] ?? null,
             weitere:     b.logIds.slice(1),
           }) : undefined}
+        />
+      )}
+
+      {/* Neues Design (09.10.2026) — gleiche Daten und Handler wie die Liste */}
+      {ansicht === "karten" && (
+        <AnfragenKarten
+          gruppen={data ?? []}
+          ersteller={ersteller}
+          now={now}
+          canEdit={canEdit}
+          canDelete={canDelete}
+          canSpender={canSpender}
+          isBusy={isBusy}
+          auslagerInfo={(k) => auslagerMap.get(k)}
+          druckHinweise={druckHinweise}
+          teilespenderHinweise={teilespenderHinweise}
+          spenderHinweise={spenderHinweise}
+          technikerStorniert={technikerStorniert}
+          chatUngelesen={(g) => {
+            const firstId = g.anfragen[0]?.id;
+            return firstId ? ((ungelesenData ?? []).find((x) => x.anfrageId === firstId)?.count ?? 0) : 0;
+          }}
+          onUebernehmen={(g) => gruppeNehmenMutation.mutate({ anfrageIds: g.anfragen.map((a) => a.id) })}
+          onZurueckgeben={(g) => zurueckgebenMutation.mutate({ anfrageIds: g.anfragen.map((a) => a.id) })}
+          onFreigeben={(g) => {
+            const locked = g.anfragen.find((a) => a.bearbeitetVon);
+            setFreigebenDialog({
+              anfrageIds:    g.anfragen.map((a) => a.id),
+              bearbeitetVon: locked?.bearbeitetVon ?? "",
+              seit:          locked?.bearbeitetSeit ?? null,
+            });
+          }}
+          onAuslagern={(g, ids) => setAuslagerModal({
+            anfrageIds:   ids,
+            gruppenLabel: [g.geraeteName, g.techniker].filter(Boolean).join(" · ") || g.logId,
+          })}
+          onSpender={(g, teiltypen) => setSpenderPanel({
+            geraeteName: g.geraeteName ?? "",
+            teiltypen,
+            logId:       g.logId !== "unbekannt" ? g.logId : null,
+          })}
+          onChat={(g) => {
+            const firstId = g.anfragen[0]?.id;
+            if (!firstId) return;
+            const bezugInfo = [g.geraeteName, g.logId !== "unbekannt" ? g.logId : undefined].filter(Boolean).join(" · ");
+            setChatModal({ anfrageId: firstId, bezugInfo, partnerName: g.techniker });
+          }}
+          onAlleErledigen={(g) => alleErledigen(g.anfragen, g.geraeteName ?? g.logId)}
+          onGruppeLoeschen={(g) => g.gruppenNr && setDeleteCandidate({
+            type: "gruppe", gruppenNr: g.gruppenNr, anzahl: g.anfragen.length, label: g.geraeteName ?? g.logId,
+          })}
+          onTeilErledigen={(id, gruppenLabel) => handleErledigen(id, gruppenLabel)}
+          onTeilStornieren={(id) => setStatus.mutate({ id, status: AnfrageStatus.STORNIERT })}
+          onTeilNichtVerfuegbar={(id, label) => setNvCandidate({ id, label })}
+          onTeilLoeschen={(id, label) => setDeleteCandidate({ type: "single", id, label })}
+          onTeilReprint={(a) => druckeBeleg(a)}
+          onTeilZuruecksetzen={(id) => {
+            if (window.confirm(`Anfrage zurücksetzen?\n\nDie Ausgabe wird rückgängig gemacht: Die Buchung wird gelöscht und das Teil ist wieder im Bestand.\n\nDie Anfrage ist danach wieder offen — als „neu", wenn ein Teil im Regal liegt, sonst als „Bedarf".`)) {
+              resetMutation.mutate({ id });
+            }
+          }}
         />
       )}
 
@@ -1024,6 +1097,8 @@ function AnfragenPageInner() {
             anfragenTyped
               .filter((a) =>
                 !a.istSonderAnfrage &&
+                // Füße kommen aus dem 3D-Druck, nicht aus Spendergeräten (Frank, 09.10.2026).
+                !ohneSpenderSuche(a.teil, a.beschreibung) &&
                 (a.status === AnfrageStatus.NEU ||
                  a.status === AnfrageStatus.BEDARF ||
                  a.status === AnfrageStatus.IN_BEARBEITUNG),
@@ -1035,7 +1110,7 @@ function AnfragenPageInner() {
           // Nur Positionen zählen, für die wirklich ein Gerät frei ist — ein
           // „zugeteilt an eine ältere Anfrage" ist kein Treffer für diese Gruppe.
           const spenderTreffer = anfragenTyped.filter(
-            (a) => (teilespenderHinweise[a.id]?.anzahl ?? 0) > 0,
+            (a) => !ohneSpenderSuche(a.teil, a.beschreibung) && (teilespenderHinweise[a.id]?.anzahl ?? 0) > 0,
           ).length;
 
           // ── Chat-Button ─────────────────────────────────────────────────
@@ -1285,7 +1360,7 @@ function AnfragenPageInner() {
                             🖨️ Im 3D-Druck: {druckHinweise[a.id]!.text}
                           </Link>
                         )}
-                        {spenderHinweise[a.id] && (
+                        {spenderHinweise[a.id] && !ohneSpenderSuche(a.teil, a.beschreibung) && (
                           <div className="text-xs text-[#8A5A00] dark:text-[#f7b928] mt-0.5 font-semibold">
                             🖥️ {spenderHinweise[a.id]!.length} Spendergerät
                             {spenderHinweise[a.id]!.length === 1 ? "" : "e"} mit diesem Teil:{" "}
@@ -1302,13 +1377,13 @@ function AnfragenPageInner() {
                             das Gerät — die übrigen sehen es gar nicht erst. Drei
                             Zeilen, die dasselbe eine Gerät anpreisen, helfen dem
                             nicht, der sie abarbeitet. */}
-                        {teilespenderHinweise[a.id]?.zugeteiltAn != null && (
+                        {teilespenderHinweise[a.id]?.zugeteiltAn != null && !ohneSpenderSuche(a.teil, a.beschreibung) && (
                           <div className="text-xs text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
                             🔒 Kein freies Verwertungsgerät — das vorhandene ist Anfrage{" "}
                             #{teilespenderHinweise[a.id]!.zugeteiltAn} zugeteilt (ältere Anfrage).
                           </div>
                         )}
-                        {teilespenderHinweise[a.id] && teilespenderHinweise[a.id]!.anzahl > 0 && (
+                        {teilespenderHinweise[a.id] && teilespenderHinweise[a.id]!.anzahl > 0 && !ohneSpenderSuche(a.teil, a.beschreibung) && (
                           <div className="text-xs text-[#0a4275] dark:text-[#9ec5fe] mt-0.5 font-semibold">
                             🔍 {teilespenderHinweise[a.id]!.anzahl} Verwertungsgerät
                             {teilespenderHinweise[a.id]!.anzahl === 1 ? "" : "e"} mit diesem Teil:{" "}

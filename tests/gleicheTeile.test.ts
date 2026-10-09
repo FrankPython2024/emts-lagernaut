@@ -13,7 +13,7 @@ import { buendele, sichtbareBuendel, teilSchluessel, type BuendelAnfrage } from 
 import { sortiereNachHaeufigkeit, teilNorm } from "../src/lib/anfragen/haeufigkeit";
 import { teilAnzeige } from "../src/lib/constants/teiltypen";
 import { istUeberfaellig } from "../src/lib/anfragen/ueberfaellig";
-import { teilKategorie, gruppeHatKategorie } from "../src/lib/anfragen/kategorie";
+import { teilKategorie, gruppeHatKategorie, ohneSpenderSuche } from "../src/lib/anfragen/kategorie";
 
 let passed = 0;
 let failed = 0;
@@ -214,6 +214,9 @@ console.log("\n── Unterteilung nach Teil-Art (09.10.2026) ──");
   check("Sonder: Display", ["Displaykabel"].map(k), ["DISPLAY"]);
   check("Sonder: Rest", ["Schrauben vorn", "einen kompletten schraubensatz, 8-schrauben"].map(k), ["WEITERE", "WEITERE"]);
   check("Beschreibung zählt mit", teilKategorie("Verschiedenes", "Akku Dell 7490"), "AKKU");
+  check("Füße ohne Spendersuche, alles andere mit",
+    ["Füße vorne", "Füße hinten", "Fuß vorn oder c Cover", "Akku", "D Cover"].map((t) => ohneSpenderSuche(t)),
+    [true, true, true, false, false]);
   const gruppe = [{ teil: "Akku" }, { teil: "Füße vorne" }];
   check("Gruppe mit Akku + Füßen unter beiden Knöpfen", [gruppeHatKategorie(gruppe, "AKKU"), gruppeHatKategorie(gruppe, "FUESSE"), gruppeHatKategorie(gruppe, "GEHAEUSE")], [true, true, false]);
 }

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { Buendel } from "@/lib/anfragen/gleicheTeile";
+import { ohneSpenderSuche } from "@/lib/anfragen/kategorie";
 
 // ── Gleiche Teile gesammelt ───────────────────────────────────────────────────
 //
@@ -28,6 +29,8 @@ type Props = {
   zeilen:    ReadonlyMap<number, BuendelZeile>;
   /** Teilespender-Suche für alle Anfragen des Bündels; fehlt ohne Recht. */
   onSpender?: (b: { geraeteName: string; teil: string; logIds: string[] }) => void;
+  /** Neues Design: eine Zeile je Bündel, Anfragen erst auf Wunsch. */
+  kompakt?: boolean;
 };
 
 const STATUS_WORT: Record<string, string> = {
@@ -75,8 +78,9 @@ function springeZu(gruppenKey: string): void {
 
 const MERKER = "anfragen-gleiche-teile-zu";
 
-export function GleicheTeile({ buendel, zeilen, onSpender }: Props) {
+export function GleicheTeile({ buendel, zeilen, onSpender, kompakt }: Props) {
   const [zu, setZu] = useState(false);
+  const [aufgeklappt, setAufgeklappt] = useState<Set<string>>(() => new Set());
   useEffect(() => {
     try { setZu(window.localStorage.getItem(MERKER) === "1"); } catch { /* egal */ }
   }, []);
@@ -123,6 +127,50 @@ export function GleicheTeile({ buendel, zeilen, onSpender }: Props) {
             for (const z of liste) proTechniker.set(z.techniker, (proTechniker.get(z.techniker) ?? 0) + 1);
             const logIds = liste.map((z) => z.logId).filter((l) => l && l !== "unbekannt");
 
+            if (kompakt) {
+              const offen = aufgeklappt.has(b.key);
+              const seit = liste.reduce((m, z) => (new Date(z.datum) < new Date(m) ? z.datum : m), liste[0]!.datum);
+              return (
+                <div key={b.key} className="rounded-lg bg-white dark:bg-[#242526] border border-[#d9dde3] dark:border-[#3e4042]">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 min-h-[52px]">
+                    <strong className="text-base text-[#202F61] dark:text-[#e4e6eb]">{liste.length}× {b.teil} · {geraet}</strong>
+                    <span className="text-sm text-[#5f6368] dark:text-[#b0b3b8]">
+                      {[...proTechniker.entries()].map(([k, n]) => (n > 1 ? `${k} ${n}×` : k)).join(", ")} · seit {wann(seit)}
+                      {stueck !== liste.length && <> · {stueck} Stück</>}
+                    </span>
+                    <span className="ml-auto flex gap-1">
+                      {onSpender && !ohneSpenderSuche(b.teil) && (
+                        <button type="button" onClick={() => onSpender({ geraeteName: geraet, teil: b.teil, logIds })}
+                          className="min-h-[44px] px-3 rounded-lg text-sm font-bold text-[#0064d2] dark:text-[#45bdff] hover:bg-[#f0f7fc] dark:hover:bg-[#2d3a45]">
+                          Spender suchen
+                        </button>
+                      )}
+                      <button type="button" aria-expanded={offen}
+                        onClick={() => setAufgeklappt((alt) => { const n = new Set(alt); if (n.has(b.key)) n.delete(b.key); else n.add(b.key); return n; })}
+                        className="min-h-[44px] px-3 rounded-lg text-sm font-bold text-[#0064d2] dark:text-[#45bdff] hover:bg-[#f0f7fc] dark:hover:bg-[#2d3a45]">
+                        {offen ? "Anfragen ausblenden" : "Anfragen zeigen"}
+                      </button>
+                    </span>
+                  </div>
+                  {offen && (
+                    <ul className="border-t border-[#eef3f7] dark:border-[#3e4042]">
+                      {liste.map((z) => (
+                        <li key={z.id}>
+                          <button type="button" onClick={() => springeZu(z.gruppenKey)}
+                            className="w-full flex flex-wrap items-center gap-x-3 px-4 py-2 min-h-[44px] text-left text-sm hover:bg-[#f0f7fc] dark:hover:bg-[#2d3a45]">
+                            <span className="font-mono font-bold text-[#202F61] dark:text-[#e4e6eb] w-32 shrink-0">{z.logId}</span>
+                            <span className="font-bold w-12 shrink-0">{z.techniker}</span>
+                            <span className="text-[#5f6368] dark:text-[#b0b3b8]">{wann(z.datum)} · {STATUS_WORT[z.status] ?? z.status}</span>
+                            <span className="ml-auto font-bold text-[#0064d2] dark:text-[#45bdff]">zur Anfrage</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <div key={b.key} className="rounded-lg border border-[#b9d9ec] dark:border-[#2a4a63] bg-white dark:bg-[#242526]">
                 {/* Überschrift: was fehlt, wie oft, für wen */}
@@ -138,7 +186,8 @@ export function GleicheTeile({ buendel, zeilen, onSpender }: Props) {
                       {[...proTechniker.entries()].map(([k, n]) => `${k} ${n}`).join(" · ")}
                     </p>
                   </div>
-                  {onSpender && (
+                  {/* Füße kommen aus dem 3D-Druck — keine Spendersuche (Frank, 09.10.2026). */}
+                  {onSpender && !ohneSpenderSuche(b.teil) && (
                     <button
                       type="button"
                       onClick={() => onSpender({ geraeteName: geraet, teil: b.teil, logIds })}

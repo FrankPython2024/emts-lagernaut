@@ -68,6 +68,14 @@ export function teilKategorie(teil: string | null | undefined, beschreibung?: st
   return "WEITERE";
 }
 
+/**
+ * Füße kommen aus dem 3D-Druck, nicht aus Spendergeräten (Frank, 09.10.2026):
+ * Für sie gibt es weder „Spender suchen" noch Verwertungsgeräte-Hinweise.
+ */
+export function ohneSpenderSuche(teil: string | null | undefined, beschreibung?: string | null): boolean {
+  return teilKategorie(teil, beschreibung) === "FUESSE";
+}
+
 /** Gehört eine LogID-Gruppe unter diesen Knopf? Ja, sobald EIN Teil passt. */
 export function gruppeHatKategorie(
   anfragen: readonly { teil: string; beschreibung?: string | null }[],

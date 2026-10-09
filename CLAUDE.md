@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1085) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1086) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1922,6 +1922,20 @@ An allen Teilnamen der letzten 90 Tage aus der Produktion geprüft (09.10.2026).
   vor Tastatur/Boards („TP Tasten Board"). Rein clientseitig, keine Schemaänderung.
 - Chat-Schnellantwort (Admin, `ChatModal.tsx`): **„Ersatzteile werden bestellt, bitte gesondert zur
   Abholung bereitlegen"**.
+- **Füße ohne Spendersuche** (Frank, 09.10.2026: „die beschaffen wir per 3D-Druck"): `ohneSpenderSuche()` in
+  `kategorie.ts`. Kein „Spender suchen" (Gruppe und „Gleiche Teile"), keine Verwertungs-/Spendergeräte-Hinweise
+  an Fuß-Zeilen — in alter Liste UND neuem Design. Eine Gruppe mit Akku + Fuß sucht nur nach dem Akku.
+- **Neues Design „✦ Neues Design"** als dritte Ansicht neben Liste/Board (`localStorage["anfragen-ansicht"]`
+  = `karten`), zum Vergleichen — die alte Liste bleibt unverändert. `src/components/anfragen/AnfragenKarten.tsx`,
+  gleiche Daten und Handler wie die Liste. Grundlage war die Analyse vom 09.10.2026 (Screenshots Frank):
+  weiße Karten mit Statuskante + Wort statt vollflächig getönt (die Seite war fast ganz gelb); Gerät als
+  Überschrift; ein Hauptknopf je Zustand in der Fußleiste (nicht übernommen → Übernehmen, von mir + auf Lager
+  → Auslagern, von mir ohne Lager → Alle erledigt, fremd gesperrt → nur Freigeben); beschriftetes „Erledigt"
+  je Teil; Stornieren / Teil nicht verfügbar / Löschen / Beleg / Zurücksetzen im „⋯"-Menü; Kommentar als Zitat;
+  Bezugsquelle EINE Zeile („23 Verwertungsgeräte · nächstes: …"); „Bestmöglich" entfällt, nur ein echter
+  Grading-Wunsch steht da; Überfällig im Kopf als „überfällig · seit 1h 14m"; zweispaltig ab ~1300 px.
+  „Gleiche Teile" erscheint dort kompakt (`kompakt`-Prop: eine Zeile je Bündel, Anfragen auf Klick).
+  Mit Beispieldaten lokal im Browser geprüft (Karten, Menü), nicht in der echten Seite.
 - **Umschalter „Offen | Abgeschlossen"** über den Knöpfen, **dauerhaft pro Benutzer** (Frank: nicht je
   Browser) → neue Spalte `User.einstellungen Json?` (**`db push`**), Router `userPreferences.getEinstellungen`
   / `setEinstellung` mit **fester Schlüssel-Liste** (`anfragenStatus: offen|abgeschlossen`), keine freie
