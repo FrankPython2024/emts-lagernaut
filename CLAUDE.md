@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1086) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1087) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -1936,6 +1936,11 @@ An allen Teilnamen der letzten 90 Tage aus der Produktion geprüft (09.10.2026).
   Grading-Wunsch steht da; Überfällig im Kopf als „überfällig · seit 1h 14m"; zweispaltig ab ~1300 px.
   „Gleiche Teile" erscheint dort kompakt (`kompakt`-Prop: eine Zeile je Bündel, Anfragen auf Klick).
   Mit Beispieldaten lokal im Browser geprüft (Karten, Menü), nicht in der echten Seite.
+  Nachgebessert nach den ersten Live-Screenshots (09.10.2026): „gerade eben" statt „vor 0m"
+  (`verstricheneZeit`, gilt überall); **Hinweis „Noch eine Anfrage zu diesem Gerät"** mit Sprung, wenn
+  dieselbe LogID in mehreren Gruppen steht (getrennt abgeschickt — Gruppen bleiben getrennt, nur verlinkt);
+  „(Ort unsicher)" in Worten statt ⚠; „Gleiche Teile" zeigt „Fuß vorne" statt „Füße vorne" (`teilAnzeige`,
+  auch in der alten Liste).
 - **Umschalter „Offen | Abgeschlossen"** über den Knöpfen, **dauerhaft pro Benutzer** (Frank: nicht je
   Browser) → neue Spalte `User.einstellungen Json?` (**`db push`**), Router `userPreferences.getEinstellungen`
   / `setEinstellung` mit **fester Schlüssel-Liste** (`anfragenStatus: offen|abgeschlossen`), keine freie

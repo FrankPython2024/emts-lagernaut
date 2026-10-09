@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { Buendel } from "@/lib/anfragen/gleicheTeile";
 import { ohneSpenderSuche } from "@/lib/anfragen/kategorie";
+import { teilAnzeige } from "@/lib/constants/teiltypen";
 
 // ── Gleiche Teile gesammelt ───────────────────────────────────────────────────
 //
@@ -133,7 +134,7 @@ export function GleicheTeile({ buendel, zeilen, onSpender, kompakt }: Props) {
               return (
                 <div key={b.key} className="rounded-lg bg-white dark:bg-[#242526] border border-[#d9dde3] dark:border-[#3e4042]">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 min-h-[52px]">
-                    <strong className="text-base text-[#202F61] dark:text-[#e4e6eb]">{liste.length}× {b.teil} · {geraet}</strong>
+                    <strong className="text-base text-[#202F61] dark:text-[#e4e6eb]">{liste.length}× {teilAnzeige(b.teil)} · {geraet}</strong>
                     <span className="text-sm text-[#5f6368] dark:text-[#b0b3b8]">
                       {[...proTechniker.entries()].map(([k, n]) => (n > 1 ? `${k} ${n}×` : k)).join(", ")} · seit {wann(seit)}
                       {stueck !== liste.length && <> · {stueck} Stück</>}
@@ -177,7 +178,7 @@ export function GleicheTeile({ buendel, zeilen, onSpender, kompakt }: Props) {
                 <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-[#e3eef5] dark:border-[#3e4042]">
                   <div className="min-w-0">
                     <h3 className="font-black text-lg leading-tight text-[#1a1a1a] dark:text-[#e4e6eb]">
-                      {liste.length}× {b.teil} · {geraet}
+                      {liste.length}× {teilAnzeige(b.teil)} · {geraet}
                     </h3>
                     <p className="text-sm text-[#3a4a5c] dark:text-[#b0b3b8] mt-0.5">
                       für folgende Anfragen

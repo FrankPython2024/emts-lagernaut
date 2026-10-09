@@ -55,6 +55,7 @@ export function istUeberfaellig(
 export function verstricheneZeit(createdAt: Date | string, nowMs: number = Date.now()): string {
   const t = typeof createdAt === "string" ? new Date(createdAt).getTime() : createdAt.getTime();
   const min = Math.max(0, Math.floor((nowMs - t) / 60_000));
+  if (min < 1) return "gerade eben";
   if (min < 60) return `vor ${min}m`;
   const h = Math.floor(min / 60);
   const m = min % 60;

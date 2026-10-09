@@ -134,8 +134,19 @@ function Zeile({ children, cls = "" }: { children: ReactNode; cls?: string }) {
   return <div className={`text-sm ${cls}`}>{children}</div>;
 }
 
+/** Zur Karte springen und kurz umranden (wie „Gleiche Teile"). */
+function springeZuKarte(key: string): void {
+  const el = document.getElementById(`gruppe-${key}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("ring-4", "ring-[#0064d2]");
+  window.setTimeout(() => el.classList.remove("ring-4", "ring-[#0064d2]"), 2200);
+}
+
 // ── Eine Karte ─────────────────────────────────────────────────────────────────
-function Karte(p: AnfragenKartenProps & { g: KartenGruppe }) {
+// `geschwister` = andere Gruppen mit DERSELBEN LogID (getrennt abgeschickte
+// Anfragen zum selben Gerät, 09.10.2026 live gesehen: 212.992.326 zweimal).
+function Karte(p: AnfragenKartenProps & { g: KartenGruppe; geschwister: KartenGruppe[] }) {
   const { g, ersteller, now, canEdit, canDelete, isBusy } = p;
   const teile = g.anfragen as KartenAnfrage[];
   const key = gruppenSchluessel(g);
@@ -229,6 +240,18 @@ function Karte(p: AnfragenKartenProps & { g: KartenGruppe }) {
         </div>
       </header>
 
+      {p.geschwister.length > 0 && (
+        <div className="px-5 pb-2 -mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-[#5f6368] dark:text-[#b0b3b8]">
+          <span>{p.geschwister.length === 1 ? "Noch eine Anfrage" : `Noch ${p.geschwister.length} Anfragen`} zu diesem Gerät:</span>
+          {p.geschwister.map((s) => (
+            <button key={gruppenSchluessel(s)} type="button" onClick={() => springeZuKarte(gruppenSchluessel(s))}
+              className="font-bold text-[#0064d2] dark:text-[#45bdff] hover:underline">
+              {s.anfragen.map((x) => (!(x as KartenAnfrage).beschreibung && maxMengeFuer(x.teil) > 1 ? teilAnzeige(x.teil, x.menge ?? 1) : ((x as KartenAnfrage).beschreibung ?? x.teil))).join(", ")} ({s.techniker})
+            </button>
+          ))}
+        </div>
+      )}
+
       {istTest && (
         <p className="px-5 pb-2 text-xs font-semibold text-yellow-800 dark:text-yellow-300">Test-Anfrage: zählt nicht in der Statistik, Auslagern ändert keinen echten Bestand.</p>
       )}
@@ -302,7 +325,9 @@ function Karte(p: AnfragenKartenProps & { g: KartenGruppe }) {
                 {ts && ts.anzahl > 0 && (
                   <Zeile cls="text-[#5f6368] dark:text-[#b0b3b8]">
                     <strong className="text-[#202F61] dark:text-[#e4e6eb]">{ts.anzahl} {ts.anzahl === 1 ? "Verwertungsgerät" : "Verwertungsgeräte"}</strong>
-                    {ts.vorschau[0] && <> · nächstes: {ts.vorschau[0].ortUnsicher ? "⚠ " : ""}{ts.vorschau[0].stellplatz ?? "ohne Platz"}, Colli {ts.vorschau[0].colli ?? "—"}</>}
+                    {ts.vorschau[0] && <> · nächstes: {ts.vorschau[0].stellplatz ?? "ohne Platz"}, Colli {ts.vorschau[0].colli ?? "—"}
+                      {/* Zwei Ortsquellen widersprechen sich (src/lib/teilespender/ort.ts) — in Worten statt ⚠. */}
+                      {ts.vorschau[0].ortUnsicher && <span className="text-[#8A5A00] dark:text-[#f7b928]"> (Ort unsicher)</span>}</>}
                     {spenderMoeglich && (
                       <button type="button" onClick={() => p.onSpender(g, [a.teil])} className="ml-2 font-bold text-[#0064d2] dark:text-[#45bdff] hover:underline">alle zeigen</button>
                     )}
@@ -342,9 +367,19 @@ export function AnfragenKarten(p: AnfragenKartenProps) {
   if (p.gruppen.length === 0) {
     return <p className="text-center py-16 text-[#5f6368] dark:text-[#b0b3b8]">Keine Anfragen in dieser Auswahl.</p>;
   }
+  const jeLogId = new Map<string, KartenGruppe[]>();
+  for (const g of p.gruppen) {
+    if (!g.logId || g.logId === "unbekannt") continue;
+    const k = g.logId.replace(/\D/g, "");
+    jeLogId.set(k, [...(jeLogId.get(k) ?? []), g]);
+  }
   return (
     <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 620px), 1fr))" }}>
-      {p.gruppen.map((g) => <Karte key={gruppenSchluessel(g)} {...p} g={g} />)}
+      {p.gruppen.map((g) => {
+        const k = g.logId ? g.logId.replace(/\D/g, "") : "";
+        const geschwister = (k && jeLogId.get(k)?.filter((x) => x !== g)) || [];
+        return <Karte key={gruppenSchluessel(g)} {...p} g={g} geschwister={geschwister} />;
+      })}
     </div>
   );
 }

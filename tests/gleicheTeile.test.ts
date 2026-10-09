@@ -12,7 +12,7 @@
 import { buendele, sichtbareBuendel, teilSchluessel, type BuendelAnfrage } from "../src/lib/anfragen/gleicheTeile";
 import { sortiereNachHaeufigkeit, teilNorm } from "../src/lib/anfragen/haeufigkeit";
 import { teilAnzeige } from "../src/lib/constants/teiltypen";
-import { istUeberfaellig } from "../src/lib/anfragen/ueberfaellig";
+import { istUeberfaellig, verstricheneZeit } from "../src/lib/anfragen/ueberfaellig";
 import { teilKategorie, gruppeHatKategorie, ohneSpenderSuche } from "../src/lib/anfragen/kategorie";
 
 let passed = 0;
@@ -186,6 +186,8 @@ console.log("\n── Überfällig: Füße ausgenommen (09.10.2026) ──");
   check("Fuß hinten in Bearbeitung → nicht überfällig", istUeberfaellig("IN_BEARBEITUNG", vor, jetzt, "Füße hinten"), false);
   check("Akku nach 30 min → noch nicht", istUeberfaellig("NEU", vor, new Date("2026-10-09T05:30:00Z").getTime(), "Akku"), false);
   check("erledigt → nie", istUeberfaellig("ABGESCHLOSSEN", vor, jetzt, "Akku"), false);
+  check("Alter: gerade eben statt vor 0m", [verstricheneZeit(vor, vor.getTime() + 20_000), verstricheneZeit(vor, vor.getTime() + 5 * 60_000), verstricheneZeit(vor, jetzt)],
+    ["gerade eben", "vor 5m", "vor 2h"]);
 }
 
 console.log("\n── Unterteilung nach Teil-Art (09.10.2026) ──");
