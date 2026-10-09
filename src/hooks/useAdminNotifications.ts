@@ -130,7 +130,7 @@ export function useAdminNotifications(): void {
     const notified = new Set([...readNotified()].filter((id) => offeneIds.has(id)));
 
     for (const a of offene) {
-      if (istUeberfaellig(a.status, a.createdAt, now) && !notified.has(a.id)) {
+      if (istUeberfaellig(a.status, a.createdAt, now, a.teil) && !notified.has(a.id)) {
         zeigeAnfrageNotification({
           title: "Anfrage überfällig",
           body:  `${a.logId} · ${a.techniker} · ${verstricheneZeit(a.createdAt, now)}`,

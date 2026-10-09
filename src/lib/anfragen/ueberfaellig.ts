@@ -1,4 +1,5 @@
 import { AnfrageStatus } from "@prisma/client";
+import { TEILTYPEN_MIT_MENGE } from "@/lib/constants/teiltypen";
 
 /**
  * Überfälligkeits-Logik für Anfragen — zentral, damit Liste (Badge) und
@@ -6,7 +7,13 @@ import { AnfrageStatus } from "@prisma/client";
  *
  * Eine Anfrage ist überfällig, wenn:
  *   - Status ∈ { NEU, BEDARF, IN_BEARBEITUNG }, und
- *   - now - createdAt > 1 Stunde
+ *   - now - createdAt > 1 Stunde, und
+ *   - es KEINE Füße sind (Frank, 09.10.2026): Füße werden oft erst gedruckt —
+ *     eine Platte braucht bis zu 2 h 40 min (Latitude 7400). Die Warnung schlug
+ *     bei jeder Füße-Anfrage an und verdeckte die Anfragen, die wirklich liegen.
+ *
+ * ⚠️ `teil` ist Pflicht, damit keine Stelle die Regel still umgeht (Liste, Board,
+ * zwei Dashboard-Widgets, Browser-Benachrichtigung).
  *
  * Basis ist bewusst `createdAt` (nicht statusGeändertAm) — einfach & konsistent.
  */
@@ -24,12 +31,18 @@ export function istOffen(status: AnfrageStatus): boolean {
   return OFFENE_STATUS.includes(status);
 }
 
+/** Füße zählen nie als überfällig (siehe oben). Vergleich über den DB-Namen („Füße vorne"). */
+export function ohneUeberfaellig(teil: string | null | undefined): boolean {
+  return !!teil && TEILTYPEN_MIT_MENGE.includes(teil);
+}
+
 export function istUeberfaellig(
   status: AnfrageStatus,
   createdAt: Date | string,
-  nowMs: number = Date.now(),
+  nowMs: number,
+  teil: string | null | undefined,
 ): boolean {
-  if (!istOffen(status)) return false;
+  if (!istOffen(status) || ohneUeberfaellig(teil)) return false;
   const t = typeof createdAt === "string" ? new Date(createdAt).getTime() : createdAt.getTime();
   return nowMs - t > UEBERFAELLIG_MS;
 }

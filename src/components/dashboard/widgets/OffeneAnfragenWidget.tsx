@@ -147,7 +147,7 @@ function OffeneAnfragenModal({ anfragen, onClose }: { anfragen: OffeneAnfrage[];
           ) : (
             <ul className="space-y-1.5">
               {anfragen.map((a) => {
-                const ueberfaellig = istUeberfaellig(a.status, a.createdAt, now);
+                const ueberfaellig = istUeberfaellig(a.status, a.createdAt, now, a.teil);
                 const label = a.beschreibung ?? a.teil;
                 return (
                   <li key={a.id}>

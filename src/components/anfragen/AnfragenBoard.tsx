@@ -130,7 +130,7 @@ function GruppenKarte({
 
   // Überfälligkeit + Alter aus der ältesten Anfrage (bestehende Logik, kein Neu-Erfinden).
   const aeltesteMs  = Math.min(...teile.map((a) => new Date(a.createdAt).getTime()));
-  const ueberfaellig = teile.some((a) => istUeberfaellig(a.status, a.createdAt, now));
+  const ueberfaellig = teile.some((a) => istUeberfaellig(a.status, a.createdAt, now, a.teil));
   const alter        = verstricheneZeit(new Date(aeltesteMs), now);
 
   // Lock-State (wie die Liste)

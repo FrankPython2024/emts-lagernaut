@@ -12,6 +12,7 @@
 import { buendele, sichtbareBuendel, teilSchluessel, type BuendelAnfrage } from "../src/lib/anfragen/gleicheTeile";
 import { sortiereNachHaeufigkeit, teilNorm } from "../src/lib/anfragen/haeufigkeit";
 import { teilAnzeige } from "../src/lib/constants/teiltypen";
+import { istUeberfaellig } from "../src/lib/anfragen/ueberfaellig";
 
 let passed = 0;
 let failed = 0;
@@ -173,6 +174,17 @@ console.log("\n── Füße: Anzeige statt Set-Missverständnis (02.10.2026) �
   check("1 Stück", teilAnzeige("Füße vorne", 1), "1 Fuß vorne");
   check("2 Stück", teilAnzeige("Füße hinten", 2), "2 Füße hinten");
   check("andere Teile unverändert", [teilAnzeige("Akku"), teilAnzeige("Akku", 1), teilAnzeige("Akku", 2)], ["Akku", "Akku", "2× Akku"]);
+}
+
+console.log("\n── Überfällig: Füße ausgenommen (09.10.2026) ──");
+{
+  const vor = new Date("2026-10-09T05:00:00Z");
+  const jetzt = new Date("2026-10-09T07:00:00Z").getTime();   // 2 h später
+  check("Akku nach 2 h offen → überfällig", istUeberfaellig("NEU", vor, jetzt, "Akku"), true);
+  check("Fuß vorne nach 2 h offen → nicht überfällig", istUeberfaellig("BEDARF", vor, jetzt, "Füße vorne"), false);
+  check("Fuß hinten in Bearbeitung → nicht überfällig", istUeberfaellig("IN_BEARBEITUNG", vor, jetzt, "Füße hinten"), false);
+  check("Akku nach 30 min → noch nicht", istUeberfaellig("NEU", vor, new Date("2026-10-09T05:30:00Z").getTime(), "Akku"), false);
+  check("erledigt → nie", istUeberfaellig("ABGESCHLOSSEN", vor, jetzt, "Akku"), false);
 }
 
 console.log(`\n${passed} bestanden, ${failed} fehlgeschlagen\n`);

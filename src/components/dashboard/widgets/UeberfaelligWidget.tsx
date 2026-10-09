@@ -31,7 +31,7 @@ export function UeberfaelligWidget() {
 
   // Server liefert bereits createdAt-aufsteigend (älteste zuerst).
   const ueberfaellig = useMemo(
-    () => (data ?? []).filter(a => istUeberfaellig(a.status, a.createdAt, now)),
+    () => (data ?? []).filter(a => istUeberfaellig(a.status, a.createdAt, now, a.teil)),
     [data, now],
   );
   const top5 = ueberfaellig.slice(0, 5);

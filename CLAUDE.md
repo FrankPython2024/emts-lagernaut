@@ -250,7 +250,7 @@ EOF
   anfassen, und die Oberfläche nennt die fehlenden Spalten. Gilt für jeden künftigen Import.
 - **Verify-Gate sind ZWANZIG Testreihen**, nicht nur `test:mobil`: `abgleich`, `mobil`, `schild`,
   `technik`, `ocr`, `bezeichnung`, `defekte`, `teilespender`, `auswahl`, `frische`, `ort`, `bedarf`,
-  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1065) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
+  `zeit`, `route`, `scan`, `rest`, `druck`, `bruecke`, `urlaub`, `gleicheteile` (zusammen 1070) plus `tsc --noEmit`. `test:bezeichnung` war monatelang rot, weil es niemand lief.
 - ⚠️ **Absenden im Techniker-Portal schickt NUR den Korb des gewählten Geräts.** `submitAlle` nahm
   jeden aktiven Korb des Technikers — das Portal zeigt Körbe aber nirgends an, es befüllt und
   sendet in einem Zug. Ein liegengebliebener Korb (Absenden nach dem Befüllen gescheitert, oder
@@ -684,6 +684,10 @@ Richtig: über den Gerätenamen (`bezeichnung` minus Teiltyp, `startsWith`).
 (Kachel, ausgewähltes Teil, Detail-Liste) und in der Admin-Anfragenliste (bei 2 Stück gelb).
 **Den DB-Namen nicht umbenennen:** Er ist Schlüssel für Artikel-Kategorie (~2.600 Artikel), alle
 Anfragen, Kompatibilität, Kategoriepreis, Druckvorlagen, automatischen Druck und Statistik (19 Dateien).
+⚠️ **Füße werden nie „überfällig“** (Frank, 09.10.2026): `istUeberfaellig(status, createdAt, now, teil)` in
+`src/lib/anfragen/ueberfaellig.ts` nimmt Füße aus — sie werden oft erst gedruckt (7400: 2 h 40 min je
+Platte), die 1-h-Warnung schlug sonst bei jeder Füße-Anfrage an. `teil` ist Pflicht-Argument, damit Liste,
+Board, beide Dashboard-Widgets und die Browser-Benachrichtigung dieselbe Regel nutzen.
 
 **Abgaben an Niederlassungen — `Niederlassung` + `Buchung.niederlassungId` + `Artikel.preis`.**
 Festplatten/RAM sind normale `Artikel` **je Variante** („SSD 512 GB M.2 NVMe", Kategorie

@@ -1255,7 +1255,7 @@ function AnfragenPageInner() {
                           </span>
                         )}
                       </div>
-                      {istUeberfaellig(a.status, a.createdAt, now) && (
+                      {istUeberfaellig(a.status, a.createdAt, now, a.teil) && (
                         <UeberfaelligBadge title={verstricheneZeit(a.createdAt, now)} />
                       )}
                       {a.testModus && (
