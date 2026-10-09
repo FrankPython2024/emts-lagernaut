@@ -4,29 +4,34 @@
 // Datei vorhanden → Druck automatisch starten." Entscheidungen Frank (01.10.2026):
 //   • ganz automatisch (kein Bestätigungs-Tipp) — die menschliche Sicherung bleibt
 //     der Knopf „Platte ist leer"; ohne ihn startet nichts,
-//   • Start JEDERZEIT — die Sperre Mo–Fr 6–16 Uhr und an freien Tagen wurde am
-//     09.10.2026 auf Wunsch Frank aufgehoben (Füße-Nachfrage im Oktober mehr als
-//     doppelt so hoch wie im September; ein 7400-Druck dauert 2 h 40 min). Die
-//     menschliche Sicherung bleibt allein „Platte ist leer",
+//   • Start nur Mo–Fr 6–16 Uhr (deutsche Zeit), nicht an Feiertagen/Betriebsruhe,
 //   • passt die Spule nicht zum Material der Vorlage: warten mit Hinweis.
 // Gemessen am selben Tag: von 23 Füße-Anfragen „nicht verfügbar" in 90 Tagen hatten
 // 12 inzwischen eine Vorlage mit Druckdatei (vor allem ProBook x360 435 G8).
 //
 // Reine Logik — Test: `npm run test:druck`. Datenbank: src/modules/druck/autoDruck.ts.
 
+import { berlinStunde, berlinTag, berlinWochentag } from "@/lib/zeit/berlin";
+import { feiertag } from "@/lib/urlaub/tage";
 import { materialPasst } from "./warteschlange";
 
+export const AUTO_VON_STUNDE = 6;
+export const AUTO_BIS_STUNDE = 16;   // Start bis 15:59
 /** So lange deckt ein gestarteter, noch nicht eingebuchter Druck neue Anfragen mit ab. */
 export const AUTO_DECKT_MS = 24 * 3600_000;
 
-/**
- * Warum darf ein automatischer Auftrag JETZT nicht starten? null = er darf.
- * Keine Zeitsperre mehr (09.10.2026) — `jetzt` bleibt im Aufruf, damit eine
- * künftige Regel ohne Umbau der Aufrufer wieder hineinpasst.
- */
+/** Warum darf ein automatischer Auftrag JETZT nicht starten? null = er darf. */
 export function autoStartGrund(l: {
   jetzt: Date; vorlageMaterial: string | null | undefined; spule: string | null | undefined;
 }): string | null {
+  const tag = berlinTag(l.jetzt);
+  const wt = berlinWochentag(l.jetzt);
+  const h = berlinStunde(l.jetzt);
+  const frei = feiertag(tag);
+  if (frei) return `automatischer Druck startet nicht an freien Tagen (${frei})`;
+  if (wt === 0 || wt === 6 || h < AUTO_VON_STUNDE || h >= AUTO_BIS_STUNDE) {
+    return `automatischer Druck nur Mo–Fr ${AUTO_VON_STUNDE}–${AUTO_BIS_STUNDE} Uhr`;
+  }
   if (materialPasst(l.vorlageMaterial, l.spule) === false) {
     return `Spule passt nicht: ${String(l.vorlageMaterial).trim()} nötig, eingelegt ist ${String(l.spule).trim()}`;
   }
